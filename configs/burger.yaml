@@ -1,0 +1,45 @@
+data:
+  name: 'burger'
+  # datapath: '/large_storage/zhangxf/PDEdata/burgers/burger_10000-128-128_1.mat'
+  datapath: '/large_storage/zhangxf/PDEdata/test1125/burger_test_1000-128-128.mat'
+  remark: 'test_sensor20'
+  # remark: 'test_points'
+  offset: 0
+  img_channels: 1
+  img_resolution: 128
+  obs_size: 500
+  sensor_size: 20
+  coef: output
+  solution: output
+  loadby: 'scipy'
+
+model:
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4burgers.pth'
+
+generate:
+  seed: 0
+  device: 'cuda'
+  batch_size: 1
+  zeta_obs_a: 0
+  zeta_obs_u: 3200
+  zeta_pde: 10
+  num_steps: 500
+  step_size: 0.002
+  method: 'euler'
+  guide: True
+  process: True
+  scheduler: "CondOT"
+  training: "velocity"
+  full: False
+  sensor: True
+  samplemode: "stochastic"
+  stochastic_t: 1
+  obsguide_t: 0.8
+  obsguide_decay: 0.1
+  # obsguide_decay: 0.8
+
+output:
+  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
+  save: True
+  plot: True
+  return: False

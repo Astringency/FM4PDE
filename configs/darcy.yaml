@@ -1,0 +1,45 @@
+data:
+  name: 'darcy'
+  # datapath: '/large_storage/zhangxf/PDEdata/darcy/darcy_1000-128-128_test.mat'
+  datapath: '/large_storage/zhangxf/PDEdata/test1125/darcy_test_1000-128-128.mat'
+  # remark: 'train'
+  remark: 'test'
+  offset: 0
+  img_channels: 2
+  img_resolution: 128
+  obs_size: 500
+  coef: thresh_a_data
+  solution: thresh_p_data
+  loadby: 'h5py'
+
+model:
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4darcy.pth'
+
+generate:
+  seed: 0
+  device: 'cuda:1'
+  batch_size: 1
+  zeta_obs_a: 10000
+  zeta_obs_u: 200000
+  zeta_pde: 1
+  num_steps: 500
+  step_size: 0.002
+  method: 'euler'
+  guide: True
+  process: True
+  scheduler: "CondOT"
+  training: "velocity"
+  full: False
+  samplemode: "stochastic"
+  # samplemode: "deterministic"
+  stochastic_t: 1
+  obsguide_t: 0.8
+  obsguide_decay: 0.1
+
+output:
+  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
+  plot: True
+  save: True
+  return: False
+  
+

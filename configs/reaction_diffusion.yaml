@@ -1,0 +1,40 @@
+data:
+  name: 'reaction_diffusion'
+  datapath: '/large_storage/zhangxf/PDEdata/test1125/reaction_diffusion_test_1000-128-128-10.h5'
+  offset: 0
+  img_channels: 4
+  img_resolution: 128
+  obs_size: 500
+  coef: a
+  solution: u
+  loadby: 'rd'
+
+model:
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4reaction_diffusion.pth'
+
+generate:
+  seed: 0
+  device: 'cuda'
+  batch_size: 1
+  zeta_obs_a: 4000
+  zeta_obs_u: 4000
+  zeta_pde: 10
+  num_steps: 500
+  step_size: 0.002
+  method: 'euler'
+  guide: True
+  process: True
+  scheduler: "CondOT"
+  training: "velocity"
+  full: False
+  samplemode: "stochastic"
+  stochastic_t: 1
+  obsguide_t: 0.8
+  obsguide_decay: 0.1
+
+output:
+  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
+  save: True
+  return: False
+  
+

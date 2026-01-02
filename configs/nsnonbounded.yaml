@@ -1,0 +1,43 @@
+data:
+  name: 'nsnonbounded'
+  # datapath: '/large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat'
+  datapath: '/large_storage/zhangxf/PDEdata/test1125/nsnonbounded_1000-128-128-10_1.mat'
+  offset: 0
+  remark: 'test'
+  img_channels: 2
+  img_resolution: 128
+  obs_size: 500
+  coef: w0
+  solution: w
+  loadby: 'h5py'
+
+model:
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4nsnonbounded.pth'
+
+generate:
+  seed: 0
+  device: 'cuda:1'
+  batch_size: 1
+  zeta_obs_a: 2000
+  zeta_obs_u: 2000
+  zeta_pde: 10
+  num_steps: 500
+  step_size: 0.002
+  method: 'euler'
+  guide: True
+  process: True
+  scheduler: "CondOT"
+  training: "velocity"
+  full: False
+  samplemode: "stochastic"
+  stochastic_t: 1
+  obsguide_t: 0.8
+  obsguide_decay: 0.1
+
+output:
+  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
+  save: True
+  plot: True
+  return: False
+  
+

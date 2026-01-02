@@ -1,0 +1,17 @@
+data:
+  name: 'Poisson'
+  datapath: '/home/zhangxf/C01Python/002Program/FM4PDE/data/poisson/poisson_10000-128-128_5.mat'
+  offset: 0
+
+test:
+  pre-trained: '/home/zhangxf/C01Python/002Program/FM4PDE/output_dir/models/fm4poisson.pth'
+
+generate:
+  seed: 0
+  device: 'cuda'
+  batch_size: 1
+  zeta_obs_a: 400
+  zeta_obs_u: 0
+  zeta_pde: 1
+  step_size: 0.05
+  guide: False

@@ -1,0 +1,41 @@
+data:
+  name: 'shallow_water'
+  # datapath: '/large_storage/zhangxf/PDEdata/shallow_water/2d_swe_128_128_10_0.h5'
+  datapath: '/large_storage/zhangxf/PDEdata/test1125/swe_test_1000-128-128-10.h5'
+  offset: 0
+  img_channels: 6
+  img_resolution: 128
+  obs_size: 500
+  coef: init
+  solution: final
+  loadby: 'swe'
+
+model:
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4shallow_water.pth'
+
+generate:
+  seed: 0
+  device: 'cuda'
+  batch_size: 1
+  zeta_obs_a: 20000
+  zeta_obs_u: 20000
+  zeta_pde: 10
+  num_steps: 500
+  step_size: 0.002
+  method: 'euler'
+  guide: True
+  process: True
+  scheduler: "CondOT"
+  training: "velocity"
+  full: False
+  samplemode: "stochastic"
+  stochastic_t: 1
+  obsguide_t: 0.8
+  obsguide_decay: 0.1
+
+output:
+  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
+  save: True
+  return: False
+  
+
