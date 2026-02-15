@@ -1,6 +1,7 @@
 data:
   name: 'reaction_diffusion'
   datapath: '/large_storage/zhangxf/PDEdata/test1125/reaction_diffusion_test_1000-128-128-10.h5'
+  remark: 'test'
   offset: 0
   img_channels: 4
   img_resolution: 128
@@ -19,8 +20,8 @@ generate:
   zeta_obs_a: 4000
   zeta_obs_u: 4000
   zeta_pde: 10
-  num_steps: 500
-  step_size: 0.002
+  num_steps: 1000
+  step_size: 0.001
   method: 'euler'
   guide: True
   process: True
@@ -34,6 +35,7 @@ generate:
 
 output:
   savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
+  plot: True
   save: True
   return: False
   

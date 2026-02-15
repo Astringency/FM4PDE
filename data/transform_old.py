@@ -50,19 +50,45 @@ class PDEtransform:
         phi_transform = phi / 36.5
         return f_transform, phi_transform
     
-    def _helmholtz_transform(self, f, phi):
-        f_transform = f / 2.15
-        phi_transform = phi / 0.028
-        # f_transform = (f + 2.0640 ) / (2.1616 + 2.0640)
-        # phi_transform = (phi + 0.3319) / (0.3469 + 0.3319)
-        return f_transform, phi_transform
+    # def _helmholtz_transform(self, f, psi):
+    #     f_min = -2.1313
+    #     psi_min = -0.0269
+    #     f_max = 2.1616
+    #     psi_max = 0.0277
+    #
+    #     f_transform = (f - f_min) / (f_max - f_min)
+    #     psi_transform = (psi - psi_min) / (psi_max - psi_min)
+    #     return f_transform, psi_transform
     
+    # def _helmholtz_inverse_transform(self, f, phi):
+    #     f_min = -2.1313
+    #     psi_min = -0.0269
+    #     f_max = 2.1616
+    #     psi_max = 0.0277
+    #
+    #     f_transform = f * (f_max - f_min) + f_min
+    #     psi_transform = phi * (psi_max - psi_min) + psi_min
+    #     return f_transform, psi_transform
+
+    def _helmholtz_transform(self, f, psi):
+        f_min = -2.0640
+        psi_min = -0.3319
+        f_max = 2.1616
+        psi_max = 0.3469
+
+        f_transform = (f - f_min) / (f_max - f_min)
+        psi_transform = (psi - psi_min) / (psi_max - psi_min)
+        return f_transform, psi_transform
+
     def _helmholtz_inverse_transform(self, f, phi):
-        f_transform = f * 2.15
-        phi_transform = phi * 0.028
-        # f_transform = f * (2.1616 + 2.0640) - 2.0640
-        # phi_transform = phi * (0.3469 + 0.3319) - 0.3319
-        return f_transform, phi_transform
+        f_min = -2.0640
+        psi_min = -0.3319
+        f_max = 2.1616
+        psi_max = 0.3469
+
+        f_transform = f * (f_max - f_min) + f_min
+        psi_transform = phi * (psi_max - psi_min) + psi_min
+        return f_transform, psi_transform
 
     def _nsbounded_transform(self, f, phi):
         f_transform = f / 10

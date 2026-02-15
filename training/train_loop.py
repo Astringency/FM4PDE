@@ -3,6 +3,7 @@
 #
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
+
 import sys
 import argparse
 import gc
@@ -24,18 +25,6 @@ logger = logging.getLogger(__name__)
 MASK_TOKEN = 256
 PRINT_FREQUENCY = 50
 
-def random_index(k, grid_size, seed=0, device=torch.device('cuda')):
-    '''randomly select k indices from a [grid_size, grid_size] grid.'''
-    # np.random.seed(seed)
-    indices = np.random.choice(grid_size**2, k, replace=False)
-    indices_2d = np.unravel_index(indices, (grid_size, grid_size))
-    indices_list = list(zip(indices_2d[0], indices_2d[1]))
-    mask = torch.zeros((grid_size, grid_size), dtype=torch.float32).to(device)
-    for i in indices_list:
-        mask[i] = 1
-    return mask
-
-
 def skewed_timestep_sample(num_samples: int, device: torch.device) -> torch.Tensor:
     P_mean = -1.2
     P_std = 1.2
@@ -50,7 +39,7 @@ def train_one_epoch(
     model: torch.nn.Module,
     data_loader: Iterable,
     optimizer: torch.optim.Optimizer,
-    lr_schedule: torch.torch.optim.lr_scheduler.LRScheduler,
+    lr_schedule: torch.optim.lr_scheduler.LRScheduler,
     device: torch.device,
     epoch: int,
     loss_scaler: NativeScalerWithGradNormCount,
@@ -62,13 +51,10 @@ def train_one_epoch(
     epoch_loss = MeanMetric().to(device, non_blocking=True)
 
     accum_iter = args.accum_iter
-    if args.discrete_flow_matching:
-        scheduler = PolynomialConvexScheduler(n=3.0)
-        path = MixtureDiscreteProbPath(scheduler=scheduler)
-    else:
-        path = CondOTProbPath()
+    path = CondOTProbPath()
 
     for data_iter_step, (samples, labels) in enumerate(data_loader):
+        # Load batch data
         if data_iter_step % accum_iter == 0:
             optimizer.zero_grad()
             batch_loss.reset()
@@ -78,42 +64,33 @@ def train_one_epoch(
         samples = samples.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
 
+        # CFG if used
         if torch.rand(1) < args.class_drop_prob:
             conditioning = {}
         else:
             conditioning = {"label": labels}
 
-        if args.discrete_flow_matching:
-            samples = (samples * 255.0).to(torch.long)
-            t = torch.torch.rand(samples.shape[0]).to(device)
+        # Scaling to [-1, 1] from [0, 1]
+        samples = samples * 2.0 - 1.0
 
-            # sample probability path
-            x_0 = (
-                torch.zeros(samples.shape, dtype=torch.long, device=device) + MASK_TOKEN
-            )
-            path_sample = path.sample(t=t, x_0=x_0, x_1=samples)
-
-            # discrete flow matching loss
-            logits = model(path_sample.x_t, t=t, extra=conditioning)
-            loss = torch.nn.functional.cross_entropy(
-                logits.reshape([-1, 257]), samples.reshape([-1])
-            ).mean()
+        # Sample from noise distribution
+        noise = torch.randn_like(samples).to(device)
+        
+        # Get time
+        if args.skewed_timesteps:
+            t = skewed_timestep_sample(samples.shape[0], device=device)
         else:
-            # Scaling to [-1, 1] from [0, 1]
-            samples = samples * 2.0 - 1.0
+            t = torch.rand(samples.shape[0]).to(device)
 
-            noise = torch.randn_like(samples).to(device)
-            
-            if args.skewed_timesteps:
-                t = skewed_timestep_sample(samples.shape[0], device=device)
-            else:
-                t = torch.torch.rand(samples.shape[0]).to(device)
-            path_sample = path.sample(t=t, x_0=noise, x_1=samples)
-            x_t = path_sample.x_t
-            u_t = path_sample.dx_t
+        # Path design
+        path_sample = path.sample(t=t, x_0=noise, x_1=samples)
+        x_t = path_sample.x_t
+        u_t = path_sample.dx_t
 
-            with torch.amp.autocast('cuda'):
-                loss = torch.pow(model(x_t, t, extra=conditioning) - u_t, 2).mean()
+        # Evaluate loss
+        # with torch.amp.autocast('cuda'): for newer version of python
+        with torch.autocast(device_type='cuda'):
+            loss = torch.pow(model(x_t, t, extra=conditioning) - u_t, 2).mean()
 
         loss_value = loss.item()
         batch_loss.update(loss)

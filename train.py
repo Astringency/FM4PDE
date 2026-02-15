@@ -101,7 +101,6 @@ def main(args):
     logger.info("Initializing Model")
     model = instantiate_model(
         architechture=args.dataset,
-        is_discrete=args.discrete_flow_matching,
         use_ema=args.use_ema,
     )
 
@@ -128,6 +127,7 @@ def main(args):
     optimizer = torch.optim.AdamW(
         model_without_ddp.parameters(), lr=args.lr, betas=args.optimizer_betas
     )
+
     if args.decay_lr:
         lr_schedule = torch.optim.lr_scheduler.LinearLR(
             optimizer,
@@ -155,24 +155,10 @@ def main(args):
 
     logger.info(f"Start from {args.start_epoch} to {args.epochs} epochs")
     start_time = time.time()
+
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
-        if not args.eval_only:
-            train_stats = train_one_epoch(
-                model=model,
-                data_loader=data_loader_train,
-                optimizer=optimizer,
-                lr_schedule=lr_schedule,
-                device=device,
-                epoch=epoch,
-                loss_scaler=loss_scaler,
-                args=args,
-            )
-            log_stats = {
-                **{f"train_{k}": v for k, v in train_stats.items()},
-                "epoch": epoch,
-            }
         else:
             log_stats = {
                 "epoch": epoch,
@@ -180,19 +166,18 @@ def main(args):
 
         if args.output_dir and (
             (args.eval_frequency > 0 and (epoch + 1) % args.eval_frequency == 0)
-            or args.eval_only
             or args.test_run
         ):
-            if not args.eval_only:
-                save_model(
-                    args=args,
-                    model=model,
-                    model_without_ddp=model_without_ddp,
-                    optimizer=optimizer,
-                    lr_schedule=lr_schedule,
-                    loss_scaler=loss_scaler,
-                    epoch=epoch,
-                )
+            save_model(
+                args=args,
+                model=model,
+                model_without_ddp=model_without_ddp,
+                optimizer=optimizer,
+                lr_schedule=lr_schedule,
+                loss_scaler=loss_scaler,
+                epoch=epoch,
+            )
+
             if args.distributed:
                 data_loader_train.sampler.set_epoch(0)
 

@@ -105,51 +105,37 @@ class PDEloader:
         label = torch.zeros(len(data), dtype=torch.float32) + 4
         return data, label
 
-    def _reaction_diffusion_load(self, data_path):
+    def _reaction_diffusion_load(self, data_path, size = 5):
         dataset = {}
-        file_path = f"{data_path}/reaction_diffusion/2D_diff-react_NA_NA.h5"
-        with h5py.File(file_path, "r") as f:
-            for k in tqdm(list(f.keys())):
-                u0 = np.expand_dims(f[k]['data'][0, :, :, 0], axis = 0) # type: ignore
-                v0 = np.expand_dims(f[k]['data'][0, :, :, 1], axis = 0) # type: ignore
-                u = np.expand_dims(f[k]['data'][-1, :, :, 0], axis = 0) # type: ignore
-                v = np.expand_dims(f[k]['data'][-1, :, :, 1], axis = 0) # type: ignore
-                dataset[k] = np.stack([u0, v0, u, v], axis = 1)
+        for i in range(size):
+            file_path = f"{data_path}{self.pde}/reaction_diffusion-128-128-100_{i}.h5"
+            with h5py.File(file_path, "r") as f:
+                for k in tqdm(list(f.keys())):
+                    u0 = np.expand_dims(f[k]['data'][50, :, :, 0], axis = 0) # type: ignore
+                    v0 = np.expand_dims(f[k]['data'][50, :, :, 1], axis = 0) # type: ignore
+                    u = np.expand_dims(f[k]['data'][-1, :, :, 0], axis = 0) # type: ignore
+                    v = np.expand_dims(f[k]['data'][-1, :, :, 1], axis = 0) # type: ignore
+                    dataset[k] = np.stack([u0, v0, u, v], axis = 1)
         
         data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
         label = torch.zeros(len(data), dtype=torch.float32) + 5
         return data, label
 
-    def _shallow_water_load(self, data_path, size = 5):
+    def _shallow_water_load(self, data_path):
         dataset = {} 
-        for i in range(size):
-            file_path = f"{data_path}/shallow_water/2d_swe_128_128_10_{i}.h5"
+        for i in range(5):
+            file_path = f"{data_path}{self.pde}/2d_swe_128_128_10_{i}.h5"
 
             with h5py.File(file_path, "r") as f:
                 for k in list(f.keys()):
-                    u0 = np.expand_dims(f[k]['data']['h'][0, :, :, 0], axis = 0) # type: ignore
-                    u = np.expand_dims(f[k]['data']['h'][-1, :, :, 0], axis = 0) # type: ignore
-                    dataset[k] = np.stack([u0, u], axis = 1)
-        
+                    h0 = np.expand_dims(f[k]['data']['h'][0, :, :, 0], axis = 0) # type: ignore
+                    h = np.expand_dims(f[k]['data']['h'][-1, :, :, 0], axis = 0) # type: ignore
+                    hu0 = np.expand_dims(f[k]['data']['hu'][0, :, :, 0], axis = 0) # type: ignore
+                    hu = np.expand_dims(f[k]['data']['hu'][-1, :, :, 0], axis = 0) # type: ignore
+                    hv0 = np.expand_dims(f[k]['data']['hv'][0, :, :, 0], axis = 0) # type: ignore
+                    hv = np.expand_dims(f[k]['data']['hv'][-1, :, :, 0], axis = 0) # type: ignore
+                    dataset[k] = np.stack([h0, hu0, hv0, h, hu, hv], axis = 1)
+
         data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
         label = torch.zeros(len(data), dtype=torch.float32) + 6
         return data, label
-
-    # def _shallow_water_load(self, data_path):
-    #     dataset = {} 
-    #     for i in range(5):
-    #         file_path = f"{data_path}{self.pde}/2d_swe_128_128_10_{i}.h5"
-    #
-    #         with h5py.File(file_path, "r") as f:
-    #             for k in list(f.keys()):
-    #                 h0 = np.expand_dims(f[k]['data']['h'][0, :, :, 0], axis = 0) # type: ignore
-    #                 h = np.expand_dims(f[k]['data']['h'][-1, :, :, 0], axis = 0) # type: ignore
-    #                 hu0 = np.expand_dims(f[k]['data']['hu'][0, :, :, 0], axis = 0) # type: ignore
-    #                 hu = np.expand_dims(f[k]['data']['hu'][-1, :, :, 0], axis = 0) # type: ignore
-    #                 hv0 = np.expand_dims(f[k]['data']['hv'][0, :, :, 0], axis = 0) # type: ignore
-    #                 hv = np.expand_dims(f[k]['data']['hv'][-1, :, :, 0], axis = 0) # type: ignore
-    #                 dataset[k] = np.stack([h0, hu0, hv0, h, hu, hv], axis = 1)
-    #
-    #     data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-    #     label = torch.zeros(len(data), dtype=torch.float32) + 6
-    #     return data, label

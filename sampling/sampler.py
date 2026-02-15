@@ -81,3 +81,4 @@ class pdeSampler:
 
         return x_1, x_N
 
+

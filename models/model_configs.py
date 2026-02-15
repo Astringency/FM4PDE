@@ -108,25 +108,6 @@ MODEL_CONFIGS = {
         "use_new_attention_order": False,
         "with_fourier_features": False,
     },
-    "poisson-helmholtz": {
-        "in_channels": 2,
-        "model_channels": 128,
-        "out_channels": 2,
-        "num_res_blocks": 4,
-        "attention_resolutions": (32,),
-        "dropout": 0.1,
-        "channel_mult": (1, 2, 2),
-        "conv_resample": True,
-        "dims": 2,
-        "use_checkpoint": False,
-        "num_heads": 1,
-        "num_head_channels": -1,
-        "num_heads_upsample": -1,
-        "use_scale_shift_norm": False,
-        "resblock_updown": False,
-        "use_new_attention_order": False,
-        "with_fourier_features": False,
-    },
     "reaction_diffusion": {
         "in_channels": 4,
         "model_channels": 256,
@@ -173,23 +154,13 @@ MODEL_CONFIGS = {
 
 
 def instantiate_model(
-    architechture: str, is_discrete: bool, use_ema: bool
+    architechture: str, use_ema: bool
 ) -> Union[UNetModel, DiscreteUNetModel]:
     assert (
         architechture in MODEL_CONFIGS
     ), f"Model architecture {architechture} is missing its config."
 
-    if is_discrete:
-        if architechture + "_discrete" in MODEL_CONFIGS:
-            config = MODEL_CONFIGS[architechture + "_discrete"]
-        else:
-            config = MODEL_CONFIGS[architechture]
-        model = DiscreteUNetModel(
-            vocab_size=257,
-            **config,
-        )
-    else:
-        model = UNetModel(**MODEL_CONFIGS[architechture])
+    model = UNetModel(**MODEL_CONFIGS[architechture])
 
     if use_ema:
         return EMA(model=model)

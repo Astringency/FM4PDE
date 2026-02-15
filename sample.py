@@ -37,6 +37,7 @@ from plot.plot import *
 
 parser = argparse.ArgumentParser(description="FM4PDE sample parameters.")
 
+# Basic Configs
 parser.add_argument("--pdetype", type=str, default="poisson", help="Which PDE to slove.")
 parser.add_argument("--problem", type=str, default="both", help="Forward or inverse problem to solve. If both, then reconstruct the pair of global truth from the sparsity observation.")
 parser.add_argument("--mode", type=str, default="sparse", help="Full or sparse observations guide mainly for forward and inverse problems.")
@@ -52,7 +53,9 @@ parser.add_argument("--remark", type=str, default="", help="Sample setup remark.
 parser.add_argument("--guide", type=str, default=None, help="Whether generate with guidence.")
 parser.add_argument("--num_steps", type=int, default=0, help="Sample steps.")
 parser.add_argument("--batch", type=int, default=1, help="Sample item.")
+parser.add_argument("--k", type=int, default=1, help="k in helmholtz Equations.")
 parser.add_argument("--sampler", type=str, default=None, help="Stochastic or Deterministic sampler.")
+parser.add_argument("--num_obs", type=int, default=0, help="Number of observation points.")
 
 
 def get_config(config_path: str) -> dict:
@@ -124,6 +127,11 @@ def getscheduler(t, scheduler = "CondOT", n = 2, beta_min = 1.0, beta_max = 2.0)
     return alpha_t, sigma_t, d_alpha_t, d_sigma_t
 
 def getaffine(alpha_t, sigma_t, d_alpha_t, d_sigma_t, training = "velocity"):
+    if alpha_t == 0:
+        alpha_t += 1e-3
+    else:
+        alpha_t = alpha_t
+
     if training == "velocity":
         a_t = d_alpha_t / alpha_t
         b_t = -(d_sigma_t * sigma_t * alpha_t - d_alpha_t * (sigma_t**2)) / alpha_t
@@ -139,15 +147,23 @@ def getaffine(alpha_t, sigma_t, d_alpha_t, d_sigma_t, training = "velocity"):
         
     return a_t, b_t
 
-def progress_metrics(iters, coef_loss, sol_loss, pde_loss):
+def progress_metrics(iters, coef_loss, sol_loss, obs_coef_loss, obs_sol_loss, pde_loss):
     table = Table.grid()
     table.add_row(f"[cyan]Epoch:[/] {iters}")
     table.add_row(f"[green]Loss(coef):[/] {coef_loss}")
     table.add_row(f"[green]Loss(sol):[/] {sol_loss}")
+    table.add_row(f"[green]ObsLoss(coef):[/] {obs_coef_loss}")
+    table.add_row(f"[green]ObsLoss(sol):[/] {obs_sol_loss}")
     table.add_row(f"[green]Loss(pde):[/] {pde_loss}")
 
     return Panel(table, title="Sampling Eval Metrics", border_style="blue")
 
+def geo_grid(N, eta):
+    t0 = 1 / ((1+eta) ** (N-1))
+    grid = [0, t0]
+    for _ in range(N-1):
+        grid.append(grid[-1] * (1 + eta))
+    return torch.tensor(grid)
 
 def main(args, batch):
     # >>>> Misc <<<< #
@@ -170,6 +186,11 @@ def main(args, batch):
     else:
         config['generate']['guide'] = config['generate']['guide']
 
+    if args.num_obs != 0:
+        config['data']['obs_size'] = args.num_obs
+    else:
+        config['data']['obs_size'] = config['data']['obs_size']
+
     ## problem
     if args.mode == "sparse":
         mode = False
@@ -178,6 +199,9 @@ def main(args, batch):
     else:
         print(f">>> Unknown {args.mode} <<<")
         sys.exit()
+
+    if mode:
+        config['data']['obs_size'] = 128 * 128
 
     if args.problem == 'forward':
         config['generate']['zeta_obs_u'] = 0
@@ -195,6 +219,12 @@ def main(args, batch):
         config['generate']['zeta_obs_a'] = config['generate']['zeta_obs_a']
         config['generate']['zeta_obs_u'] = config['generate']['zeta_obs_u']
 
+    if config['generate']['guide'] == False:
+        config['generate']['zeta_obs_a'] = 0
+        config['generate']['zeta_obs_u'] = 0
+        config['generate']['zeta_pde'] = 0
+
+
     ## sampler
     if args.sampler:
         config['generate']['samplemode'] = args.sampler
@@ -211,17 +241,12 @@ def main(args, batch):
         if_guide = "wG"
     else:
         if_guide = "woG"
+    
+    config['data']['offset'] = config['data']['offset'] + batch
 
     setup_file_name = f"_{config['data']['offset']}_obs({config['data']['obs_size']})_zeta({config['generate']['zeta_obs_a']},{config['generate']['zeta_obs_u']},{config['generate']['zeta_pde']})_step({config['generate']['num_steps']},{config['generate']['step_size']})_{config['generate']['method']}_{if_guide}_{config['generate']['samplemode']}_t({config['generate']['stochastic_t']},{config['generate']['obsguide_t']})_decay({config['generate']['obsguide_decay']})_{config['data']['remark']}"
 
-    # print(setup_file_name)
-    # sys.exit()
-
-    # Get functions for bounded Navier-Stoker equations
-    random_index_and_cylinder = generate_pde.random_index_and_cylinder
-    cylinder_index = generate_pde.cylinder_index
-
-    # Get functions for all pdes
+    # Get functions
     random_index = generate_pde.random_index
     random_sensor = generate_pde.random_sensor
 
@@ -238,7 +263,7 @@ def main(args, batch):
     img_resolution = config['data']['img_resolution']
     img_channels = config['data']['img_channels']
     datapath = config['data']['datapath']
-    offset = config['data']['offset'] + batch
+    offset = config['data']['offset']
     device = config['generate']['device']
     batch_size = config['generate']['batch_size']
     seed = config['generate']['seed']
@@ -276,15 +301,12 @@ def main(args, batch):
         print("Error to load the dataset.")
         sys.exit()
 
-    # print(data[coef_name].shape, data[sol_name].shape)
-    # sys.exit()
-
     if pde_type == "darcy":
         a_GT = data[coef_name][:, :, offset]
         a_GT = torch.tensor(a_GT, dtype=torch.float64, device=device)
         u_GT = data[sol_name][:, :, offset]
         u_GT = torch.tensor(u_GT, dtype=torch.float64, device=device)
-    elif pde_type in ['nsbounded', 'nsnonbounded']:
+    elif pde_type in ['nsnonbounded']:
         a_GT = data[coef_name][offset, :, :]
         a_GT = torch.tensor(a_GT, dtype=torch.float64, device=device)
         u_GT = data[sol_name][offset, :, :, -1]
@@ -310,26 +332,14 @@ def main(args, batch):
     else:
         data_GT = torch.concatenate((a_GT, u_GT), dim=0)
 
-    # print(a_GT.shape, u_GT.shape, data_GT.shape)
-    # sys.exit()
-
     # Get inverse transform functions
-    if pde_type in ['shallow_water', 'reaction_diffusion', 'helmholtz']:
-    # if pde_type in ['shallow_water', 'reaction_diffusion']:
+    if pde_type in ['shallow_water', 'reaction_diffusion']:
         PDEtransformer = PDEtransform(data = data_GT, mode = "sample")
         pde_inverse_transform = PDEtransformer.inverse_transform_sample
     else:
         PDEtransformer = oldPDEtransform(pde_type)
         pde_inverse_transform = PDEtransformer.inverse_transform
 
-    if args.pdetype == "nsbounded":
-        c_x = config['data']['c_x']
-        c_y = config['data']['c_y']
-        center = (c_x, c_y) # center of the 2D cylinder
-        radius = config['data']['radius'] # radius of the 2D cylinder
-    else:
-        c_x = c_y = center = radius = None
-    
     torch.manual_seed(seed)
     
     net = load_fm4pde(config['model']['pre-trained'], pde_type, device)
@@ -355,7 +365,10 @@ def main(args, batch):
         step_size = step_size
 
     method = config['generate']['method']
-    T = torch.linspace(0, 1, num_steps).to(device=device)
+    if config['generate']['samplemode'] == "deterministic":
+        T = geo_grid(num_steps, 0.4).to(device=device)
+    else:
+        T = torch.linspace(0, 1, num_steps).to(device=device)
     stochastic_t = config['generate']['stochastic_t']
     deterministic_t = 1 - stochastic_t
     obsguide_t = config['generate']['obsguide_t']
@@ -373,45 +386,28 @@ def main(args, batch):
     sol = []
     
     # Sample the sparse observations
-    if args.pdetype == "nsbounded":
-        img_resolution_x = img_resolution
-        img_resolution_y = img_resolution
-        if args.problem == 'both':
-            known_index_a, a_count = random_index_and_cylinder(center, radius, 0.01, img_resolution, seed=1, device=device)
-            known_index_u, u_count = random_index_and_cylinder(center, radius, 0.01, img_resolution, seed=0, device=device)
-        elif args.problem == 'forward':
-            known_index_a, a_count = random_index_and_cylinder(center, radius, 0.01, img_resolution, seed=1, device=device)
-            known_index_u, u_count = cylinder_index(center, radius, img_resolution, device=device)
-        elif args.problem == 'inverse':
-            known_index_a, a_count = cylinder_index(center, radius, img_resolution, device=device)
-            known_index_u, u_count = random_index_and_cylinder(center, radius, 0.01, img_resolution, seed=0, device=device)
-        else:
-            known_index_a = known_index_u = None
-            a_count = u_count = 1
-            print("Unknown Problem.")
-            sys.exit()
-    else:
-        a_count = u_count = None
-        if img_channels == 1:
-            if config['generate']['sensor']:
-                img_resolution_x = config['data']['sensor_size']
-                img_resolution_y = img_resolution
-                known_index_a = random_sensor(config['data']['sensor_size'], img_resolution, seed=1, device=device)
-                known_index_u = random_sensor(config['data']['sensor_size'], img_resolution, seed=0, device=device)
-            else:
-                img_resolution_x = img_resolution
-                img_resolution_y = img_resolution
-                known_index_a = random_index(obs_size, img_resolution, seed=1, device=device)
-                known_index_u = random_index(obs_size, img_resolution, seed=0, device=device)
+    if img_channels == 1:
+        # For Burgers
+        if config['generate']['sensor']:
+            img_resolution_x = config['data']['sensor_size']
+            img_resolution_y = img_resolution
+            known_index_a = random_sensor(config['data']['sensor_size'], img_resolution, seed=1, device=device)
+            known_index_u = random_sensor(config['data']['sensor_size'], img_resolution, seed=0, device=device)
         else:
             img_resolution_x = img_resolution
             img_resolution_y = img_resolution
-            if config['generate']['full']:
-                known_index_a = torch.ones((img_resolution, img_resolution), dtype=torch.float32, device=device)
-                known_index_u = torch.ones((img_resolution, img_resolution), dtype=torch.float32, device=device)
-            else:
-                known_index_a = random_index(obs_size, img_resolution, seed=1, device=device)
-                known_index_u = random_index(obs_size, img_resolution, seed=0, device=device)
+            known_index_a = random_index(obs_size, img_resolution, seed=1, device=device)
+            known_index_u = random_index(obs_size, img_resolution, seed=0, device=device)
+    else:
+        # For others
+        img_resolution_x = img_resolution
+        img_resolution_y = img_resolution
+        if config['generate']['full']:
+            known_index_a = torch.ones((img_resolution, img_resolution), dtype=torch.float32, device=device)
+            known_index_u = torch.ones((img_resolution, img_resolution), dtype=torch.float32, device=device)
+        else:
+            known_index_a = random_index(obs_size, img_resolution, seed=1, device=device)
+            known_index_u = random_index(obs_size, img_resolution, seed=0, device=device)
 
     if a_GT.dim() == 3:
         known_index_a = known_index_a.unsqueeze(0)
@@ -427,10 +423,6 @@ def main(args, batch):
         data_obs = torch.stack((a_obs, u_obs), dim=0)
     else:
         data_obs = torch.concatenate((a_obs, u_obs), dim=0)
-
-    # print(known_index_a, known_index_u)
-    # print(a_obs.shape, u_obs.shape, data_obs.shape)
-    # sys.exit()
 
     # Setup progress bar
     progress = Progress(
@@ -470,7 +462,7 @@ def main(args, batch):
                     zeta_obs_u = zeta_obs_u * config['generate']['obsguide_decay']
 
             # Get Flow Matching scheduler
-            alpha_t, sigma_t, d_alpha_t, d_sigma_t = getscheduler(T[i], scheduler=config['generate']['scheduler'])
+            alpha_t, sigma_t, d_alpha_t, d_sigma_t = getscheduler(T[i-1], scheduler=config['generate']['scheduler'])
             a_t, b_t = getaffine(alpha_t, sigma_t, d_alpha_t, d_sigma_t, training=config['generate']['training'])
             
             # Sample w/o guidence
@@ -484,6 +476,7 @@ def main(args, batch):
             if config['generate']['samplemode'] == 'deterministic':
                 if i <= deterministic_t * num_steps:
                     t = torch.tensor([T[i-1], T[i]])
+                    step_size = T[i] - T[i-1]
                     x_1, x_N = deter_sampler(x_cur, t, step_size, method, device)
                     x_tilde = (x_1 + 1.0) / 2.0
                     x_next = (x_N + 1.0) / 2.0
@@ -508,7 +501,7 @@ def main(args, batch):
                     x_tilde = (x_1 + 1.0) / 2.0
                     x_next = (x_N + 1.0) / 2.0
             else:
-                print(f">>> Unknown sampler {config['generate']['samplemode']} <<<")
+                print(f">>> Unknown sampler of {config['generate']['samplemode']} <<<")
                 sys.exit()
 
             # data transform
@@ -521,22 +514,22 @@ def main(args, batch):
             else:
                 print(">>> Unknown channels <<<")
                 sys.exit()
-            
+
             a_N, u_N = pde_inverse_transform(a_N, u_N)
             a_N = a_N.to(torch.float64)
             u_N = u_N.to(torch.float64)
-
-            # print(x_tilde.shape, a_N.shape, u_N.shape)
-            # sys.exit()
+            a_N_cur = a_N
+            u_N_cur = u_N
 
             # Compute the observation loss
-            pde_loss, observation_loss_a, observation_loss_u = get_pde_loss(a_N, u_N, a_GT, u_GT, known_index_a, known_index_u, device=device)
+            if pde_type in ['helmholtz']:
+                pde_loss, observation_loss_a, observation_loss_u = get_pde_loss(a_N_cur, u_N_cur, a_GT, u_GT, known_index_a, known_index_u, perturb_rate=args.perturb_rate, device=device, k=args.k)
+            else:
+                pde_loss, observation_loss_a, observation_loss_u = get_pde_loss(a_N_cur, u_N_cur, a_GT, u_GT, known_index_a, known_index_u, perturb_rate=args.perturb_rate, device=device)
 
-            # print("funs loss", pde_loss.item(), observation_loss_a.mean().item(), observation_loss_u.mean().item())
-
-            if pde_type == "nsbounded":
-                L_obs_a = torch.norm(observation_loss_a, 2)/a_count # type: ignore
-                L_obs_u = torch.norm(observation_loss_u, 2)/u_count # type: ignore
+            if args.perturb:
+                L_obs_a = torch.norm(observation_loss_a, 1)/obs_size
+                L_obs_u = torch.norm(observation_loss_u, 1)/obs_size
             else:
                 L_obs_a = torch.norm(observation_loss_a, 2)/obs_size
                 L_obs_u = torch.norm(observation_loss_u, 2)/obs_size
@@ -545,8 +538,6 @@ def main(args, batch):
                 L_pde = torch.tensor(0)
             else:
                 L_pde = torch.norm(pde_loss, 2)/(img_resolution_x*img_resolution_y)
-
-            # print("norm loss", L_pde.item(), L_obs_a.mean().item(), L_obs_u.mean().item())
 
             # Sample with guidence
             if config['generate']['guide']:
@@ -560,19 +551,31 @@ def main(args, batch):
                     grad_x_cur_pde = torch.autograd.grad(outputs=L_pde, inputs=x_cur)[0]
 
                 # Different guide rule for deterministic and stochastic
+                # Deterministic: set G_c = 1e10
+                # Stochastic: set c_zeta = 0.1
                 if config['generate']['samplemode'] == "deterministic":
                     if i <= deterministic_t * num_steps:
-                        x_next = x_next - b_t * (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde) * (T[i] - T[i-1])
+                        g = zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde
+                        norm = torch.norm(g)
+                        scale = torch.minimum(torch.tensor(1.0, device=g.device), 1e10 / (norm + 1e-3))
+                        x_next = x_next - b_t * scale * g * (T[i] - T[i-1])
+                        # x_next = x_next - b_t * (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde) * (T[i] - T[i-1])
                     else:
-                        x_next = x_next - (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u) - zeta_pde * grad_x_cur_pde
+                        x_next = x_next - 0.1 * (1-T[i]) * (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde)
+                        # x_next = x_next - (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde)
                 elif config['generate']['samplemode'] == "stochastic":
                     if i <= stochastic_t * num_steps:
-                        x_next = x_next - (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u) - zeta_pde * grad_x_cur_pde
+                        x_next = x_next - 0.1 * (1-T[i]) * (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde)
+                        # x_next = x_next - (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde)
                     else:
-                        x_next = x_next - b_t * (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde) * (T[i] - T[i-1])
+                        g = zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde
+                        norm = torch.norm(g)
+                        scale = torch.minimum(torch.tensor(1.0, device=g.device), 1e10 / (norm + 1e-3))
+                        x_next = x_next - b_t * scale * g * (T[i] - T[i-1])
+                        # x_next = x_next - b_t * (zeta_obs_a * grad_x_cur_obs_a + zeta_obs_u * grad_x_cur_obs_u + zeta_pde * grad_x_cur_pde) * (T[i] - T[i-1])
                 else:
-                    print("Without Guidance")
-
+                    print(f">>> Unknown sampler of {config['generate']['samplemode']} <<<")
+                    sys.exit()
             else:
                 x_next = x_next
             
@@ -583,37 +586,50 @@ def main(args, batch):
                 sol = sol
 
             # Evaluate sparse observation loss, pde loss and global generate loss
-            if img_channels == 1:
-                a_eval = x_next[:,0,:,:].unsqueeze(0)
-                u_eval = x_next[:,0,:,:].unsqueeze(0)
-            elif img_channels % 2 == 0:
-                a_eval = x_next[:,:int(img_channels / 2),:,:]
-                u_eval = x_next[:,int(img_channels / 2):,:,:]
-            else:
-                print(">>> Unknown channels <<<")
-                sys.exit()
+            with torch.no_grad():
+                if img_channels == 1:
+                    a_eval = x_next[:,0,:,:].unsqueeze(0)
+                    u_eval = x_next[:,0,:,:].unsqueeze(0)
+                elif img_channels % 2 == 0:
+                    a_eval = x_next[:,:int(img_channels / 2),:,:]
+                    u_eval = x_next[:,int(img_channels / 2):,:,:]
+                else:
+                    print(">>> Unknown channels <<<")
+                    sys.exit()
 
-            a_eval, u_eval = pde_inverse_transform(a_eval, u_eval)
-            a_eval = a_eval.to(torch.float64)
-            u_eval = u_eval.to(torch.float64)
+                a_eval, u_eval = pde_inverse_transform(a_eval, u_eval)
+                a_eval = a_eval.to(torch.float64)
+                u_eval = u_eval.to(torch.float64)
 
-            re_a_eval = torch.norm(a_eval.squeeze() - a_GT.squeeze(), 2) / torch.norm(a_GT.squeeze(), 2)
-            re_u_eval = torch.norm(u_eval.squeeze() - u_GT.squeeze(), 2) / torch.norm(u_GT.squeeze(), 2)
-            
-            loss['pde'].append(L_pde.item())
-            loss['obs_a'].append(L_obs_a.item())
-            loss['obs_u'].append(L_obs_u.item())
-            loss['global_a'].append(re_a_eval.item())
-            loss['global_u'].append(re_u_eval.item())
+                re_a_eval = torch.norm(a_eval.squeeze() - a_GT.squeeze(), 2) / torch.norm(a_GT.squeeze(), 2)
+                re_u_eval = torch.norm(u_eval.squeeze() - u_GT.squeeze(), 2) / torch.norm(u_GT.squeeze(), 2)
+                re_obs_a_eval = torch.norm((a_eval.squeeze() - a_GT.squeeze()) * known_index_a, 2) / torch.norm(a_GT.squeeze() * known_index_a, 2)
+                re_obs_u_eval = torch.norm((u_eval.squeeze() - u_GT.squeeze()) * known_index_u, 2) / torch.norm(u_GT.squeeze() * known_index_u, 2)
+
+                pde_loss_eval, _, _ = get_pde_loss(a_eval, u_eval, a_GT, u_GT, known_index_a, known_index_u, perturb_rate=args.perturb_rate, device=device)
+                L_pde_eval = torch.norm(pde_loss_eval, 2)/(img_resolution_x * img_resolution_y)
+                
+                loss['pde'].append(L_pde_eval.item())
+                loss['obs_a'].append(re_obs_a_eval.item())
+                loss['obs_u'].append(re_obs_u_eval.item())
+                loss['global_a'].append(re_a_eval.item())
+                loss['global_u'].append(re_u_eval.item())
         
-            x_next = x_next * 2.0 - 1.0
+                x_next = x_next * 2.0 - 1.0
 
             # Push forward the progress bar
             progress.update(main_task, advance=1)
             live.update(
                     Group(
                         progress.get_renderable(),
-                        progress_metrics(i, re_a_eval.item(), re_u_eval.item(), L_pde.item())
+                        progress_metrics(
+                            i,
+                            re_a_eval.item(),
+                            re_u_eval.item(),
+                            re_obs_a_eval.item(),
+                            re_obs_u_eval.item(),
+                            L_pde_eval.item()
+                            )
                         )
                     )
 
@@ -657,13 +673,13 @@ def main(args, batch):
 
     cur_time = datetime.now().strftime("%Y%m%d")
 
-    # Plot learning curve
+    # Plot results
     if config['output']['plot'] and config['output']['save']:
-        # savedir = f'{config['output']['savepath']}{args.problem}/figs/{cur_time}-FM4{pde_type}-obs{obs_size}-step({num_steps},{step_size})-zeta({config['generate']['zeta_obs_a']},{config['generate']['zeta_obs_u']},{config['generate']['zeta_pde']})-{method}-{config['generate']['samplemode']}-thre_t({stochastic_t},{obsguide_t})/{args.mode}'
         savedir = f'{config['output']['savepath']}{args.problem}/figs/{cur_time}-FM4{pde_type}/{args.mode}'
 
         os.makedirs(savedir, exist_ok=True)
 
+        # Plot learning curve
         plt.figure(figsize=(8, 5))
 
         for key, values in loss.items():
@@ -690,7 +706,7 @@ def main(args, batch):
         plt.savefig(f'{savedir}/{config['data']['name']}{setup_file_name}{args.remark}_viz.eps')
         plt.close()
     else:
-        print("User declare not plot.")
+        print("User declare no plot.")
 
     # Save and return the results
     if config['output']['save']:

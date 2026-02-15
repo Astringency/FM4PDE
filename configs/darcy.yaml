@@ -19,11 +19,11 @@ generate:
   seed: 0
   device: 'cuda:1'
   batch_size: 1
-  zeta_obs_a: 10000
-  zeta_obs_u: 200000
-  zeta_pde: 1
-  num_steps: 500
-  step_size: 0.002
+  zeta_obs_a: 2000
+  zeta_obs_u: 20000
+  zeta_pde: 10
+  num_steps: 1000
+  step_size: 0.001
   method: 'euler'
   guide: True
   process: True
@@ -33,8 +33,8 @@ generate:
   samplemode: "stochastic"
   # samplemode: "deterministic"
   stochastic_t: 1
-  obsguide_t: 0.8
-  obsguide_decay: 0.1
+  obsguide_t: 1
+  obsguide_decay: 1
 
 output:
   savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'

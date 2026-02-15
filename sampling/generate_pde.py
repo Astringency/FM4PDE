@@ -54,18 +54,16 @@ class getPDEloss:
             "darcy": self.darcy,
             "poisson": self.poisson,
             "helmholtz": self.helmholtz,
-            "nsbounded": self.nsbounded,
             "nsnonbounded": self.nsnonbounded,
             "burger": self.burger,
             "shallow_water": self.shallow_water,
-            # "shallow_water": self.shallow_water_sparse,
             "reaction_diffusion":self.reaction_diffusion
         }
         if pde not in self.pdes:
             raise ValueError(f"Unknown PDE: {pde}")
         self.func = self.pdes[pde]
 
-    def darcy(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def darcy(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         """Return the loss of the Darcy Flow equation and the observation loss."""
         deriv_x = torch.tensor([[-1, 0, 1]], dtype=torch.float64, device=device).view(1, 1, 1, 3) / 2
         deriv_y = torch.tensor([[-1], [0], [1]], dtype=torch.float64, device=device).view(1, 1, 3, 1) / 2
@@ -84,7 +82,7 @@ class getPDEloss:
         
         return pde_loss, observation_loss_a, observation_loss_u
 
-    def poisson(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def poisson(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         """
         Return the loss of the Poisson equation and the observation loss.
         """
@@ -110,11 +108,10 @@ class getPDEloss:
         
         return pde_loss.to(device), observation_loss_a.to(device), observation_loss_u.to(device)
 
-    def helmholtz(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def helmholtz(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda'), k=1):
         """
         Return the loss of the Helmholtz equation and the observation loss.
         """
-        k = 1
         S = u.size(2)
         h = 1 / (S - 1)
         a = a.view(1, 1, S, S)
@@ -133,32 +130,7 @@ class getPDEloss:
         
         return pde_loss.to(device), observation_loss_a.to(device), observation_loss_u.to(device)
     
-    def nsbounded(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
-        """
-        Return the loss of the bounded NS equation and the observation loss.
-        """
-        deriv_x = torch.tensor([[1, 0, -1]], dtype=torch.float64, device=device).view(1, 1, 1, 3) / 2
-        deriv_y = torch.tensor([[1], [0], [-1]], dtype=torch.float64, device=device).view(1, 1, 3, 1) / 2
-        
-        grad_x_next_x = torch.nn.functional.conv2d(u, deriv_x, padding=(0, 1))
-        grad_x_next_y = torch.nn.functional.conv2d(u, deriv_y, padding=(1, 0))
-        pde_loss = grad_x_next_x + grad_x_next_y
-        pde_loss = pde_loss.squeeze()
-        pde_loss[0, :] = 0
-        pde_loss[-1, :] = 0
-        pde_loss[:, 0] = 0
-        pde_loss[:, -1] = 0
-        
-        a_GT = a_GT.view(1, 1, 128, 128)
-        u_GT = u_GT.view(1, 1, 128, 128)
-        observation_loss_a = (a - a_GT).squeeze()
-        observation_loss_a = observation_loss_a * a_mask
-        observation_loss_u = (u - u_GT).squeeze()
-        observation_loss_u = observation_loss_u * u_mask
-        
-        return pde_loss, observation_loss_a, observation_loss_u
-
-    def nsnonbounded(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def nsnonbounded(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         """Return the loss of the non-bounded NS equation and the observation loss."""
         deriv_x = torch.tensor([[1, 0, -1]], dtype=torch.float64, device=device).view(1, 1, 1, 3) / 2
         deriv_y = torch.tensor([[1], [0], [-1]], dtype=torch.float64, device=device).view(1, 1, 3, 1) / 2
@@ -180,7 +152,7 @@ class getPDEloss:
         
         return pde_loss, observation_loss_a, observation_loss_u
     
-    def burger(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def burger(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         """Return the loss of the Burgers' equation and the observation loss."""
         u = u.view(1, 1, 128, 128)
         u_GT = u_GT.view(1, 1, 128, 128)
@@ -200,7 +172,7 @@ class getPDEloss:
 
         return pde_loss, observation_loss, observation_loss
 
-    def reaction_diffusion(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def reaction_diffusion(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         """Return the loss of the Reaction Diffusion equation and the observation loss."""
         a_GT = a_GT.view(1, 2, 128, 128)
         u_GT = u_GT.view(1, 2, 128, 128)
@@ -262,7 +234,7 @@ class getPDEloss:
         
         return pde_loss, observation_loss_a, observation_loss_u
         
-    def shallow_water(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def shallow_water(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         """Return the loss of the Shallow Water equation and the observation loss."""
         # Reshape GT to (1, 3, 128, 128)
         a_GT = a_GT.reshape(1, 3, 128, 128)
@@ -346,7 +318,7 @@ class getPDEloss:
 
         return pde_loss, observation_loss_a, observation_loss_u
 
-    def shallow_water_sparse(self, a, u, a_GT, u_GT, a_mask, u_mask, device=torch.device('cuda')):
+    def shallow_water_sparse(self, a, u, a_GT, u_GT, a_mask, u_mask, perturb_rate=None, device=torch.device('cuda')):
         # Reshape GT to (1, 3, 128, 128)
         a_GT = a_GT.reshape(1, 3, 128, 128)
         u_GT = u_GT.reshape(1, 3, 128, 128)

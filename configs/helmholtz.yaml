@@ -1,16 +1,10 @@
 data:
   name: 'helmholtz'
-  # datapath: '/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_1000-128-128_test.mat'
-  # datapath: '/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_10000-128-128_k2.mat'
   datapath: '/large_storage/zhangxf/PDEdata/test1125/helmholtz_test_1000-128-128-k1.mat'
-  # datapath: '/large_storage/zhangxf/PDEdata/test1125/helmholtz_test_1000-128-128-k2.mat'
-  # datapath: '/large_storage/zhangxf/PDEdata/test1125/helmholtz_test_1000-128-128-k5.mat'
-  # datapath: '/large_storage/zhangxf/PDEdata/test1125/helmholtz_test_1000-128-128-k10.mat'
-  # remark: 'k1_test_multi'
+  # datapath: '/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_1000-128-128_test.mat'
   remark: 'k1_test'
-  # remark: 'k1_train_multi'
   # remark: 'k1_train'
-  offset: 1
+  offset: 0
   img_channels: 2
   img_resolution: 128
   obs_size: 500
@@ -20,17 +14,16 @@ data:
 
 model:
   pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4helmholtz.pth'
-  # pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4helmholtz_multi.pth'
 
 generate:
   seed: 0
   device: 'cuda:1'
   batch_size: 1
-  zeta_obs_a: 4000
-  zeta_obs_u: 50000
-  zeta_pde: 10
-  num_steps: 500
-  step_size: 0.002
+  zeta_obs_a: 30000
+  zeta_obs_u: 30000
+  zeta_pde: 1
+  num_steps: 1000
+  step_size: 0.001
   method: 'euler'
   guide: True
   process: True

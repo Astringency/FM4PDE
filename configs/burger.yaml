@@ -33,10 +33,10 @@ generate:
   full: False
   sensor: True
   samplemode: "stochastic"
+  # samplemode: "deterministic"
   stochastic_t: 1
-  obsguide_t: 0.8
-  obsguide_decay: 0.1
-  # obsguide_decay: 0.8
+  obsguide_t: 1
+  obsguide_decay: 1
 
 output:
   savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
