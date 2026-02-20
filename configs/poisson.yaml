@@ -21,6 +21,7 @@ generate:
   batch_size: 1
   zeta_obs_a: 60000
   zeta_obs_u: 5000000
+  # zeta_obs_u: 500000000 inverse full
   zeta_pde: 1
   num_steps: 1000
   step_size: 0.001

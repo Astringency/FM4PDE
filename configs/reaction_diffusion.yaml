@@ -17,8 +17,8 @@ generate:
   seed: 0
   device: 'cuda'
   batch_size: 1
-  zeta_obs_a: 4000
-  zeta_obs_u: 4000
+  zeta_obs_a: 40000000
+  zeta_obs_u: 40000000
   zeta_pde: 10
   num_steps: 1000
   step_size: 0.001
