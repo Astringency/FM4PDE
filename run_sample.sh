@@ -52,25 +52,32 @@ for obs in "${obs_vals[@]}"; do
     done
 done
 
-# === MISC TASK === #
+# === TEST TIME & STEP SIZE === #
+for pde in "${pde_vals[@]}"; do
+    for problem in "${problem_vals[@]}"; do
+        for steps in "${steps_vals[@]}"; do
+            if [ "$problem" == "both" ]; then
+                echo ">>> Flow Matching for ${pde} on ${problem} problem from sparse observations. <<<"
+                python -u sample.py --pdetype="$pde" --problem="$problem" --config="./configs/${pde}.yaml" --num_steps=$steps
+            else
+                for mode in "${mode_vals[@]}"; do
+                    echo ">>> Flow Matching for ${pde} on ${problem} problem from ${mode} observations. <<<"
+                    python -u sample.py --pdetype="$pde" --problem="$problem" --mode="$mode" --config="./configs/${pde}.yaml" --num_steps=$steps
+                done
+            fi
+        done
+    done
+done
+
+
+# === MISC TASK (Example) === #
 
 # python -u sample.py --pdetype "burger" --mode "sparse" --config "./configs/burger.yaml"
 # python -u sample.py --pdetype "darcy" --mode "sparse" --config "./configs/darcy.yaml"
 # python -u sample.py --pdetype "poisson" --mode "sparse" --config "./configs/poisson.yaml"
 # python -u sample.py --pdetype "reaction_diffusion" --problem "both" --mode "sparse" --config "./configs/reaction_diffusion.yaml" --sampler "stochastic"
 # python -u sample.py --pdetype "shallow_water" --problem "both" --mode "sparse" --config "./configs/shallow_water.yaml" --sampler "stochastic"
-#
-# python -u sample.py --pdetype "darcy" --problem "forward" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 100
-# python -u sample.py --pdetype "darcy" --problem "forward" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 500
-# python -u sample.py --pdetype "darcy" --problem "forward" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 1000
-# python -u sample.py --pdetype "darcy" --problem "forward" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 2000
-# python -u sample.py --pdetype "darcy" --problem "forward" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 5000
-#
-# python -u sample.py --pdetype "darcy" --problem "inverse" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 100
-# python -u sample.py --pdetype "darcy" --problem "inverse" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 500
-# python -u sample.py --pdetype "darcy" --problem "inverse" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 1000
-# python -u sample.py --pdetype "darcy" --problem "inverse" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 2000
-# python -u sample.py --pdetype "darcy" --problem "inverse" --mode "sparse" --config "./configs/darcy.yaml" --sampler "stochastic" --num_obs 5000
+
 
 wait
 
