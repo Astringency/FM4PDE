@@ -52,9 +52,4 @@ After training, use `sample.py` to load the model and generate solutions. You ca
 
 Configurations in `sample.py` and the `configs/` directory must be tailored to the specific task. Users should pay particular attention to updating the paths for data input, model checkpoints, and result output to match their actual environment.
 
-## 📝 Citation
-
-If you use this code in your research, please cite the relevant paper (Add BibTeX here).
-
-```
 
