@@ -13,7 +13,10 @@ class PDEtransform:
                 "nsnonbounded": self._nsnonbounded_transform,
                 "burger": self._burger_transform,
                 "shallow_water": self._shallow_water_transform,
-                "reaction_diffusion": self._reaction_diffusion_transform
+                "reaction_diffusion": self._reaction_diffusion_transform,
+                "heat": self._identity_transform,
+                "wave": self._identity_transform,
+                "advection_diffusion": self._identity_transform,
                 }
 
         self.inverse_transform_func = {
@@ -24,7 +27,10 @@ class PDEtransform:
                 "nsnonbounded": self._nsnonbounded_inverse_transform,
                 "burger": self._burger_inverse_transform,
                 "shallow_water": self._shallow_water_inverse_transform,
-                "reaction_diffusion": self._reaction_diffusion_inverse_transform
+                "reaction_diffusion": self._reaction_diffusion_inverse_transform,
+                "heat": self._identity_transform,
+                "wave": self._identity_transform,
+                "advection_diffusion": self._identity_transform,
                 }
 
         self.transform = self.transform_func[self.pde]
@@ -131,3 +137,6 @@ class PDEtransform:
 
     def _reaction_diffusion_inverse_transform(self, uv0, uv):
         return uv0, uv
+
+    def _identity_transform(self, a, u):
+        return a, u

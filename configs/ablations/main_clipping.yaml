@@ -1,0 +1,10 @@
+base_config: configs/ablations/smoke.yaml
+groups:
+  clipping:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      clip_mode: [none, global_norm, global_norm, global_norm, global_norm, global_norm, per_component_norm]
+      clip_threshold: [1.0, 1.0, 10.0, 100.0, 10000.0, 10000000000.0, 10.0]

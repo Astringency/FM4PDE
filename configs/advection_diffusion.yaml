@@ -1,0 +1,41 @@
+data:
+  name: 'advection_diffusion'
+  datapath: '/large_storage/zhangxf/PDEdata/future_pdes/advection_diffusion/advection_diffusion_test_1000-128-128.h5'
+  remark: 'test'
+  offset: 0
+  img_channels: 8
+  img_resolution: 128
+  obs_size: 500
+  coef: input_data
+  solution: output_data
+  loadby: 'future_h5'
+
+model:
+  pre-trained: 'output/pretrained/fm4advection_diffusion.pth'
+
+generate:
+  seed: 0
+  device: 'cuda'
+  batch_size: 1
+  zeta_obs_a: 1
+  zeta_obs_u: 1
+  zeta_pde: 0
+  num_steps: 1000
+  step_size: 0.001
+  method: 'euler'
+  guide: False
+  process: True
+  scheduler: "CondOT"
+  training: "velocity"
+  full: False
+  samplemode: "stochastic"
+  stochastic_t: 1
+  obsguide_t: 1
+  obsguide_decay: 1
+
+output:
+  savepath: 'outputs/samples/FM4PDE/'
+  plot: True
+  save: True
+  return: False
+

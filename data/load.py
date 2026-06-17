@@ -2,6 +2,7 @@ import h5py
 import scipy.io
 from tqdm import tqdm
 import numpy as np
+from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
@@ -34,7 +35,10 @@ class PDEloader:
                 "nsnonbounded": self._nsnonbounded_load,
                 "burger": self._burger_load,
                 "reaction_diffusion": self._reaction_diffusion_load,
-                "shallow_water": self._shallow_water_load
+                "shallow_water": self._shallow_water_load,
+                "heat": self._heat_load,
+                "wave": self._wave_load,
+                "advection_diffusion": self._advection_diffusion_load,
                 }
 
         self.load_data = self.load_func[self.pde]
@@ -139,3 +143,69 @@ class PDEloader:
         data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
         label = torch.zeros(len(data), dtype=torch.float32) + 6
         return data, label
+
+    def _heat_load(self, data_path, size=5, split="train"):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=7)
+
+    def _wave_load(self, data_path, size=5, split="train"):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=8)
+
+    def _advection_diffusion_load(self, data_path, size=5, split="train"):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=9)
+
+    def _future_h5_load(self, data_path, size=5, split="train", label_value=0):
+        file_paths = self._future_h5_paths(data_path, size=size, split=split)
+        dataset = []
+        for file_path in tqdm(file_paths):
+            with h5py.File(file_path, "r") as file:
+                if "data" in file:
+                    arr = file["data"][:]
+                elif "input_data" in file and "output_data" in file:
+                    arr = np.concatenate([file["input_data"][:], file["output_data"][:]], axis=1)
+                else:
+                    raise KeyError(f"{file_path} must contain data or input_data/output_data")
+            arr = np.asarray(arr, dtype=np.float32)
+            if arr.ndim != 4:
+                raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
+            if arr.shape[2] != arr.shape[3]:
+                raise ValueError(f"{file_path} data must have square spatial grid, got {arr.shape[2:]}")
+            if arr.shape[1] % 2 != 0:
+                raise ValueError(f"{file_path} must have an even channel count for FM4PDE pair splitting")
+            dataset.append(arr)
+
+        data = torch.tensor(np.concatenate(dataset, axis=0)).to(torch.float32)
+        label = torch.zeros(len(data), dtype=torch.float32) + label_value
+        return data, label
+
+    def _future_h5_paths(self, data_path, size=5, split="train"):
+        path = Path(data_path)
+        if path.is_file():
+            return [path]
+
+        pde_dir = path / self.pde
+        if not pde_dir.exists():
+            pde_dir = path
+        if not pde_dir.exists():
+            raise FileNotFoundError(f"Future PDE data directory does not exist: {pde_dir}")
+
+        if split == "test":
+            file_paths = sorted(pde_dir.glob(f"{self.pde}_test_*-*-*.h5"))
+        elif split == "train":
+            file_paths = sorted(
+                (p for p in pde_dir.glob(f"{self.pde}_*-*-*_[0-9]*.h5") if "_test_" not in p.name),
+                key=self._future_h5_sort_key,
+            )
+        else:
+            raise ValueError(f"Unsupported split={split!r}; expected 'train' or 'test'")
+
+        if size is not None and split == "train":
+            file_paths = file_paths[:size]
+        if not file_paths:
+            raise FileNotFoundError(f"No {split} HDF5 files found for {self.pde} under {pde_dir}")
+        return file_paths
+
+    @staticmethod
+    def _future_h5_sort_key(path):
+        stem = path.stem
+        shard = stem.rsplit("_", 1)[-1]
+        return int(shard) if shard.isdigit() else stem

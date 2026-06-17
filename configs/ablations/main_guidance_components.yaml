@@ -1,0 +1,12 @@
+base_config: configs/ablations/smoke.yaml
+groups:
+  guidance_components:
+    fixed:
+      task: both
+      sampler_phase: stochastic
+      loss_state: endpoint
+      num_obs: 500
+      noise_level: 0.0
+      num_steps: 100
+    matrix:
+      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only, both_obs]

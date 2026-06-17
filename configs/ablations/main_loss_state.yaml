@@ -1,0 +1,10 @@
+base_config: configs/ablations/smoke.yaml
+groups:
+  loss_state:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      sampler_phase: stochastic
+      num_obs: 500
+    matrix:
+      loss_state: [xt, x_next, endpoint, denoised_endpoint]

@@ -1,0 +1,9 @@
+base_config: configs/ablations/smoke.yaml
+groups:
+  pde_residual_region:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      pde_residual_region: [full, observed, boundary_excluded, union_obs]

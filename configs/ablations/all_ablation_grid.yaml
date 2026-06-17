@@ -1,0 +1,90 @@
+base_config: configs/ablations/smoke.yaml
+groups:
+  group1_guidance_components:
+    fixed:
+      task: both
+      sampler_phase: stochastic
+      loss_state: endpoint
+      num_obs: 500
+      noise_level: 0.0
+      num_steps: 100
+    matrix:
+      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only, both_obs]
+  group2_loss_state:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      sampler_phase: stochastic
+      num_obs: 500
+    matrix:
+      loss_state: [xt, x_next, endpoint, denoised_endpoint]
+  group3_sampler_phase:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_d2s, hybrid_d2s, hybrid_s2d]
+      switch_ratio: [0.5, 0.5, 0.2, 0.5, 0.8, 0.2]
+  group4_guidance_schedule:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      guidance_schedule: [constant, delta, bt, cosine, polynomial, obs_decay]
+  group5_clipping:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      clip_mode: [none, global_norm, global_norm, global_norm, global_norm, global_norm, per_component_norm]
+      clip_threshold: [1.0, 1.0, 10.0, 100.0, 10000.0, 10000000000.0, 10.0]
+  group5b_pde_residual_region:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      pde_residual_region: [full, observed, boundary_excluded, union_obs]
+  group6_sensor_sparsity:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      num_obs: [50, 100, 250, 500, 1000]
+  group6b_sensor_mode:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      num_obs: 500
+    matrix:
+      sensor_mode: [random, fixed, grid, sensor_column, time_varying]
+  group7_noise_robustness:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      num_obs: 500
+    matrix:
+      noise_level: [0.0, 0.01, 0.05, 0.10]
+  group8_time_grid_steps:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    product: true
+    matrix:
+      time_grid: [uniform, geometric]
+      num_steps: [20, 50, 100, 200]
+      step_method: [euler, midpoint]
+  group9_task:
+    fixed:
+      loss_state: endpoint
+      sampler_phase: stochastic
+    matrix:
+      task: [forward, inverse, both, unconditional]
+      guidance_components: [obs_pde, obs_pde, obs_pde, noguide]
