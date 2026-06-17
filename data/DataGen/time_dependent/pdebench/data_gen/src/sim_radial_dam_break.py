@@ -209,7 +209,7 @@ class RadialDamBreak2D(Basic2DScenario):
         y0 = 0.0
         X, Y = self.claw_state.p_centers
         r = np.sqrt((X - x0) ** 2 + (Y - y0) ** 2)
-        h_in = 2.0
+        h_in = self.inner_height
         h_out = 1.0
 
         self.claw_state.q[self.depthId, :, :] = h_in * (
