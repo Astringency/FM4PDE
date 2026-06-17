@@ -26,8 +26,19 @@ class TensorDataset(Dataset):
 
 
 class PDEloader:
+    FUTURE_H5_SCALAR_PARAMS = {
+        "heat": ("alpha",),
+        "wave": ("c",),
+        "advection_diffusion": ("b_x", "b_y", "kappa"),
+        "steady_heat_conduction": ("u_D",),
+    }
+    OPTIONAL_FUTURE_H5_SCALAR_PARAMS = {"heat", "wave"}
+
     def __init__(self, pde: str):
         self.pde = pde.lower()
+        # Sample-aligned scalar PDE parameters cached by future HDF5 loads.
+        self.pde_params = {}
+        self.pde_param_slices = []
         self.load_func = {
                 "darcy": self._darcy_load,
                 "poisson": self._poisson_load,
@@ -157,14 +168,19 @@ class PDEloader:
     def _steady_heat_conduction_load(self, data_path, size=5, split="train"):
         return self._future_h5_load(data_path, size=size, split=split, label_value=10)
 
-    def _future_h5_load(self, data_path, size=5, split="train", label_value=0, materialize_params=True):
+    def _future_h5_load(self, data_path, size=5, split="train", label_value=0, materialize_params=False):
         file_paths = self._future_h5_paths(data_path, size=size, split=split)
         dataset = []
+        param_chunks = {}
+        self.pde_params = {}
+        self.pde_param_slices = []
+        sample_start = 0
         for file_path in tqdm(file_paths):
             with h5py.File(file_path, "r") as file:
                 if "input_data" not in file or "output_data" not in file:
                     raise KeyError(f"{file_path} must contain data or input_data/output_data")
                 arr = self._future_h5_materialize(file, materialize_params=materialize_params)
+                params = self._future_h5_scalar_params(file, arr.shape[0])
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim != 4:
                 raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
@@ -173,9 +189,21 @@ class PDEloader:
             if arr.shape[1] % 2 != 0:
                 raise ValueError(f"{file_path} must have an even channel count for FM4PDE pair splitting")
             dataset.append(arr)
+            sample_stop = sample_start + arr.shape[0]
+            for name, values in params.items():
+                param_chunks.setdefault(name, []).append(values)
+            self.pde_param_slices.append(
+                {"file_path": str(file_path), "start": sample_start, "stop": sample_stop, "params": tuple(params)}
+            )
+            sample_start = sample_stop
 
         data = torch.tensor(np.concatenate(dataset, axis=0)).to(torch.float32)
         label = torch.zeros(len(data), dtype=torch.float32) + label_value
+        for name, chunks in param_chunks.items():
+            values = np.concatenate(chunks, axis=0)
+            if values.shape[0] != len(data):
+                raise ValueError(f"Scalar parameter {name!r} was present for only part of the loaded samples")
+            self.pde_params[name] = torch.tensor(values, dtype=torch.float32)
         return data, label
 
     def _future_h5_materialize(self, file, materialize_params=True):
@@ -185,19 +213,17 @@ class PDEloader:
             raise ValueError(f"future_h5 input/output must be [N,C,H,W], got {input_data.shape}, {output_data.shape}")
         n_samples, _, h, w = input_data.shape
         if not materialize_params:
-            if "materialized_data" in file:
-                return np.asarray(file["materialized_data"][:], dtype=np.float32)
             return np.concatenate([input_data, output_data], axis=1)
 
         if self.pde == "heat":
-            if "alpha" in file:
+            if self._has_scalar_dataset_or_attr(file, "alpha"):
                 alpha = self._read_scalar_dataset_or_attr(file, "alpha", n_samples)
                 alpha_field = self._expand_scalar_to_field(alpha, h, w)
                 return np.concatenate([input_data, alpha_field, output_data, alpha_field], axis=1)
             return np.concatenate([input_data, output_data], axis=1)
 
         if self.pde == "wave":
-            if "c" in file:
+            if self._has_scalar_dataset_or_attr(file, "c"):
                 c = self._read_scalar_dataset_or_attr(file, "c", n_samples)
                 c_field = self._expand_scalar_to_field(c, h, w)
                 return np.concatenate([input_data, c_field, output_data, c_field], axis=1)
@@ -222,24 +248,38 @@ class PDEloader:
 
         return np.concatenate([input_data, output_data], axis=1)
 
+    def _future_h5_scalar_params(self, file, n_samples):
+        params = {}
+        for name in self.FUTURE_H5_SCALAR_PARAMS.get(self.pde, ()):
+            if self._has_scalar_dataset_or_attr(file, name):
+                params[name] = self._read_scalar_dataset_or_attr(file, name, n_samples)
+            elif self.pde not in self.OPTIONAL_FUTURE_H5_SCALAR_PARAMS:
+                raise KeyError(f"Missing scalar dataset or attr {name!r}")
+        return params
+
     @staticmethod
     def _expand_scalar_to_field(values, h, w):
         values = np.asarray(values, dtype=np.float32).reshape(-1, 1, 1, 1)
         return np.broadcast_to(values, (values.shape[0], 1, h, w)).copy()
 
     @staticmethod
+    def _has_scalar_dataset_or_attr(file, name):
+        return name in file or name in file.attrs
+
+    @staticmethod
     def _read_scalar_dataset_or_attr(file, name, n_samples, default=None):
         if name in file:
-            values = np.asarray(file[name][:], dtype=np.float32)
+            dataset = file[name]
+            values = np.asarray(dataset[()] if dataset.shape == () else dataset[:], dtype=np.float32)
         elif name in file.attrs:
-            values = np.full((n_samples,), float(file.attrs[name]), dtype=np.float32)
+            values = np.asarray(file.attrs[name], dtype=np.float32)
         elif default is not None:
-            values = np.full((n_samples,), float(default), dtype=np.float32)
+            values = np.asarray(default, dtype=np.float32)
         else:
             raise KeyError(f"Missing scalar dataset or attr {name!r}")
-        if values.shape == ():
-            values = np.full((n_samples,), float(values), dtype=np.float32)
         values = values.reshape(-1)
+        if values.shape[0] == 1:
+            values = np.full((n_samples,), float(values[0]), dtype=np.float32)
         if values.shape[0] != n_samples:
             raise ValueError(f"{name} must have shape [{n_samples}], got {values.shape}")
         return values
