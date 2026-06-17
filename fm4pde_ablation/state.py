@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,7 +12,7 @@ class SplitState:
 
 
 def split_pair_state(x: Any, pde: str, img_channels: int | None = None) -> SplitState:
-    """Split a raw normalized pair state into coefficient/source and solution tensors."""
+    """Split a physical pair state into coefficient/source and solution tensors."""
     if getattr(x, "ndim", None) != 4:
         raise ValueError(f"Expected BCHW state, got shape={getattr(x, 'shape', None)}")
     channels = int(x.shape[1])
@@ -28,7 +29,7 @@ def split_pair_state(x: Any, pde: str, img_channels: int | None = None) -> Split
         if channels != total:
             raise ValueError(f"{pde} expects {total} channels, got {channels}")
         return SplitState(coef=x[:, : expected[0]], sol=x[:, expected[0] :])
-    if img_channels is not None and channels != img_channels:
+    if img_channels is not None and img_channels > 0 and channels != img_channels:
         raise ValueError(f"img_channels={img_channels} does not match state channels={channels}")
     if channels % 2 != 0:
         raise ValueError(f"Cannot split odd channel state for {pde}: channels={channels}")
@@ -46,8 +47,44 @@ def compose_pair_state(a: Any, u: Any) -> Any:
     return torch.cat([a, u], dim=1)
 
 
-def inverse_transform_state(a_raw: Any, u_raw: Any, pde: str, transformer: Any | None = None) -> tuple[Any, Any]:
-    """Map normalized model state to physical PDE fields."""
+def standardized_to_physical_state(
+    x_standardized: Any,
+    pde: str,
+    img_channels: int | None = None,
+    normalizer: Any | None = None,
+    legacy_minmax: bool = False,
+) -> SplitState:
+    """Inverse-transform a full standardized pair state, then split it into physical fields."""
+    _assert_bchw(x_standardized, "model_state")
+    if normalizer is not None:
+        physical_pair = normalizer.inverse_transform(x_standardized)
+        return split_pair_state(physical_pair, pde, img_channels)
+    if legacy_minmax:
+        warnings.warn(
+            "legacy_minmax=True uses the old [-1,1] -> [0,1] and transform_old path. "
+            "This is only for explicit legacy checkpoints.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        unit_pair = (x_standardized + 1.0) / 2.0
+        split = split_pair_state(unit_pair, pde, img_channels)
+        return SplitState(*_legacy_inverse_transform(split.coef, split.sol, pde))
+    warnings.warn(
+        "No normalizer was provided; treating standardized model state as physical identity.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return split_pair_state(x_standardized, pde, img_channels)
+
+
+def inverse_transform_state(
+    a_raw: Any,
+    u_raw: Any,
+    pde: str,
+    transformer: Any | None = None,
+    legacy_minmax: bool = False,
+) -> tuple[Any, Any]:
+    """Compatibility wrapper; new code should use standardized_to_physical_state on full pair tensors."""
     _assert_bchw(a_raw, "coef")
     _assert_bchw(u_raw, "sol")
     if transformer is not None:
@@ -56,20 +93,18 @@ def inverse_transform_state(a_raw: Any, u_raw: Any, pde: str, transformer: Any |
         if hasattr(transformer, "inverse_transform"):
             return transformer.inverse_transform(a_raw, u_raw)
         raise TypeError(f"Unsupported transformer type: {type(transformer)!r}")
+    if legacy_minmax:
+        return _legacy_inverse_transform(a_raw, u_raw, pde)
+    return a_raw, u_raw
+
+
+def _legacy_inverse_transform(a_raw: Any, u_raw: Any, pde: str) -> tuple[Any, Any]:
     try:
         from data.transform_old import PDEtransform as OldPDEtransform
 
         return OldPDEtransform(pde).inverse_transform(a_raw, u_raw)
     except Exception:
         return a_raw, u_raw
-
-
-def raw_to_unit_interval(x: Any) -> Any:
-    return (x + 1.0) / 2.0
-
-
-def unit_interval_to_raw(x: Any) -> Any:
-    return x * 2.0 - 1.0
 
 
 def _assert_bchw(x: Any, name: str) -> None:

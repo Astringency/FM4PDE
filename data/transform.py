@@ -1,41 +1,194 @@
+from __future__ import annotations
+
+import json
+import warnings
+from pathlib import Path
+from typing import Any
+
 import torch
 
 
+class PDEStandardizer:
+    """Channel-wise standardization fitted from training-set BCHW tensors."""
+
+    normalization_type = "channelwise_standardization"
+
+    def __init__(
+        self,
+        mean: torch.Tensor,
+        std: torch.Tensor,
+        eps: float = 1e-6,
+        channel_names: list[str] | None = None,
+        pde: str | None = None,
+    ) -> None:
+        self.eps = float(eps)
+        self.mean = self._as_channel_stats(mean, "mean")
+        self.std = torch.where(
+            self._as_channel_stats(std, "std") < self.eps,
+            torch.ones_like(self._as_channel_stats(std, "std")),
+            self._as_channel_stats(std, "std"),
+        )
+        self.channel_names = list(channel_names) if channel_names is not None else None
+        self.pde = pde
+
+    @classmethod
+    def fit(
+        cls,
+        data: torch.Tensor,
+        eps: float = 1e-6,
+        channel_names: list[str] | None = None,
+        pde: str | None = None,
+    ) -> "PDEStandardizer":
+        if data.ndim != 4:
+            raise ValueError(f"PDEStandardizer.fit expects [N,C,H,W], got shape={tuple(data.shape)}")
+        mean = data.mean(dim=(0, 2, 3), keepdim=True)
+        std = data.std(dim=(0, 2, 3), keepdim=True, unbiased=False)
+        std = torch.where(std < eps, torch.ones_like(std), std)
+        return cls(mean=mean, std=std, eps=eps, channel_names=channel_names, pde=pde)
+
+    @classmethod
+    def identity(
+        cls,
+        num_channels: int,
+        eps: float = 1e-6,
+        channel_names: list[str] | None = None,
+        pde: str | None = None,
+    ) -> "PDEStandardizer":
+        if num_channels < 1:
+            raise ValueError(f"num_channels must be positive, got {num_channels}")
+        mean = torch.zeros(1, num_channels, 1, 1)
+        std = torch.ones(1, num_channels, 1, 1)
+        return cls(mean=mean, std=std, eps=eps, channel_names=channel_names, pde=pde)
+
+    @classmethod
+    def from_state_dict(cls, state: dict[str, Any]) -> "PDEStandardizer":
+        if state is None:
+            raise ValueError("Cannot construct PDEStandardizer from None state")
+        if state.get("type", cls.normalization_type) not in {cls.normalization_type, None}:
+            raise ValueError(f"Unsupported normalizer type: {state.get('type')!r}")
+        return cls(
+            mean=torch.as_tensor(state["mean"]),
+            std=torch.as_tensor(state["std"]),
+            eps=float(state.get("eps", 1e-6)),
+            channel_names=state.get("channel_names"),
+            pde=state.get("pde"),
+        )
+
+    def transform(self, x: torch.Tensor) -> torch.Tensor:
+        self._check_channels(x)
+        return (x - self.mean.to(device=x.device, dtype=x.dtype)) / self.std.to(device=x.device, dtype=x.dtype)
+
+    def inverse_transform(self, z: torch.Tensor) -> torch.Tensor:
+        self._check_channels(z)
+        return z * self.std.to(device=z.device, dtype=z.dtype) + self.mean.to(device=z.device, dtype=z.dtype)
+
+    def state_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.normalization_type,
+            "mean": self.mean.detach().cpu(),
+            "std": self.std.detach().cpu(),
+            "eps": self.eps,
+            "channel_names": self.channel_names,
+            "pde": self.pde,
+        }
+
+    def load_state_dict(self, state: dict[str, Any]) -> None:
+        loaded = self.from_state_dict(state)
+        self.mean = loaded.mean
+        self.std = loaded.std
+        self.eps = loaded.eps
+        self.channel_names = loaded.channel_names
+        self.pde = loaded.pde
+
+    def save(self, path: str | Path) -> Path:
+        pt_path, json_path = self._resolve_save_paths(path)
+        pt_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.state_dict(), pt_path)
+        json_path.write_text(json.dumps(self.to_json_dict(), indent=2) + "\n", encoding="utf-8")
+        return pt_path
+
+    @classmethod
+    def load(cls, path: str | Path, map_location: str | torch.device = "cpu") -> "PDEStandardizer":
+        pt_path = Path(path)
+        if pt_path.is_dir():
+            pt_path = pt_path / "normalizer.pt"
+        state = torch.load(pt_path, map_location=map_location, weights_only=False)
+        return cls.from_state_dict(state)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.normalization_type,
+            "eps": self.eps,
+            "pde": self.pde,
+            "channel_names": self.channel_names,
+            "mean": self.mean.detach().cpu().view(-1).tolist(),
+            "std": self.std.detach().cpu().view(-1).tolist(),
+            "shape": list(self.mean.shape),
+        }
+
+    @staticmethod
+    def _as_channel_stats(value: torch.Tensor, name: str) -> torch.Tensor:
+        tensor = torch.as_tensor(value).detach().clone().to(dtype=torch.float32)
+        if tensor.ndim == 1:
+            tensor = tensor.view(1, -1, 1, 1)
+        if tensor.ndim != 4 or tensor.shape[0] != 1 or tensor.shape[2:] != (1, 1):
+            raise ValueError(f"{name} must have shape [1,C,1,1] or [C], got {tuple(tensor.shape)}")
+        return tensor
+
+    @staticmethod
+    def _resolve_save_paths(path: str | Path) -> tuple[Path, Path]:
+        target = Path(path)
+        if target.suffix:
+            pt_path = target
+            json_path = target.with_name("normalization.json")
+        else:
+            pt_path = target / "normalizer.pt"
+            json_path = target / "normalization.json"
+        return pt_path, json_path
+
+    def _check_channels(self, x: torch.Tensor) -> None:
+        if x.ndim != 4:
+            raise ValueError(f"Expected [N,C,H,W] tensor, got shape={tuple(x.shape)}")
+        expected = int(self.mean.shape[1])
+        if int(x.shape[1]) != expected:
+            raise ValueError(f"Expected {expected} channels, got {int(x.shape[1])}")
+
 
 class PDEtransform:
-    """
-    Min-Max Normalization to [0, 1].
-    input: data.shape = [N, C, H, W].
-    """
-    def __init__(self, data, mode = "train"):
+    """Deprecated compatibility wrapper around training-set standardization."""
+
+    def __init__(self, data: torch.Tensor, mode: str = "train", eps: float = 1e-6):
+        if mode != "train":
+            warnings.warn(
+                "PDEtransform(mode='sample') no longer estimates per-sample statistics. "
+                "Use a saved PDEStandardizer from the training checkpoint.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self.data = data
         self.mode = mode
+        if mode == "train":
+            self.standardizer = PDEStandardizer.fit(data.unsqueeze(0) if data.ndim == 3 else data, eps=eps)
+        else:
+            channels = int(data.shape[0] if data.ndim == 3 else data.shape[1])
+            self.standardizer = PDEStandardizer.identity(channels, eps=eps)
 
-        if self.mode == "train":
-            self.dim = int(data.shape[1] / 2)
-            self.min = self.data.amin(dim=(0, 2, 3), keepdim=True)
-            self.max = self.data.amax(dim=(0, 2, 3), keepdim=True)
-        elif self.mode == "sample":
-            self.dim = int(data.shape[0] / 2)
-            self.min = self.data.amin(dim=(1, 2), keepdim=True)
-            self.max = self.data.amax(dim=(1, 2), keepdim=True)
+    def transform(self) -> torch.Tensor:
+        return self.standardizer.transform(self.data.unsqueeze(0)).squeeze(0) if self.data.ndim == 3 else self.standardizer.transform(self.data)
 
-        self.transform = self._transform_func
-        self.inverse_transform = self._inverse_transform_func
-        self.transform_sample = self._transform_func_sample
-        self.inverse_transform_sample = self._inverse_transform_func_sample
+    def inverse_transform(self) -> torch.Tensor:
+        return (
+            self.standardizer.inverse_transform(self.data.unsqueeze(0)).squeeze(0)
+            if self.data.ndim == 3
+            else self.standardizer.inverse_transform(self.data)
+        )
 
-    def _transform_func(self):
-        return (self.data - self.min) / (self.max - self.min + 1e-8)
-        
-    def _inverse_transform_func(self):
-        return self.data * (self.max - self.min + 1e-8) + self.min
+    def transform_sample(self, a: torch.Tensor, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        pair = torch.cat([a, u], dim=1)
+        split = self.standardizer.transform(pair)
+        return split[:, : a.shape[1]], split[:, a.shape[1] :]
 
-    def _transform_func_sample(self, a, u):
-        return (a - self.min[:self.dim]) / (self.max[:self.dim] - self.min[:self.dim] + 1e-8), (u - self.min[self.dim:]) / (self.max[self.dim:] - self.min[self.dim:] + 1e-8)
-        # return a, u
-        
-    def _inverse_transform_func_sample(self, a, u):
-        return a * (self.max[:self.dim] - self.min[:self.dim] + 1e-8) + self.min[:self.dim], u * (self.max[self.dim:] - self.min[self.dim:] + 1e-8) + self.min[self.dim:]
-        # return a, u
-
+    def inverse_transform_sample(self, a: torch.Tensor, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        pair = torch.cat([a, u], dim=1)
+        split = self.standardizer.inverse_transform(pair)
+        return split[:, : a.shape[1]], split[:, a.shape[1] :]

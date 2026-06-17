@@ -29,7 +29,7 @@ def test_future_h5_sample_scalars_are_cached_not_materialized(tmp_path):
     assert tuple(data.shape) == (3, 2, 4, 4)
     assert torch.equal(data[:, 0], torch.zeros(3, 4, 4))
     assert torch.equal(data[:, 1], torch.ones(3, 4, 4))
-    assert torch.equal(labels, torch.full((3,), 7.0))
+    assert torch.equal(labels, torch.full((3,), 7, dtype=torch.long))
     assert set(loader.pde_params) == {"alpha"}
     assert torch.allclose(loader.pde_params["alpha"], torch.tensor([0.1, 0.2, 0.3]))
 
@@ -59,7 +59,7 @@ def test_future_h5_required_scalars_accept_dataset_or_attr(tmp_path):
     data, labels = loader.load_data(str(path))
 
     assert tuple(data.shape) == (2, 2, 4, 4)
-    assert torch.equal(labels, torch.full((2,), 9.0))
+    assert torch.equal(labels, torch.full((2,), 9, dtype=torch.long))
     assert torch.allclose(loader.pde_params["b_x"], torch.tensor([1.0, 1.0]))
     assert torch.allclose(loader.pde_params["b_y"], torch.tensor([2.0, 2.0]))
     assert torch.allclose(loader.pde_params["kappa"], torch.tensor([0.01, 0.02]))

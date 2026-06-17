@@ -38,9 +38,21 @@ This code is primarily implemented in a Python 3.12 environment. To prevent vers
 
 `train.py` is the main entry point for neural network training, with arguments defined in `train_arg_parser.py`. Examples for single-node multi-GPU training from scratch are provided in `run_train.sh`. Additionally, training can be resumed from a checkpoint by passing the `--resume` argument. It should be noted that the example given in run_train.sh reads data and stores results in the default path. Please adjust the path according to your needs.
 
+New training runs use channel-wise training-set mean/std standardization instead of
+min-max scaling. The fitted normalizer is saved to the checkpoint payload,
+`output_dir/normalizer.pt`, and `output_dir/normalization.json`. See
+[`docs/normalization.md`](docs/normalization.md) for the full sampling and residual
+contract.
+
+Example:
+
+```bash
+python train.py --dataset heat --data_path /large_storage/zhangxf/PDEdata/ --epochs 500 --batch_size 32
+```
+
 ### 2. Sampling
 
-After training, use `sample.py` to load the model and generate solutions. You can refer to `run_sample.sh` for usage examples. Default configurations for different PDEs can be found in the `configs/` directory. Supported PDE Types (inferred from filenames):
+After training, use `sample.py` or `python -m fm4pde_ablation.runner` to load the model and generate solutions. Sampling uses the saved training normalizer and must not estimate statistics from a test sample. Default configurations for different PDEs can be found in the `configs/` directory. Supported PDE types:
 
 * Burger's Equation (`burger.yaml`)
 * Darcy Flow (`darcy.yaml`)
@@ -49,7 +61,16 @@ After training, use `sample.py` to load the model and generate solutions. You ca
 * Poisson (`poisson.yaml`)
 * Reaction-Diffusion (`reaction_diffusion.yaml`)
 * Shallow Water (`shallow_water.yaml`)
+* Heat (`heat.yaml`)
+* Wave (`wave.yaml`)
+* Advection-Diffusion (`advection_diffusion.yaml`)
+* Steady Heat Conduction (`steady_heat_conduction.yaml`)
+
+Example:
+
+```bash
+python -m fm4pde_ablation.runner --config configs/heat.yaml --override checkpoint_path=.../fm4heat.pth
+```
 
 Configurations in `sample.py` and the `configs/` directory must be tailored to the specific task. Users should pay particular attention to updating the paths for data input, model checkpoints, and result output to match their actual environment.
-
 

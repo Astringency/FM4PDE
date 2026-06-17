@@ -5,13 +5,25 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-import json
 import logging
 
 from models.model_configs import MODEL_CONFIGS
-from torchdiffeq._impl.odeint import SOLVERS
 
 logger = logging.getLogger(__name__)
+
+
+class DatasetChoices:
+    def __init__(self, choices):
+        self.choices = tuple(choices)
+
+    def __contains__(self, value):
+        return all(part in self.choices for part in str(value).split("-"))
+
+    def __iter__(self):
+        return iter(self.choices)
+
+    def __repr__(self):
+        return repr(self.choices)
 
 
 def get_args_parser():
@@ -86,13 +98,31 @@ def get_args_parser():
         default=0.2,
         help="Probability to drop conditioning during training",
     )
+    parser.add_argument(
+        "--clip_grad",
+        type=float,
+        default=None,
+        help="Optional global gradient norm clipping threshold.",
+    )
+    parser.add_argument(
+        "--normalization_eps",
+        type=float,
+        default=1e-6,
+        help="Epsilon for channel-wise training-set standardization.",
+    )
+    parser.add_argument(
+        "--sampling_dtype",
+        default="float32",
+        choices=["float32", "fp32", "float16", "fp16", "bfloat16", "bf16"],
+        help="Autocast dtype used during training on CUDA.",
+    )
 
     # Dataset parameters
     parser.add_argument(
         "--dataset",
         default=list(MODEL_CONFIGS.keys())[0],
         type=str,
-        choices=list(MODEL_CONFIGS.keys()),
+        choices=DatasetChoices(MODEL_CONFIGS.keys()),
         help="PDE to solve.",
     )
     parser.add_argument(
@@ -141,7 +171,11 @@ def get_args_parser():
         action="store_true",
         help="Only run one batch of training and evaluation.",
     )
-    
+    parser.add_argument(
+        "--eval_only",
+        action="store_true",
+        help="Compatibility flag for one-pass evaluation-style runs.",
+    )
     
 
     return parser

@@ -11,7 +11,8 @@ class ResidualOutput:
     metadata: dict[str, Any]
 
 
-def compute_pde_residual(pde: str, coef: Any, sol: Any, *, k: int = 1) -> ResidualOutput:
+def compute_pde_residual(pde: str, coef: Any, sol: Any, *, k: int = 1, pde_params: dict[str, Any] | None = None) -> ResidualOutput:
+    pde_params = pde_params or {}
     table: dict[str, Callable[..., ResidualOutput]] = {
         "darcy": _darcy,
         "poisson": _poisson,
@@ -20,6 +21,10 @@ def compute_pde_residual(pde: str, coef: Any, sol: Any, *, k: int = 1) -> Residu
         "burger": _burger,
         "reaction_diffusion": _reaction_diffusion,
         "shallow_water": _shallow_water,
+        "heat": lambda a, u: _heat(a, u, pde_params=pde_params),
+        "wave": lambda a, u: _wave(a, u, pde_params=pde_params),
+        "advection_diffusion": lambda a, u: _advection_diffusion(a, u, pde_params=pde_params),
+        "steady_heat_conduction": lambda a, u: _steady_heat_conduction(a, u, pde_params=pde_params),
     }
     if pde not in table:
         raise ValueError(f"Unsupported PDE residual: {pde}")
@@ -33,6 +38,8 @@ def residual_status(pde: str) -> str:
         return "approximate"
     if pde == "nsnonbounded":
         return "placeholder"
+    if pde in {"heat", "wave", "advection_diffusion", "steady_heat_conduction"}:
+        return "approximate"
     return "disabled"
 
 
@@ -134,6 +141,49 @@ def _shallow_water(a: Any, u: Any) -> ResidualOutput:
     )
 
 
+def _heat(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+    if a.shape[1] != 1 or u.shape[1] != 1:
+        raise ValueError(f"heat expects 1+1 channels, got a={a.shape}, u={u.shape}")
+    alpha = _param_field(pde_params, "alpha", u, default=1.0)
+    residual = (u - a) - alpha * _laplacian(u)
+    return ResidualOutput(_zero_boundary(residual), "approximate", {"equation": "uT-u0-alpha*laplace(uT)"})
+
+
+def _wave(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+    import torch
+
+    if a.shape[1] != 2 or u.shape[1] != 2:
+        raise ValueError(f"wave expects 2+2 channels [u,v], got a={a.shape}, u={u.shape}")
+    c = _param_field(pde_params, "c", u[:, 0:1], default=1.0)
+    u0, v0 = a[:, 0:1], a[:, 1:2]
+    u_t, v_t = u[:, 0:1], u[:, 1:2]
+    res_u = (u_t - u0) - v_t
+    res_v = (v_t - v0) - (c**2) * _laplacian(u_t)
+    return ResidualOutput(
+        torch.cat([_zero_boundary(res_u), _zero_boundary(res_v)], dim=1),
+        "approximate",
+        {"equation": "two-time-level wave residual", "uses_c": "c" in pde_params},
+    )
+
+
+def _advection_diffusion(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+    if a.shape[1] != 1 or u.shape[1] != 1:
+        raise ValueError(f"advection_diffusion expects 1+1 channels, got a={a.shape}, u={u.shape}")
+    bx = _param_field(pde_params, "b_x", u, default=0.0)
+    by = _param_field(pde_params, "b_y", u, default=0.0)
+    kappa = _param_field(pde_params, "kappa", u, default=1.0)
+    residual = (u - a) + bx * _dx(u) + by * _dy(u) - kappa * _laplacian(u)
+    return ResidualOutput(_zero_boundary(residual), "approximate", {"equation": "uT-u0+b.grad(uT)-kappa*laplace(uT)"})
+
+
+def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+    residual = -_laplacian(u) - a[:, :1]
+    metadata = {"equation": "-laplace(u)-f"}
+    if "u_D" in pde_params:
+        metadata["u_D"] = "available"
+    return ResidualOutput(_zero_boundary(residual), "approximate", metadata)
+
+
 def _central_kernels(reference: Any) -> tuple[Any, Any]:
     import torch
 
@@ -189,3 +239,16 @@ def _dy(f: Any) -> Any:
 
     return (torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")[:, :, 2:, :] -
             torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")[:, :, :-2, :]) / 2.0
+
+
+def _param_field(params: dict[str, Any], name: str, reference: Any, default: float) -> Any:
+    import torch
+
+    if name not in params:
+        return torch.full((reference.shape[0], 1, 1, 1), float(default), dtype=reference.dtype, device=reference.device)
+    value = torch.as_tensor(params[name], dtype=reference.dtype, device=reference.device).reshape(-1)
+    if value.numel() == 1:
+        value = value.repeat(reference.shape[0])
+    if value.numel() != reference.shape[0]:
+        raise ValueError(f"PDE parameter {name!r} must have batch length {reference.shape[0]}, got {tuple(value.shape)}")
+    return value.view(reference.shape[0], 1, 1, 1)

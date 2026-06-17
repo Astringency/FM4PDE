@@ -127,6 +127,7 @@ class AblationConfig:
     allow_synthetic_data: bool = True
     empty_cache_each_step: bool = False
     legacy_pickle: bool = True
+    legacy_minmax: bool = False
     k: int = 1
     extra: dict[str, Any] = field(default_factory=dict)
 

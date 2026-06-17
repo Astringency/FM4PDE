@@ -15,10 +15,10 @@ from fm4pde_ablation.logging import make_run_dir, save_torch, write_run_metadata
 from fm4pde_ablation.losses import ObservationTargets, compute_guidance_losses, guidance_component_flags
 from fm4pde_ablation.masks import make_pair_masks
 from fm4pde_ablation.metrics import append_jsonl, final_metrics, step_metrics, write_csv, write_json
-from fm4pde_ablation.model_io import load_fm4pde_checkpoint
+from fm4pde_ablation.model_io import load_fm4pde_checkpoint_bundle
 from fm4pde_ablation.noise import add_observation_noise
 from fm4pde_ablation.sampler_wrappers import phase_for_step, sampler_step
-from fm4pde_ablation.state import SplitState, inverse_transform_state, raw_to_unit_interval, split_pair_state
+from fm4pde_ablation.state import SplitState, standardized_to_physical_state
 from fm4pde_ablation.time_grid import affine_coefficients, make_time_grid, scheduler_coefficients
 
 
@@ -44,6 +44,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     device = _resolve_device(config.device)
     config.device = str(device)
     gt = load_ground_truth(config)
+    config.img_channels = int(gt.pair.shape[1])
     masks = make_pair_masks(
         gt.coef.shape,
         gt.sol.shape,
@@ -76,8 +77,13 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
 
     if config.dry_run:
         net = _ZeroVelocityModel()
+        normalizer = _identity_normalizer(gt)
+        checkpoint_payload: dict[str, Any] = {}
     else:
-        net = load_fm4pde_checkpoint(config.checkpoint_path, config.pde, device=device, wrap=True)
+        net, normalizer, checkpoint_payload = load_fm4pde_checkpoint_bundle(
+            config.checkpoint_path, config.pde, device=device, wrap=True
+        )
+    _check_sampling_channels(gt, normalizer, checkpoint_payload)
 
     grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta)
     x_next = torch.randn(
@@ -89,7 +95,6 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         dtype=gt.pair.dtype,
     )
 
-    transformer = _make_sample_transformer(config, gt)
     rows: list[dict[str, Any]] = []
     intermediates = []
     start = time.time()
@@ -111,7 +116,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             loss_state=config.loss_state,
             device=device,
         )
-        phys_loss = _physical_from_raw(step_out.x_loss_state, config, transformer)
+        phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
         losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
         coeffs = scheduler_coefficients(t, scheduler="CondOT")
         affine = affine_coefficients(coeffs, training="velocity")
@@ -126,7 +131,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         if config.empty_cache_each_step and device.type == "cuda":
             torch.cuda.empty_cache()
 
-        phys_eval = _physical_from_raw(x_next, config, transformer)
+        phys_eval = _physical_from_model_state(x_next, config, normalizer)
         row = step_metrics(step, step_out, losses, gradient, phys_eval, gt, masks, time.time() - step_start)
         row.update(
             {
@@ -141,7 +146,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         if config.save_intermediate:
             intermediates.append(x_next.detach().cpu())
 
-    final_phys = _physical_from_raw(x_next, config, transformer)
+    final_phys = _physical_from_model_state(x_next, config, normalizer)
     final = final_metrics(rows)
     final.update(
         {
@@ -161,6 +166,8 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "sol_final": final_phys.sol.detach().cpu(),
             "intermediate": intermediates,
             "ground_truth_metadata": gt.metadata,
+            "normalizer": normalizer.state_dict() if normalizer is not None else None,
+            "checkpoint_metadata": _checkpoint_metadata(checkpoint_payload),
             "config": config.asdict(),
         },
     )
@@ -251,22 +258,46 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     return result
 
 
-def _physical_from_raw(x_raw: Any, config: AblationConfig, transformer: Any | None) -> SplitState:
-    unit = raw_to_unit_interval(x_raw)
-    split = split_pair_state(unit, config.pde, config.img_channels)
-    coef, sol = inverse_transform_state(split.coef, split.sol, config.pde, transformer)
-    return SplitState(coef=coef, sol=sol)
+def _physical_from_model_state(x_model: Any, config: AblationConfig, normalizer: Any | None) -> SplitState:
+    return standardized_to_physical_state(
+        x_model,
+        pde=config.pde,
+        img_channels=config.img_channels,
+        normalizer=normalizer,
+        legacy_minmax=getattr(config, "legacy_minmax", False),
+    )
 
 
-def _make_sample_transformer(config: AblationConfig, gt: Any) -> Any | None:
-    if config.pde not in {"shallow_water", "reaction_diffusion"}:
-        return None
-    try:
-        from data.transform import PDEtransform
+def _identity_normalizer(gt: Any) -> Any:
+    from data.transform import PDEStandardizer
 
-        return PDEtransform(data=gt.pair[0].detach(), mode="sample")
-    except Exception:
-        return None
+    return PDEStandardizer.identity(
+        int(gt.pair.shape[1]),
+        channel_names=list(gt.channel_names_coef) + list(gt.channel_names_sol),
+        pde=gt.pde,
+    )
+
+
+def _checkpoint_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    if not payload:
+        return {}
+    return {
+        "epoch": payload.get("epoch"),
+        "data_shape": payload.get("data_shape"),
+        "num_channels": payload.get("num_channels"),
+        "normalization": payload.get("normalization"),
+    }
+
+
+def _check_sampling_channels(gt: Any, normalizer: Any | None, payload: dict[str, Any]) -> None:
+    expected = int(gt.pair.shape[1])
+    if normalizer is not None and int(normalizer.mean.shape[1]) != expected:
+        raise ValueError(
+            f"Checkpoint normalizer has {int(normalizer.mean.shape[1])} channels, "
+            f"but ground-truth pair has {expected}"
+        )
+    if payload.get("num_channels") is not None and int(payload["num_channels"]) != expected:
+        raise ValueError(f"Checkpoint num_channels={payload['num_channels']} but ground-truth pair has {expected}")
 
 
 def _has_guidance(config: AblationConfig) -> bool:

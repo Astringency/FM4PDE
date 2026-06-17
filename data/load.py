@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 class TensorDataset(Dataset):
     def __init__(self, data, labels):
         self.data = data
-        self.labels = labels
+        self.labels = labels.to(torch.long)
         self.max_size = data.shape[0]
         self.num_channels = self.data.shape[1]
         self.resolution = self.data.shape[2]
@@ -53,7 +53,26 @@ class PDEloader:
                 "steady_heat_conduction": self._steady_heat_conduction_load,
                 }
 
+        if self.pde not in self.load_func:
+            raise ValueError(f"Unsupported PDE {pde!r}; expected one of {sorted(self.load_func)}")
         self.load_data = self.load_func[self.pde]
+
+    def _finalize(self, data, label_value):
+        data = torch.as_tensor(data, dtype=torch.float32).contiguous()
+        self._assert_bchw(data, context=self.pde)
+        label = torch.full((int(data.shape[0]),), int(label_value), dtype=torch.long)
+        return data, label
+
+    @staticmethod
+    def _assert_bchw(data, context="data"):
+        if data.ndim != 4:
+            raise ValueError(f"{context} data must be [N,C,H,W], got shape={tuple(data.shape)}")
+        if data.shape[1] < 1:
+            raise ValueError(f"{context} data must have at least one channel, got shape={tuple(data.shape)}")
+        if data.shape[2] != data.shape[3]:
+            raise ValueError(f"{context} data must have square spatial grid, got shape={tuple(data.shape)}")
+        if data.dtype != torch.float32:
+            raise TypeError(f"{context} data must be float32, got {data.dtype}")
 
     def _darcy_load(self, data_path, size = 5):
         dataset = {}
@@ -64,9 +83,7 @@ class PDEloader:
                 u = file['thresh_p_data'][:] # type: ignore
             dataset[i] = np.stack([a, u], axis=0).transpose(3, 0, 1, 2) # type: ignore
 
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32)
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 0)
 
     def _poisson_load(self, data_path, size = 5):
         dataset = {}
@@ -76,9 +93,7 @@ class PDEloader:
             phi = scipy.io.loadmat(file_path)['phi_data']
             dataset[i] = np.stack([f, phi], axis=1)
 
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + 1
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 1)
     
     def _helmholtz_load(self, data_path, size = 5):
         dataset = {}
@@ -89,9 +104,7 @@ class PDEloader:
             
             dataset[i] = np.stack([f, psi], axis=1)
 
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + 2
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 2)
 
     def _nsnonbounded_load(self, data_path, size = 5):
         dataset = {}
@@ -101,14 +114,9 @@ class PDEloader:
                 w0 = file['w0'][:] # type: ignore
                 wt = file['w'][:, :, :, :] # type: ignore
 
-            w0 = np.expand_dims(w0, axis=-1) # type: ignore
-            w = np.concatenate([w0, wt], axis=-1) # type: ignore
-
-            dataset[i] = np.stack([w], axis=-1)
+            dataset[i] = self._nsnonbounded_pair(w0, wt)
         
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + 3
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 3)
     
     def _burger_load(self, data_path, size = 5):
         dataset = {}
@@ -117,9 +125,7 @@ class PDEloader:
             output = scipy.io.loadmat(file_path)['output']
             dataset[i] = np.expand_dims(output, axis = 1)
         
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + 4
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 4)
 
     def _reaction_diffusion_load(self, data_path, size = 5):
         dataset = {}
@@ -133,9 +139,7 @@ class PDEloader:
                     v = np.expand_dims(f[k]['data'][-1, :, :, 1], axis = 0) # type: ignore
                     dataset[k] = np.stack([u0, v0, u, v], axis = 1)
         
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + 5
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 5)
 
     def _shallow_water_load(self, data_path):
         dataset = {} 
@@ -152,9 +156,7 @@ class PDEloader:
                     hv = np.expand_dims(f[k]['data']['hv'][-1, :, :, 0], axis = 0) # type: ignore
                     dataset[k] = np.stack([h0, hu0, hv0, h, hu, hv], axis = 1)
 
-        data = torch.tensor(np.concatenate(list(dataset.values()), axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + 6
-        return data, label
+        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 6)
 
     def _heat_load(self, data_path, size=5, split="train"):
         return self._future_h5_load(data_path, size=size, split=split, label_value=7)
@@ -168,7 +170,57 @@ class PDEloader:
     def _steady_heat_conduction_load(self, data_path, size=5, split="train"):
         return self._future_h5_load(data_path, size=size, split=split, label_value=10)
 
+    @staticmethod
+    def _nsnonbounded_pair(w0, wt):
+        w0_nhw = PDEloader._as_nhw(np.asarray(w0, dtype=np.float32), "w0")
+        wt_final = PDEloader._select_final_time(np.asarray(wt, dtype=np.float32), "w")
+        wt_nhw = PDEloader._as_nhw(wt_final, "wT")
+        if w0_nhw.shape != wt_nhw.shape:
+            raise ValueError(f"NS w0/wT shape mismatch after conversion: {w0_nhw.shape} vs {wt_nhw.shape}")
+        return np.stack([w0_nhw, wt_nhw], axis=1).astype(np.float32, copy=False)
+
+    @staticmethod
+    def _as_nhw(arr, name):
+        if arr.ndim == 2:
+            return arr[None, :, :]
+        if arr.ndim != 3:
+            raise ValueError(f"{name} must be convertible to [N,H,W], got {arr.shape}")
+        if arr.shape[-2] == arr.shape[-1]:
+            return arr
+        if arr.shape[0] == arr.shape[1]:
+            return np.transpose(arr, (2, 0, 1))
+        if arr.shape[0] == arr.shape[2]:
+            return np.transpose(arr, (1, 0, 2))
+        raise ValueError(f"Cannot infer [N,H,W] layout for {name} with shape {arr.shape}")
+
+    @staticmethod
+    def _select_final_time(arr, name):
+        if arr.ndim == 3:
+            return arr
+        if arr.ndim != 4:
+            raise ValueError(f"{name} must be [N,H,W,T] or similar, got {arr.shape}")
+        if arr.shape[1] == arr.shape[2]:
+            return arr[:, :, :, -1]
+        if arr.shape[2] == arr.shape[3]:
+            if arr.shape[1] <= 64:
+                return arr[:, -1, :, :]
+            if arr.shape[0] <= 64:
+                return arr[-1, :, :, :]
+        if arr.shape[0] == arr.shape[1]:
+            if arr.shape[2] <= 64:
+                return arr[:, :, -1, :]
+            if arr.shape[3] <= 64:
+                return arr[:, :, :, -1]
+        raise ValueError(f"Cannot infer final-time slice for {name} with shape {arr.shape}")
+
     def _future_h5_load(self, data_path, size=5, split="train", label_value=0, materialize_params=False):
+        """Load future HDF5 data as model channels plus scalar PDE metadata.
+
+        Spatially constant PDE parameters are not Flow Matching input channels by default.
+        They are cached in ``self.pde_params`` for PDE residual evaluation. Set
+        ``materialize_params=True`` only for legacy checkpoints that explicitly trained
+        with scalar constants expanded into constant fields.
+        """
         file_paths = self._future_h5_paths(data_path, size=size, split=split)
         dataset = []
         param_chunks = {}
@@ -186,8 +238,8 @@ class PDEloader:
                 raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
             if arr.shape[2] != arr.shape[3]:
                 raise ValueError(f"{file_path} data must have square spatial grid, got {arr.shape[2:]}")
-            if arr.shape[1] % 2 != 0:
-                raise ValueError(f"{file_path} must have an even channel count for FM4PDE pair splitting")
+            if arr.shape[1] < 1:
+                raise ValueError(f"{file_path} data must have at least one channel, got {arr.shape}")
             dataset.append(arr)
             sample_stop = sample_start + arr.shape[0]
             for name, values in params.items():
@@ -197,8 +249,7 @@ class PDEloader:
             )
             sample_start = sample_stop
 
-        data = torch.tensor(np.concatenate(dataset, axis=0)).to(torch.float32)
-        label = torch.zeros(len(data), dtype=torch.float32) + label_value
+        data, label = self._finalize(np.concatenate(dataset, axis=0), label_value)
         for name, chunks in param_chunks.items():
             values = np.concatenate(chunks, axis=0)
             if values.shape[0] != len(data):
@@ -305,7 +356,7 @@ class PDEloader:
                 key=self._future_h5_sort_key,
             )
         else:
-            raise ValueError(f"Unsupported split={split!r}; expected 'train' or 'test'")
+            raise ValueError(f"Unsupported split={split!r}; expected 'train', 'val', or 'test'")
 
         if size is not None and split == "train":
             file_paths = file_paths[:size]

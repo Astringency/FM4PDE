@@ -60,7 +60,13 @@ def compute_guidance_losses(
     status = "disabled"
     pde_meta: dict[str, Any] = {}
     if enabled["pde"]:
-        residual = compute_pde_residual(config.pde, phys_state.coef, phys_state.sol, k=getattr(config, "k", 1))
+        residual = compute_pde_residual(
+            config.pde,
+            phys_state.coef,
+            phys_state.sol,
+            k=getattr(config, "k", 1),
+            pde_params=getattr(ground_truth, "metadata", {}).get("pde_params", {}),
+        )
         pde_field = residual.residual
         status = residual.status
         pde_meta = residual.metadata

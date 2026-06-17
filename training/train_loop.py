@@ -4,35 +4,51 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
+from __future__ import annotations
+
 import argparse
+import contextlib
 import gc
 import logging
 import math
 from typing import Iterable
-import numpy as np
 
 import torch
-from flow_matching.path import CondOTProbPath, MixtureDiscreteProbPath
-from flow_matching.path.scheduler import PolynomialConvexScheduler
+from flow_matching.path import CondOTProbPath
 from models.ema import EMA
 from torch.nn.parallel import DistributedDataParallel
-from torchmetrics.aggregation import MeanMetric
 from training.grad_scaler import NativeScalerWithGradNormCount
 
 logger = logging.getLogger(__name__)
 
-MASK_TOKEN = 256
 PRINT_FREQUENCY = 50
+TIMESTEP_EPS = 1e-5
 
-def skewed_timestep_sample(num_samples: int, device: torch.device) -> torch.Tensor:
-    P_mean = -1.2
-    P_std = 1.2
+
+class MeanAccumulator:
+    def __init__(self) -> None:
+        self.total = 0.0
+        self.count = 0
+
+    def reset(self) -> None:
+        self.total = 0.0
+        self.count = 0
+
+    def update(self, value: torch.Tensor) -> None:
+        self.total += float(value.detach().cpu())
+        self.count += 1
+
+    def compute(self) -> float:
+        return self.total / max(self.count, 1)
+
+
+def skewed_timestep_sample(num_samples: int, device: torch.device, eps: float = TIMESTEP_EPS) -> torch.Tensor:
+    p_mean = -1.2
+    p_std = 1.2
     rnd_normal = torch.randn((num_samples,), device=device)
-    sigma = (rnd_normal * P_std + P_mean).exp()
+    sigma = (rnd_normal * p_std + p_mean).exp()
     time = 1 / (1 + sigma)
-    time = torch.clip(time, min=0.0001, max=1.0)
-    return time
+    return torch.clamp(time, min=eps, max=1.0 - eps)
 
 
 def train_one_epoch(
@@ -47,14 +63,13 @@ def train_one_epoch(
 ):
     gc.collect()
     model.train(True)
-    batch_loss = MeanMetric().to(device, non_blocking=True)
-    epoch_loss = MeanMetric().to(device, non_blocking=True)
+    batch_loss = MeanAccumulator()
+    epoch_loss = MeanAccumulator()
 
     accum_iter = args.accum_iter
     path = CondOTProbPath()
 
     for data_iter_step, (samples, labels) in enumerate(data_loader):
-        # Load batch data
         if data_iter_step % accum_iter == 0:
             optimizer.zero_grad()
             batch_loss.reset()
@@ -62,51 +77,41 @@ def train_one_epoch(
                 break
 
         samples = samples.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True).long()
+        if samples.ndim != 4:
+            raise ValueError(f"train_one_epoch expects samples [N,C,H,W], got {tuple(samples.shape)}")
 
-        # CFG if used
-        if torch.rand(1) < args.class_drop_prob:
-            conditioning = {}
-        else:
-            conditioning = {"label": labels}
+        conditioning = _conditioning_for_model(model, labels, args.class_drop_prob)
 
-        # Scaling to [-1, 1] from [0, 1]
-        samples = samples * 2.0 - 1.0
-
-        # Sample from noise distribution
-        noise = torch.randn_like(samples).to(device)
-        
-        # Get time
+        noise = torch.randn_like(samples)
         if args.skewed_timesteps:
             t = skewed_timestep_sample(samples.shape[0], device=device)
         else:
-            t = torch.rand(samples.shape[0]).to(device)
+            t = torch.rand(samples.shape[0], device=device).clamp(TIMESTEP_EPS, 1.0 - TIMESTEP_EPS)
 
-        # Path design
         path_sample = path.sample(t=t, x_0=noise, x_1=samples)
         x_t = path_sample.x_t
         u_t = path_sample.dx_t
 
-        # Evaluate loss
-        # with torch.amp.autocast('cuda'): for newer version of python
-        with torch.autocast(device_type='cuda'):
-            loss = torch.pow(model(x_t, t, extra=conditioning) - u_t, 2).mean()
+        with _autocast_context(device, getattr(args, "sampling_dtype", "float32")):
+            model_out = model(x_t, t, extra=conditioning)
+            if model_out.shape != u_t.shape:
+                raise ValueError(f"Model output shape {tuple(model_out.shape)} does not match target {tuple(u_t.shape)}")
+            loss = torch.pow(model_out - u_t, 2).mean()
 
-        loss_value = loss.item()
+        loss_value = float(loss.detach().cpu())
         batch_loss.update(loss)
         epoch_loss.update(loss)
 
         if not math.isfinite(loss_value):
             raise ValueError(f"Loss is {loss_value}, stopping training")
 
-        loss /= accum_iter
-
-        # Loss scaler applies the optimizer when update_grad is set to true.
-        # Otherwise just updates the internal gradient scales
+        loss = loss / accum_iter
         apply_update = (data_iter_step + 1) % accum_iter == 0
         loss_scaler(
             loss,
             optimizer,
+            clip_grad=getattr(args, "clip_grad", None),
             parameters=model.parameters(),
             update_grad=apply_update,
         )
@@ -126,4 +131,40 @@ def train_one_epoch(
             )
 
     lr_schedule.step()
-    return {"loss": float(epoch_loss.compute().detach().cpu())}
+    return {"loss": epoch_loss.compute()}
+
+
+def _conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor, class_drop_prob: float) -> dict[str, torch.Tensor]:
+    num_classes = _model_num_classes(model)
+    if num_classes is None:
+        return {}
+    if torch.rand((), device=labels.device) < class_drop_prob:
+        return {}
+    return {"label": labels.long()}
+
+
+def _model_num_classes(model: torch.nn.Module) -> int | None:
+    module = model.module if isinstance(model, DistributedDataParallel) else model
+    if isinstance(module, EMA):
+        module = module.model
+    return getattr(module, "num_classes", None)
+
+
+def _autocast_context(device: torch.device, dtype_name: str):
+    if device.type != "cuda":
+        return contextlib.nullcontext()
+    dtype = _autocast_dtype(dtype_name)
+    if dtype is None:
+        return contextlib.nullcontext()
+    return torch.autocast(device_type="cuda", dtype=dtype)
+
+
+def _autocast_dtype(dtype_name: str) -> torch.dtype | None:
+    normalized = dtype_name.lower()
+    if normalized in {"float16", "fp16"}:
+        return torch.float16
+    if normalized in {"bfloat16", "bf16"}:
+        return torch.bfloat16
+    if normalized in {"float32", "fp32"}:
+        return None
+    raise ValueError(f"Unsupported sampling_dtype={dtype_name!r}")

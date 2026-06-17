@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -21,17 +22,64 @@ class WrappedModel:
 
 
 def load_fm4pde_checkpoint(checkpoint_path: str, pde_type: str, device: str | Any, wrap: bool = True) -> Any:
+    model, _, _ = load_fm4pde_checkpoint_bundle(checkpoint_path, pde_type, device, wrap=wrap)
+    return model
+
+
+def load_fm4pde_checkpoint_bundle(
+    checkpoint_path: str,
+    pde_type: str,
+    device: str | Any,
+    wrap: bool = True,
+) -> tuple[Any, Any | None, dict[str, Any]]:
     import torch
+    from data.transform import PDEStandardizer
     from models.model_configs import instantiate_model
 
     path = _resolve_checkpoint_path(checkpoint_path, pde_type)
     payload = torch.load(path, weights_only=False, map_location=device)
-    model = instantiate_model(architechture=pde_type, use_ema=False)
     state = payload["model"] if isinstance(payload, dict) and "model" in payload else payload
+    num_channels = _infer_num_channels(payload)
+    model = instantiate_model(
+        architechture=pde_type,
+        use_ema=False,
+        in_channels=num_channels,
+        out_channels=num_channels,
+    )
     model.load_state_dict(state)
     model = model.to(device)
     model.eval()
-    return WrappedModel(model).to(device) if wrap else model
+
+    normalizer = None
+    if isinstance(payload, dict) and payload.get("normalizer") is not None:
+        normalizer = PDEStandardizer.from_state_dict(payload["normalizer"])
+    else:
+        warnings.warn(
+            "Checkpoint has no normalizer; sampling will treat model state as physical identity. "
+            "Use legacy_minmax=True only for explicit legacy min-max checkpoints.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    wrapped = WrappedModel(model).to(device) if wrap else model
+    return wrapped, normalizer, payload if isinstance(payload, dict) else {"model": payload}
+
+
+def _infer_num_channels(payload: Any) -> int | None:
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("num_channels") is not None:
+        return int(payload["num_channels"])
+    if payload.get("data_shape") is not None:
+        return int(payload["data_shape"][1])
+    normalizer = payload.get("normalizer")
+    if normalizer is not None and normalizer.get("mean") is not None:
+        return int(normalizer["mean"].shape[1])
+    state = payload.get("model")
+    if isinstance(state, dict):
+        for key in ("input_blocks.0.0.weight", "model.input_blocks.0.0.weight"):
+            if key in state:
+                return int(state[key].shape[1])
+    return None
 
 
 def _resolve_checkpoint_path(checkpoint_path: str, pde_type: str) -> Path:
