@@ -11,6 +11,20 @@ class SplitState:
     sol: Any
 
 
+CHANNEL_SPLITS: dict[str, tuple[int, int]] = {
+    "darcy": (1, 1),
+    "poisson": (1, 1),
+    "helmholtz": (1, 1),
+    "nsnonbounded": (1, 1),
+    "reaction_diffusion": (2, 2),
+    "shallow_water": (3, 3),
+    "heat": (1, 1),
+    "wave": (2, 2),
+    "advection_diffusion": (1, 1),
+    "steady_heat_conduction": (1, 1),
+}
+
+
 def split_pair_state(x: Any, pde: str, img_channels: int | None = None) -> SplitState:
     """Split a physical pair state into coefficient/source and solution tensors."""
     if getattr(x, "ndim", None) != 4:
@@ -20,14 +34,16 @@ def split_pair_state(x: Any, pde: str, img_channels: int | None = None) -> Split
         if channels != 1:
             raise ValueError(f"Burgers expects one channel, got {channels}")
         return SplitState(coef=x[:, 0:1], sol=x[:, 0:1])
-    expected = {
-        "reaction_diffusion": (2, 2),
-        "shallow_water": (3, 3),
-    }.get(pde)
+    expected = CHANNEL_SPLITS.get(pde)
     if expected is not None:
         total = expected[0] + expected[1]
         if channels != total:
-            raise ValueError(f"{pde} expects {total} channels, got {channels}")
+            raise ValueError(
+                f"{pde} expects {total} FM channels ({expected[0]} coefficient/source + "
+                f"{expected[1]} solution) under the current ablation channel definition, got {channels}. "
+                "If this checkpoint or data was trained with scalar PDE parameters materialized as "
+                "constant fields, retrain it using sample-level pde_params metadata instead."
+            )
         return SplitState(coef=x[:, : expected[0]], sol=x[:, expected[0] :])
     if img_channels is not None and img_channels > 0 and channels != img_channels:
         raise ValueError(f"img_channels={img_channels} does not match state channels={channels}")

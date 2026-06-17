@@ -3,6 +3,7 @@ import scipy.io
 from tqdm import tqdm
 import numpy as np
 from pathlib import Path
+import warnings
 
 import torch
 from torch.utils.data import Dataset
@@ -35,11 +36,16 @@ class PDEloader:
         "steady_heat_conduction": ("u_D",),
     }
     OPTIONAL_FUTURE_H5_SCALAR_PARAMS = {"heat", "wave"}
+    FUTURE_H5_PARAM_ALIASES = {
+        "alpha": ("alpha", "fixed_alpha"),
+        "c": ("c", "fixed_c"),
+    }
 
     def __init__(self, pde: str):
         self.pde = pde.lower()
         # Sample-aligned scalar PDE parameters cached by future HDF5 loads.
         self.pde_params = {}
+        self.pde_param_sources = {}
         self.pde_param_slices = []
         self.load_func = {
                 "darcy": self._darcy_load,
@@ -57,7 +63,23 @@ class PDEloader:
 
         if self.pde not in self.load_func:
             raise ValueError(f"Unsupported PDE {pde!r}; expected one of {sorted(self.load_func)}")
-        self.load_data = self.load_func[self.pde]
+
+    def load_data(self, *args, return_metadata=False, **kwargs):
+        data, label = self.load_func[self.pde](*args, **kwargs)
+        if return_metadata:
+            return data, label, self.metadata()
+        return data, label
+
+    def metadata(self):
+        return {
+            "pde": self.pde,
+            "pde_params": self.pde_params,
+            "pde_params_keys": sorted(self.pde_params),
+            "pde_param_sources": dict(self.pde_param_sources),
+            "pde_param_slices": list(self.pde_param_slices),
+            "channel_names": self._channel_names_for_loaded_data(),
+            "scalar_params_loaded": bool(self.pde_params),
+        }
 
     def _pde_dir(self, data_path):
         path = Path(data_path).expanduser()
@@ -298,7 +320,9 @@ class PDEloader:
         file_paths = self._future_h5_paths(data_path, size=size, split=split)
         dataset = []
         param_chunks = {}
+        param_sources = {}
         self.pde_params = {}
+        self.pde_param_sources = {}
         self.pde_param_slices = []
         sample_start = 0
         for file_path in tqdm(file_paths):
@@ -309,7 +333,7 @@ class PDEloader:
                 if remaining is not None and remaining <= 0:
                     break
                 arr = self._future_h5_materialize(file, materialize_params=materialize_params, max_samples=remaining)
-                params = self._future_h5_scalar_params(file, arr.shape[0])
+                params, sources = self._future_h5_scalar_params(file, arr.shape[0])
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim != 4:
                 raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
@@ -321,6 +345,10 @@ class PDEloader:
             sample_stop = sample_start + arr.shape[0]
             for name, values in params.items():
                 param_chunks.setdefault(name, []).append(values)
+                if name not in param_sources:
+                    param_sources[name] = sources.get(name, "unknown")
+                elif param_sources[name] != sources.get(name, "unknown"):
+                    param_sources[name] = "mixed"
             self.pde_param_slices.append(
                 {"file_path": str(file_path), "start": sample_start, "stop": sample_stop, "params": tuple(params)}
             )
@@ -332,59 +360,41 @@ class PDEloader:
             if values.shape[0] != len(data):
                 raise ValueError(f"Scalar parameter {name!r} was present for only part of the loaded samples")
             self.pde_params[name] = torch.tensor(values, dtype=torch.float32)
+        self.pde_param_sources = param_sources
         return data, label
 
-    def _future_h5_materialize(self, file, materialize_params=True, max_samples=None):
+    def _future_h5_materialize(self, file, materialize_params=False, max_samples=None):
         n_take = file["input_data"].shape[0] if max_samples is None else min(int(max_samples), file["input_data"].shape[0])
         input_data = np.asarray(file["input_data"][:n_take], dtype=np.float32)
         output_data = np.asarray(file["output_data"][:n_take], dtype=np.float32)
         if input_data.ndim != 4 or output_data.ndim != 4:
             raise ValueError(f"future_h5 input/output must be [N,C,H,W], got {input_data.shape}, {output_data.shape}")
-        n_samples, _, h, w = input_data.shape
-        if not materialize_params:
-            return np.concatenate([input_data, output_data], axis=1)
-
-        if self.pde == "heat":
-            if self._has_scalar_dataset_or_attr(file, "alpha"):
-                alpha = self._read_scalar_dataset_or_attr(file, "alpha", n_samples)
-                alpha_field = self._expand_scalar_to_field(alpha, h, w)
-                return np.concatenate([input_data, alpha_field, output_data, alpha_field], axis=1)
-            return np.concatenate([input_data, output_data], axis=1)
-
-        if self.pde == "wave":
-            if self._has_scalar_dataset_or_attr(file, "c"):
-                c = self._read_scalar_dataset_or_attr(file, "c", n_samples)
-                c_field = self._expand_scalar_to_field(c, h, w)
-                return np.concatenate([input_data, c_field, output_data, c_field], axis=1)
-            return np.concatenate([input_data, output_data], axis=1)
-
-        if self.pde == "advection_diffusion":
-            bx = self._read_scalar_dataset_or_attr(file, "b_x", n_samples)
-            by = self._read_scalar_dataset_or_attr(file, "b_y", n_samples)
-            kappa = self._read_scalar_dataset_or_attr(file, "kappa", n_samples)
-            bx_field = self._expand_scalar_to_field(bx, h, w)
-            by_field = self._expand_scalar_to_field(by, h, w)
-            kappa_field = self._expand_scalar_to_field(kappa, h, w)
-            return np.concatenate(
-                [input_data, bx_field, by_field, kappa_field, output_data, bx_field, by_field, kappa_field],
-                axis=1,
+        if materialize_params:
+            warnings.warn(
+                "future_h5 materialize_params=True is deprecated and ignored. "
+                "Scalar PDE parameters are returned as sample-level metadata, not FM channels.",
+                DeprecationWarning,
+                stacklevel=2,
             )
-
-        if self.pde == "steady_heat_conduction":
-            u_d = self._read_scalar_dataset_or_attr(file, "u_D", n_samples)
-            u_d_field = self._expand_scalar_to_field(u_d, h, w)
-            return np.concatenate([input_data, u_d_field, output_data, u_d_field], axis=1)
-
         return np.concatenate([input_data, output_data], axis=1)
 
     def _future_h5_scalar_params(self, file, n_samples):
         params = {}
+        sources = {}
         for name in self.FUTURE_H5_SCALAR_PARAMS.get(self.pde, ()):
-            if self._has_scalar_dataset_or_attr(file, name):
-                params[name] = self._read_scalar_dataset_or_attr(file, name, n_samples)
+            storage_name = self._resolve_param_storage_name(file, name)
+            if storage_name is not None:
+                params[name] = self._read_scalar_dataset_or_attr(file, storage_name, n_samples)
+                sources[name] = "dataset" if storage_name in file else f"attrs:{storage_name}"
             elif self.pde not in self.OPTIONAL_FUTURE_H5_SCALAR_PARAMS:
                 raise KeyError(f"Missing scalar dataset or attr {name!r}")
-        return params
+        if self.pde == "steady_heat_conduction":
+            for name in ("residual_norm", "picard_iters", "converged", "n_sources", "source_x", "source_y", "source_amp", "source_sigma"):
+                storage_name = self._resolve_param_storage_name(file, name)
+                if storage_name is not None:
+                    params[name] = self._read_scalar_dataset_or_attr(file, storage_name, n_samples)
+                    sources[name] = "dataset" if storage_name in file else f"attrs:{storage_name}"
+        return params, sources
 
     @staticmethod
     def _expand_scalar_to_field(values, h, w):
@@ -394,6 +404,12 @@ class PDEloader:
     @staticmethod
     def _has_scalar_dataset_or_attr(file, name):
         return name in file or name in file.attrs
+
+    def _resolve_param_storage_name(self, file, name):
+        for candidate in self.FUTURE_H5_PARAM_ALIASES.get(name, (name,)):
+            if candidate in file or candidate in file.attrs:
+                return candidate
+        return None
 
     @staticmethod
     def _read_scalar_dataset_or_attr(file, name, n_samples, default=None):
@@ -406,9 +422,10 @@ class PDEloader:
             values = np.asarray(default, dtype=np.float32)
         else:
             raise KeyError(f"Missing scalar dataset or attr {name!r}")
-        values = values.reshape(-1)
-        if values.shape[0] == 1:
-            values = np.full((n_samples,), float(values[0]), dtype=np.float32)
+        if values.ndim == 0:
+            values = np.full((n_samples,), float(values), dtype=np.float32)
+        elif values.shape[0] == 1 and n_samples > 1:
+            values = np.repeat(values, n_samples, axis=0)
         elif values.shape[0] > n_samples:
             values = values[:n_samples]
         if values.shape[0] != n_samples:
@@ -449,3 +466,12 @@ class PDEloader:
         stem = path.stem
         shard = stem.rsplit("_", 1)[-1]
         return int(shard) if shard.isdigit() else stem
+
+    def _channel_names_for_loaded_data(self):
+        names = {
+            "heat": ["u0", "uT"],
+            "wave": ["u0", "v0", "uT", "vT"],
+            "advection_diffusion": ["u0", "uT"],
+            "steady_heat_conduction": ["f", "u"],
+        }
+        return names.get(self.pde)

@@ -1,14 +1,10 @@
 # FM4PDE Ablation Framework
 
-This framework replaces the monolithic `sample.py` sampling loop with a configurable runner under `fm4pde_ablation/`. The goal is to make FM4PDE ablations reproducible, batched, and auditable while keeping the existing checkpoint format, PDE data format, and legacy config files usable.
+`fm4pde_ablation.runner` is the official FM4PDE sampling and internal ablation entrypoint. `sample.py` is only a legacy compatibility wrapper: it maps old CLI arguments into `AblationConfig`, stores ignored legacy knobs such as `dt_sampler`, `lr_decay`, `freq_decay`, `perturb`, and `perturb_rate` under `config.extra`, prints a deprecation warning, and delegates to the runner.
 
-## Why These Ablations
+The sweep entrypoint is `python -m fm4pde_ablation.sweep`. It expands grouped internal ablation grids without mixing in any external method.
 
-FM4PDE sampling couples several design choices: observation guidance, PDE residual guidance, loss evaluation state, deterministic/stochastic sampling, time grids, sensor masks, observation noise, and gradient clipping. The old script encoded many of these through implicit `if` branches and hard-coded constants. The new config separates task semantics from guidance components so each variable can be measured independently.
-
-## Default Main Method
-
-The default main method is:
+## Main Defaults
 
 - `guidance_components: obs_pde`
 - `loss_state: endpoint`
@@ -20,52 +16,69 @@ The default main method is:
 - `time_grid: uniform`
 - `step_method: euler`
 
-`loss_state: endpoint` is the recommended default because deterministic and stochastic samplers now both expose an explicit endpoint prediction.
+Supported `loss_state` values are `xt`, `x_next`, and `endpoint`. `denoised_endpoint` is accepted only for compatibility and maps to `endpoint` with a warning because there is no separate denoising process.
 
-## Ablation Variables
+Supported sampler phases are `deterministic`, `stochastic`, `hybrid_d2s`, and `hybrid_s2d`.
 
-- `task`: `forward`, `inverse`, `both`, or `unconditional`. This defines which side is semantically conditioned on.
-- `guidance_components`: `noguide`, `obs_only`, `pde_only`, `obs_pde`, `coef_obs_only`, `sol_obs_only`, or `both_obs`.
-- `loss_state`: `xt`, `x_next`, `endpoint`, or `denoised_endpoint`.
-- `sampler_phase`: `deterministic`, `stochastic`, `hybrid_d2s`, or `hybrid_s2d`.
-- `switch_ratio`: fraction of steps spent in the first hybrid phase.
-- `guidance_schedule`: `constant`, `delta`, `bt`, `cosine`, `polynomial`, or `obs_decay`.
-- `clip_mode`: `none`, `global_norm`, or `per_component_norm`.
-- `pde_residual_region`: `full`, `observed`, `boundary_excluded`, or `union_obs`.
-- `sensor_mode`: `random`, `fixed`, `grid`, `sensor_column`, or `time_varying`.
-- `noise_level`: sparse observation noise scale, applied as `obs + noise_level * std(obs) * eps`.
-- `time_grid`: `uniform`, `geometric`, or `cosine`.
-- `step_method`: `euler` or `midpoint`.
+Supported sensor modes are `random`, `fixed`, `grid`, `sensor_column`, and `per_sample_random`. The old `time_varying` name is deprecated for BCHW endpoint data and is not used in formal grids.
 
-## Smoke Test
+## Future PDE Metadata
+
+For Heat, Wave, Advection-Diffusion, and Steady Heat Conduction, spatially constant PDE parameters are not Flow Matching channels. The FM tensors contain only physical spatial fields:
+
+- Heat: `[u0, uT]`
+- Wave: `[u0, v0, uT, vT]`
+- Advection-Diffusion: `[u0, uT]`
+- Steady Heat Conduction: `[f, u]`
+
+Scalar or sample-level parameters are loaded into `PDEGroundTruth.pde_params` and passed to PDE residuals:
+
+- Heat: `alpha`
+- Wave: `c`
+- Advection-Diffusion: `b_x`, `b_y`, `kappa`
+- Steady Heat Conduction: `u_D` plus available sample metadata such as source parameters and solver diagnostics
+
+If a checkpoint still expects old scalar-parameter channels, sampling fails with a channel mismatch and the checkpoint must be retrained under the current channel definition.
+
+## Residual Status
+
+- `reliable`: Darcy, Poisson, Helmholtz
+- `approximate`: Burgers, Reaction-Diffusion, Shallow Water, Heat, Wave, Advection-Diffusion, Steady Heat Conduction
+- `placeholder`: reserved for PDEs with documented but inactive residual plans
+- `disabled`: no PDE guidance should be claimed or used
+
+`nsnonbounded` PDE guidance is currently disabled. If a config requests NS PDE guidance, the runner warns and sets `zeta_pde=0`.
+
+## Commands
+
+Smoke:
 
 ```bash
 python -m fm4pde_ablation.runner --config configs/ablations/smoke.yaml --dry-run
-scripts/ablations/smoke.sh
+scripts/ablations/smoke.sh --dry-run
 ```
 
-In a full FM4PDE environment with `torch`, `numpy`, `scipy`, `h5py`, and `pyyaml` installed, remove `--dry-run` to load the checkpoint and run the Poisson 5-step smoke test. If the configured data path is unavailable, `allow_synthetic_data: true` creates deterministic synthetic tensors for code-path validation only.
-
-## Running Ablation Groups
+List the formal grouped internal grid:
 
 ```bash
-scripts/ablations/run_guidance_components.sh --dry-run
-scripts/ablations/run_loss_state.sh --dry-run
-scripts/ablations/run_sampler_phase.sh --dry-run
-scripts/ablations/run_guidance_schedule.sh --dry-run
-scripts/ablations/run_clipping.sh --dry-run
-scripts/ablations/run_pde_residual_region.sh --dry-run
-scripts/ablations/run_sensor_noise.sh --dry-run
-scripts/ablations/run_steps_timegrid.sh --dry-run
+python -m fm4pde_ablation.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
 ```
 
-For real experiments, omit `--dry-run` after confirming data paths and GPU device. To inspect expanded jobs without running:
+Run one selected group:
 
 ```bash
-python -m fm4pde_ablation.sweep --grid configs/ablations/all_ablation_grid.yaml --list
+python -m fm4pde_ablation.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --group zeta_sensitivity
 ```
 
-## Output Structure
+Aggregate results:
+
+```bash
+scripts/ablations/aggregate_results.sh outputs/ablations outputs/ablations
+```
+
+This writes `summary_all_raw.csv`, `summary_all_grouped.csv`, and `curves_grouped.csv`.
+
+## Outputs
 
 Each run writes:
 
@@ -83,31 +96,8 @@ outputs/ablations/{pde}/{task}/{ablation_name}/{timestamp}/
   figures/
 ```
 
-Every step records `loss_state`, phase, actual zeta values, `bt`, `clip_scale`, observation/PDE gradient norms, relative errors, sparse observation errors, PDE residual norm, and wall-clock time.
+`run_metadata.json` records git commit, checkpoint path, data path, data config path, PDE/task, channel names, loaded PDE parameter keys, seeds, offset/batch size, guidance settings, sampler settings, residual status, device, dtype, and torch/cuda versions.
 
-## Collecting Tables
+`result.pt` stores final coefficient/solution fields, ground truth fields, masks, `pde_params`, resolved config, metrics, and optional intermediate sampler states.
 
-```bash
-scripts/ablations/collect_results.sh outputs/ablations outputs/ablations/summary_all.csv
-```
-
-Use `summary_all.csv` for paper tables. `curves.csv` and `metrics_step.jsonl` contain error-time curves and per-step diagnostics.
-
-## PDE Residual Status
-
-- Reliable: `poisson`, `darcy`, `helmholtz`
-- Approximate: `burger`, `reaction_diffusion`, `shallow_water`
-- Placeholder: `nsnonbounded`
-
-Reaction-Diffusion and Shallow Water use two-time-level approximations. Shallow Water uses conservative variables `[h, hu, hv]`. The current NS residual remains the legacy approximation and should not be interpreted as a full Navier-Stokes residual.
-
-## Adding New PDEs
-
-To add Heat, Wave, or Advection-Diffusion:
-
-1. Add channel counts and residual status in `fm4pde_ablation/registry.py`.
-2. Add channel names and data extraction logic in `fm4pde_ablation/data.py`.
-3. Add split rules if the pair is not an even channel split in `fm4pde_ablation/state.py`.
-4. Add a residual field function in `fm4pde_ablation/pde_residuals.py`.
-5. Add a legacy or ablation config under `configs/`.
-6. Add a smoke config and one unit test for shape/residual behavior.
+Every step records `t`, `t_next`, `step_size`, phase, loss state, actual zeta values, guidance schedule factor, `bt`, gradient norms, `clip_scale`, observation losses, PDE residual norm, relative errors, sparse observation errors, and wall-clock time.

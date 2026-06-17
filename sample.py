@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import warnings
 
 from fm4pde_ablation.config import str2bool
 from fm4pde_ablation.runner import run_from_legacy_args
@@ -38,10 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    print(
-        "Warning: sample.py is now a compatibility wrapper. "
-        "Prefer `python -m fm4pde_ablation.runner --config ...` for ablation runs."
+    message = (
+        "sample.py is deprecated and now only maps legacy arguments into "
+        "fm4pde_ablation.runner. Prefer `python -m fm4pde_ablation.runner --config ...`."
     )
+    warnings.warn(message, DeprecationWarning, stacklevel=2)
+    print(f"DeprecationWarning: {message}")
     results = run_from_legacy_args(args)
     for result in results:
         print(result)

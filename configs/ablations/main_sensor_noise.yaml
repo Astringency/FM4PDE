@@ -16,7 +16,7 @@ groups:
       num_obs: 500
       noise_level: 0.0
     matrix:
-      sensor_mode: [random, fixed, grid, sensor_column, time_varying]
+      sensor_mode: [random, fixed, grid, sensor_column, per_sample_random]
   noise_robustness:
     fixed:
       task: both

@@ -1,0 +1,117 @@
+base_configs: [configs/ablations/base/darcy.yaml, configs/ablations/base/poisson.yaml, configs/ablations/base/helmholtz.yaml, configs/ablations/base/burger.yaml, configs/ablations/base/reaction_diffusion.yaml, configs/ablations/base/shallow_water.yaml, configs/ablations/base/heat.yaml, configs/ablations/base/wave.yaml, configs/ablations/base/advection_diffusion.yaml, configs/ablations/base/steady_heat_conduction.yaml]
+groups:
+  guidance_components:
+    fixed:
+      task: both
+      sampler_phase: stochastic
+      loss_state: endpoint
+      num_obs: 500
+      noise_level: 0.0
+    matrix:
+      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only, both_obs]
+  loss_state:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      sampler_phase: stochastic
+      num_obs: 500
+    matrix:
+      loss_state: [xt, x_next, endpoint]
+  sampler_phase:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_d2s, hybrid_d2s, hybrid_s2d]
+      switch_ratio: [0.5, 0.5, 0.2, 0.5, 0.8, 0.2]
+  sensor_sparsity:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sensor_mode: random
+      noise_level: 0.0
+    matrix:
+      num_obs: [50, 100, 250, 500, 1000]
+  sensor_mode:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      num_obs: 500
+      noise_level: 0.0
+    matrix:
+      sensor_mode: [random, fixed, grid, sensor_column, per_sample_random]
+  noise_robustness:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      num_obs: 500
+    matrix:
+      noise_level: [0.0, 0.01, 0.05, 0.10]
+  zeta_sensitivity:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      num_obs: 500
+      noise_level: 0.0
+    matrix:
+      zeta_pde: [0, 0.1, 1, 10, 100]
+      zeta_ratio_name: [pde0_obs_default, pde0p1_obs_default, pde1_obs_default, pde10_obs_default, pde100_obs_default]
+  time_grid_steps:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    product: true
+    matrix:
+      time_grid: [uniform, geometric, cosine]
+      num_steps: [50, 100]
+      step_method: [euler, midpoint]
+  clipping:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      clip_mode: [none, global_norm, global_norm, global_norm, global_norm, per_component_norm]
+      clip_threshold: [1.0, 1.0, 10.0, 100.0, 10000000000.0, 10.0]
+  residual_region:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+    matrix:
+      pde_residual_region: [full, observed, boundary_excluded, union_obs]
+  task:
+    fixed:
+      loss_state: endpoint
+      sampler_phase: stochastic
+    matrix:
+      task: [forward, inverse, both, unconditional]
+      guidance_components: [obs_pde, obs_pde, obs_pde, noguide]
+  statistics_seed_offset:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      num_obs: 500
+      noise_level: 0.01
+    matrix:
+      sample_seed: [0, 1, 2]
+      mask_seed: [0, 11, 22]
+      noise_seed: [0, 101, 202]
+      offset: [0, 1, 2]
+  ns_observation_only:
+    base_config: configs/ablations/base/nsnonbounded.yaml
+    fixed:
+      task: both
+      loss_state: endpoint
+      sampler_phase: stochastic
+      zeta_pde: 0
+      residual_mode: disabled
+    matrix:
+      guidance_components: [noguide, obs_only, both_obs]

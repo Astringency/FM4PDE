@@ -144,6 +144,11 @@ def get_args_parser():
         help="Optional cap on loaded training samples per PDE for smoke tests.",
     )
     parser.add_argument(
+        "--save_full_pde_params",
+        action="store_true",
+        help="Save full sample-aligned future PDE scalar parameters to output_dir/pde_params.pt.",
+    )
+    parser.add_argument(
         "--output_dir",
         default="/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/",
         help="path where to save, empty for no saving",

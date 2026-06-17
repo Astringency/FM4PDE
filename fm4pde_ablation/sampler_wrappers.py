@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,6 +19,7 @@ class SamplerStepOutput:
     step_size: Any
     phase: str
     loss_state: str
+    wall_time: float
 
 
 def phase_for_step(sampler_phase: str, switch_ratio: float, step_index: int, num_steps: int) -> str:
@@ -42,6 +45,7 @@ def sampler_step(
 ) -> SamplerStepOutput:
     import torch
 
+    start = time.time()
     step_size = t_next - t
     if phase == "deterministic":
         x_endpoint, x_next = _deterministic_step(net, x_cur, t, step_size, step_method)
@@ -50,7 +54,8 @@ def sampler_step(
     else:
         raise ValueError(f"Unknown phase={phase!r}")
 
-    selected = choose_loss_state(loss_state, x_cur, x_next, x_endpoint)
+    normalized_loss_state = _normalize_loss_state(loss_state)
+    selected = choose_loss_state(normalized_loss_state, x_cur, x_next, x_endpoint)
     return SamplerStepOutput(
         x_raw_current=x_cur,
         x_raw_next=x_next,
@@ -60,7 +65,8 @@ def sampler_step(
         t_next=t_next,
         step_size=step_size,
         phase=phase,
-        loss_state=loss_state,
+        loss_state=normalized_loss_state,
+        wall_time=time.time() - start,
     )
 
 
@@ -69,9 +75,21 @@ def choose_loss_state(loss_state: str, x_cur: Any, x_next: Any, x_endpoint: Any)
         return x_cur
     if loss_state == "x_next":
         return x_next
-    if loss_state in {"endpoint", "denoised_endpoint"}:
+    if loss_state == "endpoint":
         return x_endpoint
     raise ValueError(f"Unknown loss_state={loss_state!r}")
+
+
+def _normalize_loss_state(loss_state: str) -> str:
+    if loss_state == "denoised_endpoint":
+        warnings.warn(
+            "loss_state='denoised_endpoint' is deprecated and maps to 'endpoint'; "
+            "the ablation sampler does not run a separate denoising pass.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return "endpoint"
+    return loss_state
 
 
 def _deterministic_step(net: Any, x_cur: Any, t: Any, step_size: Any, method: str) -> tuple[Any, Any]:
@@ -84,7 +102,7 @@ def _deterministic_step(net: Any, x_cur: Any, t: Any, step_size: Any, method: st
         t_mid = t + 0.5 * step_size
         x_mid = x_cur + 0.5 * step_size * v
         v_mid = net(x_mid, t_mid)
-        x_endpoint = endpoint_from_velocity(x_cur, v, t)
+        x_endpoint = endpoint_from_velocity(x_mid, v_mid, t_mid)
         return x_endpoint, x_cur + step_size * v_mid
     raise ValueError(f"Unsupported step_method={method!r}")
 
@@ -107,7 +125,7 @@ def _stochastic_step(
         v = net(x_cur, t)
         t_mid = t + 0.5 * (1.0 - t)
         x_mid = x_cur + 0.5 * (1.0 - t) * v
-        x_endpoint = endpoint_from_velocity(x_cur, net(x_mid, t_mid), t)
+        x_endpoint = endpoint_from_velocity(x_mid, net(x_mid, t_mid), t_mid)
     else:
         raise ValueError(f"Unsupported step_method={method!r}")
     target = torch.device(device if isinstance(device, str) else device)

@@ -56,6 +56,7 @@ def step_metrics(
         "obs_rel_l2_u": obs_relative_l2(phys_state.sol, ground_truth.sol, masks.sol),
         "pde_residual_norm": pde_residual_norm(losses.pde_residual),
         "pde_residual_status": losses.pde_residual_status,
+        "pde_residual_equation": losses.metadata.get("pde", {}).get("equation", ""),
     }
     if gradient is not None:
         row.update(

@@ -30,6 +30,12 @@ residual guidance is therefore computed in physical space.
 Future HDF5 PDE scalar constants such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, and `u_D`
 are metadata for residuals, not Flow Matching channels. The model channels are
 `input_data + output_data` unless a legacy materialized-constant mode is explicitly used.
+Training writes a JSON-safe statistical summary of these scalar constants to
+`output_dir/data_metadata.json` and stores the same `data_metadata` block in each
+checkpoint. The summary records `count`, `mean`, `std`, `min`, `max`, `first`, and
+`last` for each scalar parameter. Full sample-aligned tensors are not saved by default;
+pass `--save_full_pde_params` to additionally write `output_dir/pde_params.pt` when
+reproducing the exact training parameter distribution requires it.
 
 Training example:
 

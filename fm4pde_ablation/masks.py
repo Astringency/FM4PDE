@@ -35,9 +35,15 @@ def make_mask(
     k = min(int(num_obs), spatial_count)
     gen = torch.Generator(device="cpu").manual_seed(int(seed))
 
-    if mode in {"random", "time_varying"}:
-        if mode == "time_varying":
-            warnings.warn("sensor_mode='time_varying' requested on BCHW data; using per-batch random masks.")
+    if mode == "time_varying":
+        warnings.warn(
+            "sensor_mode='time_varying' is deprecated for BCHW endpoint data; using 'per_sample_random'.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        mode = "per_sample_random"
+
+    if mode in {"random", "per_sample_random"}:
         for batch in range(b):
             idx = torch.randperm(spatial_count, generator=gen)[:k]
             mask[batch].view(c, -1)[:, idx] = 1

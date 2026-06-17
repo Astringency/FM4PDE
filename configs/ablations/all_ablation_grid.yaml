@@ -17,7 +17,7 @@ groups:
       sampler_phase: stochastic
       num_obs: 500
     matrix:
-      loss_state: [xt, x_next, endpoint, denoised_endpoint]
+      loss_state: [xt, x_next, endpoint]
   group3_sampler_phase:
     fixed:
       task: both
@@ -62,7 +62,7 @@ groups:
       loss_state: endpoint
       num_obs: 500
     matrix:
-      sensor_mode: [random, fixed, grid, sensor_column, time_varying]
+      sensor_mode: [random, fixed, grid, sensor_column, per_sample_random]
   group7_noise_robustness:
     fixed:
       task: both

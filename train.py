@@ -22,6 +22,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from data.load import PDEloader, TensorDataset
+from data.metadata import detach_pde_params, summarize_pde_params
 from data.transform import PDEStandardizer
 from models.model_configs import instantiate_model
 from train_arg_parser import get_args_parser
@@ -66,6 +67,18 @@ def main(args):
     )
     num_channels = int(data.shape[1])
     logger.info(f"Loaded data shape={tuple(data.shape)}, labels dtype={label.dtype}")
+    data_metadata = _build_data_metadata(
+        args=args,
+        pde_names=pde_names,
+        data=data,
+        label=label,
+        loader_metadata=loader_metadata,
+    )
+    if distributed_mode.is_main_process() and args.output_dir:
+        output_dir = Path(args.output_dir)
+        _write_json(output_dir / "data_metadata.json", data_metadata)
+        if args.save_full_pde_params:
+            torch.save(detach_pde_params(loader_metadata), output_dir / "pde_params.pt")
 
     fitted_normalizer = PDEStandardizer.fit(
         data,
@@ -205,6 +218,7 @@ def main(args):
                 normalizer=normalizer,
                 data_shape=tuple(data.shape),
                 num_channels=num_channels,
+                data_metadata=data_metadata,
             )
             if final_epoch or args.test_run:
                 logger.info("Final model saved.")
@@ -217,6 +231,38 @@ def main(args):
     logger.info(f"Training time {total_time_str}; last_epoch={last_epoch}")
     if loader_metadata:
         logger.info(f"Loaded PDE metadata keys: {sorted(loader_metadata)}")
+
+
+def _build_data_metadata(
+    args,
+    pde_names: list[str],
+    data: torch.Tensor,
+    label: torch.Tensor,
+    loader_metadata: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "dataset": args.dataset,
+        "pde_names": list(pde_names),
+        "data_path": args.data_path,
+        "data_size": args.data_size,
+        "max_train_samples": args.max_train_samples,
+        "data_shape": [int(dim) for dim in data.shape],
+        "num_channels": int(data.shape[1]),
+        "num_samples": int(data.shape[0]),
+        "label_values": sorted(int(value) for value in torch.unique(label).detach().cpu().tolist()),
+        "pde_param_summary": summarize_pde_params(loader_metadata),
+        "normalization": {
+            "type": "channelwise_standardization",
+            "eps": args.normalization_eps,
+        },
+    }
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write("\n")
 
 
 def _load_training_data(

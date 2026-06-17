@@ -23,19 +23,66 @@ def make_run_dir(config: AblationConfig) -> Path:
     return run_dir
 
 
-def write_run_metadata(config: AblationConfig, run_dir: str | os.PathLike[str]) -> None:
+def write_run_metadata(
+    config: AblationConfig,
+    run_dir: str | os.PathLike[str],
+    ground_truth_metadata: dict[str, Any] | None = None,
+    residual_metadata: dict[str, Any] | None = None,
+) -> None:
     run_dir = Path(run_dir)
     save_resolved_config(config, run_dir)
+    ground_truth_metadata = ground_truth_metadata or {}
     metadata = {
         "git_commit": git_commit_hash(),
         "checkpoint_path": config.checkpoint_path,
         "data_path": config.data_path,
         "data_config_path": config.data_config_path,
+        "pde": config.pde,
+        "task": config.task,
+        "channel_names": ground_truth_metadata.get("channel_names", []),
+        "pde_params_keys": ground_truth_metadata.get("pde_params_keys", []),
+        "pde_params_sources": ground_truth_metadata.get("pde_params_sources", {}),
+        "scalar_params_loaded": ground_truth_metadata.get("scalar_params_loaded", False),
         "mask_seed": config.mask_seed,
         "noise_seed": config.noise_seed,
         "sample_seed": config.sample_seed,
+        "offset": config.offset,
+        "batch_size": config.batch_size,
+        "guidance": {
+            "guidance_components": config.guidance_components,
+            "guidance_schedule": config.guidance_schedule,
+            "zeta_obs_a": config.zeta_obs_a,
+            "zeta_obs_u": config.zeta_obs_u,
+            "zeta_pde": config.zeta_pde,
+            "clip_mode": config.clip_mode,
+            "clip_threshold": config.clip_threshold,
+            "pde_residual_region": config.pde_residual_region,
+        },
+        "sampler": {
+            "sampler_phase": config.sampler_phase,
+            "switch_ratio": config.switch_ratio,
+            "loss_state": "endpoint" if config.loss_state == "denoised_endpoint" else config.loss_state,
+            "time_grid": config.time_grid,
+            "num_steps": config.num_steps,
+            "step_method": config.step_method,
+        },
+        "sensor": {
+            "num_obs": config.num_obs,
+            "sensor_mode": config.sensor_mode,
+            "shared_mask": config.shared_mask,
+            "noise_level": config.noise_level,
+            "noise_level_coef": config.noise_level_coef,
+            "noise_level_sol": config.noise_level_sol,
+        },
+        "residual": residual_metadata or {},
+        "device": config.device,
+        "dtype": config.dtype,
+        "torch": torch_runtime_metadata(),
     }
-    (run_dir / "run_metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+    (run_dir / "run_metadata.json").write_text(
+        json.dumps(_jsonable(metadata), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 def save_torch(path: str | os.PathLike[str], payload: Any) -> None:
@@ -59,3 +106,37 @@ def git_commit_hash() -> str:
         return result.stdout.strip()
     except Exception:
         return "unknown"
+
+
+def torch_runtime_metadata() -> dict[str, Any]:
+    try:
+        import torch
+
+        return {
+            "version": torch.__version__,
+            "cuda_version": torch.version.cuda,
+            "cuda_available": torch.cuda.is_available(),
+            "device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        }
+    except Exception:
+        return {"version": "unavailable", "cuda_version": None, "cuda_available": False, "device_count": 0}
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _jsonable(child) for key, child in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(child) for child in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    try:
+        import torch
+
+        if isinstance(value, torch.Tensor):
+            return value.detach().cpu().tolist()
+    except Exception:
+        pass
+    try:
+        return value.item()
+    except Exception:
+        return str(value)

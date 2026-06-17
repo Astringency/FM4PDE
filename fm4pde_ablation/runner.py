@@ -5,11 +5,12 @@ import os
 import pickle
 import random
 import time
+import warnings
 from pathlib import Path
 from typing import Any
 
 from fm4pde_ablation.config import AblationConfig, load_config, parse_cli_overrides, str2bool
-from fm4pde_ablation.data import load_ground_truth
+from fm4pde_ablation.data import finalize_ground_truth_config, load_ground_truth
 from fm4pde_ablation.guidance import apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
 from fm4pde_ablation.logging import make_run_dir, save_torch, write_run_metadata
 from fm4pde_ablation.losses import ObservationTargets, compute_guidance_losses, guidance_component_flags
@@ -17,17 +18,20 @@ from fm4pde_ablation.masks import make_pair_masks
 from fm4pde_ablation.metrics import append_jsonl, final_metrics, step_metrics, write_csv, write_json
 from fm4pde_ablation.model_io import load_fm4pde_checkpoint_bundle
 from fm4pde_ablation.noise import add_observation_noise
+from fm4pde_ablation.pde_residuals import residual_status
 from fm4pde_ablation.sampler_wrappers import phase_for_step, sampler_step
 from fm4pde_ablation.state import SplitState, standardized_to_physical_state
 from fm4pde_ablation.time_grid import affine_coefficients, make_time_grid, scheduler_coefficients
 
 
 def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
+    config = finalize_ground_truth_config(config)
     config.validate()
-    run_dir = make_run_dir(config)
-    write_run_metadata(config, run_dir)
+    _disable_unreliable_pde_guidance(config)
 
     if config.dry_run and not _torch_available():
+        run_dir = make_run_dir(config)
+        write_run_metadata(config, run_dir, ground_truth_metadata={}, residual_metadata=_residual_metadata_for_config(config))
         result = {
             "status": "dry_run_no_torch",
             "reason": "torch is not installed in the active interpreter",
@@ -45,6 +49,8 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     config.device = str(device)
     gt = load_ground_truth(config)
     config.img_channels = int(gt.pair.shape[1])
+    run_dir = make_run_dir(config)
+    write_run_metadata(config, run_dir, ground_truth_metadata=gt.metadata, residual_metadata=_residual_metadata_for_config(config))
     masks = make_pair_masks(
         gt.coef.shape,
         gt.sol.shape,
@@ -138,13 +144,27 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                 "zeta_obs_a_t": _scalar(schedule.zeta_obs_a_t),
                 "zeta_obs_u_t": _scalar(schedule.zeta_obs_u_t),
                 "zeta_pde_t": _scalar(schedule.zeta_pde_t),
+                "guidance_schedule_factor": _scalar(schedule.metadata.get("factor", 1.0)),
                 "bt": _scalar(schedule.bt),
             }
         )
         rows.append(row)
         append_jsonl(run_dir / "metrics_step.jsonl", row)
         if config.save_intermediate:
-            intermediates.append(x_next.detach().cpu())
+            intermediates.append(
+                {
+                    "x_raw_current": step_out.x_raw_current.detach().cpu(),
+                    "x_raw_next": step_out.x_raw_next.detach().cpu(),
+                    "x_endpoint": step_out.x_endpoint.detach().cpu(),
+                    "x_loss_state": step_out.x_loss_state.detach().cpu(),
+                    "phase": step_out.phase,
+                    "loss_state": step_out.loss_state,
+                    "t": _scalar(step_out.t),
+                    "t_next": _scalar(step_out.t_next),
+                    "step_size": _scalar(step_out.step_size),
+                    "wall_time": step_out.wall_time,
+                }
+            )
 
     final_phys = _physical_from_model_state(x_next, config, normalizer)
     final = final_metrics(rows)
@@ -154,6 +174,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "run_dir": str(run_dir),
             "wall_clock_time": time.time() - start,
             "synthetic_data": bool(gt.metadata.get("synthetic", False)),
+            "pde_residual_status": rows[-1].get("pde_residual_status", residual_status(config.pde)) if rows else residual_status(config.pde),
         }
     )
     write_json(run_dir / "metrics_final.json", final)
@@ -164,6 +185,11 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         {
             "coef_final": final_phys.coef.detach().cpu(),
             "sol_final": final_phys.sol.detach().cpu(),
+            "coef_ground_truth": gt.coef.detach().cpu(),
+            "sol_ground_truth": gt.sol.detach().cpu(),
+            "masks": {"coef": masks.coef.detach().cpu(), "sol": masks.sol.detach().cpu(), "metadata": masks.metadata},
+            "pde_params": _cpu_pde_params(gt.pde_params),
+            "metrics": final,
             "intermediate": intermediates,
             "ground_truth_metadata": gt.metadata,
             "normalizer": normalizer.state_dict() if normalizer is not None else None,
@@ -221,6 +247,7 @@ def run_from_legacy_args(args: argparse.Namespace) -> list[dict[str, Any]]:
         overrides["dry_run"] = True
     overrides["extra"] = {
         "legacy_remark": args.remark,
+        "legacy_dt_sampler": args.dt_sampler,
         "legacy_perturb": args.perturb,
         "legacy_perturb_rate": args.perturb_rate,
         "legacy_lr_decay": args.lr_decay,
@@ -286,6 +313,11 @@ def _checkpoint_metadata(payload: dict[str, Any]) -> dict[str, Any]:
         "data_shape": payload.get("data_shape"),
         "num_channels": payload.get("num_channels"),
         "normalization": payload.get("normalization"),
+        "checkpoint_schema_version": payload.get("checkpoint_schema_version"),
+        "use_ema": payload.get("use_ema"),
+        "has_ema": payload.get("has_ema"),
+        "selected_inference_weight": payload.get("selected_inference_weight"),
+        "data_metadata": payload.get("data_metadata"),
     }
 
 
@@ -294,15 +326,51 @@ def _check_sampling_channels(gt: Any, normalizer: Any | None, payload: dict[str,
     if normalizer is not None and int(normalizer.mean.shape[1]) != expected:
         raise ValueError(
             f"Checkpoint normalizer has {int(normalizer.mean.shape[1])} channels, "
-            f"but ground-truth pair has {expected}"
+            f"but ground-truth pair has {expected}. If this checkpoint was trained with scalar PDE "
+            "parameters materialized as constant fields, retrain it with the current sample-level "
+            "pde_params channel definition."
         )
     if payload.get("num_channels") is not None and int(payload["num_channels"]) != expected:
-        raise ValueError(f"Checkpoint num_channels={payload['num_channels']} but ground-truth pair has {expected}")
+        raise ValueError(
+            f"Checkpoint num_channels={payload['num_channels']} but ground-truth pair has {expected}. "
+            "Checkpoints using old scalar-parameter channels must be retrained with the current "
+            "sample-level pde_params channel definition."
+        )
 
 
 def _has_guidance(config: AblationConfig) -> bool:
     flags = guidance_component_flags(config.guidance_components, config.task)
     return flags["obs_a"] or flags["obs_u"] or flags["pde"]
+
+
+def _disable_unreliable_pde_guidance(config: AblationConfig) -> None:
+    flags = guidance_component_flags(config.guidance_components, config.task)
+    if config.pde == "nsnonbounded" and flags["pde"] and float(config.zeta_pde) != 0.0:
+        warnings.warn(
+            "nsnonbounded PDE guidance is disabled because no reliable NS residual is implemented; setting zeta_pde=0.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        config.zeta_pde = 0.0
+
+
+def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
+    return {
+        "pde": config.pde,
+        "residual_status": residual_status(config.pde),
+        "residual_mode": config.residual_mode,
+        "zeta_pde": config.zeta_pde,
+    }
+
+
+def _cpu_pde_params(params: dict[str, Any]) -> dict[str, Any]:
+    out = {}
+    for key, value in (params or {}).items():
+        try:
+            out[key] = value.detach().cpu()
+        except Exception:
+            out[key] = value
+    return out
 
 
 def _resolve_device(device: str) -> Any:

@@ -7,4 +7,4 @@ groups:
       sampler_phase: stochastic
       num_obs: 500
     matrix:
-      loss_state: [xt, x_next, endpoint, denoised_endpoint]
+      loss_state: [xt, x_next, endpoint]

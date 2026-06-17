@@ -45,7 +45,7 @@ VALID_GUIDANCE_SCHEDULES = {
 }
 VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm"}
 VALID_PDE_REGIONS = {"full", "observed", "boundary_excluded", "union_obs"}
-VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "time_varying"}
+VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random", "time_varying"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
 VALID_LOSS_TYPES = {"l1", "l2", "mse"}
@@ -115,6 +115,7 @@ class AblationConfig:
     time_grid_eta: float = 0.4
     loss_type: str = "l2"
     pde_residual_status: str = "auto"
+    residual_mode: str = "auto"
     data_path: str = ""
     offset: int = 0
     img_channels: int = 2
@@ -132,6 +133,24 @@ class AblationConfig:
     extra: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
+        if self.loss_state == "denoised_endpoint":
+            import warnings
+
+            warnings.warn(
+                "loss_state='denoised_endpoint' is deprecated and maps to 'endpoint'; "
+                "there is no separate denoising step in the FM4PDE ablation sampler.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        if self.sensor_mode == "time_varying":
+            import warnings
+
+            warnings.warn(
+                "sensor_mode='time_varying' is deprecated for BCHW endpoint data; "
+                "use 'per_sample_random' for independently sampled endpoint masks.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         checks = [
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),

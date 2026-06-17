@@ -35,6 +35,50 @@ SOL_CHANNELS = {
     "steady_heat_conduction": ["u"],
 }
 
+FUTURE_H5_CHANNEL_COUNTS = {
+    "heat": (1, 1),
+    "wave": (2, 2),
+    "advection_diffusion": (1, 1),
+    "steady_heat_conduction": (1, 1),
+}
+
+FUTURE_H5_PARAM_NAMES = {
+    "heat": ("alpha",),
+    "wave": ("c",),
+    "advection_diffusion": ("b_x", "b_y", "kappa"),
+    "steady_heat_conduction": (
+        "u_D",
+        "residual_norm",
+        "picard_iters",
+        "converged",
+        "n_sources",
+        "source_x",
+        "source_y",
+        "source_amp",
+        "source_sigma",
+    ),
+}
+
+OPTIONAL_FUTURE_H5_PARAMS = {
+    "heat": {"alpha"},
+    "wave": {"c"},
+    "steady_heat_conduction": {
+        "residual_norm",
+        "picard_iters",
+        "converged",
+        "n_sources",
+        "source_x",
+        "source_y",
+        "source_amp",
+        "source_sigma",
+    },
+}
+
+FUTURE_H5_PARAM_ALIASES = {
+    "alpha": ("alpha", "fixed_alpha"),
+    "c": ("c", "fixed_c"),
+}
+
 
 @dataclass
 class PDEGroundTruth:
@@ -42,9 +86,20 @@ class PDEGroundTruth:
     coef: Any
     sol: Any
     pair: Any
+    pde_params: dict[str, Any]
     channel_names_coef: list[str]
     channel_names_sol: list[str]
     metadata: dict[str, Any]
+
+
+def finalize_ground_truth_config(config: AblationConfig) -> AblationConfig:
+    if _needs_legacy_fields(config) and Path(config.data_config_path).exists():
+        legacy = load_yaml_file(config.data_config_path)
+        config = _merge_legacy_data_fields(config, legacy)
+    if config.loadby == "future_h5" and config.pde in FUTURE_H5_CHANNEL_COUNTS:
+        counts = FUTURE_H5_CHANNEL_COUNTS[config.pde]
+        config.img_channels = sum(counts)
+    return config
 
 
 def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
@@ -54,9 +109,7 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     except ModuleNotFoundError as exc:
         raise RuntimeError("load_ground_truth requires torch") from exc
 
-    if _needs_legacy_fields(config) and Path(config.data_config_path).exists():
-        legacy = load_yaml_file(config.data_config_path)
-        config = _merge_legacy_data_fields(config, legacy)
+    config = finalize_ground_truth_config(config)
 
     if not config.data_path or not Path(config.data_path).exists():
         if not config.allow_synthetic_data:
@@ -71,10 +124,7 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         offset = config.offset + batch_idx
         offsets.append(offset)
         coef, sol = _extract_single_sample(config, raw, offset)
-        if config.loadby == "future_h5":
-            expected = (_infer_sample_channels(coef), _infer_sample_channels(sol))
-        else:
-            expected = _channel_counts(config.pde, config.img_channels)
+        expected = _channel_counts(config.pde, config.img_channels)
         coef_list.append(_ensure_bchw(coef, config.pde, "coef", config.device, config.dtype, expected[0]))
         sol_list.append(_ensure_bchw(sol, config.pde, "sol", config.device, config.dtype, expected[1]))
 
@@ -82,22 +132,33 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     sol_t = torch.cat(sol_list, dim=0)
     _assert_spatial_compatible(coef_t, sol_t, config.pde)
     pair = torch.cat([coef_t, sol_t], dim=1)
+    pde_params: dict[str, Any] = {}
+    pde_param_sources: dict[str, str] = {}
+    if config.loadby == "future_h5":
+        pde_params, pde_param_sources = _future_h5_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
+    channel_names_coef = _channel_names(COEF_CHANNELS, config.pde, int(coef_t.shape[1]), "coef")
+    channel_names_sol = _channel_names(SOL_CHANNELS, config.pde, int(sol_t.shape[1]), "sol")
     metadata = {
         "data_path": config.data_path,
         "offset": config.offset,
         "loadby": config.loadby,
         "synthetic": False,
         "batch_size": config.batch_size,
+        "channel_names": channel_names_coef + channel_names_sol,
+        "channel_names_coef": channel_names_coef,
+        "channel_names_sol": channel_names_sol,
+        "pde_params_keys": sorted(pde_params),
+        "pde_params_sources": pde_param_sources,
+        "scalar_params_loaded": bool(pde_params),
     }
-    if config.loadby == "future_h5":
-        metadata["pde_params"] = _future_h5_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
     return PDEGroundTruth(
         pde=config.pde,
         coef=coef_t,
         sol=sol_t,
         pair=pair,
-        channel_names_coef=_channel_names(COEF_CHANNELS, config.pde, int(coef_t.shape[1]), "coef"),
-        channel_names_sol=_channel_names(SOL_CHANNELS, config.pde, int(sol_t.shape[1]), "sol"),
+        pde_params=pde_params,
+        channel_names_coef=channel_names_coef,
+        channel_names_sol=channel_names_sol,
         metadata=metadata,
     )
 
@@ -126,13 +187,17 @@ def make_synthetic_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     base = 0.1 * base + smooth
     coef = base[:, : channels[0]]
     sol = base[:, channels[0] :]
+    pde_params = _synthetic_pde_params(config, device, dtype)
+    channel_names_coef = _channel_names(COEF_CHANNELS, config.pde, channels[0], "coef")
+    channel_names_sol = _channel_names(SOL_CHANNELS, config.pde, channels[1], "sol")
     return PDEGroundTruth(
         pde=config.pde,
         coef=coef,
         sol=sol,
         pair=torch.cat([coef, sol], dim=1),
-        channel_names_coef=_channel_names(COEF_CHANNELS, config.pde, channels[0], "coef"),
-        channel_names_sol=_channel_names(SOL_CHANNELS, config.pde, channels[1], "sol"),
+        pde_params=pde_params,
+        channel_names_coef=channel_names_coef,
+        channel_names_sol=channel_names_sol,
         metadata={
             "data_path": config.data_path,
             "offset": config.offset,
@@ -140,6 +205,12 @@ def make_synthetic_ground_truth(config: AblationConfig) -> PDEGroundTruth:
             "synthetic": True,
             "reason": "configured data path was missing",
             "batch_size": config.batch_size,
+            "channel_names": channel_names_coef + channel_names_sol,
+            "channel_names_coef": channel_names_coef,
+            "channel_names_sol": channel_names_sol,
+            "pde_params_keys": sorted(pde_params),
+            "pde_params_sources": {key: "synthetic_default" for key in pde_params},
+            "scalar_params_loaded": False,
         },
     )
 
@@ -283,6 +354,8 @@ def _channel_counts(pde: str, img_channels: int) -> tuple[int, int]:
         return (2, 2)
     if pde == "shallow_water":
         return (3, 3)
+    if pde in FUTURE_H5_CHANNEL_COUNTS:
+        return FUTURE_H5_CHANNEL_COUNTS[pde]
     if pde == "heat":
         return (img_channels // 2, img_channels // 2) if img_channels and img_channels % 2 == 0 else (1, 1)
     if pde == "wave":
@@ -296,59 +369,63 @@ def _channel_counts(pde: str, img_channels: int) -> tuple[int, int]:
     return (1, 1)
 
 
-def _materialize_future_h5_sample(file: Any, pde: str, offset: int) -> Any:
-    import numpy as np
-
-    input_data = np.asarray(file["input_data"][offset], dtype=np.float32)
-    output_data = np.asarray(file["output_data"][offset], dtype=np.float32)
-    return np.concatenate([input_data, output_data], axis=0)
-
-
-def _infer_sample_channels(value: Any) -> int:
-    import numpy as np
-
-    arr = np.asarray(value)
-    if arr.ndim == 2:
-        return 1
-    if arr.ndim == 3:
-        return int(arr.shape[0])
-    if arr.ndim == 4:
-        return int(arr.shape[1])
-    raise ValueError(f"Cannot infer channel count from shape {arr.shape}")
-
-
-def _future_h5_params_for_offsets(file: Any, pde: str, offsets: list[int], device: Any) -> dict[str, Any]:
+def _future_h5_params_for_offsets(file: Any, pde: str, offsets: list[int], device: Any) -> tuple[dict[str, Any], dict[str, str]]:
     import torch
 
-    param_names = {
-        "heat": ("alpha",),
-        "wave": ("c",),
-        "advection_diffusion": ("b_x", "b_y", "kappa"),
-        "steady_heat_conduction": ("u_D",),
-    }.get(pde, ())
+    param_names = FUTURE_H5_PARAM_NAMES.get(pde, ())
+    optional = OPTIONAL_FUTURE_H5_PARAMS.get(pde, set())
     params = {}
+    sources = {}
     for name in param_names:
-        if name not in file and name not in file.attrs:
-            if pde in {"heat", "wave"}:
+        storage_name = _future_h5_storage_name(file, name)
+        if storage_name is None:
+            if name in optional:
                 continue
             raise KeyError(f"Missing future_h5 scalar {name!r}")
-        values = [_read_future_h5_scalar(file, name, offset) for offset in offsets]
-        params[name] = torch.tensor(values, dtype=torch.float32, device=device)
-    return params
+        values = [_read_future_h5_value(file, storage_name, offset) for offset in offsets]
+        params[name] = torch.as_tensor(values, dtype=torch.float32, device=device)
+        sources[name] = "dataset" if storage_name in file else f"attrs:{storage_name}"
+    return params, sources
 
 
-def _read_future_h5_scalar(file: Any, name: str, offset: int) -> float:
+def _future_h5_storage_name(file: Any, name: str) -> str | None:
+    for candidate in FUTURE_H5_PARAM_ALIASES.get(name, (name,)):
+        if candidate in file or candidate in file.attrs:
+            return candidate
+    return None
+
+
+def _read_future_h5_value(file: Any, name: str, offset: int) -> Any:
     import numpy as np
 
     if name in file:
         dataset = file[name]
-        values = np.asarray(dataset[()] if dataset.shape == () else dataset[:], dtype=np.float32).reshape(-1)
+        values = np.asarray(dataset[()] if dataset.shape == () else dataset[:], dtype=np.float32)
+        if values.ndim == 0:
+            return float(values)
         if values.shape[0] == 1:
-            return float(values[0])
-        return float(values[offset])
+            return values[0]
+        return values[offset]
     if name in file.attrs:
-        return float(np.asarray(file.attrs[name], dtype=np.float32).reshape(-1)[0])
+        values = np.asarray(file.attrs[name], dtype=np.float32)
+        return float(values.reshape(-1)[0]) if values.ndim == 0 or values.size == 1 else values
     raise KeyError(f"Missing future_h5 scalar {name!r}")
+
+
+def _synthetic_pde_params(config: AblationConfig, device: Any, dtype: Any) -> dict[str, Any]:
+    import torch
+
+    b = int(config.batch_size)
+    ones = lambda value: torch.full((b,), float(value), dtype=dtype, device=device)
+    if config.pde == "heat":
+        return {"alpha": ones(1.0)}
+    if config.pde == "wave":
+        return {"c": ones(1.0)}
+    if config.pde == "advection_diffusion":
+        return {"b_x": ones(0.0), "b_y": ones(0.0), "kappa": ones(1.0)}
+    if config.pde == "steady_heat_conduction":
+        return {"u_D": ones(298.0)}
+    return {}
 
 
 def _torch_dtype(name: str) -> Any:

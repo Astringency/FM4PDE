@@ -40,6 +40,8 @@ def compute_guidance_losses(
     import torch
 
     enabled = guidance_component_flags(config.guidance_components, getattr(config, "task", "both"))
+    if float(getattr(config, "zeta_pde", 1.0)) == 0.0:
+        enabled["pde"] = False
     target_coef = observations.coef_noisy if observations is not None else ground_truth.coef * masks.coef
     target_sol = observations.sol_noisy if observations is not None else ground_truth.sol * masks.sol
     clean_coef = observations.coef_clean if observations is not None else ground_truth.coef * masks.coef
@@ -64,8 +66,9 @@ def compute_guidance_losses(
             config.pde,
             phys_state.coef,
             phys_state.sol,
+            pde_params=getattr(ground_truth, "pde_params", None),
             k=getattr(config, "k", 1),
-            pde_params=getattr(ground_truth, "metadata", {}).get("pde_params", {}),
+            residual_mode=getattr(config, "residual_mode", "auto"),
         )
         pde_field = residual.residual
         status = residual.status
@@ -77,6 +80,12 @@ def compute_guidance_losses(
     else:
         L_pde = zero
 
+    metadata = {
+        "enabled": enabled,
+        "pde": pde_meta,
+        "pde_params_used": sorted(getattr(ground_truth, "pde_params", {}) or {}),
+        "residual_status": status,
+    }
     return GuidanceLossOutput(
         L_obs_a=L_obs_a,
         L_obs_u=L_obs_u,
@@ -87,7 +96,7 @@ def compute_guidance_losses(
         clean_L_obs_a=clean_L_obs_a,
         clean_L_obs_u=clean_L_obs_u,
         pde_residual_status=status,
-        metadata={"enabled": enabled, "pde": pde_meta},
+        metadata=metadata,
     )
 
 

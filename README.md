@@ -15,7 +15,7 @@ This is a codebase for solving Partial Differential Equations (PDEs) based on Fl
 * **`train.py`**: Main entry point script for training.
 * **`train_arg_parser.py`**: The file defines the parameters that can be passed into the main training code.
 * **`sample.py`**: Main entry point script for inference/sampling.
-* **`run_train.sh`**: Example script for training.
+* **`scripts/train/run_train.sh`**: Example script for training.
 * **`run_sample.sh`**: Example script for sampling.
 
 ## 🛠️ Installation & Environment
@@ -36,13 +36,19 @@ This code is primarily implemented in a Python 3.12 environment. To prevent vers
 
 ### 1. Training
 
-`train.py` is the main entry point for neural network training, with arguments defined in `train_arg_parser.py`. Examples for single-node multi-GPU training from scratch are provided in `run_train.sh`. Additionally, training can be resumed from a checkpoint by passing the `--resume` argument. It should be noted that the example given in run_train.sh reads data and stores results in the default path. Please adjust the path according to your needs.
+`train.py` is the main entry point for neural network training, with arguments defined in `train_arg_parser.py`. Examples for single-node multi-GPU training from scratch are provided in `scripts/train/run_train.sh`. Additionally, training can be resumed from a checkpoint by passing the `--resume` argument. The example script reads data and stores results in default paths that can be overridden with `DATA_PATH` and `OUTPUT_DIR`.
 
 New training runs use channel-wise training-set mean/std standardization instead of
 min-max scaling. The fitted normalizer is saved to the checkpoint payload,
 `output_dir/normalizer.pt`, and `output_dir/normalization.json`. See
 [`docs/normalization.md`](docs/normalization.md) for the full sampling and residual
 contract.
+
+Future PDE scalar constants such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, and `u_D`
+are not Flow Matching channels. Training saves their statistical summary to
+`output_dir/data_metadata.json` and to checkpoint `data_metadata`. Full sample-aligned
+parameter tensors are skipped by default; add `--save_full_pde_params` to write
+`output_dir/pde_params.pt`.
 
 Example:
 
@@ -73,4 +79,3 @@ python -m fm4pde_ablation.runner --config configs/heat.yaml --override checkpoin
 ```
 
 Configurations in `sample.py` and the `configs/` directory must be tailored to the specific task. Users should pay particular attention to updating the paths for data input, model checkpoints, and result output to match their actual environment.
-
