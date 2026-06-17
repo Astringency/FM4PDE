@@ -46,6 +46,10 @@ def _resolve_checkpoint_path(checkpoint_path: str, pde_type: str) -> Path:
         "nsnonbounded": "fm4nsnonbounded.pth",
         "reaction_diffusion": "fm4reaction_diffusion.pth",
         "shallow_water": "fm4shallow_water.pth",
+        "heat": "fm4heat.pth",
+        "wave": "fm4wave.pth",
+        "advection_diffusion": "fm4advection_diffusion.pth",
+        "steady_heat_conduction": "fm4steady_heat_conduction.pth",
     }
     fallback = Path("output/pretrained") / fallback_names.get(pde_type, f"fm4{pde_type}.pth")
     if fallback.exists():

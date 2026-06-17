@@ -3,6 +3,8 @@ data:
   datapath: '/large_storage/zhangxf/PDEdata/future_pdes/advection_diffusion/advection_diffusion_test_1000-128-128.h5'
   remark: 'test'
   offset: 0
+  # Loader materializes scalar b_x,b_y,kappa into constant fields.
+  # Raw HDF5 input_data/output_data remain [N,1,H,W].
   img_channels: 8
   img_resolution: 128
   obs_size: 500
@@ -38,4 +40,3 @@ output:
   plot: True
   save: True
   return: False
-

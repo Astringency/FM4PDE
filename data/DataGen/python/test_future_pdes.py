@@ -46,72 +46,140 @@ class FuturePDEGenerationTest(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls.tmp.cleanup()
 
-    def test_hdf5_keys_shapes_and_dtype(self) -> None:
-        expected_channels = {
-            "heat": (1, 1, 2),
-            "wave": (2, 2, 4),
-            "advection_diffusion": (4, 4, 8),
+    def test_hdf5_on_disk_schema(self) -> None:
+        expected = {
+            "heat": {"cin": 1, "cout": 1, "scalars": ["alpha"], "trajectory": True},
+            "wave": {"cin": 2, "cout": 2, "scalars": [], "trajectory": True},
+            "advection_diffusion": {"cin": 1, "cout": 1, "scalars": ["b_x", "b_y", "kappa"], "trajectory": True},
+            "steady_heat_conduction": {
+                "cin": 1,
+                "cout": 1,
+                "scalars": ["u_D", "residual_norm", "picard_iters", "converged"],
+                "trajectory": False,
+            },
         }
-        for pde, (cin, cout, ctot) in expected_channels.items():
+        for pde, spec in expected.items():
             path = self.out_root / pde / f"{pde}_4-16-16_1.h5"
             self.assertTrue(path.exists(), path)
             with h5py.File(path, "r") as h5:
-                for key in ["input_data", "output_data", "data", "full_trajectory", "x", "y", "t", "sample_seed"]:
+                self.assertIn("input_data", h5)
+                self.assertIn("output_data", h5)
+                self.assertNotIn("data", h5)
+                self.assertNotIn("materialized_data", h5)
+                self.assertEqual(h5["input_data"].shape, (4, spec["cin"], 16, 16))
+                self.assertEqual(h5["output_data"].shape, (4, spec["cout"], 16, 16))
+                self.assertEqual(h5["input_data"].dtype, np.dtype("float32"))
+                for key in spec["scalars"]:
                     self.assertIn(key, h5)
-                self.assertEqual(h5["input_data"].shape, (4, cin, 16, 16))
-                self.assertEqual(h5["output_data"].shape, (4, cout, 16, 16))
-                self.assertEqual(h5["data"].shape, (4, ctot, 16, 16))
-                self.assertEqual(h5["full_trajectory"].shape, (4, 1, 5, 16, 16))
-                self.assertEqual(h5["data"].dtype, np.dtype("float32"))
+                    self.assertEqual(h5[key].shape[0], 4)
+                if spec["trajectory"]:
+                    self.assertEqual(h5["full_trajectory"].shape, (4, 1, 5, 16, 16))
+                else:
+                    self.assertNotIn("full_trajectory", h5)
+
+    def test_heat_alpha_materialization_and_decay(self) -> None:
+        sys.path.insert(0, str(ROOT))
+        from data.load import PDEloader
+
+        path = self.out_root / "heat" / "heat_4-16-16_1.h5"
+        with h5py.File(path, "r") as h5:
+            self.assertEqual(h5["alpha"].shape, (4,))
+            traj = h5["full_trajectory"][:, 0]
+            v0 = np.var(traj[:, 0], axis=(1, 2))
+            vT = np.var(traj[:, -1], axis=(1, 2))
+            self.assertTrue(np.all(vT <= v0 + 1e-5))
+            self.assertTrue(np.isfinite(h5["output_data"][:]).all())
+        data, label = PDEloader("heat").load_data(str(self.out_root) + "/", size=2)
+        self.assertEqual(tuple(data.shape), (8, 4, 16, 16))
+        self.assertEqual(float(label[0]), 7.0)
+        self.assertTrue(np.allclose(data[:, 1].numpy(), data[:, 3].numpy()))
+
+    def test_wave_vt_and_fixed_c_schema(self) -> None:
+        path = self.out_root / "wave" / "wave_4-16-16_1.h5"
+        with h5py.File(path, "r") as h5:
+            self.assertNotIn("c", h5)
+            self.assertIn("fixed_c", h5.attrs)
+            self.assertNotIn("c_field", h5)
+            v0 = h5["input_data"][:, 1]
+            vT = h5["output_data"][:, 1]
+            self.assertTrue(np.isfinite(vT).all())
+            self.assertTrue(np.allclose(v0, 0.0))
+            self.assertGreater(float(np.max(np.abs(vT))), 1e-4)
+
+    def test_advection_diffusion_scalar_materialization_and_sign(self) -> None:
+        sys.path.insert(0, str(ROOT))
+        from data.load import PDEloader
+        from data.DataGen.python.common import periodic_wavenumbers
+
+        path = self.out_root / "advection_diffusion" / "advection_diffusion_4-16-16_1.h5"
+        with h5py.File(path, "r") as h5:
+            self.assertEqual(h5["input_data"].shape, (4, 1, 16, 16))
+            self.assertEqual(h5["output_data"].shape, (4, 1, 16, 16))
+            self.assertEqual(h5["b_x"].shape, (4,))
+            self.assertEqual(h5["b_y"].shape, (4,))
+            self.assertEqual(h5["kappa"].shape, (4,))
+            self.assertTrue(np.all(h5["kappa"][:] > 0.0))
+        data, _ = PDEloader("advection_diffusion").load_data(str(self.out_root) + "/", size=2)
+        self.assertEqual(tuple(data.shape), (8, 8, 16, 16))
+        self.assertTrue(np.allclose(data[:, 1].numpy(), data[:, 5].numpy()))
+        self.assertTrue(np.allclose(data[:, 2].numpy(), data[:, 6].numpy()))
+        self.assertTrue(np.allclose(data[:, 3].numpy(), data[:, 7].numpy()))
+
+        s = 32
+        x = np.arange(s) / s
+        xx, _ = np.meshgrid(x, x, indexing="ij")
+        u0 = np.cos(2.0 * np.pi * xx)
+        bx, by, kappa, t = 0.25, 0.0, 0.0, 0.5
+        kx, ky, ksq = periodic_wavenumbers(s)
+        evolved = np.fft.ifft2(np.fft.fft2(u0) * np.exp(-(kappa * ksq + 1j * (bx * kx + by * ky)) * t)).real
+        expected = np.cos(2.0 * np.pi * (xx - bx * t))
+        self.assertLess(float(np.max(np.abs(evolved - expected))), 1e-10)
+
+    def test_physical_wavenumber_scale(self) -> None:
+        sys.path.insert(0, str(ROOT))
+        from data.DataGen.python.common import periodic_wavenumbers
+
+        _, _, ksq = periodic_wavenumbers(16)
+        self.assertAlmostEqual(float(ksq[1, 0]), float((2.0 * np.pi) ** 2), places=10)
+        alpha, t = 1.0e-3, 1.0
+        decay = np.exp(-alpha * ksq[1, 0] * t)
+        self.assertAlmostEqual(float(decay), float(np.exp(-alpha * (2.0 * np.pi) ** 2)), places=10)
+
+    def test_steady_heat_conduction_schema_and_boundaries(self) -> None:
+        sys.path.insert(0, str(ROOT))
+        from data.load import PDEloader
+
+        path = self.out_root / "steady_heat_conduction" / "steady_heat_conduction_4-16-16_1.h5"
+        with h5py.File(path, "r") as h5:
+            for key in ["input_data", "output_data", "u_D", "residual_norm", "picard_iters", "converged"]:
+                self.assertIn(key, h5)
+            u = h5["output_data"][:, 0]
+            u_d = h5["u_D"][:]
+            self.assertLess(float(np.max(np.abs(u[:, 0, :] - u_d[:, None]))), 1e-4)
+            self.assertLess(float(np.max(np.abs(u[:, :, 0] - u[:, :, 1]))), 1e-4)
+            self.assertLess(float(np.max(np.abs(u[:, :, -1] - u[:, :, -2]))), 1e-4)
+            self.assertLess(float(np.max(np.abs(u[:, -1, :] - u[:, -2, :]))), 1e-4)
+            lam = 1.0 + 0.05 * (u - 298.0)
+            self.assertGreater(float(np.min(lam)), 0.0)
+            self.assertTrue(np.isfinite(h5["residual_norm"][:]).all())
+            self.assertTrue(np.all((h5["converged"][:] == 0) | (h5["converged"][:] == 1)))
+        data, label = PDEloader("steady_heat_conduction").load_data(str(self.out_root) + "/", size=2)
+        self.assertEqual(tuple(data.shape), (8, 4, 16, 16))
+        self.assertEqual(float(label[0]), 10.0)
+        self.assertTrue(np.allclose(data[:, 1].numpy(), data[:, 3].numpy()))
 
     def test_no_leakage_json_and_hashes(self) -> None:
-        for pde in ["heat", "wave", "advection_diffusion"]:
+        root_check = self.out_root / "no_leakage_check.json"
+        self.assertTrue(root_check.exists())
+        root = json.loads(root_check.read_text(encoding="utf-8"))
+        self.assertIn("steady_heat_conduction", root["no_leakage_checks"])
+        for pde in ["heat", "wave", "advection_diffusion", "steady_heat_conduction"]:
             check_path = self.out_root / pde / "no_leakage_check.json"
             self.assertTrue(check_path.exists())
             check = json.loads(check_path.read_text(encoding="utf-8"))
             self.assertTrue(check["ok"], check)
             self.assertEqual(check["seed_overlap_count"], 0)
             self.assertEqual(check["input_hash_overlap_count"], 0)
-
-    def test_heat_variance_decays(self) -> None:
-        path = self.out_root / "heat" / "heat_4-16-16_1.h5"
-        with h5py.File(path, "r") as h5:
-            traj = h5["full_trajectory"][:, 0]
-            v0 = np.var(traj[:, 0], axis=(1, 2))
-            vT = np.var(traj[:, -1], axis=(1, 2))
-            self.assertTrue(np.all(vT <= v0 + 1e-5))
-
-    def test_wave_is_finite_and_reasonable(self) -> None:
-        path = self.out_root / "wave" / "wave_4-16-16_1.h5"
-        with h5py.File(path, "r") as h5:
-            data = h5["data"][:]
-            self.assertTrue(np.isfinite(data).all())
-            self.assertLess(float(np.max(np.abs(data))), 20.0)
-
-    def test_advection_diffusion_is_finite_and_smooths(self) -> None:
-        path = self.out_root / "advection_diffusion" / "advection_diffusion_4-16-16_1.h5"
-        with h5py.File(path, "r") as h5:
-            traj = h5["full_trajectory"][:, 0]
-            self.assertTrue(np.isfinite(traj).all())
-            fft0 = np.fft.fft2(traj[:, 0], axes=(-2, -1))
-            fftT = np.fft.fft2(traj[:, -1], axes=(-2, -1))
-            freq = np.fft.fftfreq(16)
-            kx, ky = np.meshgrid(freq, freq, indexing="ij")
-            high = (kx**2 + ky**2) > 0.10
-            e0 = np.mean(np.abs(fft0[:, high]) ** 2, axis=1)
-            eT = np.mean(np.abs(fftT[:, high]) ** 2, axis=1)
-            self.assertTrue(np.all(eT <= e0 + 1e-5))
-
-    def test_loader_reads_quick_train_shards(self) -> None:
-        sys.path.insert(0, str(ROOT))
-        from data.load import PDEloader
-
-        expected = {"heat": (8, 2, 7.0), "wave": (8, 4, 8.0), "advection_diffusion": (8, 8, 9.0)}
-        for pde, (n, channels, label_value) in expected.items():
-            data, label = PDEloader(pde).load_data(str(self.out_root) + "/", size=2)
-            self.assertEqual(tuple(data.shape), (n, channels, 16, 16))
-            self.assertEqual(tuple(label.shape), (n,))
-            self.assertEqual(float(label[0]), label_value)
 
     def test_compileall_data(self) -> None:
         subprocess.run([sys.executable, "-m", "compileall", "-q", "data"], cwd=ROOT, check=True)

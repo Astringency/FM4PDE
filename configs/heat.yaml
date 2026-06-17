@@ -3,7 +3,9 @@ data:
   datapath: '/large_storage/zhangxf/PDEdata/future_pdes/heat/heat_test_1000-128-128.h5'
   remark: 'test'
   offset: 0
-  img_channels: 2
+  # Loader materializes alpha: [u0, alpha_field, uT, alpha_field].
+  # Raw HDF5 input_data/output_data remain [N,1,H,W].
+  img_channels: 4
   img_resolution: 128
   obs_size: 500
   coef: input_data
@@ -38,4 +40,3 @@ output:
   plot: True
   save: True
   return: False
-

@@ -20,6 +20,7 @@ VALID_PDES = {
     "heat",
     "wave",
     "advection_diffusion",
+    "steady_heat_conduction",
 }
 
 VALID_TASKS = {"forward", "inverse", "both", "unconditional"}
@@ -61,6 +62,7 @@ _LOCAL_CHECKPOINTS = {
     "heat": "output/pretrained/fm4heat.pth",
     "wave": "output/pretrained/fm4wave.pth",
     "advection_diffusion": "output/pretrained/fm4advection_diffusion.pth",
+    "steady_heat_conduction": "output/pretrained/fm4steady_heat_conduction.pth",
 }
 
 

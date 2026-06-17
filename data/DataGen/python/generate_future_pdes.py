@@ -10,11 +10,13 @@ if __package__ is None or __package__ == "":
     from common import add_common_arguments, apply_quick_test_defaults, generate_dataset, namespace_to_config
     from generate_advection_diffusion import advection_diffusion_metadata, solve_advection_diffusion_chunk
     from generate_heat import heat_metadata, solve_heat_chunk
+    from generate_steady_heat_conduction import steady_heat_conduction_metadata, solve_steady_heat_conduction_chunk
     from generate_wave import solve_wave_chunk, wave_metadata
 else:  # pragma: no cover
     from .common import add_common_arguments, apply_quick_test_defaults, generate_dataset, namespace_to_config
     from .generate_advection_diffusion import advection_diffusion_metadata, solve_advection_diffusion_chunk
     from .generate_heat import heat_metadata, solve_heat_chunk
+    from .generate_steady_heat_conduction import steady_heat_conduction_metadata, solve_steady_heat_conduction_chunk
     from .generate_wave import solve_wave_chunk, wave_metadata
 
 
@@ -22,15 +24,21 @@ PDE_TABLE = {
     "heat": (solve_heat_chunk, heat_metadata),
     "wave": (solve_wave_chunk, wave_metadata),
     "advection_diffusion": (solve_advection_diffusion_chunk, advection_diffusion_metadata),
+    "steady_heat_conduction": (solve_steady_heat_conduction_chunk, steady_heat_conduction_metadata),
 }
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate FM4PDE future PDE HDF5 datasets.")
     add_common_arguments(parser)
+    parser.add_argument("--alpha-mode", choices=["random", "fixed"], default="random")
+    parser.add_argument("--alpha", type=float, default=1e-3, help="Fixed heat diffusivity for --alpha-mode fixed.")
     parser.add_argument("--random-v0", action="store_true", help="Use a smooth random initial velocity for wave.")
+    parser.add_argument("--c-mode", choices=["fixed", "random"], default="fixed")
     parser.add_argument("--variable-c", action="store_true", help="Use smooth random wave speed and FD time stepping.")
     parser.add_argument("--c", type=float, default=1.0, help="Constant wave speed when --variable-c is not set.")
+    parser.add_argument("--picard-max-iter", type=int, default=30)
+    parser.add_argument("--picard-tol", type=float, default=1e-5)
     return parser
 
 
@@ -44,8 +52,12 @@ def main(argv: list[str] | None = None) -> dict[str, object]:
     for pde in selected:
         solver, metadata_fn = PDE_TABLE[pde]
         extra = {}
+        if pde == "heat":
+            extra = {"alpha_mode": args.alpha_mode, "alpha": args.alpha}
         if pde == "wave":
-            extra = {"random_v0": args.random_v0, "variable_c": args.variable_c, "c": args.c}
+            extra = {"random_v0": args.random_v0, "variable_c": args.variable_c, "c": args.c, "c_mode": args.c_mode}
+        if pde == "steady_heat_conduction":
+            extra = {"picard_max_iter": args.picard_max_iter, "picard_tol": args.picard_tol}
         config = namespace_to_config(args, pde, extra=extra)
         metadata = metadata_fn(config)
         written = generate_dataset(config, solver, metadata)

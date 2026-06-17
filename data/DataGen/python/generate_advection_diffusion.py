@@ -10,7 +10,6 @@ try:
         format_float_range,
         periodic_wavenumbers,
         sample_periodic_grf,
-        scalar_field,
     )
 except ImportError:  # pragma: no cover
     from common import (
@@ -20,7 +19,6 @@ except ImportError:  # pragma: no cover
         format_float_range,
         periodic_wavenumbers,
         sample_periodic_grf,
-        scalar_field,
     )
 
 
@@ -36,9 +34,16 @@ def advection_diffusion_metadata(config: FuturePDEConfig) -> dict[str, object]:
             "b_y": format_float_range(B_RANGE),
             "kappa": format_float_range(KAPPA_RANGE),
         },
-        "channel_names_input": ["u0", "b_x", "b_y", "kappa"],
-        "channel_names_output": ["uT", "b_x", "b_y", "kappa"],
-        "channel_names_data": ["u0", "b_x", "b_y", "kappa", "uT", "b_x", "b_y", "kappa"],
+        "hdf5_schema": {
+            "input_data": "[N,1,H,W] u0",
+            "output_data": "[N,1,H,W] uT",
+            "b_x": "[N]",
+            "b_y": "[N]",
+            "kappa": "[N]",
+        },
+        "channel_names_input": ["u0"],
+        "channel_names_output": ["uT"],
+        "channel_names_model": ["u0", "b_x", "b_y", "kappa", "uT", "b_x", "b_y", "kappa"],
     }
 
 
@@ -49,8 +54,8 @@ def solve_advection_diffusion_chunk(global_ids: np.ndarray, config: FuturePDECon
     s = config.resolution
     times = np.linspace(0.0, config.T, config.n_time, dtype=np.float64)
     kx, ky, ksq = periodic_wavenumbers(s)
-    input_data = np.empty((n, 4, s, s), dtype=np.float64)
-    output_data = np.empty((n, 4, s, s), dtype=np.float64)
+    input_data = np.empty((n, 1, s, s), dtype=np.float64)
+    output_data = np.empty((n, 1, s, s), dtype=np.float64)
     trajectory = np.empty((n, 1, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
     bx_values = np.empty((n,), dtype=np.float64)
     by_values = np.empty((n,), dtype=np.float64)
@@ -69,19 +74,23 @@ def solve_advection_diffusion_chunk(global_ids: np.ndarray, config: FuturePDECon
             for t in times
         ]
         frames_arr = np.stack(frames, axis=0)
-        bx_field = scalar_field(bx, 1, s)[0]
-        by_field = scalar_field(by, 1, s)[0]
-        kappa_field = scalar_field(kappa, 1, s)[0]
-        input_data[local_idx] = np.stack([u0, bx_field, by_field, kappa_field], axis=0)
-        output_data[local_idx] = np.stack([frames_arr[-1], bx_field, by_field, kappa_field], axis=0)
+        input_data[local_idx, 0] = u0
+        output_data[local_idx, 0] = frames_arr[-1]
         if trajectory is not None:
             trajectory[local_idx, 0] = frames_arr
         bx_values[local_idx] = bx
         by_values[local_idx] = by
         kappa_values[local_idx] = kappa
 
-    data = np.concatenate([input_data, output_data], axis=1)
-    ensure_finite(input_data, output_data, data)
+    data = None
+    if config.materialize_constant_fields:
+        bx_field = bx_values[:, None, None, None] * np.ones((n, 1, s, s), dtype=np.float64)
+        by_field = by_values[:, None, None, None] * np.ones((n, 1, s, s), dtype=np.float64)
+        kappa_field = kappa_values[:, None, None, None] * np.ones((n, 1, s, s), dtype=np.float64)
+        data = np.concatenate([input_data, bx_field, by_field, kappa_field, output_data, bx_field, by_field, kappa_field], axis=1)
+    ensure_finite(input_data, output_data)
+    if data is not None:
+        ensure_finite(data)
     if trajectory is not None:
         ensure_finite(trajectory)
     return ChunkResult(
@@ -91,4 +100,3 @@ def solve_advection_diffusion_chunk(global_ids: np.ndarray, config: FuturePDECon
         trajectory=trajectory,
         params={"b_x": bx_values, "b_y": by_values, "kappa": kappa_values},
     )
-

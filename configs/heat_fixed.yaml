@@ -1,10 +1,10 @@
 data:
-  name: 'wave'
-  datapath: '/large_storage/zhangxf/PDEdata/future_pdes/wave/wave_test_1000-128-128.h5'
-  remark: 'test'
+  name: 'heat'
+  datapath: '/large_storage/zhangxf/PDEdata/future_pdes/heat/heat_test_1000-128-128.h5'
+  remark: 'test_fixed_alpha'
   offset: 0
-  # Constant c is stored as attrs; loader returns [u0, v0, uT, vT].
-  img_channels: 4
+  # Fixed-alpha files have no alpha dataset, so loader returns [u0, uT].
+  img_channels: 2
   img_resolution: 128
   obs_size: 500
   coef: input_data
@@ -12,7 +12,7 @@ data:
   loadby: 'future_h5'
 
 model:
-  pre-trained: 'output/pretrained/fm4wave.pth'
+  pre-trained: 'output/pretrained/fm4heat_fixed.pth'
 
 generate:
   seed: 0
@@ -39,3 +39,4 @@ output:
   plot: True
   save: True
   return: False
+

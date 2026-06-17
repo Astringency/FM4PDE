@@ -33,16 +33,25 @@ C_RANGE = (0.75, 1.25)
 
 def wave_metadata(config: FuturePDEConfig) -> dict[str, object]:
     variable_c = bool(config.extra.get("variable_c", False))
-    input_channels = ["u0", "v0", "c"] if variable_c else ["u0", "v0"]
-    output_channels = ["uT", "vT", "c"] if variable_c else ["uT", "vT"]
+    c_mode = config.extra.get("c_mode", "fixed")
     return {
         "equation": "u_tt = c(x,y)^2 * Delta u on [0,1]^2",
-        "parameter_ranges": {"c": format_float_range(C_RANGE) if variable_c else {"fixed": 1.0}},
+        "parameter_ranges": {"c": format_float_range(C_RANGE) if c_mode == "random" else {"fixed": float(config.extra.get("c", 1.0))}},
         "initial_velocity": "random GRF" if config.extra.get("random_v0", False) else "zero",
         "variable_c": variable_c,
-        "channel_names_input": input_channels,
-        "channel_names_output": output_channels,
-        "channel_names_data": input_channels + output_channels,
+        "c_mode": c_mode,
+        "c_random": c_mode == "random",
+        "fixed_c": float(config.extra.get("c", 1.0)),
+        "hdf5_schema": {
+            "input_data": "[N,2,H,W] u0,v0",
+            "output_data": "[N,2,H,W] uT,vT",
+            "c": "[N] only when c_mode=random",
+            "fixed_c": "root attr only when c_mode=fixed",
+        },
+        "channel_names_input": ["u0", "v0"],
+        "channel_names_output": ["uT", "vT"],
+        "channel_names_model_fixed_c": ["u0", "v0", "uT", "vT"],
+        "channel_names_model_random_c": ["u0", "v0", "c", "uT", "vT", "c"],
     }
 
 
@@ -50,7 +59,7 @@ def solve_wave_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkRe
     if config.bc != "periodic":
         raise ValueError("wave generator currently supports periodic boundary conditions")
     if config.extra.get("variable_c", False):
-        return solve_wave_variable_c_chunk(global_ids, config)
+        raise NotImplementedError("variable_c=True is disabled until the finite-difference branch is validated")
     return solve_wave_constant_c_chunk(global_ids, config)
 
 
@@ -58,17 +67,21 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: FuturePDEConfig)
     n = len(global_ids)
     s = config.resolution
     times = np.linspace(0.0, config.T, config.n_time, dtype=np.float64)
-    kx, _, ksq = periodic_wavenumbers(s)
+    _, _, ksq = periodic_wavenumbers(s)
     kabs = np.sqrt(ksq)
     input_data = np.empty((n, 2, s, s), dtype=np.float64)
     output_data = np.empty((n, 2, s, s), dtype=np.float64)
     trajectory = np.empty((n, 1, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
-    c_values = np.ones((n,), dtype=np.float64)
-
     random_v0 = bool(config.extra.get("random_v0", False))
-    c = float(config.extra.get("c", 1.0))
+    c_mode = config.extra.get("c_mode", "fixed")
+    if c_mode not in {"fixed", "random"}:
+        raise ValueError(f"Unsupported c_mode={c_mode!r}")
+    fixed_c = float(config.extra.get("c", 1.0))
+    c_values = np.empty((n,), dtype=np.float64)
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
+        c = rng.uniform(*C_RANGE) if c_mode == "random" else fixed_c
+        c_values[local_idx] = c
         u0 = sample_periodic_grf(rng, s, smoothness=5.0, tau=3.0, scale=0.5)
         v0 = sample_periodic_grf(rng, s, smoothness=5.5, tau=3.5, scale=0.1) if random_v0 else np.zeros_like(u0)
         u0_hat = np.fft.fft2(u0)
@@ -95,8 +108,16 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: FuturePDEConfig)
         if trajectory is not None:
             trajectory[local_idx, 0] = frames_arr
 
-    data = np.concatenate([input_data, output_data], axis=1)
-    ensure_finite(input_data, output_data, data)
+    data = None
+    if config.materialize_constant_fields:
+        if c_mode == "random":
+            c_field = c_values[:, None, None, None] * np.ones((n, 1, s, s), dtype=np.float64)
+            data = np.concatenate([input_data, c_field, output_data, c_field], axis=1)
+        else:
+            data = np.concatenate([input_data, output_data], axis=1)
+    ensure_finite(input_data, output_data)
+    if data is not None:
+        ensure_finite(data)
     if trajectory is not None:
         ensure_finite(trajectory)
     return ChunkResult(
@@ -104,7 +125,7 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: FuturePDEConfig)
         output_data=output_data,
         data=data,
         trajectory=trajectory,
-        params={"c": c_values, "spectral_kx_max": np.full((n,), float(np.max(np.abs(kx))))},
+        params=({"c": c_values} if c_mode == "random" else {}),
     )
 
 

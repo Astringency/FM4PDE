@@ -117,35 +117,51 @@ $$\lambda_{k_1,k_2} = \tau^{\alpha-1} \left( \pi^2(k_1^2 + k_2^2) + \tau^2 \righ
 ### 2.8 Heat Equation (热方程 - 时变 2D)
 * **数学形式**：
     $$u_t = \alpha \Delta u, \quad (x,y)\in[0,1]^2$$
-* **边界条件**：默认周期边界条件，使用 Fourier 谱方法精确推进；`--bc neumann` 可切换到 DCT 余弦基的齐次 Neumann 谱解。
-* **初值与参数**：$u_0$ 从平滑周期 GRF 采样；$\alpha \sim U(5\times10^{-4}, 5\times10^{-3})$。训练与测试使用独立 seed 区间。
+* **边界条件**：默认周期边界条件，使用 Fourier 谱方法精确推进；`--bc neumann` 可切换到 DCT 余弦基的齐次 Neumann 谱解。当前 Neumann 模式仍使用周期 GRF 初值采样，应视为近似初值族。
+* **初值与参数**：$u_0$ 从平滑周期 GRF 采样；默认 $\alpha \sim U(5\times10^{-4}, 5\times10^{-3})$。训练与测试使用独立 seed 区间。
 * **数值解法**：
     $$\hat{u}(t,k)=\exp(-\alpha |k|^2t)\hat{u}_0(k)$$
-* **数据结构**：`input_data=[u0]`，`output_data=[uT]`，`data=[u0,uT]`，总通道数 2；可选 `full_trajectory=[u(t_0),...,u(t_K)]`。
+    Fourier 频率使用物理角频率 $k=2\pi\,\text{fftfreq}(S,d=1/S)$。
+* **磁盘结构**：默认随机 $\alpha$ 时，HDF5 保存 `input_data=[u0]`、`output_data=[uT]`、`alpha=[N]`、可选 `full_trajectory=[u(t_0),...,u(t_K)]`，不默认保存 `alpha_field`。
+* **FM4PDE loader 结构**：随机 $\alpha$ 时动态 materialize 为 `[u0, alpha_field, uT, alpha_field]`，`img_channels=4`；固定 $\alpha$ 时通过 `--alpha-mode fixed --alpha <value>` 写入 `fixed_alpha` attrs，loader 返回 `[u0,uT]`，`img_channels=2`。
 
 ### 2.9 Wave Equation (波方程 - 时变 2D)
 * **数学形式**：
     $$u_{tt}=c(x,y)^2\Delta u,\quad u(x,y,0)=u_0,\quad u_t(x,y,0)=v_0$$
 * **边界条件**：默认周期边界条件。
-* **初值与参数**：$u_0$ 从平滑 GRF 采样；默认 $v_0=0$，可用 `--random-v0` 开启随机初速度；默认常数波速 $c=1$，可用 `--variable-c` 生成平滑随机波速场并用 velocity-Verlet 有限差分推进。
+* **初值与参数**：$u_0$ 从平滑 GRF 采样；默认 $v_0=0$，可用 `--random-v0` 开启随机初速度；默认常数波速 $c=1$ 写入 HDF5 attrs `fixed_c`。
 * **默认数值解法**：
     $$\hat{u}(t,k)=\hat{u}_0(k)\cos(c|k|t)+\hat{v}_0(k)\frac{\sin(c|k|t)}{c|k|}$$
-    零频模式使用 $\hat{u}_0+t\hat{v}_0$ 单独处理。
-* **数据结构**：默认 `input_data=[u0,v0]`，`output_data=[uT,vT]`，`data=[u0,v0,uT,vT]`，总通道数 4，保证 FM4PDE 按半通道拆分时输入/输出通道数相等。
+    $$\hat{v}(t,k)=-c|k|\hat{u}_0(k)\sin(c|k|t)+\hat{v}_0(k)\cos(c|k|t)$$
+    零频模式使用 $\hat{u}_0+t\hat{v}_0$ 和 $\hat{v}_0$ 单独处理。因此即使 $v_0=0$，由 $u_0$ 引起的 $v_T$ 通常非零。
+* **磁盘结构**：默认 `input_data=[u0,v0]`，`output_data=[uT,vT]`，固定 $c$ 只保存在 attrs；`--c-mode random` 时保存 `c=[N]`。
+* **FM4PDE loader 结构**：固定 $c$ 返回 `[u0,v0,uT,vT]`；随机 scalar $c$ 返回 `[u0,v0,c_field,uT,vT,c_field]`。`--variable-c` 当前禁用并抛出 `NotImplementedError`，避免误用 Fourier 精确公式。
 
 ### 2.10 Advection-Diffusion Equation (对流扩散方程 - 时变 2D)
 * **数学形式**：
     $$u_t+b_xu_x+b_yu_y=\kappa\Delta u,\quad (x,y)\in[0,1]^2$$
 * **边界条件**：周期边界条件。
-* **初值与参数**：$u_0$ 从平滑周期 GRF 采样；$b_x,b_y\sim U(-1,1)$；$\kappa\sim U(5\times10^{-4},5\times10^{-3})$。参数场以常数场通道保存。
+* **初值与参数**：$u_0$ 从平滑周期 GRF 采样；$b_x,b_y\sim U(-1,1)$；$\kappa\sim U(5\times10^{-4},5\times10^{-3})$。这些参数是空间常数但逐样本变化，磁盘上保存为 scalar dataset。
 * **数值解法**：
     $$\hat{u}(t,k)=\exp(-(\kappa |k|^2+i(b_xk_x+b_yk_y))t)\hat{u}_0(k)$$
-* **数据结构**：`input_data=[u0,b_x,b_y,kappa]`，`output_data=[uT,b_x,b_y,kappa]`，`data=[u0,b_x,b_y,kappa,uT,b_x,b_y,kappa]`，总通道数 8。
+    该符号对应 $u_t+b_xu_x+b_yu_y=\kappa\Delta u$，即 $b_x>0$ 时波形向 $+x$ 方向平移。
+* **磁盘结构**：`input_data=[u0]`，`output_data=[uT]`，`b_x=[N]`，`b_y=[N]`，`kappa=[N]`，不默认保存常数场。
+* **FM4PDE loader 结构**：动态 materialize 为 `[u0,b_x,b_y,kappa,uT,b_x,b_y,kappa]`，`img_channels=8`。
 
-### 2.11 Python Future PDE 生成器接口
+### 2.11 RecFNO-Style Steady Heat Conduction (非线性稳态热传导)
+* **数学形式**：
+    $$-\nabla\cdot(\lambda(u)\nabla u)=f(x,y), \quad \lambda(u)=1+0.05(u-298)$$
+* **边界条件**：底部边界为 Dirichlet 恒温 $u=u_D$；顶部、左侧、右侧为零 Neumann 热通量。
+* **源项与参数**：$f(x,y)$ 由若干 Gaussian heat sources 叠加生成；$u_D$ 是每个样本独立采样的 scalar sink temperature。
+* **数值解法**：使用 Picard 迭代。第 $m$ 次迭代固定 $\lambda^m=1+0.05(u^m-298)$，用 `scipy.sparse` 构造有限差分线性系统求解 $-\nabla\cdot(\lambda^m\nabla u^{m+1})=f$。为保持椭圆性，$\lambda$ 下限 clamp 为 `0.1`，并在 HDF5 中记录 `picard_iters`、`converged` 和 `residual_norm`。
+* **磁盘结构**：`input_data=[f]`，`output_data=[u]`，`u_D=[N]`，`residual_norm=[N]`，`picard_iters=[N]`，`converged=[N]`，以及 padded Gaussian source 参数数组。
+* **FM4PDE loader 结构**：动态 materialize 为 `[f,u_D,u,u_D]`，`img_channels=4`。
+* **与 RecFNO 的关系**：这是 RecFNO-style 的 2D nonlinear steady-state heat conduction 数据形态，不声称复现外部数据文件的逐位结果。
+
+### 2.12 Python Future PDE 生成器接口
 新增生成代码位于 `data/DataGen/python/`：
-* `generate_future_pdes.py`：统一入口，支持 `--pde {heat,wave,advection_diffusion,all}`。
-* `generate_heat.py`、`generate_wave.py`、`generate_advection_diffusion.py`：各 PDE 数值生成。
+* `generate_future_pdes.py`：统一入口，支持 `--pde {heat,wave,advection_diffusion,steady_heat_conduction,all}`。
+* `generate_heat.py`、`generate_wave.py`、`generate_advection_diffusion.py`、`generate_steady_heat_conduction.py`：各 PDE 数值生成。
 * `common.py`：HDF5 预分配、chunked 写入、seed 管理、metadata、no-leakage check。
 
 默认完整命令：
@@ -179,15 +195,17 @@ python -m compileall -q data
 HDF5 扁平 key：
 * `input_data: [N,C_in,H,W]`
 * `output_data: [N,C_out,H,W]`
-* `data: [N,C_in+C_out,H,W]`
+* scalar 参数：例如 `alpha=[N]`、`b_x=[N]`、`u_D=[N]`
 * `full_trajectory: [N,1,T,H,W]`（默认保存，可用 `--no-trajectory` 关闭）
 * `x,y,t,sample_id,sample_seed` 以及 PDE 参数数组
+* 默认不写 `data` 常数场；仅 `--materialize-constant-fields` 调试时写 `materialized_data`
 
 文件命名：
 * `heat/heat_10000-128-128_1.h5` ... `heat/heat_10000-128-128_5.h5`
 * `heat/heat_test_1000-128-128.h5`
 * `wave/wave_10000-128-128_1.h5` ... `wave/wave_test_1000-128-128.h5`
 * `advection_diffusion/advection_diffusion_10000-128-128_1.h5` ... `advection_diffusion/advection_diffusion_test_1000-128-128.h5`
+* `steady_heat_conduction/steady_heat_conduction_10000-128-128_1.h5` ... `steady_heat_conduction/steady_heat_conduction_test_1000-128-128.h5`
 
 无泄漏设计：
 * train 默认 `base_seed=0`，test 默认 `base_seed=10000000`。
@@ -197,8 +215,8 @@ HDF5 扁平 key：
 * 每个 PDE 目录写入 `no_leakage_check.json`，检查 seed 不重合、抽样 input hash 不重复、train/test 文件名不覆盖。
 
 FM4PDE 读取：
-* `data/load.py` 新增 `heat=7`、`wave=8`、`advection_diffusion=9` 标签，训练读取 `<DATA_ROOT>/<pde>/` 下 train shards。
-* `configs/heat.yaml`、`configs/wave.yaml`、`configs/advection_diffusion.yaml` 使用 `loadby: future_h5`，采样侧从 test HDF5 的 `input_data/output_data` 读取单样本。
+* `data/load.py` 新增 `heat=7`、`wave=8`、`advection_diffusion=9`、`steady_heat_conduction=10` 标签，训练读取 `<DATA_ROOT>/<pde>/` 下 train shards。
+* `configs/heat.yaml`、`configs/wave.yaml`、`configs/advection_diffusion.yaml`、`configs/steady_heat_conduction.yaml` 使用 `loadby: future_h5`。采样侧从 test HDF5 的 `input_data/output_data` 与 scalar 参数中 materialize 单样本。
 * 当前仓库尚未提供这三个 PDE 的预训练模型和 PDE residual guidance，因此新增 YAML 默认 `guide: False`、`zeta_pde: 0`，仅保证数据接口与偶数通道拆分兼容。
 
 与 PDEBench、iFNO、RecFNO 的关系：仅参考其 HDF5/轨迹组织、operator-learning 输入输出配对和热/波场数据形态，不依赖其外部数据文件或大型求解依赖。
@@ -229,9 +247,10 @@ $$x_{\text{norm}} = \frac{x - x_{\min}}{x_{\max} - x_{\min} + \varepsilon}$$
 | **Burgers' (1D)** | 时变 | 1 | - (时空一体表示) | - (时空一体表示) | $128 \times 128$ | 50,000 |
 | **Reaction-Diffusion** | 时变 | 4 | $u_0, v_0$ (双组分初值) | $u_T, v_T$ (终态双组分) | $128 \times 128$ | 50,000 |
 | **Shallow Water** | 时变 | 6 | $h_0, hu_0, hv_0$ (初始状态) | $h_T, hu_T, hv_T$ (终态守恒量) | $128 \times 128$ | 50,000 |
-| **Heat** | 时变 | 2 | $u_0$ | $u_T$ | $128 \times 128$ | 50,000 |
+| **Heat** | 时变 | 4 (随机 $\alpha$) / 2 (固定 $\alpha$) | $u_0,\alpha$ | $u_T,\alpha$ | $128 \times 128$ | 50,000 |
 | **Wave** | 时变 | 4 | $u_0, v_0$ | $u_T, v_T$ | $128 \times 128$ | 50,000 |
 | **Advection-Diffusion** | 时变 | 8 | $u_0,b_x,b_y,\kappa$ | $u_T,b_x,b_y,\kappa$ | $128 \times 128$ | 50,000 |
+| **Steady Heat Conduction** | 稳态非线性 | 4 | $f,u_D$ | $u,u_D$ | $128 \times 128$ | 50,000 |
 
 ---
 

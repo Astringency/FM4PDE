@@ -37,9 +37,21 @@ def heat_metadata(config: FuturePDEConfig) -> dict[str, object]:
     return {
         "equation": "u_t = alpha * Delta u on [0,1]^2",
         "parameter_ranges": {"alpha": format_float_range(ALPHA_RANGE)},
+        "alpha_mode": config.extra.get("alpha_mode", "random"),
+        "alpha_random": config.extra.get("alpha_mode", "random") == "random",
+        "fixed_alpha": float(config.extra.get("alpha", 1e-3)),
+        "hdf5_schema": {
+            "input_data": "[N,1,H,W] u0",
+            "output_data": "[N,1,H,W] uT",
+            "alpha": "[N] only when alpha_mode=random",
+            "fixed_alpha": "root attr only when alpha_mode=fixed",
+        },
+        "loader_materialized_schema_random_alpha": ["u0", "alpha", "uT", "alpha"],
+        "loader_materialized_schema_fixed_alpha": ["u0", "uT"],
         "channel_names_input": ["u0"],
         "channel_names_output": ["uT"],
-        "channel_names_data": ["u0", "uT"],
+        "channel_names_model_random_alpha": ["u0", "alpha", "uT", "alpha"],
+        "channel_names_model_fixed_alpha": ["u0", "uT"],
     }
 
 
@@ -50,6 +62,10 @@ def solve_heat_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkRe
     input_data = np.empty((n, 1, s, s), dtype=np.float64)
     output_data = np.empty((n, 1, s, s), dtype=np.float64)
     trajectory = np.empty((n, 1, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
+    alpha_mode = config.extra.get("alpha_mode", "random")
+    if alpha_mode not in {"random", "fixed"}:
+        raise ValueError(f"Unsupported alpha_mode={alpha_mode!r}")
+    fixed_alpha = float(config.extra.get("alpha", 1e-3))
     alpha = np.empty((n,), dtype=np.float64)
 
     if config.bc == "periodic":
@@ -63,7 +79,7 @@ def solve_heat_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkRe
 
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
-        alpha_i = rng.uniform(*ALPHA_RANGE)
+        alpha_i = rng.uniform(*ALPHA_RANGE) if alpha_mode == "random" else fixed_alpha
         u0 = sample_periodic_grf(rng, s, smoothness=3.2, tau=5.0, scale=1.0)
         alpha[local_idx] = alpha_i
         input_data[local_idx, 0] = u0
@@ -78,8 +94,16 @@ def solve_heat_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkRe
         if trajectory is not None:
             trajectory[local_idx, 0] = frames_arr
 
-    data = np.concatenate([input_data, output_data], axis=1)
-    ensure_finite(input_data, output_data, data)
+    data = None
+    if config.materialize_constant_fields:
+        if alpha_mode == "random":
+            alpha_field = alpha[:, None, None, None] * np.ones((n, 1, s, s), dtype=np.float64)
+            data = np.concatenate([input_data, alpha_field, output_data, alpha_field], axis=1)
+        else:
+            data = np.concatenate([input_data, output_data], axis=1)
+    ensure_finite(input_data, output_data)
+    if data is not None:
+        ensure_finite(data)
     if trajectory is not None:
         ensure_finite(trajectory)
     return ChunkResult(
@@ -87,6 +111,5 @@ def solve_heat_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkRe
         output_data=output_data,
         data=data,
         trajectory=trajectory,
-        params={"alpha": alpha},
+        params={"alpha": alpha} if alpha_mode == "random" else {},
     )
-

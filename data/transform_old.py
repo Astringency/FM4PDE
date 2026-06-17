@@ -17,6 +17,7 @@ class PDEtransform:
                 "heat": self._identity_transform,
                 "wave": self._identity_transform,
                 "advection_diffusion": self._identity_transform,
+                "steady_heat_conduction": self._identity_transform,
                 }
 
         self.inverse_transform_func = {
@@ -31,6 +32,7 @@ class PDEtransform:
                 "heat": self._identity_transform,
                 "wave": self._identity_transform,
                 "advection_diffusion": self._identity_transform,
+                "steady_heat_conduction": self._identity_transform,
                 }
 
         self.transform = self.transform_func[self.pde]

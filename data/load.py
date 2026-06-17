@@ -39,6 +39,7 @@ class PDEloader:
                 "heat": self._heat_load,
                 "wave": self._wave_load,
                 "advection_diffusion": self._advection_diffusion_load,
+                "steady_heat_conduction": self._steady_heat_conduction_load,
                 }
 
         self.load_data = self.load_func[self.pde]
@@ -153,17 +154,17 @@ class PDEloader:
     def _advection_diffusion_load(self, data_path, size=5, split="train"):
         return self._future_h5_load(data_path, size=size, split=split, label_value=9)
 
-    def _future_h5_load(self, data_path, size=5, split="train", label_value=0):
+    def _steady_heat_conduction_load(self, data_path, size=5, split="train"):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=10)
+
+    def _future_h5_load(self, data_path, size=5, split="train", label_value=0, materialize_params=True):
         file_paths = self._future_h5_paths(data_path, size=size, split=split)
         dataset = []
         for file_path in tqdm(file_paths):
             with h5py.File(file_path, "r") as file:
-                if "data" in file:
-                    arr = file["data"][:]
-                elif "input_data" in file and "output_data" in file:
-                    arr = np.concatenate([file["input_data"][:], file["output_data"][:]], axis=1)
-                else:
+                if "input_data" not in file or "output_data" not in file:
                     raise KeyError(f"{file_path} must contain data or input_data/output_data")
+                arr = self._future_h5_materialize(file, materialize_params=materialize_params)
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim != 4:
                 raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
@@ -176,6 +177,72 @@ class PDEloader:
         data = torch.tensor(np.concatenate(dataset, axis=0)).to(torch.float32)
         label = torch.zeros(len(data), dtype=torch.float32) + label_value
         return data, label
+
+    def _future_h5_materialize(self, file, materialize_params=True):
+        input_data = np.asarray(file["input_data"][:], dtype=np.float32)
+        output_data = np.asarray(file["output_data"][:], dtype=np.float32)
+        if input_data.ndim != 4 or output_data.ndim != 4:
+            raise ValueError(f"future_h5 input/output must be [N,C,H,W], got {input_data.shape}, {output_data.shape}")
+        n_samples, _, h, w = input_data.shape
+        if not materialize_params:
+            if "materialized_data" in file:
+                return np.asarray(file["materialized_data"][:], dtype=np.float32)
+            return np.concatenate([input_data, output_data], axis=1)
+
+        if self.pde == "heat":
+            if "alpha" in file:
+                alpha = self._read_scalar_dataset_or_attr(file, "alpha", n_samples)
+                alpha_field = self._expand_scalar_to_field(alpha, h, w)
+                return np.concatenate([input_data, alpha_field, output_data, alpha_field], axis=1)
+            return np.concatenate([input_data, output_data], axis=1)
+
+        if self.pde == "wave":
+            if "c" in file:
+                c = self._read_scalar_dataset_or_attr(file, "c", n_samples)
+                c_field = self._expand_scalar_to_field(c, h, w)
+                return np.concatenate([input_data, c_field, output_data, c_field], axis=1)
+            return np.concatenate([input_data, output_data], axis=1)
+
+        if self.pde == "advection_diffusion":
+            bx = self._read_scalar_dataset_or_attr(file, "b_x", n_samples)
+            by = self._read_scalar_dataset_or_attr(file, "b_y", n_samples)
+            kappa = self._read_scalar_dataset_or_attr(file, "kappa", n_samples)
+            bx_field = self._expand_scalar_to_field(bx, h, w)
+            by_field = self._expand_scalar_to_field(by, h, w)
+            kappa_field = self._expand_scalar_to_field(kappa, h, w)
+            return np.concatenate(
+                [input_data, bx_field, by_field, kappa_field, output_data, bx_field, by_field, kappa_field],
+                axis=1,
+            )
+
+        if self.pde == "steady_heat_conduction":
+            u_d = self._read_scalar_dataset_or_attr(file, "u_D", n_samples)
+            u_d_field = self._expand_scalar_to_field(u_d, h, w)
+            return np.concatenate([input_data, u_d_field, output_data, u_d_field], axis=1)
+
+        return np.concatenate([input_data, output_data], axis=1)
+
+    @staticmethod
+    def _expand_scalar_to_field(values, h, w):
+        values = np.asarray(values, dtype=np.float32).reshape(-1, 1, 1, 1)
+        return np.broadcast_to(values, (values.shape[0], 1, h, w)).copy()
+
+    @staticmethod
+    def _read_scalar_dataset_or_attr(file, name, n_samples, default=None):
+        if name in file:
+            values = np.asarray(file[name][:], dtype=np.float32)
+        elif name in file.attrs:
+            values = np.full((n_samples,), float(file.attrs[name]), dtype=np.float32)
+        elif default is not None:
+            values = np.full((n_samples,), float(default), dtype=np.float32)
+        else:
+            raise KeyError(f"Missing scalar dataset or attr {name!r}")
+        if values.shape == ():
+            values = np.full((n_samples,), float(values), dtype=np.float32)
+        values = values.reshape(-1)
+        if values.shape[0] != n_samples:
+            raise ValueError(f"{name} must have shape [{n_samples}], got {values.shape}")
+        return values
 
     def _future_h5_paths(self, data_path, size=5, split="train"):
         path = Path(data_path)
@@ -190,6 +257,8 @@ class PDEloader:
 
         if split == "test":
             file_paths = sorted(pde_dir.glob(f"{self.pde}_test_*-*-*.h5"))
+        elif split == "val":
+            file_paths = sorted(pde_dir.glob(f"{self.pde}_val_*-*-*.h5"))
         elif split == "train":
             file_paths = sorted(
                 (p for p in pde_dir.glob(f"{self.pde}_*-*-*_[0-9]*.h5") if "_test_" not in p.name),

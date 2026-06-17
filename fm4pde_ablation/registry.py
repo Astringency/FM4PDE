@@ -11,6 +11,10 @@ PDE_REGISTRY = {
     "burger": {"coef_channels": 1, "sol_channels": 1, "residual_status": residual_status("burger")},
     "reaction_diffusion": {"coef_channels": 2, "sol_channels": 2, "residual_status": residual_status("reaction_diffusion")},
     "shallow_water": {"coef_channels": 3, "sol_channels": 3, "residual_status": residual_status("shallow_water")},
+    "heat": {"coef_channels": 2, "sol_channels": 2, "residual_status": residual_status("heat")},
+    "wave": {"coef_channels": 2, "sol_channels": 2, "residual_status": residual_status("wave")},
+    "advection_diffusion": {"coef_channels": 4, "sol_channels": 4, "residual_status": residual_status("advection_diffusion")},
+    "steady_heat_conduction": {"coef_channels": 2, "sol_channels": 2, "residual_status": residual_status("steady_heat_conduction")},
 }
 
 

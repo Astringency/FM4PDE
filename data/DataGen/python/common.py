@@ -28,18 +28,22 @@ class FuturePDEConfig:
     out_root: Path
     resolution: int = 128
     n_train: int = 50_000
+    n_val: int = 0
     n_test: int = 1_000
     train_shards: int = 5
     samples_per_shard: int | None = None
     n_time: int = 11
     T: float = 1.0
     base_seed_train: int = TRAIN_BASE_SEED
+    base_seed_val: int = 5_000_000
     base_seed_test: int = TEST_BASE_SEED
     chunk_size: int = 128
     compression: str | None = "lzf"
     compression_level: int = 4
     dtype: str = "float32"
     save_trajectory: bool = True
+    materialize_constant_fields: bool = False
+    recfno_split: bool = False
     bc: str = "periodic"
     overwrite: bool = False
     dry_run: bool = False
@@ -59,7 +63,7 @@ class FuturePDEConfig:
 class ChunkResult:
     input_data: np.ndarray
     output_data: np.ndarray
-    data: np.ndarray
+    data: np.ndarray | None
     trajectory: np.ndarray | None
     params: dict[str, np.ndarray]
 
@@ -74,6 +78,8 @@ def apply_quick_test_defaults(args: Any) -> None:
         args.n_train = 8
     if args.n_test == 1_000:
         args.n_test = 4
+    if getattr(args, "n_val", 0):
+        args.n_val = min(args.n_val, 4)
     if args.train_shards == 5:
         args.train_shards = 2
     if args.samples_per_shard is None:
@@ -86,16 +92,22 @@ def apply_quick_test_defaults(args: Any) -> None:
 
 
 def add_common_arguments(parser: Any) -> None:
-    parser.add_argument("--pde", choices=["heat", "wave", "advection_diffusion", "all"], default="all")
+    parser.add_argument(
+        "--pde",
+        choices=["heat", "wave", "advection_diffusion", "steady_heat_conduction", "all"],
+        default="all",
+    )
     parser.add_argument("--out-root", required=True, help="Output root containing one subdirectory per PDE.")
     parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--n-train", type=int, default=50_000)
+    parser.add_argument("--n-val", type=int, default=0)
     parser.add_argument("--n-test", type=int, default=1_000)
     parser.add_argument("--train-shards", type=int, default=5)
     parser.add_argument("--samples-per-shard", type=int, default=None)
     parser.add_argument("--n-time", type=int, default=11)
     parser.add_argument("--T", type=float, default=1.0)
     parser.add_argument("--base-seed-train", type=int, default=TRAIN_BASE_SEED)
+    parser.add_argument("--base-seed-val", type=int, default=5_000_000)
     parser.add_argument("--base-seed-test", type=int, default=TEST_BASE_SEED)
     parser.add_argument("--chunk-size", type=int, default=128)
     parser.add_argument("--compression", choices=["lzf", "gzip", "none"], default="lzf")
@@ -103,6 +115,8 @@ def add_common_arguments(parser: Any) -> None:
     parser.add_argument("--dtype", choices=["float32", "float64"], default="float32")
     parser.add_argument("--save-trajectory", dest="save_trajectory", action="store_true", default=True)
     parser.add_argument("--no-trajectory", dest="save_trajectory", action="store_false")
+    parser.add_argument("--materialize-constant-fields", action="store_true")
+    parser.add_argument("--recfno-split", action="store_true")
     parser.add_argument("--bc", choices=["periodic", "neumann"], default="periodic")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -110,6 +124,12 @@ def add_common_arguments(parser: Any) -> None:
 
 
 def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None) -> FuturePDEConfig:
+    if args.recfno_split and args.n_train == 50_000 and args.n_val == 0 and args.n_test == 1_000:
+        args.n_train = 4_000
+        args.n_val = 1_000
+        args.n_test = 1_000
+        if args.samples_per_shard is None:
+            args.samples_per_shard = args.n_train // args.train_shards
     samples_per_shard = args.samples_per_shard
     if samples_per_shard is None:
         if args.n_train % args.train_shards != 0:
@@ -125,18 +145,22 @@ def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None
         out_root=Path(args.out_root),
         resolution=args.resolution,
         n_train=args.n_train,
+        n_val=args.n_val,
         n_test=args.n_test,
         train_shards=args.train_shards,
         samples_per_shard=samples_per_shard,
         n_time=args.n_time,
         T=args.T,
         base_seed_train=args.base_seed_train,
+        base_seed_val=args.base_seed_val,
         base_seed_test=args.base_seed_test,
         chunk_size=args.chunk_size,
         compression=None if args.compression == "none" else args.compression,
         compression_level=args.compression_level,
         dtype=args.dtype,
         save_trajectory=args.save_trajectory,
+        materialize_constant_fields=args.materialize_constant_fields,
+        recfno_split=args.recfno_split,
         bc=args.bc,
         overwrite=args.overwrite,
         dry_run=args.dry_run,
@@ -163,7 +187,7 @@ def generate_dataset(config: FuturePDEConfig, solver: SolverFn, metadata: dict[s
             shard_id=shard_id,
             n_samples=n_samples,
             sample_id_start=sample_start,
-            base_seed=config.base_seed_train if split == "train" else config.base_seed_test,
+            base_seed=base_seed_for_split(config, split),
             solver=solver,
             metadata=metadata,
         )
@@ -180,7 +204,7 @@ def validate_config(config: FuturePDEConfig) -> None:
         raise ValueError("resolution must be > 1")
     if config.n_time < 2:
         raise ValueError("n_time must be at least 2")
-    if config.n_train < 0 or config.n_test < 0:
+    if config.n_train < 0 or config.n_val < 0 or config.n_test < 0:
         raise ValueError("sample counts must be non-negative")
     if config.train_shards < 1:
         raise ValueError("train_shards must be positive")
@@ -189,9 +213,15 @@ def validate_config(config: FuturePDEConfig) -> None:
     if config.base_seed_train == config.base_seed_test:
         raise ValueError("train and test base seeds must differ")
     train_seed_end = config.base_seed_train + max(config.n_train - 1, 0)
+    val_seed_end = config.base_seed_val + max(config.n_val - 1, 0)
     test_seed_end = config.base_seed_test + max(config.n_test - 1, 0)
     if ranges_overlap(config.base_seed_train, train_seed_end, config.base_seed_test, test_seed_end):
         raise ValueError("train/test seed ranges overlap")
+    if config.n_val:
+        if ranges_overlap(config.base_seed_train, train_seed_end, config.base_seed_val, val_seed_end):
+            raise ValueError("train/val seed ranges overlap")
+        if ranges_overlap(config.base_seed_val, val_seed_end, config.base_seed_test, test_seed_end):
+            raise ValueError("val/test seed ranges overlap")
 
 
 def plan_files(config: FuturePDEConfig) -> list[Path]:
@@ -206,6 +236,9 @@ def files_with_splits(config: FuturePDEConfig) -> list[tuple[int, int, int, str,
         sample_start = shard_idx * config.shard_size
         path = pde_dir / f"{config.pde}_{config.shard_size}-{config.resolution}-{config.resolution}_{shard_id}.h5"
         files.append((shard_id, config.shard_size, sample_start, "train", path))
+    if config.n_val:
+        val_path = pde_dir / f"{config.pde}_val_{config.n_val}-{config.resolution}-{config.resolution}.h5"
+        files.append((0, config.n_val, 0, "val", val_path))
     test_path = pde_dir / f"{config.pde}_test_{config.n_test}-{config.resolution}-{config.resolution}.h5"
     files.append((0, config.n_test, 0, "test", test_path))
     return files
@@ -282,7 +315,8 @@ def write_h5_shard(
 
             dsets["input_data"][sl] = result.input_data
             dsets["output_data"][sl] = result.output_data
-            dsets["data"][sl] = result.data
+            if result.data is not None and "materialized_data" in dsets:
+                dsets["materialized_data"][sl] = result.data
             if result.trajectory is not None and "full_trajectory" in dsets:
                 dsets["full_trajectory"][sl] = result.trajectory
             for name, values in result.params.items():
@@ -319,14 +353,15 @@ def create_main_datasets(h5: h5py.File, n_samples: int, result: ChunkResult, con
             chunks=dataset_chunks((n_samples,) + result.output_data.shape[1:], result.output_data.dtype, config.chunk_size),
             **kwargs,
         ),
-        "data": h5.create_dataset(
-            "data",
+    }
+    if result.data is not None:
+        dsets["materialized_data"] = h5.create_dataset(
+            "materialized_data",
             shape=(n_samples,) + result.data.shape[1:],
             dtype=result.data.dtype,
             chunks=dataset_chunks((n_samples,) + result.data.shape[1:], result.data.dtype, config.chunk_size),
             **kwargs,
-        ),
-    }
+        )
     if result.trajectory is not None:
         dsets["full_trajectory"] = h5.create_dataset(
             "full_trajectory",
@@ -352,7 +387,7 @@ def cast_chunk_result(result: ChunkResult, dtype: str) -> ChunkResult:
     return ChunkResult(
         input_data=result.input_data.astype(np_dtype, copy=False),
         output_data=result.output_data.astype(np_dtype, copy=False),
-        data=result.data.astype(np_dtype, copy=False),
+        data=None if result.data is None else result.data.astype(np_dtype, copy=False),
         trajectory=trajectory,
         params=params,
     )
@@ -378,7 +413,7 @@ def write_attrs(
         "shard_id": shard_id,
         "sample_id_start": sample_id_start,
         "sample_id_end": sample_id_end,
-        "base_seed": config.base_seed_train if split == "train" else config.base_seed_test,
+        "base_seed": base_seed_for_split(config, split),
         "seed_start": seed_start,
         "seed_end": seed_end,
         "T": config.T,
@@ -386,6 +421,7 @@ def write_attrs(
         "boundary_condition": config.bc,
         "initial_condition_type": "periodic Gaussian random field",
         "save_trajectory": bool(config.save_trajectory),
+        "materialized_constant_fields": bool(config.materialize_constant_fields),
         "dtype": config.dtype,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "generation_git_commit": generation_git_commit(),
@@ -427,6 +463,11 @@ def chunk_slices(n_samples: int, chunk_size: int) -> list[slice]:
 
 
 def periodic_wavenumbers(resolution: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return angular Fourier wavenumbers on the periodic unit square.
+
+    np.fft.fftfreq returns cycles per unit; PDE spectral derivatives require
+    angular wavenumbers, so this function multiplies by 2*pi.
+    """
     k = 2.0 * np.pi * np.fft.fftfreq(resolution, d=1.0 / resolution)
     kx, ky = np.meshgrid(k, k, indexing="ij")
     ksq = kx**2 + ky**2
@@ -485,29 +526,38 @@ def hash_array(arr: np.ndarray) -> str:
 
 def run_no_leakage_check(config: FuturePDEConfig, files: list[Path]) -> dict[str, Any]:
     train_files = [path for path in files if "_test_" not in path.name]
+    val_files = [path for path in train_files if "_val_" in path.name]
+    train_files = [path for path in train_files if "_val_" not in path.name]
     test_files = [path for path in files if "_test_" in path.name]
     train_seeds = collect_seeds(train_files)
+    val_seeds = collect_seeds(val_files)
     test_seeds = collect_seeds(test_files)
     train_hashes = collect_input_hashes(train_files)
     test_hashes = collect_input_hashes(test_files)
     overlap_files = sorted(set(path.name for path in train_files).intersection(path.name for path in test_files))
     seed_overlap = sorted(train_seeds.intersection(test_seeds))
+    val_seed_overlap = sorted(train_seeds.intersection(val_seeds).union(val_seeds.intersection(test_seeds)))
     hash_overlap = sorted(train_hashes.intersection(test_hashes))
-    ok = not overlap_files and not seed_overlap and not hash_overlap
+    ok = not overlap_files and not seed_overlap and not val_seed_overlap and not hash_overlap
     return {
         "pde": config.pde,
         "ok": ok,
         "train_files": [str(path) for path in train_files],
+        "val_files": [str(path) for path in val_files],
         "test_files": [str(path) for path in test_files],
         "file_name_overlap": overlap_files,
         "seed_overlap_count": len(seed_overlap),
         "seed_overlap_examples": seed_overlap[:10],
+        "val_seed_overlap_count": len(val_seed_overlap),
+        "val_seed_overlap_examples": val_seed_overlap[:10],
         "input_hash_overlap_count": len(hash_overlap),
         "input_hash_overlap_examples": hash_overlap[:10],
         "train_seed_min": min(train_seeds) if train_seeds else None,
         "train_seed_max": max(train_seeds) if train_seeds else None,
         "test_seed_min": min(test_seeds) if test_seeds else None,
         "test_seed_max": max(test_seeds) if test_seeds else None,
+        "val_seed_min": min(val_seeds) if val_seeds else None,
+        "val_seed_max": max(val_seeds) if val_seeds else None,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "note": NO_LEAKAGE_NOTE,
     }
@@ -529,6 +579,16 @@ def collect_input_hashes(files: list[Path]) -> set[str]:
             for idx in sample_indices(n):
                 hashes.add(hash_array(h5["input_data"][idx]))
     return hashes
+
+
+def base_seed_for_split(config: FuturePDEConfig, split: str) -> int:
+    if split == "train":
+        return config.base_seed_train
+    if split == "val":
+        return config.base_seed_val
+    if split == "test":
+        return config.base_seed_test
+    raise ValueError(f"Unknown split={split!r}")
 
 
 def ranges_overlap(a0: int, a1: int, b0: int, b1: int) -> bool:

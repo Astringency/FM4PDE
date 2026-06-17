@@ -15,9 +15,10 @@ COEF_CHANNELS = {
     "burger": ["u"],
     "reaction_diffusion": ["u0", "v0"],
     "shallow_water": ["h0", "hu0", "hv0"],
-    "heat": ["u0"],
+    "heat": ["u0", "alpha"],
     "wave": ["u0", "v0"],
     "advection_diffusion": ["u0", "b_x", "b_y", "kappa"],
+    "steady_heat_conduction": ["f", "u_D"],
 }
 
 SOL_CHANNELS = {
@@ -28,9 +29,10 @@ SOL_CHANNELS = {
     "burger": ["u"],
     "reaction_diffusion": ["uT", "vT"],
     "shallow_water": ["hT", "huT", "hvT"],
-    "heat": ["uT"],
+    "heat": ["uT", "alpha"],
     "wave": ["uT", "vT"],
     "advection_diffusion": ["uT", "b_x", "b_y", "kappa"],
+    "steady_heat_conduction": ["u", "u_D"],
 }
 
 
@@ -67,8 +69,9 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     for batch_idx in range(config.batch_size):
         offset = config.offset + batch_idx
         coef, sol = _extract_single_sample(config, raw, offset)
-        coef_list.append(_ensure_bchw(coef, config.pde, "coef", config.device, config.dtype))
-        sol_list.append(_ensure_bchw(sol, config.pde, "sol", config.device, config.dtype))
+        expected = _channel_counts(config.pde, config.img_channels)
+        coef_list.append(_ensure_bchw(coef, config.pde, "coef", config.device, config.dtype, expected[0]))
+        sol_list.append(_ensure_bchw(sol, config.pde, "sol", config.device, config.dtype, expected[1]))
 
     coef_t = torch.cat(coef_list, dim=0)
     sol_t = torch.cat(sol_list, dim=0)
@@ -79,8 +82,8 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         coef=coef_t,
         sol=sol_t,
         pair=pair,
-        channel_names_coef=COEF_CHANNELS.get(config.pde, [f"coef_{i}" for i in range(coef_t.shape[1])]),
-        channel_names_sol=SOL_CHANNELS.get(config.pde, [f"sol_{i}" for i in range(sol_t.shape[1])]),
+        channel_names_coef=_channel_names(COEF_CHANNELS, config.pde, int(coef_t.shape[1]), "coef"),
+        channel_names_sol=_channel_names(SOL_CHANNELS, config.pde, int(sol_t.shape[1]), "sol"),
         metadata={
             "data_path": config.data_path,
             "offset": config.offset,
@@ -120,8 +123,8 @@ def make_synthetic_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         coef=coef,
         sol=sol,
         pair=torch.cat([coef, sol], dim=1),
-        channel_names_coef=COEF_CHANNELS.get(config.pde, [f"coef_{i}" for i in range(channels[0])]),
-        channel_names_sol=SOL_CHANNELS.get(config.pde, [f"sol_{i}" for i in range(channels[1])]),
+        channel_names_coef=_channel_names(COEF_CHANNELS, config.pde, channels[0], "coef"),
+        channel_names_sol=_channel_names(SOL_CHANNELS, config.pde, channels[1], "sol"),
         metadata={
             "data_path": config.data_path,
             "offset": config.offset,
@@ -206,7 +209,9 @@ def _extract_single_sample(config: AblationConfig, raw: dict[str, Any], offset: 
 
     if config.loadby == "future_h5":
         file = raw["__h5__"]
-        return file[config.coef_name][offset], file[config.solution_name][offset]
+        pair = _materialize_future_h5_sample(file, config.pde, offset)
+        half = pair.shape[0] // 2
+        return pair[:half], pair[half:]
 
     if config.loadby == "h5py":
         file = raw["__h5__"]
@@ -226,7 +231,7 @@ def _extract_single_sample(config: AblationConfig, raw: dict[str, Any], offset: 
     return coef_raw[offset, :, :], sol_raw[offset, :, :]
 
 
-def _ensure_bchw(value: Any, pde: str, side: str, device: str, dtype_name: str) -> Any:
+def _ensure_bchw(value: Any, pde: str, side: str, device: str, dtype_name: str, expected_channels: int | None = None) -> Any:
     import torch
 
     dtype = _torch_dtype(dtype_name)
@@ -234,7 +239,7 @@ def _ensure_bchw(value: Any, pde: str, side: str, device: str, dtype_name: str) 
     if tensor.ndim == 2:
         tensor = tensor.unsqueeze(0).unsqueeze(0)
     elif tensor.ndim == 3:
-        expected = _channel_counts(pde, 0)[0 if side == "coef" else 1]
+        expected = expected_channels or _channel_counts(pde, 0)[0 if side == "coef" else 1]
         if tensor.shape[0] == expected:
             tensor = tensor.unsqueeze(0)
         elif tensor.shape[-1] == expected:
@@ -269,14 +274,56 @@ def _channel_counts(pde: str, img_channels: int) -> tuple[int, int]:
     if pde == "shallow_water":
         return (3, 3)
     if pde == "heat":
-        return (1, 1)
+        return (img_channels // 2, img_channels // 2) if img_channels and img_channels % 2 == 0 else (1, 1)
     if pde == "wave":
-        return (2, 2)
+        return (img_channels // 2, img_channels // 2) if img_channels and img_channels % 2 == 0 else (2, 2)
     if pde == "advection_diffusion":
         return (4, 4)
+    if pde == "steady_heat_conduction":
+        return (2, 2)
     if img_channels and img_channels % 2 == 0:
         return (img_channels // 2, img_channels // 2)
     return (1, 1)
+
+
+def _materialize_future_h5_sample(file: Any, pde: str, offset: int) -> Any:
+    import numpy as np
+
+    input_data = np.asarray(file["input_data"][offset], dtype=np.float32)
+    output_data = np.asarray(file["output_data"][offset], dtype=np.float32)
+    h, w = input_data.shape[-2:]
+
+    def scalar_field(name: str, attr_name: str | None = None, default: float | None = None) -> Any:
+        attr = attr_name or name
+        if name in file:
+            value = float(file[name][offset])
+        elif attr in file.attrs:
+            value = float(file.attrs[attr])
+        elif default is not None:
+            value = float(default)
+        else:
+            raise KeyError(f"Missing future_h5 scalar {name!r}")
+        return np.full((1, h, w), value, dtype=np.float32)
+
+    if pde == "heat":
+        if "alpha" in file:
+            alpha = scalar_field("alpha")
+            return np.concatenate([input_data, alpha, output_data, alpha], axis=0)
+        return np.concatenate([input_data, output_data], axis=0)
+    if pde == "wave":
+        if "c" in file:
+            c = scalar_field("c")
+            return np.concatenate([input_data, c, output_data, c], axis=0)
+        return np.concatenate([input_data, output_data], axis=0)
+    if pde == "advection_diffusion":
+        bx = scalar_field("b_x")
+        by = scalar_field("b_y")
+        kappa = scalar_field("kappa")
+        return np.concatenate([input_data, bx, by, kappa, output_data, bx, by, kappa], axis=0)
+    if pde == "steady_heat_conduction":
+        u_d = scalar_field("u_D")
+        return np.concatenate([input_data, u_d, output_data, u_d], axis=0)
+    return np.concatenate([input_data, output_data], axis=0)
 
 
 def _torch_dtype(name: str) -> Any:
@@ -289,3 +336,10 @@ def _torch_dtype(name: str) -> Any:
     if name == "bfloat16":
         return torch.bfloat16
     return torch.float32
+
+
+def _channel_names(table: dict[str, list[str]], pde: str, n_channels: int, prefix: str) -> list[str]:
+    names = table.get(pde, [])
+    if len(names) == n_channels:
+        return names
+    return [f"{prefix}_{i}" for i in range(n_channels)]
