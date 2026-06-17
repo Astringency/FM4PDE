@@ -43,9 +43,9 @@ FUTURE_H5_CHANNEL_COUNTS = {
 }
 
 FUTURE_H5_PARAM_NAMES = {
-    "heat": ("alpha",),
-    "wave": ("c",),
-    "advection_diffusion": ("b_x", "b_y", "kappa"),
+    "heat": ("alpha", "T", "total_time", "dt"),
+    "wave": ("c", "T", "total_time", "dt"),
+    "advection_diffusion": ("b_x", "b_y", "kappa", "T", "total_time", "dt"),
     "steady_heat_conduction": (
         "u_D",
         "residual_norm",
@@ -60,8 +60,9 @@ FUTURE_H5_PARAM_NAMES = {
 }
 
 OPTIONAL_FUTURE_H5_PARAMS = {
-    "heat": {"alpha"},
-    "wave": {"c"},
+    "heat": {"alpha", "T", "total_time", "dt"},
+    "wave": {"c", "T", "total_time", "dt"},
+    "advection_diffusion": {"T", "total_time", "dt"},
     "steady_heat_conduction": {
         "residual_norm",
         "picard_iters",
@@ -408,7 +409,12 @@ def _read_future_h5_value(file: Any, name: str, offset: int) -> Any:
         return values[offset]
     if name in file.attrs:
         values = np.asarray(file.attrs[name], dtype=np.float32)
-        return float(values.reshape(-1)[0]) if values.ndim == 0 or values.size == 1 else values
+        flat = values.reshape(-1)
+        if flat.size == 1:
+            return float(flat[0])
+        if offset >= flat.size:
+            raise IndexError(f"future_h5 attr {name!r} has {flat.size} values, cannot read offset {offset}")
+        return flat[offset]
     raise KeyError(f"Missing future_h5 scalar {name!r}")
 
 
@@ -418,11 +424,11 @@ def _synthetic_pde_params(config: AblationConfig, device: Any, dtype: Any) -> di
     b = int(config.batch_size)
     ones = lambda value: torch.full((b,), float(value), dtype=dtype, device=device)
     if config.pde == "heat":
-        return {"alpha": ones(1.0)}
+        return {"alpha": ones(1.0), "T": ones(1.0)}
     if config.pde == "wave":
-        return {"c": ones(1.0)}
+        return {"c": ones(1.0), "T": ones(1.0)}
     if config.pde == "advection_diffusion":
-        return {"b_x": ones(0.0), "b_y": ones(0.0), "kappa": ones(1.0)}
+        return {"b_x": ones(0.0), "b_y": ones(0.0), "kappa": ones(1.0), "T": ones(1.0)}
     if config.pde == "steady_heat_conduction":
         return {"u_D": ones(298.0)}
     return {}

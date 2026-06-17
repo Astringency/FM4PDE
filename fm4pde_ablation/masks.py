@@ -43,7 +43,10 @@ def make_mask(
         )
         mode = "per_sample_random"
 
-    if mode in {"random", "per_sample_random"}:
+    if mode == "random":
+        idx = torch.randperm(spatial_count, generator=gen)[:k]
+        mask.view(b, c, -1)[:, :, idx] = 1
+    elif mode == "per_sample_random":
         for batch in range(b):
             idx = torch.randperm(spatial_count, generator=gen)[:k]
             mask[batch].view(c, -1)[:, idx] = 1

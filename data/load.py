@@ -30,12 +30,16 @@ class TensorDataset(Dataset):
 
 class PDEloader:
     FUTURE_H5_SCALAR_PARAMS = {
-        "heat": ("alpha",),
-        "wave": ("c",),
-        "advection_diffusion": ("b_x", "b_y", "kappa"),
+        "heat": ("alpha", "T", "total_time", "dt"),
+        "wave": ("c", "T", "total_time", "dt"),
+        "advection_diffusion": ("b_x", "b_y", "kappa", "T", "total_time", "dt"),
         "steady_heat_conduction": ("u_D",),
     }
-    OPTIONAL_FUTURE_H5_SCALAR_PARAMS = {"heat", "wave"}
+    OPTIONAL_FUTURE_H5_SCALAR_PARAMS = {
+        "heat": {"alpha", "T", "total_time", "dt"},
+        "wave": {"c", "T", "total_time", "dt"},
+        "advection_diffusion": {"T", "total_time", "dt"},
+    }
     FUTURE_H5_PARAM_ALIASES = {
         "alpha": ("alpha", "fixed_alpha"),
         "c": ("c", "fixed_c"),
@@ -381,12 +385,13 @@ class PDEloader:
     def _future_h5_scalar_params(self, file, n_samples):
         params = {}
         sources = {}
+        optional = self.OPTIONAL_FUTURE_H5_SCALAR_PARAMS.get(self.pde, set())
         for name in self.FUTURE_H5_SCALAR_PARAMS.get(self.pde, ()):
             storage_name = self._resolve_param_storage_name(file, name)
             if storage_name is not None:
                 params[name] = self._read_scalar_dataset_or_attr(file, storage_name, n_samples)
                 sources[name] = "dataset" if storage_name in file else f"attrs:{storage_name}"
-            elif self.pde not in self.OPTIONAL_FUTURE_H5_SCALAR_PARAMS:
+            elif name not in optional:
                 raise KeyError(f"Missing scalar dataset or attr {name!r}")
         if self.pde == "steady_heat_conduction":
             for name in ("residual_norm", "picard_iters", "converged", "n_sources", "source_x", "source_y", "source_amp", "source_sigma"):

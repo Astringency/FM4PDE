@@ -1,6 +1,6 @@
 import pytest
 
-from fm4pde_ablation.config import AblationConfig, load_config, parse_cli_overrides
+from fm4pde_ablation.config import AblationConfig, VALID_SENSOR_MODES, load_config, parse_cli_overrides
 
 
 def test_load_smoke_config():
@@ -23,3 +23,11 @@ def test_invalid_task_guidance_conflict():
     cfg = AblationConfig(task="forward", guidance_components="sol_obs_only")
     with pytest.raises(ValueError):
         cfg.validate()
+
+
+def test_time_varying_sensor_mode_is_legacy_alias():
+    cfg = AblationConfig(sensor_mode="time_varying")
+    with pytest.warns(DeprecationWarning):
+        cfg.validate()
+    assert "time_varying" not in VALID_SENSOR_MODES
+    assert cfg.sensor_mode == "per_sample_random"

@@ -168,15 +168,17 @@ def _heat(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"heat expects 1+1 channels, got a={a.shape}, u={u.shape}")
     alpha = _param_field(pde_params, "alpha", u, default=1.0)
+    time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    residual = (u - a) - alpha * _laplacian(u_mid)
+    residual = (u - a) / time_scale - alpha * _laplacian(u_mid)
     return _out(
         _zero_boundary(residual),
         "approximate",
         {
-            "equation": "u_t - alpha * laplace(u_mid)",
+            "equation": "(uT - u0) / T - alpha * laplace(u_mid)",
             "two_time_level_approx": True,
-            "pde_params_used": _used_params(pde_params, ("alpha",)),
+            "time_scale": time_meta,
+            "pde_params_used": _used_params(pde_params, ("alpha", "T", "total_time", "dt")),
         },
     )
 
@@ -189,17 +191,19 @@ def _wave(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
     c = _param_field(pde_params, "c", u[:, 0:1], default=1.0)
     u0, v0 = a[:, 0:1], a[:, 1:2]
     u_t, v_t = u[:, 0:1], u[:, 1:2]
+    time_scale, time_meta = _time_scale_field(pde_params, u[:, 0:1])
     u_mid = 0.5 * (u0 + u_t)
     v_mid = 0.5 * (v0 + v_t)
-    res_u = (u_t - u0) - v_mid
-    res_v = (v_t - v0) - (c**2) * _laplacian(u_mid)
+    res_u = (u_t - u0) / time_scale - v_mid
+    res_v = (v_t - v0) / time_scale - (c**2) * _laplacian(u_mid)
     return _out(
         torch.cat([_zero_boundary(res_u), _zero_boundary(res_v)], dim=1),
         "approximate",
         {
-            "equation": "u_t - v, v_t - c^2 laplace(u_mid)",
+            "equation": "(uT - u0) / T - v_mid, (vT - v0) / T - c^2 laplace(u_mid)",
             "two_time_level_approx": True,
-            "pde_params_used": _used_params(pde_params, ("c",)),
+            "time_scale": time_meta,
+            "pde_params_used": _used_params(pde_params, ("c", "T", "total_time", "dt")),
         },
     )
 
@@ -210,15 +214,17 @@ def _advection_diffusion(a: Any, u: Any, pde_params: dict[str, Any]) -> Residual
     bx = _param_field(pde_params, "b_x", u, default=0.0)
     by = _param_field(pde_params, "b_y", u, default=0.0)
     kappa = _param_field(pde_params, "kappa", u, default=1.0)
+    time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    residual = (u - a) + bx * _dx(u_mid) + by * _dy(u_mid) - kappa * _laplacian(u_mid)
+    residual = (u - a) / time_scale + bx * _dx(u_mid) + by * _dy(u_mid) - kappa * _laplacian(u_mid)
     return _out(
         _zero_boundary(residual),
         "approximate",
         {
-            "equation": "u_t + b_x u_x + b_y u_y - kappa laplace(u_mid)",
+            "equation": "(uT - u0) / T + b_x u_x + b_y u_y - kappa laplace(u_mid)",
             "two_time_level_approx": True,
-            "pde_params_used": _used_params(pde_params, ("b_x", "b_y", "kappa")),
+            "time_scale": time_meta,
+            "pde_params_used": _used_params(pde_params, ("b_x", "b_y", "kappa", "T", "total_time", "dt")),
         },
     )
 
@@ -227,13 +233,22 @@ def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any]) -> Resid
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"steady_heat_conduction expects 1+1 channels, got a={a.shape}, u={u.shape}")
     conductivity = (1.0 + 0.05 * (u - 298.0)).clamp_min(0.1)
-    residual = _nonlinear_heat_conduction_residual(u, conductivity, a[:, :1])
+    u_d = _param_field(pde_params, "u_D", u, default=298.0)
+    residual = _steady_heat_residual_with_boundary(u, conductivity, a[:, :1], u_d)
     return _out(
-        _zero_boundary(residual),
+        residual,
         "approximate",
         {
             "equation": "-div(lambda(u) grad u) - f, lambda(u)=max(1+0.05*(u-298),0.1)",
             "boundary_condition": "bottom Dirichlet u=u_D; top/left/right zero Neumann",
+            "boundary_enforced": True,
+            "boundary_residual": {
+                "included_in_field": True,
+                "bottom": "u[..., 0, :] - u_D",
+                "top": "(u[..., -1, :] - u[..., -2, :]) / dy",
+                "left": "(u[..., 1:-1, 0] - u[..., 1:-1, 1]) / dx",
+                "right": "(u[..., 1:-1, -1] - u[..., 1:-1, -2]) / dx",
+            },
             "pde_params_used": _used_params(pde_params, ("u_D",)),
         },
     )
@@ -309,6 +324,51 @@ def _param_field(params: dict[str, Any], name: str, reference: Any, default: flo
     if value.numel() != reference.shape[0]:
         raise ValueError(f"PDE parameter {name!r} must have batch length {reference.shape[0]}, got {tuple(value.shape)}")
     return value.view(reference.shape[0], 1, 1, 1)
+
+
+def _time_scale_field(params: dict[str, Any], reference: Any) -> tuple[Any, dict[str, Any]]:
+    for name in ("T", "total_time", "dt"):
+        if name in params:
+            field = _param_field(params, name, reference, default=1.0)
+            return field, {
+                "source": name,
+                "defaulted": False,
+                "values": _metadata_values(field),
+                "candidate_order": ["T", "total_time", "dt"],
+            }
+    field = _param_field({}, "T", reference, default=1.0)
+    return field, {
+        "source": "default",
+        "defaulted": True,
+        "value": 1.0,
+        "reason": "pde_params did not contain T, total_time, or dt",
+        "candidate_order": ["T", "total_time", "dt"],
+    }
+
+
+def _metadata_values(field: Any) -> Any:
+    flat = field.detach().reshape(-1).cpu().tolist()
+    if len(flat) == 1:
+        return flat[0]
+    return flat
+
+
+def _steady_heat_residual_with_boundary(u: Any, conductivity: Any, source: Any, u_d: Any) -> Any:
+    residual = _nonlinear_heat_conduction_residual(u, conductivity, source)
+    h_size = int(u.shape[-2])
+    w_size = int(u.shape[-1])
+    if h_size <= 0 or w_size <= 0:
+        return residual
+    dx = 1.0 / max(w_size - 1, 1)
+    dy = 1.0 / max(h_size - 1, 1)
+    u_d_row = u_d[..., 0, 0].unsqueeze(-1)
+    residual[..., 0, :] = u[..., 0, :] - u_d_row
+    if h_size > 1:
+        residual[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / dy
+    if w_size > 1 and h_size > 2:
+        residual[..., 1:-1, 0] = (u[..., 1:-1, 0] - u[..., 1:-1, 1]) / dx
+        residual[..., 1:-1, -1] = (u[..., 1:-1, -1] - u[..., 1:-1, -2]) / dx
+    return residual
 
 
 def _nonlinear_heat_conduction_residual(u: Any, conductivity: Any, source: Any) -> Any:

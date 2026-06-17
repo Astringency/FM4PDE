@@ -344,6 +344,23 @@ def _has_guidance(config: AblationConfig) -> bool:
 
 
 def _disable_unreliable_pde_guidance(config: AblationConfig) -> None:
+    if config.pde == "nsnonbounded":
+        mapped = {"pde_only": "noguide", "obs_pde": "obs_only"}.get(config.guidance_components)
+        if mapped is not None:
+            original = config.guidance_components
+            message = (
+                f"nsnonbounded guidance_components={original!r} requests PDE guidance, but NS PDE guidance is "
+                f"disabled because no reliable two-time-level vorticity residual is implemented; using {mapped!r}."
+            )
+            warnings.warn(message, RuntimeWarning, stacklevel=2)
+            config.guidance_components = mapped
+            config.zeta_pde = 0.0
+            config.extra["guidance_components_requested"] = original
+            config.extra["guidance_components_effective"] = mapped
+            config.extra["ns_pde_guidance_disabled"] = True
+            config.extra["ns_pde_guidance_warning"] = message
+            return
+
     flags = guidance_component_flags(config.guidance_components, config.task)
     if config.pde == "nsnonbounded" and flags["pde"] and float(config.zeta_pde) != 0.0:
         warnings.warn(
@@ -355,12 +372,21 @@ def _disable_unreliable_pde_guidance(config: AblationConfig) -> None:
 
 
 def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
-    return {
+    metadata = {
         "pde": config.pde,
         "residual_status": residual_status(config.pde),
         "residual_mode": config.residual_mode,
         "zeta_pde": config.zeta_pde,
     }
+    for key in (
+        "guidance_components_requested",
+        "guidance_components_effective",
+        "ns_pde_guidance_disabled",
+        "ns_pde_guidance_warning",
+    ):
+        if key in config.extra:
+            metadata[key] = config.extra[key]
+    return metadata
 
 
 def _cpu_pde_params(params: dict[str, Any]) -> dict[str, Any]:

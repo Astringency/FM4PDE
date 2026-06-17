@@ -115,7 +115,9 @@ def guidance_component_flags(name: str, task: str = "both") -> dict[str, bool]:
     if name == "sol_obs_only":
         return _apply_task_gate({"obs_a": False, "obs_u": True, "pde": False}, task)
     if name == "both_obs":
-        return _apply_task_gate({"obs_a": True, "obs_u": True, "pde": False}, task)
+        if task != "both":
+            raise ValueError("guidance_components='both_obs' is only valid for task='both'")
+        return {"obs_a": True, "obs_u": True, "pde": False}
     raise ValueError(f"Unknown guidance_components={name!r}")
 
 

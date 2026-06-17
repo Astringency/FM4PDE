@@ -8,5 +8,6 @@ groups:
       num_obs: 500
       noise_level: 0.0
       num_steps: 100
+      sensor_mode: per_sample_random
     matrix:
-      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only, both_obs]
+      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only]

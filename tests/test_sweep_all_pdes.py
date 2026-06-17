@@ -29,3 +29,11 @@ def test_all_internal_grid_lists_and_uses_group_base_configs():
     assert any(path.endswith("nsnonbounded.yaml") and params["ablation_group"] == "ns_observation_only" for path, params in jobs)
     assert all(params.get("sensor_mode") != "time_varying" for _, params in jobs)
     assert all(params.get("loss_state") != "denoised_endpoint" for _, params in jobs)
+    main_guidance = [
+        params
+        for _, params in jobs
+        if params.get("ablation_group") == "guidance_components"
+    ]
+    assert main_guidance
+    assert all(params.get("guidance_components") != "both_obs" for params in main_guidance)
+    assert any(params.get("sensor_mode") == "per_sample_random" for _, params in jobs)

@@ -12,14 +12,19 @@ from typing import Any
 from fm4pde_ablation.config import load_yaml_file
 
 
-GROUP_KEYS = [
+GROUP_DIMENSION_KEYS = [
     "pde",
     "task",
     "ablation_group",
-    "ablation_name",
     "guidance_components",
     "loss_state",
     "sampler_phase",
+    "switch_ratio",
+    "guidance_schedule",
+    "obs_decay",
+    "obs_decay_start_ratio",
+    "polynomial_power",
+    "cosine_mode",
     "sensor_mode",
     "num_obs",
     "noise_level",
@@ -34,6 +39,8 @@ GROUP_KEYS = [
     "clip_threshold",
     "pde_residual_region",
 ]
+
+GROUP_KEYS = ["ablation_family", "ablation_group_key", *GROUP_DIMENSION_KEYS]
 
 SUMMARY_METRICS = [
     "rel_l2_a",
@@ -93,7 +100,7 @@ def _collect_rows(root: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]
 def _merge_config_metrics(config: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
     extra = config.get("extra") if isinstance(config.get("extra"), dict) else {}
     row = {}
-    for key in GROUP_KEYS:
+    for key in GROUP_DIMENSION_KEYS:
         if key in config:
             row[key] = config[key]
         elif key in extra:
@@ -102,6 +109,9 @@ def _merge_config_metrics(config: dict[str, Any], metrics: dict[str, Any]) -> di
             row[key] = metrics[key]
         else:
             row[key] = ""
+    row["ablation_name"] = config.get("ablation_name", extra.get("ablation_name", metrics.get("ablation_name", "")))
+    row["ablation_family"] = _ablation_family(row)
+    row["ablation_group_key"] = _ablation_group_key(row)
     for key in ("sample_seed", "mask_seed", "noise_seed", "offset", "test_index", "batch_size"):
         row[key] = config.get(key, extra.get(key, ""))
     for key, value in metrics.items():
@@ -174,6 +184,18 @@ def _to_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _ablation_family(row: dict[str, Any]) -> str:
+    return _stable_join((row.get("pde", ""), row.get("task", ""), row.get("ablation_group", "")))
+
+
+def _ablation_group_key(row: dict[str, Any]) -> str:
+    return _stable_join(f"{key}={row.get(key, '')}" for key in GROUP_DIMENSION_KEYS)
+
+
+def _stable_join(values: Any) -> str:
+    return "|".join(str(value) for value in values)
 
 
 def _read_json(path: Path) -> dict[str, Any]:

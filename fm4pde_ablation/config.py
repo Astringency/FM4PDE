@@ -45,7 +45,7 @@ VALID_GUIDANCE_SCHEDULES = {
 }
 VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm"}
 VALID_PDE_REGIONS = {"full", "observed", "boundary_excluded", "union_obs"}
-VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random", "time_varying"}
+VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
 VALID_LOSS_TYPES = {"l1", "l2", "mse"}
@@ -151,6 +151,7 @@ class AblationConfig:
                 DeprecationWarning,
                 stacklevel=2,
             )
+            self.sensor_mode = "per_sample_random"
         checks = [
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),

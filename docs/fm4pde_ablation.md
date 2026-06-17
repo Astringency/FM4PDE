@@ -20,7 +20,9 @@ Supported `loss_state` values are `xt`, `x_next`, and `endpoint`. `denoised_endp
 
 Supported sampler phases are `deterministic`, `stochastic`, `hybrid_d2s`, and `hybrid_s2d`.
 
-Supported sensor modes are `random`, `fixed`, `grid`, `sensor_column`, and `per_sample_random`. The old `time_varying` name is deprecated for BCHW endpoint data and is not used in formal grids.
+Supported sensor modes are `random`, `fixed`, `grid`, `sensor_column`, and `per_sample_random`. `random` samples one spatial mask and shares it across the whole batch; `per_sample_random` samples an independent spatial mask for each batch item. The old `time_varying` name is a legacy alias for `per_sample_random` and is not a formal mode in grids.
+
+`obs_only` means observation guidance on the side visible for the current task: coefficient observations for `forward`, solution observations for `inverse`, and both sides for `both`. `both_obs` is an explicit two-sided observation setting and is only valid for `task: both`; it is omitted from the main guidance grid to avoid duplicating `obs_only` under `task: both`.
 
 ## Future PDE Metadata
 
@@ -38,6 +40,10 @@ Scalar or sample-level parameters are loaded into `PDEGroundTruth.pde_params` an
 - Advection-Diffusion: `b_x`, `b_y`, `kappa`
 - Steady Heat Conduction: `u_D` plus available sample metadata such as source parameters and solver diagnostics
 
+For Heat, Wave, and Advection-Diffusion residuals, the two-time-level derivative uses `(uT - u0) / T`. The residual code reads `T`, then `total_time`, then `dt` from `pde_params`; if none is present it uses `T=1.0` and records that default in residual metadata.
+
+Steady Heat Conduction residual fields include the interior PDE residual plus boundary residuals in the same tensor: bottom Dirichlet `u[..., 0, :] - u_D`, and zero-Neumann residuals on top, left, and right boundaries.
+
 If a checkpoint still expects old scalar-parameter channels, sampling fails with a channel mismatch and the checkpoint must be retrained under the current channel definition.
 
 ## Residual Status
@@ -47,7 +53,7 @@ If a checkpoint still expects old scalar-parameter channels, sampling fails with
 - `placeholder`: reserved for PDEs with documented but inactive residual plans
 - `disabled`: no PDE guidance should be claimed or used
 
-`nsnonbounded` PDE guidance is currently disabled. If a config requests NS PDE guidance, the runner warns and sets `zeta_pde=0`.
+`nsnonbounded` PDE guidance is currently disabled. If a config requests `pde_only`, the runner warns and maps it to `noguide`; if it requests `obs_pde`, the runner warns and maps it to `obs_only`. The original request and effective guidance are recorded in metadata so NS runs are not interpreted as PDE-guided results.
 
 ## Commands
 
@@ -77,6 +83,8 @@ scripts/ablations/aggregate_results.sh outputs/ablations outputs/ablations
 ```
 
 This writes `summary_all_raw.csv`, `summary_all_grouped.csv`, and `curves_grouped.csv`.
+
+Grouped summaries use stable `ablation_family` and `ablation_group_key` fields instead of `ablation_name`. Seeds, sample offsets, and batch size remain in `summary_all_raw.csv` only, so seed/offset repeats such as `statistics_seed_offset` aggregate into one grouped row.
 
 ## Outputs
 

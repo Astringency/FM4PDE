@@ -5,15 +5,17 @@ groups:
       task: both
       sampler_phase: stochastic
       loss_state: endpoint
+      sensor_mode: per_sample_random
       num_obs: 500
       noise_level: 0.0
     matrix:
-      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only, both_obs]
+      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only]
   loss_state:
     fixed:
       task: both
       guidance_components: obs_pde
       sampler_phase: stochastic
+      sensor_mode: per_sample_random
       num_obs: 500
     matrix:
       loss_state: [xt, x_next, endpoint]
@@ -22,6 +24,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
     matrix:
       sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_d2s, hybrid_d2s, hybrid_s2d]
       switch_ratio: [0.5, 0.5, 0.2, 0.5, 0.8, 0.2]
@@ -30,7 +33,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
-      sensor_mode: random
+      sensor_mode: per_sample_random
       noise_level: 0.0
     matrix:
       num_obs: [50, 100, 250, 500, 1000]
@@ -39,6 +42,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
       num_obs: 500
       noise_level: 0.0
     matrix:
@@ -48,6 +52,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
       num_obs: 500
     matrix:
       noise_level: [0.0, 0.01, 0.05, 0.10]
@@ -56,6 +61,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
       num_obs: 500
       noise_level: 0.0
     matrix:
@@ -66,6 +72,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
     product: true
     matrix:
       time_grid: [uniform, geometric, cosine]
@@ -76,6 +83,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
     matrix:
       clip_mode: [none, global_norm, global_norm, global_norm, global_norm, per_component_norm]
       clip_threshold: [1.0, 1.0, 10.0, 100.0, 10000000000.0, 10.0]
@@ -84,12 +92,14 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
     matrix:
       pde_residual_region: [full, observed, boundary_excluded, union_obs]
   task:
     fixed:
       loss_state: endpoint
       sampler_phase: stochastic
+      sensor_mode: per_sample_random
     matrix:
       task: [forward, inverse, both, unconditional]
       guidance_components: [obs_pde, obs_pde, obs_pde, noguide]
@@ -98,6 +108,7 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
       num_obs: 500
       noise_level: 0.01
     matrix:
@@ -111,6 +122,7 @@ groups:
       task: both
       loss_state: endpoint
       sampler_phase: stochastic
+      sensor_mode: per_sample_random
       zeta_pde: 0
       residual_mode: disabled
     matrix:

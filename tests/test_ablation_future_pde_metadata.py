@@ -58,3 +58,32 @@ def test_ablation_ground_truth_reads_sample_level_pde_params(tmp_path):
     assert set(gt.pde_params) == {"alpha"}
     assert gt.metadata["pde_params_keys"] == ["alpha"]
     assert gt.metadata["pde_params_sources"] == {"alpha": "dataset"}
+
+
+def test_ablation_ground_truth_reads_future_time_scale_params(tmp_path):
+    path = tmp_path / "heat_2-5-5_1.h5"
+    _write_heat_h5(path)
+    with h5py.File(path, "a") as file:
+        file.attrs["total_time"] = 2.5
+    cfg = AblationConfig(
+        pde="heat",
+        task="both",
+        data_path=str(path),
+        data_config_path="",
+        checkpoint_path="",
+        loadby="future_h5",
+        coef_name="input_data",
+        solution_name="output_data",
+        img_channels=2,
+        img_resolution=5,
+        batch_size=2,
+        offset=0,
+        device="cpu",
+        allow_synthetic_data=False,
+    )
+
+    gt = load_ground_truth(cfg)
+
+    assert set(gt.pde_params) == {"alpha", "total_time"}
+    assert torch.allclose(gt.pde_params["total_time"], torch.tensor([2.5, 2.5]))
+    assert gt.metadata["pde_params_sources"]["total_time"] == "attrs:total_time"

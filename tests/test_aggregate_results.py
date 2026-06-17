@@ -7,7 +7,7 @@ from fm4pde_ablation.aggregate import aggregate_root
 from fm4pde_ablation.config import dump_yaml
 
 
-def _write_run(root, name, rel_l2_a, rel_l2_u):
+def _write_run(root, name, rel_l2_a, rel_l2_u, config_updates=None):
     run_dir = root / name
     run_dir.mkdir(parents=True)
     config = {
@@ -17,6 +17,7 @@ def _write_run(root, name, rel_l2_a, rel_l2_u):
         "guidance_components": "obs_pde",
         "loss_state": "endpoint",
         "sampler_phase": "stochastic",
+        "switch_ratio": 0.5,
         "sensor_mode": "random",
         "num_obs": 10,
         "noise_level": 0.0,
@@ -28,6 +29,11 @@ def _write_run(root, name, rel_l2_a, rel_l2_u):
         "step_method": "euler",
         "extra": {"ablation_group": "group"},
     }
+    for key, value in (config_updates or {}).items():
+        if key == "extra":
+            config["extra"].update(value)
+        else:
+            config[key] = value
     (run_dir / "resolved_config.yaml").write_text(dump_yaml(config), encoding="utf-8")
     metrics = {
         "rel_l2_a": rel_l2_a,
@@ -66,3 +72,40 @@ def test_aggregate_outputs_statistics(tmp_path):
     curves = list(csv.DictReader(outputs["curves"].open(encoding="utf-8")))
     assert len(curves) == 1
     assert float(curves[0]["rel_l2_u_mean"]) == pytest.approx(3.0)
+
+
+def test_statistics_seed_offset_groups_across_names_and_seeds(tmp_path):
+    for idx, value in enumerate([1.0, 2.0, 3.0]):
+        _write_run(
+            tmp_path,
+            f"run{idx}",
+            value,
+            value,
+            {
+                "ablation_name": f"statistics_seed_offset_poisson_{idx:03d}",
+                "sample_seed": idx,
+                "mask_seed": idx * 11,
+                "noise_seed": idx * 101,
+                "offset": idx,
+                "batch_size": 1,
+                "noise_level": 0.01,
+                "sensor_mode": "per_sample_random",
+                "extra": {"ablation_group": "statistics_seed_offset"},
+            },
+        )
+
+    outputs = aggregate_root(tmp_path)
+    raw = list(csv.DictReader(outputs["raw"].open(encoding="utf-8")))
+    grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+
+    assert len(raw) == 3
+    assert {row["ablation_name"] for row in raw} == {
+        "statistics_seed_offset_poisson_000",
+        "statistics_seed_offset_poisson_001",
+        "statistics_seed_offset_poisson_002",
+    }
+    assert len(grouped) == 1
+    assert grouped[0]["ablation_family"] == "poisson|both|statistics_seed_offset"
+    assert int(grouped[0]["rel_l2_a_n"]) == 3
+    for raw_only_key in ("sample_seed", "mask_seed", "noise_seed", "offset", "batch_size", "ablation_name"):
+        assert raw_only_key not in grouped[0]
