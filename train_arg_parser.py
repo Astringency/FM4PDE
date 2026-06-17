@@ -132,6 +132,18 @@ def get_args_parser():
         help="data root folder with train, val and test subfolders",
     )
     parser.add_argument(
+        "--data_size",
+        default=5,
+        type=int,
+        help="Number of training shards/files to read per PDE.",
+    )
+    parser.add_argument(
+        "--max_train_samples",
+        default=None,
+        type=int,
+        help="Optional cap on loaded training samples per PDE for smoke tests.",
+    )
+    parser.add_argument(
         "--output_dir",
         default="/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/",
         help="path where to save, empty for no saving",

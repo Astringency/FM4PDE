@@ -58,7 +58,12 @@ def main(args):
     cudnn.benchmark = True
 
     pde_names = args.dataset.split("-")
-    data, label, loader_metadata = _load_training_data(pde_names, args.data_path)
+    data, label, loader_metadata = _load_training_data(
+        pde_names,
+        args.data_path,
+        data_size=args.data_size,
+        max_train_samples=args.max_train_samples,
+    )
     num_channels = int(data.shape[1])
     logger.info(f"Loaded data shape={tuple(data.shape)}, labels dtype={label.dtype}")
 
@@ -214,7 +219,12 @@ def main(args):
         logger.info(f"Loaded PDE metadata keys: {sorted(loader_metadata)}")
 
 
-def _load_training_data(pde_names: list[str], data_path: str) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
+def _load_training_data(
+    pde_names: list[str],
+    data_path: str,
+    data_size: int = 5,
+    max_train_samples: int | None = None,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
     dataset_list = []
     label_list = []
     channel_counts = {}
@@ -223,7 +233,7 @@ def _load_training_data(pde_names: list[str], data_path: str) -> tuple[torch.Ten
     for pde_name in pde_names:
         logger.info(f">>> Initializing Dataset: {pde_name} <<<")
         pde_loader = PDEloader(pde_name)
-        dataset, label = pde_loader.load_data(data_path)
+        dataset, label = pde_loader.load_data(data_path, size=data_size, max_samples=max_train_samples)
         if dataset.ndim != 4:
             raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
         channel_counts[pde_name] = int(dataset.shape[1])

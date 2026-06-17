@@ -8,6 +8,8 @@ import torch
 from torch.utils.data import Dataset
 
 
+DEFAULT_TRAIN_SHARDS = 5
+
 
 class TensorDataset(Dataset):
     def __init__(self, data, labels):
@@ -57,6 +59,24 @@ class PDEloader:
             raise ValueError(f"Unsupported PDE {pde!r}; expected one of {sorted(self.load_func)}")
         self.load_data = self.load_func[self.pde]
 
+    def _pde_dir(self, data_path):
+        path = Path(data_path).expanduser()
+        if path.is_file():
+            return path.parent
+        candidates = [path / self.pde]
+        if self.pde == "burger":
+            candidates.append(path / "burgers")
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return candidates[0]
+
+    def _legacy_path(self, data_path, file_name):
+        path = Path(data_path).expanduser()
+        if path.is_file():
+            return path
+        return self._pde_dir(data_path) / file_name
+
     def _finalize(self, data, label_value):
         data = torch.as_tensor(data, dtype=torch.float32).contiguous()
         self._assert_bchw(data, context=self.pde)
@@ -74,101 +94,155 @@ class PDEloader:
         if data.dtype != torch.float32:
             raise TypeError(f"{context} data must be float32, got {data.dtype}")
 
-    def _darcy_load(self, data_path, size = 5):
-        dataset = {}
+    def _darcy_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        remaining = max_samples
         for i in tqdm(range(1, size + 1)):
-            file_path = f'{data_path}{self.pde}/{self.pde}_10000-128-128_{i}.mat'
+            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             with h5py.File(file_path, 'r') as file:
-                a = file['thresh_a_data'][:] # type: ignore
-                u = file['thresh_p_data'][:] # type: ignore
-            dataset[i] = np.stack([a, u], axis=0).transpose(3, 0, 1, 2) # type: ignore
+                total = file["thresh_a_data"].shape[-1]
+                take = total if remaining is None else min(int(remaining), total)
+                if take <= 0:
+                    break
+                a = file['thresh_a_data'][:, :, :take] # type: ignore
+                u = file['thresh_p_data'][:, :, :take] # type: ignore
+            dataset.append(np.stack([a, u], axis=0).transpose(3, 0, 1, 2)) # type: ignore
+            if remaining is not None:
+                remaining -= take
+                if remaining <= 0:
+                    break
 
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 0)
+        return self._finalize(np.concatenate(dataset, axis=0), 0)
 
-    def _poisson_load(self, data_path, size = 5):
-        dataset = {}
+    def _poisson_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        remaining = max_samples
         for i in tqdm(range(1, size + 1)):
-            file_path = f'{data_path}{self.pde}/{self.pde}_10000-128-128_{i}.mat'
-            f = scipy.io.loadmat(file_path)['f_data']
-            phi = scipy.io.loadmat(file_path)['phi_data']
-            dataset[i] = np.stack([f, phi], axis=1)
+            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+            loaded = scipy.io.loadmat(file_path, variable_names=["f_data", "phi_data"])
+            take = loaded["f_data"].shape[0] if remaining is None else min(int(remaining), loaded["f_data"].shape[0])
+            if take <= 0:
+                break
+            dataset.append(np.stack([loaded["f_data"][:take], loaded["phi_data"][:take]], axis=1))
+            if remaining is not None:
+                remaining -= take
+                if remaining <= 0:
+                    break
 
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 1)
+        return self._finalize(np.concatenate(dataset, axis=0), 1)
     
-    def _helmholtz_load(self, data_path, size = 5):
-        dataset = {}
+    def _helmholtz_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        remaining = max_samples
         for i in tqdm(range(1, size + 1)):
-            file_path = f'{data_path}{self.pde}/{self.pde}_10000-128-128_{i}.mat'
-            f = scipy.io.loadmat(file_path)['f_data']
-            psi = scipy.io.loadmat(file_path)['psi_data']
-            
-            dataset[i] = np.stack([f, psi], axis=1)
+            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+            loaded = scipy.io.loadmat(file_path, variable_names=["f_data", "psi_data"])
+            take = loaded["f_data"].shape[0] if remaining is None else min(int(remaining), loaded["f_data"].shape[0])
+            if take <= 0:
+                break
+            dataset.append(np.stack([loaded["f_data"][:take], loaded["psi_data"][:take]], axis=1))
+            if remaining is not None:
+                remaining -= take
+                if remaining <= 0:
+                    break
 
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 2)
+        return self._finalize(np.concatenate(dataset, axis=0), 2)
 
-    def _nsnonbounded_load(self, data_path, size = 5):
-        dataset = {}
+    def _nsnonbounded_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        remaining = max_samples
         for i in tqdm(range(1, size + 1)):
-            file_path = f'{data_path}{self.pde}/{self.pde}_10000-128-128-10_{i}_new.mat'
+            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128-10_{i}_new.mat")
             with h5py.File(file_path, 'r') as file:
-                w0 = file['w0'][:] # type: ignore
-                wt = file['w'][:, :, :, :] # type: ignore
+                total = file["w0"].shape[0]
+                take = total if remaining is None else min(int(remaining), total)
+                if take <= 0:
+                    break
+                w0 = file['w0'][:take] # type: ignore
+                wt = file['w'][:take, :, :, :] # type: ignore
 
-            dataset[i] = self._nsnonbounded_pair(w0, wt)
+            dataset.append(self._nsnonbounded_pair(w0, wt))
+            if remaining is not None:
+                remaining -= take
+                if remaining <= 0:
+                    break
         
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 3)
+        return self._finalize(np.concatenate(dataset, axis=0), 3)
     
-    def _burger_load(self, data_path, size = 5):
-        dataset = {}
+    def _burger_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        remaining = max_samples
         for i in tqdm(range(1, size + 1)):
-            file_path = f'{data_path}{self.pde}/{self.pde}_10000-128-128_{i}.mat'
-            output = scipy.io.loadmat(file_path)['output']
-            dataset[i] = np.expand_dims(output, axis = 1)
+            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+            output = scipy.io.loadmat(file_path, variable_names=["output"])["output"]
+            take = output.shape[0] if remaining is None else min(int(remaining), output.shape[0])
+            if take <= 0:
+                break
+            dataset.append(np.expand_dims(output[:take], axis=1))
+            if remaining is not None:
+                remaining -= take
+                if remaining <= 0:
+                    break
         
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 4)
+        return self._finalize(np.concatenate(dataset, axis=0), 4)
 
-    def _reaction_diffusion_load(self, data_path, size = 5):
-        dataset = {}
+    def _reaction_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        sample_count = 0
         for i in range(size):
-            file_path = f"{data_path}{self.pde}/reaction_diffusion-128-128-100_{i}.h5"
+            file_path = self._legacy_path(data_path, f"reaction_diffusion-128-128-10_{i}.h5")
+            if not file_path.exists():
+                file_path = self._legacy_path(data_path, f"reaction_diffusion-128-128-100_{i}.h5")
             with h5py.File(file_path, "r") as f:
                 for k in tqdm(list(f.keys())):
-                    u0 = np.expand_dims(f[k]['data'][50, :, :, 0], axis = 0) # type: ignore
-                    v0 = np.expand_dims(f[k]['data'][50, :, :, 1], axis = 0) # type: ignore
-                    u = np.expand_dims(f[k]['data'][-1, :, :, 0], axis = 0) # type: ignore
-                    v = np.expand_dims(f[k]['data'][-1, :, :, 1], axis = 0) # type: ignore
-                    dataset[k] = np.stack([u0, v0, u, v], axis = 1)
+                    if max_samples is not None and sample_count >= max_samples:
+                        break
+                    arr = f[k]['data'] # type: ignore
+                    u0 = np.expand_dims(arr[0, :, :, 0], axis=0)
+                    v0 = np.expand_dims(arr[0, :, :, 1], axis=0)
+                    u = np.expand_dims(arr[-1, :, :, 0], axis=0)
+                    v = np.expand_dims(arr[-1, :, :, 1], axis=0)
+                    dataset.append(np.stack([u0, v0, u, v], axis=1))
+                    sample_count += 1
+            if max_samples is not None and sample_count >= max_samples:
+                break
         
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 5)
+        return self._finalize(np.concatenate(dataset, axis=0), 5)
 
-    def _shallow_water_load(self, data_path):
-        dataset = {} 
-        for i in range(5):
-            file_path = f"{data_path}{self.pde}/2d_swe_128_128_10_{i}.h5"
+    def _shallow_water_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+        dataset = []
+        sample_count = 0
+        for i in range(size):
+            file_path = self._legacy_path(data_path, f"2d_swe_128_128_10_{i}.h5")
 
             with h5py.File(file_path, "r") as f:
                 for k in list(f.keys()):
+                    if max_samples is not None and sample_count >= max_samples:
+                        break
                     h0 = np.expand_dims(f[k]['data']['h'][0, :, :, 0], axis = 0) # type: ignore
                     h = np.expand_dims(f[k]['data']['h'][-1, :, :, 0], axis = 0) # type: ignore
                     hu0 = np.expand_dims(f[k]['data']['hu'][0, :, :, 0], axis = 0) # type: ignore
                     hu = np.expand_dims(f[k]['data']['hu'][-1, :, :, 0], axis = 0) # type: ignore
                     hv0 = np.expand_dims(f[k]['data']['hv'][0, :, :, 0], axis = 0) # type: ignore
                     hv = np.expand_dims(f[k]['data']['hv'][-1, :, :, 0], axis = 0) # type: ignore
-                    dataset[k] = np.stack([h0, hu0, hv0, h, hu, hv], axis = 1)
+                    dataset.append(np.stack([h0, hu0, hv0, h, hu, hv], axis=1))
+                    sample_count += 1
+            if max_samples is not None and sample_count >= max_samples:
+                break
 
-        return self._finalize(np.concatenate(list(dataset.values()), axis=0), 6)
+        return self._finalize(np.concatenate(dataset, axis=0), 6)
 
-    def _heat_load(self, data_path, size=5, split="train"):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=7)
+    def _heat_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=7, max_samples=max_samples)
 
-    def _wave_load(self, data_path, size=5, split="train"):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=8)
+    def _wave_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=8, max_samples=max_samples)
 
-    def _advection_diffusion_load(self, data_path, size=5, split="train"):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=9)
+    def _advection_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=9, max_samples=max_samples)
 
-    def _steady_heat_conduction_load(self, data_path, size=5, split="train"):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=10)
+    def _steady_heat_conduction_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
+        return self._future_h5_load(data_path, size=size, split=split, label_value=10, max_samples=max_samples)
 
     @staticmethod
     def _nsnonbounded_pair(w0, wt):
@@ -213,7 +287,7 @@ class PDEloader:
                 return arr[:, :, :, -1]
         raise ValueError(f"Cannot infer final-time slice for {name} with shape {arr.shape}")
 
-    def _future_h5_load(self, data_path, size=5, split="train", label_value=0, materialize_params=False):
+    def _future_h5_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", label_value=0, materialize_params=False, max_samples=None):
         """Load future HDF5 data as model channels plus scalar PDE metadata.
 
         Spatially constant PDE parameters are not Flow Matching input channels by default.
@@ -231,7 +305,10 @@ class PDEloader:
             with h5py.File(file_path, "r") as file:
                 if "input_data" not in file or "output_data" not in file:
                     raise KeyError(f"{file_path} must contain data or input_data/output_data")
-                arr = self._future_h5_materialize(file, materialize_params=materialize_params)
+                remaining = None if max_samples is None else max_samples - sample_start
+                if remaining is not None and remaining <= 0:
+                    break
+                arr = self._future_h5_materialize(file, materialize_params=materialize_params, max_samples=remaining)
                 params = self._future_h5_scalar_params(file, arr.shape[0])
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim != 4:
@@ -257,9 +334,10 @@ class PDEloader:
             self.pde_params[name] = torch.tensor(values, dtype=torch.float32)
         return data, label
 
-    def _future_h5_materialize(self, file, materialize_params=True):
-        input_data = np.asarray(file["input_data"][:], dtype=np.float32)
-        output_data = np.asarray(file["output_data"][:], dtype=np.float32)
+    def _future_h5_materialize(self, file, materialize_params=True, max_samples=None):
+        n_take = file["input_data"].shape[0] if max_samples is None else min(int(max_samples), file["input_data"].shape[0])
+        input_data = np.asarray(file["input_data"][:n_take], dtype=np.float32)
+        output_data = np.asarray(file["output_data"][:n_take], dtype=np.float32)
         if input_data.ndim != 4 or output_data.ndim != 4:
             raise ValueError(f"future_h5 input/output must be [N,C,H,W], got {input_data.shape}, {output_data.shape}")
         n_samples, _, h, w = input_data.shape
@@ -331,6 +409,8 @@ class PDEloader:
         values = values.reshape(-1)
         if values.shape[0] == 1:
             values = np.full((n_samples,), float(values[0]), dtype=np.float32)
+        elif values.shape[0] > n_samples:
+            values = values[:n_samples]
         if values.shape[0] != n_samples:
             raise ValueError(f"{name} must have shape [{n_samples}], got {values.shape}")
         return values
