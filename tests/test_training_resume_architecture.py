@@ -8,6 +8,7 @@ torch = pytest.importorskip("torch")
 
 from models.model_configs import get_model_config
 from train import resolve_training_model_profile, _resolve_training_model_config
+from training.load_and_save import inspect_checkpoint_architecture
 
 
 def _args(path: str = "", model_profile: str = "auto", allow_override: bool = False):
@@ -55,6 +56,13 @@ def test_non_resume_auto_resolves_recommended():
     assert resolved == "recommended"
     assert metadata["resume"] is False
     assert metadata["requested_model_profile"] == "auto"
+
+
+def test_inspect_checkpoint_architecture_missing_path_raises_clear_file_not_found(tmp_path):
+    missing_path = tmp_path / "does-not-exist.pth"
+
+    with pytest.raises(FileNotFoundError, match="resume checkpoint not found"):
+        inspect_checkpoint_architecture(missing_path)
 
 
 def test_resume_auto_uses_checkpoint_profile(tmp_path):

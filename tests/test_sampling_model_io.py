@@ -67,6 +67,48 @@ def test_checkpoint_model_config_is_used_for_sampling(tmp_path):
     assert payload["runtime_requested_model_profile"] == "heavy"
 
 
+def test_sampling_model_io_derives_fourier_metadata_when_checkpoint_metadata_missing(tmp_path):
+    cfg = _tiny_model_config()
+    cfg.update(
+        {
+            "with_value_fourier_features": True,
+            "with_coordinate_fourier_features": True,
+        }
+    )
+    model = instantiate_model("heat", use_ema=False, model_config=cfg)
+    checkpoint_path = tmp_path / "fm4heat_fourier_metadata_missing.pth"
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "normalizer": PDEStandardizer.identity(2, channel_names=["u0", "uT"]).state_dict(),
+            "num_channels": 2,
+            "model_profile": "unit_test_profile",
+            "model_config": cfg,
+        },
+        checkpoint_path,
+    )
+
+    _, _, payload = load_fm4pde_checkpoint_bundle(
+        str(checkpoint_path),
+        "heat",
+        device=torch.device("cpu"),
+        wrap=True,
+        model_profile="heavy",
+    )
+
+    metadata = payload["selected_model_config_metadata"]
+    assert payload["selected_model_profile"] == "unit_test_profile"
+    assert payload["runtime_requested_model_profile"] == "heavy"
+    assert metadata["with_value_fourier_features"] is True
+    assert metadata["with_coordinate_fourier_features"] is True
+    assert metadata["value_fourier_feature_channels"] == 8
+    assert metadata["coordinate_fourier_feature_channels"] == 18
+    assert metadata["fourier_feature_channels"] == 26
+    assert metadata["effective_in_channels"] == 28
+    assert metadata["coordinate_fourier_coord_range"] == "unit"
+    assert metadata["coordinate_fourier_include_raw_coords"] is True
+
+
 def test_checkpoint_without_model_config_requires_explicit_profile(tmp_path):
     cfg = _tiny_model_config()
     model = instantiate_model("heat", use_ema=False, model_config=cfg)

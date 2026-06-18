@@ -106,7 +106,11 @@ def _select_model_config_from_payload(
     num_channels: int | None,
     requested_profile: str | None,
 ) -> tuple[dict[str, Any], str, dict[str, Any]]:
-    from models.model_configs import get_model_config, get_model_config_metadata
+    from models.model_configs import (
+        get_model_config,
+        get_model_config_metadata,
+        model_config_metadata_from_config,
+    )
 
     checkpoint_cfg = payload.get("model_config")
     if isinstance(checkpoint_cfg, dict) and checkpoint_cfg:
@@ -115,10 +119,13 @@ def _select_model_config_from_payload(
             or checkpoint_cfg.get("architecture_profile")
             or "checkpoint"
         )
+        derived_metadata = model_config_metadata_from_config(checkpoint_cfg)
         metadata = payload.get("model_config_metadata")
-        if not isinstance(metadata, dict) or not metadata:
-            metadata = _jsonable_model_config(checkpoint_cfg)
-            metadata.setdefault("architecture_profile", selected_profile)
+        metadata = {
+            **derived_metadata,
+            **(metadata if isinstance(metadata, dict) else {}),
+        }
+        metadata.setdefault("architecture_profile", selected_profile)
         return dict(checkpoint_cfg), selected_profile, dict(metadata)
 
     if requested_profile is None:

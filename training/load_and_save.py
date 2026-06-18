@@ -280,10 +280,10 @@ def save_model(
 
 
 def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
-    checkpoint_path = Path(path)
+    path_str = str(path)
     result: dict[str, Any] = {
-        "checkpoint_path": str(checkpoint_path),
-        "has_checkpoint": checkpoint_path.exists(),
+        "checkpoint_path": path_str,
+        "has_checkpoint": False,
         "has_model_config": False,
         "checkpoint_model_profile": None,
         "checkpoint_model_config": None,
@@ -292,7 +292,19 @@ def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
         "checkpoint_schema_version": None,
     }
 
-    payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    if path_str.startswith("https"):
+        payload = torch.hub.load_state_dict_from_url(
+            path_str, map_location="cpu", check_hash=True
+        )
+        result["has_checkpoint"] = True
+    else:
+        checkpoint_path = Path(path_str)
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"resume checkpoint not found: {checkpoint_path}")
+        result["checkpoint_path"] = str(checkpoint_path)
+        result["has_checkpoint"] = True
+        payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+
     if not isinstance(payload, dict):
         return result
 
