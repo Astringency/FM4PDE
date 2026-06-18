@@ -31,7 +31,8 @@ def pde_residual_norm(residual: Any | None, eps: float = 1e-12) -> float:
 def step_metrics(
     step: int,
     step_output: Any,
-    losses: Any,
+    guidance_losses: Any,
+    eval_losses: Any,
     gradient: Any | None,
     phys_state: Any,
     ground_truth: Any,
@@ -45,18 +46,31 @@ def step_metrics(
         "phase": step_output.phase,
         "loss_state": step_output.loss_state,
         "wall_time": wall_time,
-        "L_obs_a": _scalar(losses.L_obs_a),
-        "L_obs_u": _scalar(losses.L_obs_u),
-        "L_pde": _scalar(losses.L_pde),
-        "clean_L_obs_a": _scalar(losses.clean_L_obs_a),
-        "clean_L_obs_u": _scalar(losses.clean_L_obs_u),
+        "L_obs_a": _scalar(eval_losses.L_obs_a),
+        "L_obs_u": _scalar(eval_losses.L_obs_u),
+        "L_pde": _scalar(eval_losses.L_pde),
+        "clean_L_obs_a": _scalar(eval_losses.clean_L_obs_a),
+        "clean_L_obs_u": _scalar(eval_losses.clean_L_obs_u),
+        "eval_L_obs_a": _scalar(eval_losses.L_obs_a),
+        "eval_L_obs_u": _scalar(eval_losses.L_obs_u),
+        "eval_L_pde": _scalar(eval_losses.L_pde),
+        "eval_clean_L_obs_a": _scalar(eval_losses.clean_L_obs_a),
+        "eval_clean_L_obs_u": _scalar(eval_losses.clean_L_obs_u),
+        "guidance_L_obs_a": _scalar(guidance_losses.L_obs_a),
+        "guidance_L_obs_u": _scalar(guidance_losses.L_obs_u),
+        "guidance_L_pde": _scalar(guidance_losses.L_pde),
+        "guidance_clean_L_obs_a": _scalar(guidance_losses.clean_L_obs_a),
+        "guidance_clean_L_obs_u": _scalar(guidance_losses.clean_L_obs_u),
         "rel_l2_a": relative_l2(phys_state.coef, ground_truth.coef),
         "rel_l2_u": relative_l2(phys_state.sol, ground_truth.sol),
         "obs_rel_l2_a": obs_relative_l2(phys_state.coef, ground_truth.coef, masks.coef),
         "obs_rel_l2_u": obs_relative_l2(phys_state.sol, ground_truth.sol, masks.sol),
-        "pde_residual_norm": pde_residual_norm(losses.pde_residual),
-        "pde_residual_status": losses.pde_residual_status,
-        "pde_residual_equation": losses.metadata.get("pde", {}).get("equation", ""),
+        "pde_residual_norm": pde_residual_norm(eval_losses.pde_residual),
+        "eval_pde_residual_norm": pde_residual_norm(eval_losses.pde_residual),
+        "guidance_pde_residual_norm": pde_residual_norm(guidance_losses.pde_residual),
+        "pde_residual_status": eval_losses.pde_residual_status,
+        "guidance_pde_residual_status": guidance_losses.pde_residual_status,
+        "pde_residual_equation": eval_losses.metadata.get("pde", {}).get("equation", ""),
     }
     if gradient is not None:
         row.update(
@@ -66,6 +80,9 @@ def step_metrics(
                 "grad_norm_obs_u": gradient.grad_norm_obs_u,
                 "grad_norm_pde": gradient.grad_norm_pde,
                 "grad_norm_total": gradient.grad_norm_total,
+                "gradient_target": gradient.metadata.get("gradient_target", ""),
+                "guidance_update_scale": gradient.metadata.get("guidance_update_scale", 0.0),
+                "stochastic_guidance_time": gradient.metadata.get("stochastic_guidance_time", ""),
             }
         )
     else:
@@ -76,6 +93,9 @@ def step_metrics(
                 "grad_norm_obs_u": 0.0,
                 "grad_norm_pde": 0.0,
                 "grad_norm_total": 0.0,
+                "gradient_target": "",
+                "guidance_update_scale": 0.0,
+                "stochastic_guidance_time": "",
             }
         )
     return row

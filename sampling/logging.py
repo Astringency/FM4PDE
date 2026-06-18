@@ -58,6 +58,8 @@ def write_run_metadata(
             "clip_mode": config.clip_mode,
             "clip_threshold": config.clip_threshold,
             "pde_residual_region": config.pde_residual_region,
+            "gradient_target": config.gradient_target,
+            "stochastic_guidance_time": config.stochastic_guidance_time,
         },
         "sampler": {
             "sampler_phase": config.sampler_phase,

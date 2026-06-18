@@ -27,6 +27,7 @@ class GuidanceGradient:
     grad_norm_total: float
     clip_scale: float
     component_clip_scales: dict[str, float]
+    metadata: dict[str, Any]
 
 
 def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSchedule:
@@ -68,13 +69,18 @@ def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSch
     )
 
 
-def compute_guidance_gradient(losses: GuidanceLossOutput, x_loss: Any, schedule: GuidanceSchedule, config: Any) -> GuidanceGradient:
+def compute_guidance_gradient(
+    losses: GuidanceLossOutput,
+    grad_target: Any,
+    schedule: GuidanceSchedule,
+    config: Any,
+) -> GuidanceGradient:
     import torch
 
-    zero = torch.zeros_like(x_loss)
-    grad_a = _grad_or_zero(losses.L_obs_a, x_loss, zero, retain_graph=True)
-    grad_u = _grad_or_zero(losses.L_obs_u, x_loss, zero, retain_graph=True)
-    grad_pde = _grad_or_zero(losses.L_pde, x_loss, zero, retain_graph=False)
+    zero = torch.zeros_like(grad_target)
+    grad_a = _grad_or_zero(losses.L_obs_a, grad_target, zero, retain_graph=True)
+    grad_u = _grad_or_zero(losses.L_obs_u, grad_target, zero, retain_graph=True)
+    grad_pde = _grad_or_zero(losses.L_pde, grad_target, zero, retain_graph=False)
 
     grad_a, scale_a = _clip_single(grad_a, config.clip_threshold, config.clip_mode == "per_component_norm")
     grad_u, scale_u = _clip_single(grad_u, config.clip_threshold, config.clip_mode == "per_component_norm")
@@ -100,18 +106,31 @@ def compute_guidance_gradient(losses: GuidanceLossOutput, x_loss: Any, schedule:
         grad_norm_total=_norm(total),
         clip_scale=clip_scale,
         component_clip_scales={"obs_a": scale_a, "obs_u": scale_u, "pde": scale_pde},
+        metadata={
+            "gradient_target": getattr(config, "gradient_target", "loss_state_direct"),
+            "grad_target_shape": list(grad_target.shape),
+        },
     )
 
 
 def apply_guidance_update(x_next: Any, gradient: GuidanceGradient, step_output: Any, schedule: GuidanceSchedule, config: Any) -> Any:
-    scale = _update_scale(step_output.phase, step_output.t_next, step_output.step_size, schedule.bt, config)
+    scale = _update_scale(step_output.phase, step_output.t, step_output.t_next, step_output.step_size, schedule.bt, config)
+    gradient.metadata["guidance_update_scale"] = _scalar(scale)
+    gradient.metadata["stochastic_guidance_time"] = getattr(config, "stochastic_guidance_time", "t")
     return x_next - scale * gradient.grad_total
 
 
-def _update_scale(phase: str, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
+def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
     if config.guidance_schedule == "bt" or phase == "deterministic":
         return bt * step_size
-    return float(config.stochastic_guidance_coeff) * (1.0 - t_next).clamp_min(0.0)
+    time_name = getattr(config, "stochastic_guidance_time", "t")
+    if time_name == "t":
+        time_value = t
+    elif time_name == "t_next":
+        time_value = t_next
+    else:
+        raise ValueError("stochastic_guidance_time must be 't' or 't_next'")
+    return float(config.stochastic_guidance_coeff) * (1.0 - time_value).clamp_min(0.0)
 
 
 def _grad_or_zero(loss: Any, x: Any, zero: Any, retain_graph: bool) -> Any:

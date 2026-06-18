@@ -295,8 +295,8 @@ def _reaction_diffusion_endpoint_secant(
     k = _param_field(pde_params, "k", u_u, default=3e-3)
     u_t = (u_u - a_u) / time_scale
     v_t = (u_v - a_v) / time_scale
-    lap_u = _periodic_laplacian(u_u)
-    lap_v = _periodic_laplacian(u_v)
+    lap_u = _neumann_laplacian(u_u, pde_params)
+    lap_v = _neumann_laplacian(u_v, pde_params)
     res_u = u_t - (d_u * lap_u + u_u - u_u**3 - k - u_v)
     res_v = v_t - (d_v * lap_v + u_u - u_v)
     return _out(
@@ -308,7 +308,28 @@ def _reaction_diffusion_endpoint_secant(
             "warning": LEGACY_ENDPOINT_WARNING,
             "two_time_level_approx": True,
             "time_scale": time_meta,
-            "pde_params_used": _used_params(pde_params, ("D_u", "Du", "D_v", "Dv", "k", "T", "total_time", "dt")),
+            "pde_params_used": _used_params(
+                pde_params,
+                (
+                    "D_u",
+                    "Du",
+                    "D_v",
+                    "Dv",
+                    "k",
+                    "T",
+                    "total_time",
+                    "dt",
+                    "x_range",
+                    "y_range",
+                    "x_left",
+                    "x_right",
+                    "y_bottom",
+                    "y_top",
+                    "dx",
+                    "dy",
+                ),
+            ),
+            **_reaction_diffusion_spatial_metadata(pde_params, u_u),
         },
     )
 
@@ -417,6 +438,7 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
             "residual_channels": int(residual.shape[1]),
             "state_channels": int(q0.shape[1]),
             "pde_params_used": _rhs_param_usage(pde, pde_params),
+            **_rhs_metadata(pde, pde_params, q0),
         },
     )
 
@@ -465,6 +487,7 @@ def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dic
             },
             "near_endpoint_metadata": source_meta,
             "pde_params_used": _rhs_param_usage(pde, pde_params),
+            **_rhs_metadata(pde, pde_params, q0),
         },
     )
 
@@ -514,8 +537,8 @@ def _rhs_reaction_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
     d_u = _param_field_any(pde_params, ("D_u", "Du"), u, default=2e-3)
     d_v = _param_field_any(pde_params, ("D_v", "Dv"), v, default=4e-3)
     k = _param_field(pde_params, "k", u, default=3e-3)
-    f_u = d_u * _periodic_laplacian(u) + u - u**3 - k - v
-    f_v = d_v * _periodic_laplacian(v) + u - v
+    f_u = d_u * _neumann_laplacian(u, pde_params) + u - u**3 - k - v
+    f_v = d_v * _neumann_laplacian(v, pde_params) + u - v
     return torch.cat([f_u, f_v], dim=1)
 
 
@@ -600,6 +623,14 @@ def _rhs_param_usage(pde: str, params: dict[str, Any]) -> dict[str, bool]:
             "T",
             "total_time",
             "dt",
+            "x_range",
+            "y_range",
+            "x_left",
+            "x_right",
+            "y_bottom",
+            "y_top",
+            "dx",
+            "dy",
             "hermite_collocation_times",
             "hermite_num_collocation",
         ),
@@ -807,6 +838,97 @@ def _periodic_laplacian(u: Any) -> Any:
         (u.roll(1, dims=2) + u.roll(-1, dims=2) - 2.0 * u) / (hy**2)
         + (u.roll(1, dims=3) + u.roll(-1, dims=3) - 2.0 * u) / (hx**2)
     )
+
+
+def _neumann_laplacian(u: Any, pde_params: dict[str, Any] | None = None) -> Any:
+    import torch
+
+    pde_params = pde_params or {}
+    hx, hy = _rd_grid_spacing_fields(pde_params, u)
+    padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hy**2)
+    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hx**2)
+    return lap_x + lap_y
+
+
+def _rd_grid_spacing_fields(pde_params: dict[str, Any], reference: Any) -> tuple[Any, Any]:
+    hx = _param_field(pde_params, "dx", reference, default=0.0) if "dx" in pde_params else None
+    hy = _param_field(pde_params, "dy", reference, default=0.0) if "dy" in pde_params else None
+    x_left, x_right, _ = _rd_axis_bounds(pde_params, "x", reference)
+    y_bottom, y_top, _ = _rd_axis_bounds(pde_params, "y", reference)
+    if hx is None:
+        hx = (x_right - x_left) / max(int(reference.shape[-1]), 1)
+    if hy is None:
+        hy = (y_top - y_bottom) / max(int(reference.shape[-2]), 1)
+    return hx.abs().clamp_min(1e-12), hy.abs().clamp_min(1e-12)
+
+
+def _rd_axis_bounds(pde_params: dict[str, Any], axis: str, reference: Any) -> tuple[Any, Any, str]:
+    import torch
+
+    if axis == "x":
+        range_name, left_name, right_name = "x_range", "x_left", "x_right"
+        default_left, default_right = -1.0, 1.0
+    elif axis == "y":
+        range_name, left_name, right_name = "y_range", "y_bottom", "y_top"
+        default_left, default_right = -1.0, 1.0
+    else:
+        raise ValueError(f"Unknown axis={axis!r}")
+
+    if left_name in pde_params and right_name in pde_params:
+        return (
+            _param_field(pde_params, left_name, reference, default=default_left),
+            _param_field(pde_params, right_name, reference, default=default_right),
+            f"{left_name}/{right_name}",
+        )
+    if range_name in pde_params:
+        values = torch.as_tensor(pde_params[range_name], dtype=reference.dtype, device=reference.device)
+        if values.ndim == 1 and values.numel() == 2:
+            left = values[0].repeat(reference.shape[0])
+            right = values[1].repeat(reference.shape[0])
+        elif values.ndim >= 2 and values.shape[-1] == 2:
+            flat = values.reshape(-1, 2)
+            if flat.shape[0] == 1:
+                flat = flat.repeat(reference.shape[0], 1)
+            if flat.shape[0] != reference.shape[0]:
+                raise ValueError(f"{range_name} must be length 2 or batch x 2, got shape={tuple(values.shape)}")
+            left, right = flat[:, 0], flat[:, 1]
+        else:
+            raise ValueError(f"{range_name} must be length 2 or batch x 2, got shape={tuple(values.shape)}")
+        return left.view(reference.shape[0], 1, 1, 1), right.view(reference.shape[0], 1, 1, 1), range_name
+    left = torch.full((reference.shape[0], 1, 1, 1), default_left, dtype=reference.dtype, device=reference.device)
+    right = torch.full((reference.shape[0], 1, 1, 1), default_right, dtype=reference.dtype, device=reference.device)
+    return left, right, "default"
+
+
+def _rhs_metadata(pde: str, pde_params: dict[str, Any], reference: Any) -> dict[str, Any]:
+    if pde == "reaction_diffusion":
+        return _reaction_diffusion_spatial_metadata(pde_params, reference)
+    return {}
+
+
+def _reaction_diffusion_spatial_metadata(pde_params: dict[str, Any], reference: Any) -> dict[str, Any]:
+    x_left, x_right, x_source = _rd_axis_bounds(pde_params, "x", reference)
+    y_bottom, y_top, y_source = _rd_axis_bounds(pde_params, "y", reference)
+    hx, hy = _rd_grid_spacing_fields(pde_params, reference)
+    return {
+        "boundary_condition": "homogeneous_neumann",
+        "laplacian": "neumann",
+        "domain": {
+            "x": [_metadata_values(x_left), _metadata_values(x_right)],
+            "y": [_metadata_values(y_bottom), _metadata_values(y_top)],
+            "source": {"x": x_source, "y": y_source},
+            "default": x_source == "default" and y_source == "default",
+        },
+        "grid_spacing": {
+            "dx": _metadata_values(hx),
+            "dy": _metadata_values(hy),
+            "source": {
+                "dx": "dx" if "dx" in pde_params else "domain_width/num_cells",
+                "dy": "dy" if "dy" in pde_params else "domain_height/num_cells",
+            },
+        },
+    }
 
 
 def _zero_boundary(x: Any) -> Any:

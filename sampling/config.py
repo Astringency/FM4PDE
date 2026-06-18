@@ -34,6 +34,7 @@ VALID_GUIDANCE_COMPONENTS = {
     "both_obs",
 }
 VALID_LOSS_STATES = {"xt", "x_next", "endpoint", "denoised_endpoint"}
+VALID_GRADIENT_TARGETS = {"current_state_chain_rule", "loss_state_direct", "next_state_direct"}
 VALID_SAMPLER_PHASES = {"deterministic", "stochastic", "hybrid_d2s", "hybrid_s2d"}
 VALID_GUIDANCE_SCHEDULES = {
     "constant",
@@ -49,6 +50,7 @@ VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_ra
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
 VALID_LOSS_TYPES = {"l1", "l2", "mse"}
+VALID_STOCHASTIC_GUIDANCE_TIMES = {"t", "t_next"}
 VALID_RESIDUAL_MODES = {
     "auto",
     "hermite_bridge",
@@ -84,6 +86,7 @@ class AblationConfig:
 
     guidance_components: str = "obs_pde"
     loss_state: str = "endpoint"
+    gradient_target: str = "current_state_chain_rule"
     sampler_phase: str = "stochastic"
     switch_ratio: float = 0.5
     guidance_schedule: str = "constant"
@@ -116,6 +119,7 @@ class AblationConfig:
     zeta_obs_u: float = 1.0
     zeta_pde: float = 1.0
     stochastic_guidance_coeff: float = 0.1
+    stochastic_guidance_time: str = "t"
     obs_decay: float = 1.0
     obs_decay_start_ratio: float = 1.0
     polynomial_power: float = 2.0
@@ -174,6 +178,7 @@ class AblationConfig:
             ("task", self.task, VALID_TASKS),
             ("guidance_components", self.guidance_components, VALID_GUIDANCE_COMPONENTS),
             ("loss_state", self.loss_state, VALID_LOSS_STATES),
+            ("gradient_target", self.gradient_target, VALID_GRADIENT_TARGETS),
             ("sampler_phase", self.sampler_phase, VALID_SAMPLER_PHASES),
             ("guidance_schedule", self.guidance_schedule, VALID_GUIDANCE_SCHEDULES),
             ("clip_mode", self.clip_mode, VALID_CLIP_MODES),
@@ -182,6 +187,7 @@ class AblationConfig:
             ("time_grid", self.time_grid, VALID_TIME_GRIDS),
             ("step_method", self.step_method, VALID_STEP_METHODS),
             ("loss_type", self.loss_type, VALID_LOSS_TYPES),
+            ("stochastic_guidance_time", self.stochastic_guidance_time, VALID_STOCHASTIC_GUIDANCE_TIMES),
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
             ("near_endpoint_sensor_mode", self.near_endpoint_sensor_mode, VALID_SENSOR_MODES),
         ]

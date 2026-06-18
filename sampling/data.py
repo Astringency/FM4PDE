@@ -536,6 +536,14 @@ def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[
         "D_u": ("D_u", "Du"),
         "D_v": ("D_v", "Dv"),
         "k": ("k",),
+        "n_save_steps": ("n_save_steps",),
+        "tdim": ("tdim",),
+        "x_left": ("x_left",),
+        "x_right": ("x_right",),
+        "y_bottom": ("y_bottom",),
+        "y_top": ("y_top",),
+        "dx": ("dx",),
+        "dy": ("dy",),
     }
     params = {}
     sources = {}
@@ -563,6 +571,41 @@ def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[
         if values:
             params[canonical] = torch.as_tensor(values, dtype=torch.float32, device=device)
             sources[canonical] = source or "attr"
+    for range_name, left_name, right_name in (
+        ("x_range", "x_left", "x_right"),
+        ("y_range", "y_bottom", "y_top"),
+    ):
+        if left_name in params and right_name in params:
+            continue
+        left_values = []
+        right_values = []
+        source = None
+        for key in keys:
+            group = file[key]
+            value = None
+            if range_name in group.attrs:
+                value = group.attrs[range_name]
+                source = f"group_attr:{range_name}"
+            elif range_name in file.attrs:
+                value = file.attrs[range_name]
+                source = f"root_attr:{range_name}"
+            if value is None:
+                left_values = []
+                right_values = []
+                break
+            arr = torch.as_tensor(value, dtype=torch.float32, device=device).reshape(-1)
+            if arr.numel() < 2:
+                left_values = []
+                right_values = []
+                break
+            left_values.append(arr[0])
+            right_values.append(arr[1])
+        if left_values and left_name not in params:
+            params[left_name] = torch.stack(left_values)
+            sources[left_name] = source or "attr"
+        if right_values and right_name not in params:
+            params[right_name] = torch.stack(right_values)
+            sources[right_name] = source or "attr"
     return params, sources
 
 

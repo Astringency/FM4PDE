@@ -3,7 +3,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from sampling.config import AblationConfig
-from sampling.guidance import compute_guidance_gradient, make_zeta_schedule
+from sampling.guidance import apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
 from sampling.losses import GuidanceLossOutput, guidance_component_flags
 from sampling.runner import _disable_unreliable_pde_guidance
 
@@ -44,3 +44,34 @@ def test_ns_pde_guidance_is_mapped_to_non_pde_guidance():
     assert cfg.guidance_components == "obs_only"
     assert cfg.extra["guidance_components_requested"] == "obs_pde"
     assert cfg.extra["guidance_components_effective"] == "obs_only"
+
+
+def test_stochastic_guidance_scale_defaults_to_current_time():
+    cfg = AblationConfig(
+        task="both",
+        guidance_components="obs_only",
+        stochastic_guidance_coeff=0.5,
+        stochastic_guidance_time="t",
+    )
+    x = torch.ones(1, 1, 2, 2, requires_grad=True)
+    loss = (x**2).sum()
+    zero = x.sum() * 0.0
+    losses = GuidanceLossOutput(loss, zero, zero, x, x, None, loss, zero, "disabled", {})
+    schedule = make_zeta_schedule(cfg, torch.tensor(0.2), torch.tensor(0.8), torch.tensor(1.0))
+    grad = compute_guidance_gradient(losses, x, schedule, cfg)
+    step_output = type(
+        "Step",
+        (),
+        {
+            "phase": "stochastic",
+            "t": torch.tensor(0.2),
+            "t_next": torch.tensor(0.8),
+            "step_size": torch.tensor(0.6),
+        },
+    )()
+
+    updated = apply_guidance_update(torch.zeros_like(x), grad, step_output, schedule, cfg)
+
+    assert grad.metadata["stochastic_guidance_time"] == "t"
+    assert grad.metadata["guidance_update_scale"] == pytest.approx(0.4)
+    assert torch.allclose(updated, -0.4 * grad.grad_total)

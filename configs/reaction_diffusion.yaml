@@ -1,5 +1,9 @@
 data:
   name: 'reaction_diffusion'
+  # Sampling/evaluation uses the held-out test split. Training scripts should
+  # point at the PDEdata root or reaction_diffusion directory so the loader
+  # selects train files named reaction_diffusion_*.h5 and excludes
+  # reaction_diffusion_test_*.h5.
   datapath: '/large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5'
   remark: 'test'
   offset: 0

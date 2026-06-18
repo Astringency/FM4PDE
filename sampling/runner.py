@@ -131,14 +131,17 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         gradient = None
         guided_next = step_out.x_raw_next
         if _has_guidance(config):
-            gradient = compute_guidance_gradient(losses, step_out.x_loss_state, schedule, config)
+            gradient_input = _gradient_target_tensor(config, x_cur, step_out)
+            gradient = compute_guidance_gradient(losses, gradient_input, schedule, config)
             guided_next = apply_guidance_update(step_out.x_raw_next, gradient, step_out, schedule, config)
         x_next = guided_next.detach()
         if config.empty_cache_each_step and device.type == "cuda":
             torch.cuda.empty_cache()
 
-        phys_eval = _physical_from_model_state(x_next, config, normalizer)
-        row = step_metrics(step, step_out, losses, gradient, phys_eval, gt, masks, time.time() - step_start)
+        with torch.no_grad():
+            phys_eval = _physical_from_model_state(x_next, config, normalizer)
+            eval_losses = compute_guidance_losses(phys_eval, gt, masks, config, observations)
+        row = step_metrics(step, step_out, losses, eval_losses, gradient, phys_eval, gt, masks, time.time() - step_start)
         row.update(
             {
                 "zeta_obs_a_t": _scalar(schedule.zeta_obs_a_t),
@@ -175,6 +178,8 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "wall_clock_time": time.time() - start,
             "synthetic_data": bool(gt.metadata.get("synthetic", False)),
             "pde_residual_status": rows[-1].get("pde_residual_status", residual_status(config.pde)) if rows else residual_status(config.pde),
+            "gradient_target": config.gradient_target,
+            "stochastic_guidance_time": config.stochastic_guidance_time,
         }
     )
     write_json(run_dir / "metrics_final.json", final)
@@ -293,6 +298,16 @@ def _physical_from_model_state(x_model: Any, config: AblationConfig, normalizer:
         normalizer=normalizer,
         legacy_minmax=getattr(config, "legacy_minmax", False),
     )
+
+
+def _gradient_target_tensor(config: AblationConfig, x_cur: Any, step_out: Any) -> Any:
+    if config.gradient_target == "current_state_chain_rule":
+        return x_cur
+    if config.gradient_target == "loss_state_direct":
+        return step_out.x_loss_state
+    if config.gradient_target == "next_state_direct":
+        return step_out.x_raw_next
+    raise ValueError(f"Unknown gradient_target={config.gradient_target!r}")
 
 
 def _identity_normalizer(gt: Any) -> Any:

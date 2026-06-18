@@ -104,6 +104,10 @@ def test_statistics_seed_offset_groups_across_names_and_seeds(tmp_path):
         "statistics_seed_offset_poisson_001",
         "statistics_seed_offset_poisson_002",
     }
+    assert {row["sample_seed"] for row in raw} == {"0", "1", "2"}
+    assert {row["mask_seed"] for row in raw} == {"0", "11", "22"}
+    assert {row["noise_seed"] for row in raw} == {"0", "101", "202"}
+    assert {row["offset"] for row in raw} == {"0", "1", "2"}
     assert len(grouped) == 1
     assert grouped[0]["ablation_family"] == "poisson|both|statistics_seed_offset"
     assert int(grouped[0]["rel_l2_a_n"]) == 3

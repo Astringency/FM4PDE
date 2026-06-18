@@ -51,6 +51,7 @@ class PDEloader:
         self.pde_params = {}
         self.pde_param_sources = {}
         self.pde_param_slices = []
+        self.extra_metadata = {}
         self.load_func = {
                 "darcy": self._darcy_load,
                 "poisson": self._poisson_load,
@@ -75,6 +76,11 @@ class PDEloader:
         return data, label
 
     def metadata(self):
+        pde_param_summary = {}
+        if self.pde_params:
+            from data.metadata import summarize_pde_params
+
+            pde_param_summary = summarize_pde_params({self.pde: self.pde_params}).get(self.pde, {})
         return {
             "pde": self.pde,
             "pde_params": self.pde_params,
@@ -83,6 +89,9 @@ class PDEloader:
             "pde_param_slices": list(self.pde_param_slices),
             "channel_names": self._channel_names_for_loaded_data(),
             "scalar_params_loaded": bool(self.pde_params),
+            "pde_param_summary": pde_param_summary,
+            "extra_metadata": dict(self.extra_metadata),
+            "selected_file_format": self.extra_metadata.get("selected_file_format"),
         }
 
     def _pde_dir(self, data_path):
@@ -212,42 +221,30 @@ class PDEloader:
         
         return self._finalize(np.concatenate(dataset, axis=0), 4)
 
-    def _reaction_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
+    def _reaction_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None, legacy_rd_files=False):
         dataset = []
         sample_count = 0
-        path = Path(data_path).expanduser()
-        if path.is_file():
-            file_paths = [path]
-        else:
-            pde_dirs = []
-            for candidate in (path, self._pde_dir(data_path)):
-                if candidate not in pde_dirs:
-                    pde_dirs.append(candidate)
-            file_paths = []
-            for pde_dir in pde_dirs:
-                for i in range(size):
-                    for file_name in (
-                        f"reaction_diffusion-128-128-10_{i}.h5",
-                        f"reaction_diffusion-128-128-100_{i}.h5",
-                    ):
-                        file_path = pde_dir / file_name
-                        if file_path.exists():
-                            file_paths.append(file_path)
-                            break
-                if file_paths:
-                    break
-            if not file_paths:
-                for pde_dir in pde_dirs:
-                    file_paths = sorted(
-                        file_path
-                        for file_path in pde_dir.glob("reaction_diffusion_*.h5")
-                        if not file_path.name.startswith("reaction_diffusion_test_")
-                    )[:size]
-                    if file_paths:
-                        break
+        self.pde_params = {}
+        self.pde_param_sources = {}
+        self.pde_param_slices = []
+        self.extra_metadata = {}
+        file_paths, selected_format, candidate_formats = self._reaction_diffusion_paths(
+            data_path,
+            size=size,
+            legacy_rd_files=legacy_rd_files,
+        )
         if not file_paths:
-            raise FileNotFoundError(f"No reaction_diffusion HDF5 files found under {data_path}")
+            raise FileNotFoundError(
+                f"No reaction_diffusion training HDF5 files found under {data_path}. "
+                "Expected new files named reaction_diffusion_*.h5; old "
+                "reaction_diffusion-128-128-* files are ignored unless legacy_rd_files=True."
+            )
 
+        param_chunks = {}
+        param_sources = {}
+        init_modes = []
+        sample_seeds = []
+        sample_start = 0
         for file_path in file_paths:
             with h5py.File(file_path, "r") as f:
                 sample_keys = sorted(
@@ -255,7 +252,7 @@ class PDEloader:
                     for key in f.keys()
                     if isinstance(f[key], h5py.Group) and "data" in f[key]
                 )
-                for k in tqdm(sample_keys):
+                for local_idx, k in enumerate(tqdm(sample_keys)):
                     if max_samples is not None and sample_count >= max_samples:
                         break
                     arr = f[k]['data'] # type: ignore
@@ -264,11 +261,192 @@ class PDEloader:
                     u = np.expand_dims(arr[-1, :, :, 0], axis=0)
                     v = np.expand_dims(arr[-1, :, :, 1], axis=0)
                     dataset.append(np.stack([u0, v0, u, v], axis=1))
+                    params, sources, extra = self._reaction_diffusion_sample_metadata(f, f[k], local_idx)
+                    for name, value in params.items():
+                        param_chunks.setdefault(name, []).append(value)
+                        if name not in param_sources:
+                            param_sources[name] = sources.get(name, "unknown")
+                        elif param_sources[name] != sources.get(name, "unknown"):
+                            param_sources[name] = "mixed"
+                    if "init_mode" in extra:
+                        init_modes.append(extra["init_mode"])
+                    if "sample_seed" in extra:
+                        sample_seeds.append(extra["sample_seed"])
                     sample_count += 1
+                self.pde_param_slices.append(
+                    {
+                        "file_path": str(file_path),
+                        "start": sample_start,
+                        "stop": sample_count,
+                        "params": tuple(sorted(param_chunks)),
+                    }
+                )
+                sample_start = sample_count
             if max_samples is not None and sample_count >= max_samples:
                 break
-        
-        return self._finalize(np.concatenate(dataset, axis=0), 5)
+
+        if not dataset:
+            raise FileNotFoundError(
+                f"Reaction-diffusion files were found but no samples were loaded from {data_path}; "
+                "check that each HDF5 file contains sample groups with a data dataset."
+            )
+
+        data, label = self._finalize(np.concatenate(dataset, axis=0), 5)
+        for name, values in param_chunks.items():
+            if len(values) != len(data):
+                raise ValueError(f"Reaction-diffusion parameter {name!r} was present for only part of the loaded samples")
+            self.pde_params[name] = torch.tensor(values, dtype=torch.float32)
+        self.pde_param_sources = param_sources
+        self.extra_metadata = {
+            "selected_file_format": selected_format,
+            "candidate_file_formats": sorted(candidate_formats),
+            "file_paths": [str(path) for path in file_paths],
+        }
+        if init_modes:
+            self.extra_metadata["init_mode"] = init_modes
+        if sample_seeds:
+            self.extra_metadata["sample_seed"] = sample_seeds
+        return data, label
+
+    def _reaction_diffusion_paths(self, data_path, size=DEFAULT_TRAIN_SHARDS, legacy_rd_files=False):
+        path = Path(data_path).expanduser()
+        if path.is_file():
+            selected_format = self._reaction_diffusion_file_format(path)
+            if selected_format == "legacy_rd" and not legacy_rd_files:
+                raise FileNotFoundError(
+                    f"{path} matches the legacy reaction-diffusion file naming scheme; "
+                    "pass legacy_rd_files=True to read legacy RD files explicitly."
+                )
+            return [path], selected_format, {selected_format}
+
+        pde_dirs = []
+        for candidate in (path, self._pde_dir(data_path)):
+            if candidate not in pde_dirs:
+                pde_dirs.append(candidate)
+
+        candidate_formats = set()
+        legacy_paths = []
+        for pde_dir in pde_dirs:
+            legacy_paths = self._legacy_reaction_diffusion_paths(pde_dir, size)
+            if legacy_paths:
+                candidate_formats.add("legacy_rd")
+                break
+
+        found_new_paths = []
+        for pde_dir in pde_dirs:
+            new_paths = sorted(
+                file_path
+                for file_path in pde_dir.glob("reaction_diffusion_*.h5")
+                if not file_path.name.startswith("reaction_diffusion_test_")
+            )
+            if new_paths:
+                candidate_formats.add("new_gen_rd")
+                if size is not None:
+                    new_paths = new_paths[: int(size)]
+                found_new_paths = new_paths
+                break
+
+        if legacy_rd_files and legacy_paths:
+            return legacy_paths, "legacy_rd", candidate_formats
+        if found_new_paths:
+            return found_new_paths, "new_gen_rd", candidate_formats
+        return [], "", candidate_formats
+
+    @staticmethod
+    def _reaction_diffusion_file_format(path):
+        name = path.name
+        if name.startswith(("reaction_diffusion-128-128-10_", "reaction_diffusion-128-128-100_")):
+            return "legacy_rd"
+        return "new_gen_rd"
+
+    @staticmethod
+    def _legacy_reaction_diffusion_paths(pde_dir, size):
+        paths = []
+        for i in range(int(size or 0)):
+            for file_name in (
+                f"reaction_diffusion-128-128-10_{i}.h5",
+                f"reaction_diffusion-128-128-100_{i}.h5",
+            ):
+                file_path = pde_dir / file_name
+                if file_path.exists():
+                    paths.append(file_path)
+                    break
+        if paths:
+            return paths
+        globbed = sorted(pde_dir.glob("reaction_diffusion-128-128-*.h5"))
+        if size is not None:
+            globbed = globbed[: int(size)]
+        return globbed
+
+    def _reaction_diffusion_sample_metadata(self, file, group, sample_index):
+        params = {}
+        sources = {}
+        extra = {}
+        specs = {
+            "T": ("T", "total_time"),
+            "D_u": ("D_u", "Du"),
+            "D_v": ("D_v", "Dv"),
+            "k": ("k",),
+            "n_save_steps": ("n_save_steps",),
+            "tdim": ("tdim",),
+            "x_left": ("x_left",),
+            "x_right": ("x_right",),
+            "y_bottom": ("y_bottom",),
+            "y_top": ("y_top",),
+            "dx": ("dx",),
+            "dy": ("dy",),
+        }
+        for canonical, aliases in specs.items():
+            value, source = self._rd_attr_value(file, group, aliases)
+            if value is not None:
+                params[canonical] = float(np.asarray(value, dtype=np.float32).reshape(-1)[0])
+                sources[canonical] = source
+        for range_name, left_name, right_name in (
+            ("x_range", "x_left", "x_right"),
+            ("y_range", "y_bottom", "y_top"),
+        ):
+            value, source = self._rd_attr_value(file, group, (range_name,))
+            if value is None:
+                continue
+            values = np.asarray(value, dtype=np.float32).reshape(-1)
+            if values.size >= 2:
+                if left_name not in params:
+                    params[left_name] = float(values[0])
+                    sources[left_name] = source
+                if right_name not in params:
+                    params[right_name] = float(values[1])
+                    sources[right_name] = source
+        init_mode, _source = self._rd_attr_value(file, group, ("init_mode",))
+        if init_mode is not None:
+            extra["init_mode"] = self._decode_attr(init_mode)
+        seed_value, _source = self._rd_attr_value(file, group, ("sample_seed", "seed"))
+        if seed_value is None and "sample_seed" in file:
+            seed_data = np.asarray(file["sample_seed"][:])
+            if sample_index < seed_data.shape[0]:
+                seed_value = seed_data[sample_index]
+        if seed_value is not None:
+            extra["sample_seed"] = int(np.asarray(seed_value).reshape(-1)[0])
+        return params, sources, extra
+
+    @staticmethod
+    def _rd_attr_value(file, group, names):
+        for name in names:
+            if name in group.attrs:
+                return group.attrs[name], f"group_attr:{name}"
+        for name in names:
+            if name in file.attrs:
+                return file.attrs[name], f"root_attr:{name}"
+        return None, ""
+
+    @staticmethod
+    def _decode_attr(value):
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        arr = np.asarray(value)
+        if arr.ndim == 0:
+            scalar = arr.item()
+            return scalar.decode("utf-8") if isinstance(scalar, bytes) else str(scalar)
+        return [item.decode("utf-8") if isinstance(item, bytes) else str(item) for item in arr.reshape(-1)]
 
     def _shallow_water_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
@@ -509,6 +687,7 @@ class PDEloader:
 
     def _channel_names_for_loaded_data(self):
         names = {
+            "reaction_diffusion": ["u0", "v0", "uT", "vT"],
             "heat": ["u0", "uT"],
             "wave": ["u0", "v0", "uT", "vT"],
             "advection_diffusion": ["u0", "uT"],
