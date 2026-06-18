@@ -46,6 +46,12 @@ Steady Heat Conduction residual fields include the interior PDE residual plus bo
 
 If a checkpoint still expects old scalar-parameter channels, sampling fails with a channel mismatch and the checkpoint must be retrained under the current channel definition.
 
+## Reaction-Diffusion Data Split
+
+Training uses the new generator train files under the PDEdata root or the `reaction_diffusion/` directory, for example `reaction_diffusion_grf_50000-128-128-T1-steps10_shard000.h5` or `reaction_diffusion_grf_50000-128-128-T1-steps10.h5`. The training loader selects `reaction_diffusion_*.h5` train files by default, excludes `reaction_diffusion_test_*.h5`, and reads legacy `reaction_diffusion-128-128-*` files only when `legacy_rd_files=True` is passed explicitly.
+
+Sampling and evaluation use held-out test files, for example `reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5`, as configured by `configs/reaction_diffusion.yaml`.
+
 ## Residual Status
 
 - `reliable`: Darcy, Poisson, Helmholtz

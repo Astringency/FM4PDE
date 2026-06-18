@@ -919,6 +919,7 @@ def _reaction_diffusion_spatial_metadata(pde_params: dict[str, Any], reference: 
             "y": [_metadata_values(y_bottom), _metadata_values(y_top)],
             "source": {"x": x_source, "y": y_source},
             "default": x_source == "default" and y_source == "default",
+            "defaulted": x_source == "default" and y_source == "default",
         },
         "grid_spacing": {
             "dx": _metadata_values(hx),

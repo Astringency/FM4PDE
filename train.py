@@ -251,6 +251,7 @@ def _build_data_metadata(
         "num_samples": int(data.shape[0]),
         "label_values": sorted(int(value) for value in torch.unique(label).detach().cpu().tolist()),
         "pde_param_summary": summarize_pde_params(loader_metadata),
+        "loader_metadata": _loader_metadata_for_json(loader_metadata),
         "normalization": {
             "type": "channelwise_standardization",
             "eps": args.normalization_eps,
@@ -285,10 +286,9 @@ def _load_training_data(
         channel_counts[pde_name] = int(dataset.shape[1])
         dataset_list.append(dataset)
         label_list.append(label.long())
-        if pde_loader.pde_params:
-            metadata[pde_name] = {
-                key: value.detach().cpu() for key, value in pde_loader.pde_params.items()
-            }
+        loader_meta = pde_loader.metadata()
+        if pde_loader.pde_params or loader_meta.get("extra_metadata"):
+            metadata[pde_name] = loader_meta
 
     if len(set(channel_counts.values())) != 1:
         raise ValueError(
@@ -299,6 +299,40 @@ def _load_training_data(
     data = torch.cat(dataset_list, dim=0).to(torch.float32)
     label = torch.cat(label_list, dim=0).to(torch.long)
     return data, label, metadata
+
+
+def _loader_metadata_for_json(loader_metadata: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for pde_name, entry in (loader_metadata or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        pde_params = entry.get("pde_params") if isinstance(entry.get("pde_params"), dict) else entry
+        out[pde_name] = {
+            "pde_params_keys": sorted(pde_params),
+            "pde_param_sources": _jsonable(entry.get("pde_param_sources", {})),
+            "pde_param_slices": _jsonable(entry.get("pde_param_slices", [])),
+            "channel_names": _jsonable(entry.get("channel_names")),
+            "scalar_params_loaded": bool(entry.get("scalar_params_loaded", bool(pde_params))),
+            "selected_file_format": _jsonable(entry.get("selected_file_format")),
+            "selected_files": _jsonable(entry.get("selected_files", [])),
+            "num_loaded_samples": _jsonable(entry.get("num_loaded_samples")),
+            "extra_metadata": _jsonable(entry.get("extra_metadata", {})),
+        }
+    return out
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _jsonable(child) for key, child in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(child) for child in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    return str(value)
 
 
 def _resolve_normalizer(

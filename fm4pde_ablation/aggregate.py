@@ -1,4 +1,4 @@
-"""Compatibility wrapper for :mod:`sampling.aggregate`."""
+"""Deprecated compatibility wrapper for :mod:`sampling.aggregate`."""
 
 from __future__ import annotations
 

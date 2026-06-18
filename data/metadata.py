@@ -7,7 +7,8 @@ import torch
 
 def summarize_pde_params(loader_metadata: dict[str, Any]) -> dict[str, Any]:
     summary: dict[str, Any] = {}
-    for pde_name, params in (loader_metadata or {}).items():
+    for pde_name, entry in (loader_metadata or {}).items():
+        params = _extract_pde_params(entry)
         if not params:
             continue
         pde_summary: dict[str, Any] = {}
@@ -45,5 +46,14 @@ def detach_pde_params(loader_metadata: dict[str, Any]) -> dict[str, dict[str, to
             param_name: torch.as_tensor(value).detach().cpu()
             for param_name, value in params.items()
         }
-        for pde_name, params in (loader_metadata or {}).items()
+        for pde_name, entry in (loader_metadata or {}).items()
+        if (params := _extract_pde_params(entry))
     }
+
+
+def _extract_pde_params(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, dict) and isinstance(entry.get("pde_params"), dict):
+        return entry["pde_params"]
+    if isinstance(entry, dict):
+        return entry
+    return {}

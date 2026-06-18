@@ -39,3 +39,26 @@ def test_reaction_diffusion_residual_uses_neumann_metadata_on_arbitrary_shape():
     assert out.metadata["laplacian"] == "neumann"
     assert out.metadata["domain"]["x"] == [-1.0, 1.0]
     assert out.metadata["grid_spacing"]["dx"] == pytest.approx(0.125)
+    assert out.metadata["pde_params_used"]["D_u"] is True
+    assert out.metadata["pde_params_used"]["D_v"] is True
+    assert out.metadata["pde_params_used"]["k"] is True
+    assert out.metadata["pde_params_used"]["T"] is True
+
+
+def test_reaction_diffusion_residual_default_domain_works_on_32x32():
+    q0 = torch.randn(1, 2, 32, 32)
+    qT = torch.randn(1, 2, 32, 32)
+
+    out = compute_pde_residual(
+        "reaction_diffusion",
+        q0,
+        qT,
+        pde_params={"T": torch.tensor([1.0]), "D_u": torch.tensor([2e-3]), "D_v": torch.tensor([4e-3]), "k": torch.tensor([3e-3])},
+        residual_mode="endpoint_secant",
+    )
+
+    assert tuple(out.residual.shape) == (1, 2, 32, 32)
+    assert torch.isfinite(out.residual).all()
+    assert out.metadata["boundary_condition"] == "homogeneous_neumann"
+    assert out.metadata["domain"]["defaulted"] is True
+    assert out.metadata["grid_spacing"]["dx"] == pytest.approx(2.0 / 32.0)

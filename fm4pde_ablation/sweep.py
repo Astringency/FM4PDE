@@ -1,4 +1,4 @@
-"""Compatibility wrapper for :mod:`sampling.sweep`."""
+"""Deprecated compatibility wrapper for :mod:`sampling.sweep`."""
 
 from __future__ import annotations
 

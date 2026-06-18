@@ -92,6 +92,8 @@ class PDEloader:
             "pde_param_summary": pde_param_summary,
             "extra_metadata": dict(self.extra_metadata),
             "selected_file_format": self.extra_metadata.get("selected_file_format"),
+            "selected_files": list(self.extra_metadata.get("selected_files", [])),
+            "num_loaded_samples": self.extra_metadata.get("num_loaded_samples"),
         }
 
     def _pde_dir(self, data_path):
@@ -300,7 +302,9 @@ class PDEloader:
         self.extra_metadata = {
             "selected_file_format": selected_format,
             "candidate_file_formats": sorted(candidate_formats),
+            "selected_files": [str(path) for path in file_paths],
             "file_paths": [str(path) for path in file_paths],
+            "num_loaded_samples": int(len(data)),
         }
         if init_modes:
             self.extra_metadata["init_mode"] = init_modes
@@ -387,6 +391,8 @@ class PDEloader:
             "D_u": ("D_u", "Du"),
             "D_v": ("D_v", "Dv"),
             "k": ("k",),
+            "init_mean": ("init_mean",),
+            "init_std": ("init_std",),
             "n_save_steps": ("n_save_steps",),
             "tdim": ("tdim",),
             "x_left": ("x_left",),
@@ -419,13 +425,17 @@ class PDEloader:
         init_mode, _source = self._rd_attr_value(file, group, ("init_mode",))
         if init_mode is not None:
             extra["init_mode"] = self._decode_attr(init_mode)
-        seed_value, _source = self._rd_attr_value(file, group, ("sample_seed", "seed"))
+        seed_value, seed_source = self._rd_attr_value(file, group, ("sample_seed", "seed"))
         if seed_value is None and "sample_seed" in file:
             seed_data = np.asarray(file["sample_seed"][:])
             if sample_index < seed_data.shape[0]:
                 seed_value = seed_data[sample_index]
+                seed_source = "dataset:sample_seed"
         if seed_value is not None:
-            extra["sample_seed"] = int(np.asarray(seed_value).reshape(-1)[0])
+            seed_int = int(np.asarray(seed_value).reshape(-1)[0])
+            params["sample_seed"] = float(seed_int)
+            sources["sample_seed"] = seed_source or "unknown"
+            extra["sample_seed"] = seed_int
         return params, sources, extra
 
     @staticmethod
