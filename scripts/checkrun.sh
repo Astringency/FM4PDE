@@ -152,6 +152,27 @@ test_data_override_for_pde() {
   fi
 }
 
+latest_checkpoint_for_pde() {
+  local pde="$1"
+  local train_output_dir="$2"
+  local checkpoint_path
+  checkpoint_path="$(
+    find "${train_output_dir}" -type f -name "fm4${pde}.pth" -printf '%T@ %p\n' \
+      | sort -nr \
+      | head -n 1 \
+      | cut -d' ' -f2-
+  )"
+  if [[ -z "${checkpoint_path}" ]]; then
+    checkpoint_path="$(
+      find "${train_output_dir}" -type f -name "fm4${pde}-checkpoint.pth" -printf '%T@ %p\n' \
+        | sort -nr \
+        | head -n 1 \
+        | cut -d' ' -f2-
+    )"
+  fi
+  printf '%s\n' "${checkpoint_path}"
+}
+
 run_one_pde() {
   local pde="$1"
   local config
@@ -169,7 +190,6 @@ run_one_pde() {
 
   train_data_path="$(infer_train_data_path "${pde}")"
   train_output_dir="${OUTPUT_ROOT}/train/${pde}"
-  checkpoint_path="${train_output_dir}/fm4${pde}.pth"
   mkdir -p "${train_output_dir}" "${SAMPLE_OUTPUT_DIR}" "${LOG_DIR}"
 
   echo
@@ -207,8 +227,10 @@ run_one_pde() {
   echo "== Training ${pde} =="
   "${PYTHON_BIN}" "${train_args[@]}" 2>&1 | tee "${LOG_DIR}/train_${pde}.log"
 
+  checkpoint_path="$(latest_checkpoint_for_pde "${pde}" "${train_output_dir}")"
   if [[ ! -s "${checkpoint_path}" ]]; then
-    echo "Expected trained checkpoint was not created: ${checkpoint_path}" >&2
+    echo "Expected trained checkpoint was not created under: ${train_output_dir}" >&2
+    echo "Looked for fm4${pde}.pth or fm4${pde}-checkpoint.pth recursively." >&2
     exit 1
   fi
   echo "checkpoint: ${checkpoint_path}"
