@@ -49,7 +49,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--n-train", type=int, default=5)
     parser.add_argument("--n-test", type=int, default=5)
-    parser.add_argument("--n-time", type=int, default=10)
+    parser.add_argument(
+        "--n-time",
+        type=int,
+        default=11,
+        help="Number of saved frames including the initial state for non-reaction-diffusion generators.",
+    )
+    parser.add_argument(
+        "--n-save-steps",
+        type=int,
+        default=10,
+        help="Reaction-diffusion saved time intervals; tdim is n_save_steps + 1.",
+    )
+    parser.add_argument(
+        "--reaction-diffusion-init-mode",
+        choices=["iid", "standard_normal", "grf", "gaussian_random_field"],
+        default="grf",
+    )
     parser.add_argument("--T", type=float, default=1.0)
     parser.add_argument("--chunk-size", type=int, default=5)
     parser.add_argument("--overwrite", action="store_true")
@@ -69,6 +85,9 @@ def main() -> dict[str, Any]:
         "n_train": args.n_train,
         "n_test": args.n_test,
         "n_time": args.n_time,
+        "reaction_diffusion_n_save_steps": args.n_save_steps,
+        "reaction_diffusion_tdim": args.n_save_steps + 1,
+        "reaction_diffusion_init_mode": args.reaction_diffusion_init_mode,
         "entries": {},
     }
 
@@ -134,6 +153,16 @@ def future_test_path(out_root: Path, pde: str, args: argparse.Namespace) -> Path
     return out_root / pde / f"{pde}_test_{args.n_test}-{args.resolution}-{args.resolution}.h5"
 
 
+def canonical_reaction_diffusion_init_mode(init_mode: str) -> str:
+    aliases = {
+        "iid": "iid",
+        "standard_normal": "iid",
+        "grf": "grf",
+        "gaussian_random_field": "grf",
+    }
+    return aliases[str(init_mode).lower()]
+
+
 def preview_future_trajectory(out_root: Path, pde: str, args: argparse.Namespace) -> dict[str, str]:
     train_path = future_train_path(out_root, pde, args)
     test_path = future_test_path(out_root, pde, args)
@@ -192,8 +221,24 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
     except Exception as exc:  # pragma: no cover - dependency diagnostic
         return write_error(pde_dir, "reaction_diffusion", "import_failed", exc)
 
-    train_path = pde_dir / f"reaction_diffusion_{args.n_train}-{args.resolution}-{args.resolution}-{args.n_time}.h5"
-    test_path = pde_dir / f"reaction_diffusion_test_{args.n_test}-{args.resolution}-{args.resolution}-{args.n_time}.h5"
+    init_mode = canonical_reaction_diffusion_init_mode(args.reaction_diffusion_init_mode)
+    rd_tdim = args.n_save_steps + 1
+    init_mean = 0.0
+    init_std = 1.0
+    grf_length_scale = 0.15
+    grf_spectral_power = 2.0
+    grf_normalize = True
+    du = 2e-3
+    dv = 4e-3
+    k_react = 3e-3
+    train_path = (
+        pde_dir
+        / f"reaction_diffusion_{init_mode}_{args.n_train}-{args.resolution}-{args.resolution}-T{args.T:g}-steps{args.n_save_steps}.h5"
+    )
+    test_path = (
+        pde_dir
+        / f"reaction_diffusion_test_{init_mode}_{args.n_test}-{args.resolution}-{args.resolution}-T{args.T:g}-steps{args.n_save_steps}.h5"
+    )
     for path, split, count, base_seed in (
         (train_path, "train", args.n_train, TRAIN_BASE_SEED),
         (test_path, "test", args.n_test, TEST_BASE_SEED),
@@ -205,7 +250,21 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
             h5.attrs["split"] = split
             h5.attrs["n_samples"] = count
             h5.attrs["resolution"] = f"{args.resolution}x{args.resolution}"
-            h5.attrs["n_time"] = args.n_time
+            h5.attrs["n_time"] = rd_tdim
+            h5.attrs["tdim"] = rd_tdim
+            h5.attrs["n_save_steps"] = args.n_save_steps
+            h5.attrs["T"] = args.T
+            h5.attrs["Du"] = du
+            h5.attrs["Dv"] = dv
+            h5.attrs["k"] = k_react
+            h5.attrs["init_mode"] = init_mode
+            h5.attrs["init_mean"] = init_mean
+            h5.attrs["init_std"] = init_std
+            h5.attrs["grf_length_scale"] = grf_length_scale
+            h5.attrs["grf_spectral_power"] = grf_spectral_power
+            h5.attrs["grf_normalize"] = grf_normalize
+            h5.attrs["x_range"] = (-1.0, 1.0)
+            h5.attrs["y_range"] = (-1.0, 1.0)
             h5.attrs["base_seed"] = base_seed
             h5.create_dataset("sample_seed", data=base_seed + np.arange(count, dtype=np.int64), dtype="int64")
             for idx in range(count):
@@ -214,16 +273,22 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
                 sim = DiffReactSimulator(
                     xdim=args.resolution,
                     ydim=args.resolution,
-                    Du=2e-3,
-                    Dv=4e-3,
-                    k=3e-3,
+                    Du=du,
+                    Dv=dv,
+                    k=k_react,
                     t=args.T,
-                    tdim=args.n_time,
+                    tdim=rd_tdim,
                     x_left=-1.0,
                     x_right=1.0,
                     y_bottom=-1.0,
                     y_top=1.0,
                     seed=seed,
+                    init_mode=init_mode,
+                    init_mean=init_mean,
+                    init_std=init_std,
+                    grf_length_scale=grf_length_scale,
+                    grf_spectral_power=grf_spectral_power,
+                    grf_normalize=grf_normalize,
                 )
                 data_sample = sim.generate_sample().astype("float32", copy=False)
                 group = h5.create_group(f"{idx:06d}")
@@ -232,10 +297,22 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
                 group.create_dataset("grid/y", data=sim.y.astype("float32"), dtype="float32")
                 group.create_dataset("grid/t", data=sim.t.astype("float32"), dtype="float32")
                 group.attrs["seed"] = seed
-                group.attrs["Du"] = 2e-3
-                group.attrs["Dv"] = 4e-3
-                group.attrs["k"] = 3e-3
+                group.attrs["xdim"] = args.resolution
+                group.attrs["ydim"] = args.resolution
+                group.attrs["tdim"] = rd_tdim
+                group.attrs["n_save_steps"] = args.n_save_steps
+                group.attrs["Du"] = du
+                group.attrs["Dv"] = dv
+                group.attrs["k"] = k_react
                 group.attrs["T"] = args.T
+                group.attrs["init_mode"] = init_mode
+                group.attrs["init_mean"] = init_mean
+                group.attrs["init_std"] = init_std
+                group.attrs["grf_length_scale"] = grf_length_scale
+                group.attrs["grf_spectral_power"] = grf_spectral_power
+                group.attrs["grf_normalize"] = grf_normalize
+                group.attrs["x_range"] = (-1.0, 1.0)
+                group.attrs["y_range"] = (-1.0, 1.0)
 
     previews = {
         "train": str(
@@ -244,7 +321,7 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
                 pde_dir / "preview_train.png",
                 "data",
                 labels=["u", "v"],
-                title="reaction-diffusion equation (train, sample 0)",
+                title=f"reaction-diffusion equation, init={init_mode} (train, sample 0)",
             )
         ),
         "test": str(
@@ -253,7 +330,7 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
                 pde_dir / "preview_test.png",
                 "data",
                 labels=["u", "v"],
-                title="reaction-diffusion equation (test, sample 0)",
+                title=f"reaction-diffusion equation, init={init_mode} (test, sample 0)",
             )
         ),
     }

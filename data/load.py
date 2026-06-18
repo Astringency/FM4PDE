@@ -215,12 +215,47 @@ class PDEloader:
     def _reaction_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         sample_count = 0
-        for i in range(size):
-            file_path = self._legacy_path(data_path, f"reaction_diffusion-128-128-10_{i}.h5")
-            if not file_path.exists():
-                file_path = self._legacy_path(data_path, f"reaction_diffusion-128-128-100_{i}.h5")
+        path = Path(data_path).expanduser()
+        if path.is_file():
+            file_paths = [path]
+        else:
+            pde_dirs = []
+            for candidate in (path, self._pde_dir(data_path)):
+                if candidate not in pde_dirs:
+                    pde_dirs.append(candidate)
+            file_paths = []
+            for pde_dir in pde_dirs:
+                for i in range(size):
+                    for file_name in (
+                        f"reaction_diffusion-128-128-10_{i}.h5",
+                        f"reaction_diffusion-128-128-100_{i}.h5",
+                    ):
+                        file_path = pde_dir / file_name
+                        if file_path.exists():
+                            file_paths.append(file_path)
+                            break
+                if file_paths:
+                    break
+            if not file_paths:
+                for pde_dir in pde_dirs:
+                    file_paths = sorted(
+                        file_path
+                        for file_path in pde_dir.glob("reaction_diffusion_*.h5")
+                        if not file_path.name.startswith("reaction_diffusion_test_")
+                    )[:size]
+                    if file_paths:
+                        break
+        if not file_paths:
+            raise FileNotFoundError(f"No reaction_diffusion HDF5 files found under {data_path}")
+
+        for file_path in file_paths:
             with h5py.File(file_path, "r") as f:
-                for k in tqdm(list(f.keys())):
+                sample_keys = sorted(
+                    key
+                    for key in f.keys()
+                    if isinstance(f[key], h5py.Group) and "data" in f[key]
+                )
+                for k in tqdm(sample_keys):
                     if max_samples is not None and sample_count >= max_samples:
                         break
                     arr = f[k]['data'] # type: ignore

@@ -142,6 +142,8 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     pde_param_sources: dict[str, str] = {}
     if config.loadby == "future_h5":
         pde_params, pde_param_sources = _future_h5_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
+    elif config.loadby == "rd":
+        pde_params, pde_param_sources = _rd_params_for_offsets(raw["__h5__"], offsets, pair.device)
     near_metadata: dict[str, Any] | None = None
     if normalize_residual_mode(config.residual_mode) == "near_endpoint_temporal":
         near_params, near_metadata = _near_endpoint_temporal_for_offsets(config, raw, offsets, coef_t, sol_t, pde_params)
@@ -303,9 +305,9 @@ def _extract_single_sample(config: AblationConfig, raw: dict[str, Any], offset: 
 
     if config.loadby == "rd":
         file = raw["__h5__"]
-        key = list(file.keys())[offset]
+        key = _sample_group_key(file, offset)
         arr = file[key]["data"][:]
-        return arr[50, :, :, :], arr[-1, :, :, :]
+        return arr[0, :, :, :], arr[-1, :, :, :]
 
     if config.loadby == "future_h5":
         file = raw["__h5__"]
@@ -444,12 +446,12 @@ def _extract_near_endpoint_single(
         )
     if config.loadby == "rd":
         file = raw["__h5__"]
-        key = list(file.keys())[offset]
+        key = _sample_group_key(file, offset)
         arr = file[key]["data"][:]
         n_time = int(arr.shape[0])
-        start_idx, near_start_idx, near_end_idx, final_idx = 50, 51, n_time - 2, n_time - 1
-        if n_time <= near_start_idx or near_end_idx <= start_idx:
-            raise ValueError("near_endpoint_temporal mode requires reaction-diffusion frames 51 and -2")
+        start_idx, near_start_idx, near_end_idx, final_idx = 0, 1, n_time - 2, n_time - 1
+        if n_time < 3:
+            raise ValueError("near_endpoint_temporal mode requires at least three reaction-diffusion time frames")
         dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, final_idx - start_idx)
         return (
             arr[near_start_idx, :, :, :],
@@ -512,6 +514,56 @@ def _extract_near_endpoint_single(
         "near_endpoint_temporal mode requires extra near-endpoint sparse temporal observations and masks; "
         f"loadby={config.loadby!r} is not supported"
     )
+
+
+def _sample_group_key(file: Any, offset: int) -> str:
+    keys = sorted(
+        key
+        for key in file.keys()
+        if hasattr(file[key], "keys") and "data" in file[key]
+    )
+    if offset < 0 or offset >= len(keys):
+        raise IndexError(f"Sample offset {offset} is out of range for {len(keys)} HDF5 sample groups")
+    return keys[offset]
+
+
+def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[dict[str, Any], dict[str, str]]:
+    import torch
+
+    keys = [_sample_group_key(file, offset) for offset in offsets]
+    specs = {
+        "T": ("T",),
+        "D_u": ("D_u", "Du"),
+        "D_v": ("D_v", "Dv"),
+        "k": ("k",),
+    }
+    params = {}
+    sources = {}
+    for canonical, aliases in specs.items():
+        values = []
+        source = None
+        for key in keys:
+            group = file[key]
+            value = None
+            for alias in aliases:
+                if alias in group.attrs:
+                    value = group.attrs[alias]
+                    source = f"group_attr:{alias}"
+                    break
+            if value is None:
+                for alias in aliases:
+                    if alias in file.attrs:
+                        value = file.attrs[alias]
+                        source = f"root_attr:{alias}"
+                        break
+            if value is None:
+                values = []
+                break
+            values.append(float(value))
+        if values:
+            params[canonical] = torch.as_tensor(values, dtype=torch.float32, device=device)
+            sources[canonical] = source or "attr"
+    return params, sources
 
 
 def _swe_frame(group: Any, frame_idx: int) -> Any:
@@ -644,7 +696,7 @@ def _near_endpoint_dt(
             return _batch_scalar(pde_params[name], batch_idx) / float(interval_count), f"{name}/frame_interval_count"
     if "dt" in pde_params:
         return _batch_scalar(pde_params["dt"], batch_idx), "dt"
-    default_total = 5.0 if pde == "reaction_diffusion" else 1.0
+    default_total = 1.0
     return default_total / float(interval_count), "pde_default_total_time/frame_interval_count"
 
 

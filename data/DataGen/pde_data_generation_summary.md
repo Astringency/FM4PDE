@@ -91,13 +91,11 @@ $$\lambda_{k_1,k_2} = \tau^{\alpha-1} \left( \pi^2(k_1^2 + k_2^2) + \tau^2 \righ
     \frac{\partial v}{\partial t} &= D_v \Delta v + (u - v)
     \end{aligned}$$
     物理域为 $\Omega = [-1, 1]^2$。
-* **控制参数 (分布差异)**：
-    * **训练集**：$D_u = 1\times 10^{-3}, D_v = 5\times 10^{-3}, k = 5\times 10^{-3}$
-    * **测试集**：$D_u = 2\times 10^{-3}, D_v = 4\times 10^{-3}, k = 3\times 10^{-3}$ （通过轻微扰动系统参数来评估神经网络算子的泛化性能）。
+* **控制参数**：FM4PDE 当前 2D 生成脚本默认使用 $D_u = 2\times 10^{-3}, D_v = 4\times 10^{-3}, k = 3\times 10^{-3}$；Hydra/PDEBench 配置中也可显式设置 $D_u,D_v,k$。
 * **边界条件**：齐次 Neumann 边界条件（$\partial_n u = 0, \partial_n v = 0$）。在数值实现中，边界网格点上的扩散通量（Diffusive Flux）做减半处理。
-* **初值条件**：$u_0(\mathbf{x}), v_0(\mathbf{x})$ 独立从标准正态分布 $\mathcal{N}(0, I)$ 中直接采样。
+* **初值条件**：当前生成器支持两种模式。`init_mode=iid` 表示 $u_0(\mathbf{x}), v_0(\mathbf{x})$ 在每个网格点独立从标准正态分布采样；`init_mode=grf` 表示两个通道使用同一 seed 派生出的独立随机流采样空间相关 Gaussian random field，并标准化到指定均值和标准差。默认推荐 `init_mode=grf`；若需要和旧白噪声数据对比，可设置 `--init-mode iid`。
 * **数值解法**：空间离散采用**有限体积法 (FVM, Cell-centered 网格)**，Laplacian 算子由稀疏五点 stencil 表达；时间推进采用 `scipy.integrate.solve_ivp` 内置的 **RK45 自适应变步长积分器**。
-* **数据时间与结构**：总演化时间 $T=5$，全过程记录 100 帧（`tdim=100`）。最终数据截取中间态与终态进行配对：输入为第 50 帧（或100帧）作为初值状态，输出为最后一帧。数据格式为 `[u(t_mid), v(t_mid), u(t_final), v(t_final)]` 共 4 个通道，各通道分辨率为 $128 \times 128$。
+* **数据时间与结构**：默认总演化时间 $T=1.0$，在 $[0,1]$ 上保存 10 个时间间隔，连同 $t=0$ 初值共 11 个保存节点（`tdim=11`，不是 10）。HDF5 中每个样本的 `data` 形状为 `(11, Ny, Nx, 2)`，`grid/t = np.linspace(0, 1, 11)`；FM4PDE 训练读取时仍取初态 `[u0, v0]` 与终态 `[uT, vT]` 组成 4 通道张量。保存间隔 0.1 只是输出时间间隔，不是 RK45 的固定内部步长。
 
 ### 2.7 Shallow Water Equations (浅水方程 - 时变 2D 非线性)
 * **数学形式 (双曲守恒律形式)**：

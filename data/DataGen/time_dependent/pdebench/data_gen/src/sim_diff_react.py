@@ -8,13 +8,32 @@ from scipy.sparse import diags
 
 
 class Simulator:
+    """
+    Finite-volume simulator for the 2D reaction-diffusion system
+
+        u_t = u - u^3 - k - v + Du * Delta u
+        v_t = u - v + Dv * Delta v
+
+    on a cell-centered rectangular grid with homogeneous Neumann boundaries.
+
+    ``init_mode`` controls the initial fields for u and v. ``"iid"`` keeps the
+    original per-grid-point standard normal white-noise behavior, while
+    ``"grf"`` samples spatially correlated Gaussian random fields. The two
+    channels are sampled from independent random streams derived from ``seed``.
+
+    ``t`` is the final simulation time. ``tdim`` is the number of saved time
+    nodes including the initial state, so 10 saved intervals on [0, 1] use
+    ``t=1.0`` and ``tdim=11``.
+    """
+
     def __init__(
         self,
         Du: float = 1e-3,
         Dv: float = 5e-3,
         k: float = 5e-3,
-        t: float = 50,
-        tdim: int = 501,
+        t: float = 1.0,
+        tdim: int = 11,
+        n_save_steps: int | None = None,
         x_left: float = -1.0,
         x_right: float = 1.0,
         xdim: int = 50,
@@ -23,15 +42,23 @@ class Simulator:
         ydim: int = 50,
         n: int = 1,  # noqa: ARG002
         seed: int = 0,
+        init_mode: str = "grf",
+        init_mean: float = 0.0,
+        init_std: float = 1.0,
+        grf_length_scale: float = 0.15,
+        grf_spectral_power: float = 2.0,
+        grf_normalize: bool = True,
     ):
         """
         Constructor method initializing the parameters for the diffusion
-        sorption problem.
+        reaction problem.
         :param Du: The diffusion coefficient of u
         :param Dv: The diffusion coefficient of v
         :param k: The reaction parameter
         :param t: Stop time of the simulation
-        :param tdim: Number of simulation steps
+        :param tdim: Number of saved frames, including the initial state
+        :param n_save_steps: Optional number of saved intervals; if provided,
+            it must satisfy tdim == n_save_steps + 1
         :param x_left: Left end of the 2D simulation field
         :param x_right: Right end of the 2D simulation field
         :param xdim: Number of spatial steps between x_left and x_right
@@ -39,6 +66,15 @@ class Simulator:
         :param y_top: top end of the 2D simulation field
         :param ydim: Number of spatial steps between y_bottom and y_top
         :param n: Number of batches
+        :param seed: Base seed for reproducible u/v initial fields
+        :param init_mode: "iid"/"standard_normal" or
+            "grf"/"gaussian_random_field"
+        :param init_mean: Target initial-field mean
+        :param init_std: Target initial-field standard deviation
+        :param grf_length_scale: Physical GRF correlation length scale
+        :param grf_spectral_power: Spectral decay power for GRF filtering
+        :param grf_normalize: Whether to normalize each GRF sample before
+            applying init_mean/init_std
         """
 
         # Set class parameters
@@ -55,6 +91,20 @@ class Simulator:
         self.Nx = xdim
         self.Ny = ydim
         self.Nt = tdim
+        if self.Nt < 2:
+            raise ValueError("tdim must be at least 2 because it includes t=0 and t=T")
+        if n_save_steps is not None and self.Nt != int(n_save_steps) + 1:
+            raise ValueError(
+                f"tdim={self.Nt} is inconsistent with n_save_steps={n_save_steps}; "
+                "tdim must be n_save_steps + 1"
+            )
+
+        self.init_mode = self._canonical_init_mode(init_mode)
+        self.init_mean = float(init_mean)
+        self.init_std = float(init_std)
+        self.grf_length_scale = float(grf_length_scale)
+        self.grf_spectral_power = float(grf_spectral_power)
+        self.grf_normalize = bool(grf_normalize)
 
         # Calculate grid size and generate grid
         self.dx = (self.X1 - self.X0) / (self.Nx)
@@ -71,19 +121,70 @@ class Simulator:
 
         self.seed = seed
 
+    @staticmethod
+    def _canonical_init_mode(init_mode: str) -> str:
+        mode = str(init_mode).lower()
+        aliases = {
+            "iid": "iid",
+            "standard_normal": "iid",
+            "white_noise": "iid",
+            "grf": "grf",
+            "gaussian_random_field": "grf",
+        }
+        if mode not in aliases:
+            raise ValueError(
+                f"Unknown init_mode={init_mode!r}; expected one of "
+                "'iid', 'standard_normal', 'grf', or 'gaussian_random_field'"
+            )
+        return aliases[mode]
+
+    def _sample_initial_field(self, rng: np.random.Generator) -> np.ndarray:
+        if self.init_mode == "iid":
+            field = rng.standard_normal((self.Ny, self.Nx))
+            return (self.init_mean + self.init_std * field).reshape(self.Nx * self.Ny)
+
+        noise = rng.standard_normal((self.Ny, self.Nx))
+        freq_x = 2.0 * np.pi * np.fft.fftfreq(self.Nx, d=self.dx)
+        freq_y = 2.0 * np.pi * np.fft.fftfreq(self.Ny, d=self.dy)
+        kx, ky = np.meshgrid(freq_x, freq_y)
+        ksq = kx**2 + ky**2
+
+        ell = max(abs(self.grf_length_scale), np.finfo(float).eps)
+        alpha = max(float(self.grf_spectral_power), np.finfo(float).eps)
+        amplitude = (ksq + ell**-2) ** (-0.5 * alpha)
+        amplitude[0, 0] = 0.0
+
+        field = np.fft.ifft2(np.fft.fft2(noise) * amplitude).real
+        if not np.isfinite(field).all():
+            raise RuntimeError(
+                "Non-finite values encountered while sampling reaction-diffusion "
+                f"GRF initial field: seed={self.seed}, init_mode={self.init_mode}, "
+                f"length_scale={self.grf_length_scale}, spectral_power={self.grf_spectral_power}"
+            )
+
+        if self.grf_normalize:
+            field = field - float(np.mean(field))
+            field_std = float(np.std(field))
+            if field_std > 1e-12:
+                field = field / field_std
+
+        field = self.init_mean + self.init_std * field
+        return field.reshape(self.Nx * self.Ny)
+
     def generate_sample(self):
         """
         Single sample generation using the parameters of this simulator.
-        :return: The generated sample as numpy array(t, x, y, num_features)
+        :return: The generated sample as numpy array(t, y, x, num_features)
         """
 
-        rng = np.random.default_rng(self.seed)
+        seed_sequence = np.random.SeedSequence(self.seed)
+        rng_u, rng_v = [
+            np.random.default_rng(child_seed)
+            for child_seed in seed_sequence.spawn(2)
+        ]
 
-        u0 = rng.standard_normal(self.Nx * self.Ny)
-        v0 = rng.standard_normal(self.Nx * self.Ny)
-
-        u0 = u0.reshape(self.Nx * self.Ny)
-        v0 = v0.reshape(self.Nx * self.Ny)
+        u0 = self._sample_initial_field(rng_u)
+        v0 = self._sample_initial_field(rng_v)
         u0 = np.concatenate((u0, v0))
 
         # # Normalize u0
@@ -124,6 +225,12 @@ class Simulator:
 
         # Solve the diffusion reaction problem
         prob = solve_ivp(self.rc_ode, (0, self.T), u0, t_eval=self.t)
+        if not prob.success:
+            raise RuntimeError(
+                "Reaction-diffusion solve_ivp failed: "
+                f"seed={self.seed}, T={self.T}, Nt={self.Nt}, "
+                f"init_mode={self.init_mode}, message={prob.message}"
+            )
         ode_data = prob.y
 
         sample_u = np.transpose(ode_data[: self.Nx * self.Ny]).reshape(

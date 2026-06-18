@@ -283,9 +283,17 @@ def validate_reaction_diffusion(files: list[str]) -> dict[str, Any]:
                 dv = float(group.attrs["Dv"])
                 k = float(group.attrs["k"])
                 T = float(group.attrs["T"])
+                init_mode = group.attrs.get("init_mode", "iid")
+                if isinstance(init_mode, bytes):
+                    init_mode = init_mode.decode("utf-8")
+                init_mean = float(group.attrs.get("init_mean", 0.0))
+                init_std = float(group.attrs.get("init_std", 1.0))
+                grf_length_scale = float(group.attrs.get("grf_length_scale", 0.15))
+                grf_spectral_power = float(group.attrs.get("grf_spectral_power", 2.0))
+                grf_normalize = bool(group.attrs.get("grf_normalize", True))
                 sim = DiffReactSimulator(
-                    xdim=data.shape[1],
-                    ydim=data.shape[2],
+                    xdim=data.shape[2],
+                    ydim=data.shape[1],
                     Du=du,
                     Dv=dv,
                     k=k,
@@ -296,6 +304,12 @@ def validate_reaction_diffusion(files: list[str]) -> dict[str, Any]:
                     y_bottom=-1.0,
                     y_top=1.0,
                     seed=seed,
+                    init_mode=init_mode,
+                    init_mean=init_mean,
+                    init_std=init_std,
+                    grf_length_scale=grf_length_scale,
+                    grf_spectral_power=grf_spectral_power,
+                    grf_normalize=grf_normalize,
                 )
                 expected = sim.generate_sample().astype(np.float32).astype(np.float64)
                 metrics["max_reproduction_abs"] = max(metrics["max_reproduction_abs"], float(np.max(np.abs(data - expected))))

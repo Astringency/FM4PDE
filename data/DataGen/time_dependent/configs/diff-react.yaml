@@ -26,8 +26,15 @@ sim:
   Du: 1E-3
   Dv: 5E-3
   k: 5E-3
-  t: 5
-  tdim: 101
+  t: 1.0
+  n_save_steps: 10
+  tdim: 11
+  init_mode: grf
+  init_mean: 0.0
+  init_std: 1.0
+  grf_length_scale: 0.15
+  grf_spectral_power: 2.0
+  grf_normalize: true
   x_left: -1.0
   x_right: 1.0
   xdim: 128
@@ -79,7 +86,7 @@ dataverse:
             method to solve the temporal derivative in a Partial Differential
             Equation. It is an adaptive time integration scheme to ensure better
             accuracy and computation efficiency.
-          parameters: time step size, total time, error tolerance
+          parameters: saved time interval, saved time nodes, total time, error tolerance
       method_parameters:
         - name: cell length
           symbol: dx
@@ -89,14 +96,18 @@ dataverse:
           symbol: dy
           unit: m
           value: 0.015625
-        - name: time step size
-          symbol: dt
+        - name: saved time interval
+          symbol: dt_save
           unit: s
-          value: 0.05
+          value: 0.1
+        - name: saved time nodes
+          symbol: Nt
+          unit: "-"
+          value: 11
         - name: total time
           symbol: t
           unit: s
-          value: 5
+          value: 1.0
         - name: error tolerance
           symbol: \epsilon
           unit: "-"

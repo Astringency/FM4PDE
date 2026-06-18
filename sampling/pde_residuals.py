@@ -287,14 +287,14 @@ def _reaction_diffusion_endpoint_secant(
 
     if a.shape[1] != 2 or u.shape[1] != 2:
         raise ValueError(f"reaction_diffusion expects 2+2 channels, got a={a.shape}, u={u.shape}")
-    total_time = 5.0
-    k = 5e-3
-    d_u = 1e-3
-    d_v = 5e-3
     a_u, a_v = a[:, 0:1], a[:, 1:2]
     u_u, u_v = u[:, 0:1], u[:, 1:2]
-    u_t = (u_u - a_u) / total_time
-    v_t = (u_v - a_v) / total_time
+    time_scale, time_meta = _time_scale_field(pde_params, u_u, default=_default_total_time("reaction_diffusion"))
+    d_u = _param_field_any(pde_params, ("D_u", "Du"), u_u, default=2e-3)
+    d_v = _param_field_any(pde_params, ("D_v", "Dv"), u_v, default=4e-3)
+    k = _param_field(pde_params, "k", u_u, default=3e-3)
+    u_t = (u_u - a_u) / time_scale
+    v_t = (u_v - a_v) / time_scale
     lap_u = _periodic_laplacian(u_u)
     lap_v = _periodic_laplacian(u_v)
     res_u = u_t - (d_u * lap_u + u_u - u_u**3 - k - u_v)
@@ -307,15 +307,8 @@ def _reaction_diffusion_endpoint_secant(
             "mode": "legacy_endpoint_secant" if legacy_exact else "endpoint_secant",
             "warning": LEGACY_ENDPOINT_WARNING,
             "two_time_level_approx": True,
-            "T": total_time,
-            "time_scale": {
-                "source": "reaction_diffusion_legacy_default",
-                "defaulted": True,
-                "value": total_time,
-            },
-            "D_u": d_u,
-            "D_v": d_v,
-            "pde_params_used": _used_params(pde_params, ("D_u", "D_v", "k", "T", "total_time", "dt")),
+            "time_scale": time_meta,
+            "pde_params_used": _used_params(pde_params, ("D_u", "Du", "D_v", "Dv", "k", "T", "total_time", "dt")),
         },
     )
 
@@ -518,9 +511,9 @@ def _rhs_reaction_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
     if q.shape[1] != 2:
         raise ValueError(f"reaction_diffusion RHS expects [u,v] channels, got {q.shape}")
     u, v = q[:, 0:1], q[:, 1:2]
-    d_u = _param_field(pde_params, "D_u", u, default=1e-3)
-    d_v = _param_field(pde_params, "D_v", v, default=5e-3)
-    k = _param_field(pde_params, "k", u, default=5e-3)
+    d_u = _param_field_any(pde_params, ("D_u", "Du"), u, default=2e-3)
+    d_v = _param_field_any(pde_params, ("D_v", "Dv"), v, default=4e-3)
+    k = _param_field(pde_params, "k", u, default=3e-3)
     f_u = d_u * _periodic_laplacian(u) + u - u**3 - k - v
     f_v = d_v * _periodic_laplacian(v) + u - v
     return torch.cat([f_u, f_v], dim=1)
@@ -600,7 +593,9 @@ def _rhs_param_usage(pde: str, params: dict[str, Any]) -> dict[str, bool]:
         ),
         "reaction_diffusion": (
             "D_u",
+            "Du",
             "D_v",
+            "Dv",
             "k",
             "T",
             "total_time",
@@ -614,8 +609,6 @@ def _rhs_param_usage(pde: str, params: dict[str, Any]) -> dict[str, bool]:
 
 
 def _default_total_time(pde: str) -> float:
-    if pde == "reaction_diffusion":
-        return 5.0
     return 1.0
 
 
@@ -853,6 +846,13 @@ def _param_field(params: dict[str, Any], name: str, reference: Any, default: flo
     if value.numel() != reference.shape[0]:
         raise ValueError(f"PDE parameter {name!r} must have batch length {reference.shape[0]}, got {tuple(value.shape)}")
     return value.view(reference.shape[0], 1, 1, 1)
+
+
+def _param_field_any(params: dict[str, Any], names: tuple[str, ...], reference: Any, default: float) -> Any:
+    for name in names:
+        if name in params:
+            return _param_field(params, name, reference, default=default)
+    return _param_field({}, names[0], reference, default=default)
 
 
 def _time_scale_field(params: dict[str, Any], reference: Any, default: float = 1.0) -> tuple[Any, dict[str, Any]]:

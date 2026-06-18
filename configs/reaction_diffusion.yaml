@@ -1,6 +1,6 @@
 data:
   name: 'reaction_diffusion'
-  datapath: '/large_storage/zhangxf/PDEdata/test1125/reaction_diffusion_test_1000-128-128-10.h5'
+  datapath: '/large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5'
   remark: 'test'
   offset: 0
   img_channels: 4
@@ -39,4 +39,3 @@ output:
   save: True
   return: False
   
-

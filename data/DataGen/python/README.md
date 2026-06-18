@@ -184,6 +184,29 @@ python -m compileall -q data
 
 Use `--no-trajectory` to reduce file size. Full trajectories at `50000 x 128 x 128 x 11` are much larger than endpoint-only data.
 
+## Datacheck Reaction-Diffusion
+
+`datacheck_generate.py` also writes a small FM4PDE-compatible 2D
+reaction-diffusion dataset using:
+
+```text
+data/DataGen/time_dependent/pdebench/data_gen/src/sim_diff_react.py
+```
+
+The equation is:
+
+```text
+u_t = u - u^3 - k - v + Du * Delta u
+v_t = u - v + Dv * Delta v
+```
+
+Reaction-diffusion uses `--n-save-steps` rather than `--n-time`. The default is
+10 saved intervals on `[0, 1]`, so `tdim = n_save_steps + 1 = 11` saved nodes,
+including the initial state. The default initial field is `--reaction-diffusion-init-mode grf`;
+set it to `iid` to reproduce the older per-grid-point standard normal initial
+condition. `solve_ivp` uses adaptive RK45, so the saved interval `0.1` is not a
+fixed internal solver step.
+
 ## No-Leakage Design
 
 - Train base seed defaults to `0`; validation base seed defaults to `5000000`; test base seed defaults to `10000000`.
@@ -207,4 +230,3 @@ The loader reads train shards from `<DATA_ROOT>/<pde>/`. For sampling configs, u
 ## External References
 
 PDEBench, iFNO, and RecFNO were used only as references for HDF5/trajectory organization and operator-learning data shape. These generators do not depend on their code, solvers, or data files.
-
