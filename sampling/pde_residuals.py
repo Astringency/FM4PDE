@@ -488,11 +488,16 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
         integral_residual = qT - q0 - 0.5 * time_scale * (f0 + fT)
         residuals.append(_apply_endpoint_residual_boundary(pde, weight * integral_residual))
     residual = torch.cat(residuals, dim=1)
+    equation = (
+        "2D vorticity Navier-Stokes endpoint Hermite bridge residual"
+        if pde == "nsnonbounded"
+        else f"{pde} endpoint-induced cubic Hermite bridge residual"
+    )
     return _out(
         residual,
         "approximate",
         {
-            "equation": f"{pde} endpoint-induced cubic Hermite bridge residual",
+            "equation": equation,
             "mode": "hermite_bridge",
             "bridge_type": "cubic_hermite_endpoint_pde_derivatives",
             "collocation_times": collocation_times,
@@ -1048,7 +1053,7 @@ def _rhs_metadata(pde: str, pde_params: dict[str, Any], reference: Any) -> dict[
         nu_source = "nu" if "nu" in pde_params else ("viscosity" if "viscosity" in pde_params else "default")
         forcing_present = "forcing" in pde_params
         return {
-            "equation": "2D vorticity Navier-Stokes",
+            "rhs_equation": "2D vorticity Navier-Stokes",
             "velocity_reconstruction": "periodic_fft_streamfunction",
             "boundary_assumption": "periodic",
             "mean_vorticity_handling": "zero_mean_projection",

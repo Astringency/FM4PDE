@@ -1,4 +1,4 @@
-base_configs: [configs/ablations/base/darcy.yaml, configs/ablations/base/poisson.yaml, configs/ablations/base/helmholtz.yaml, configs/ablations/base/burger.yaml, configs/ablations/base/reaction_diffusion.yaml, configs/ablations/base/shallow_water.yaml, configs/ablations/base/heat.yaml, configs/ablations/base/wave.yaml, configs/ablations/base/advection_diffusion.yaml, configs/ablations/base/steady_heat_conduction.yaml]
+base_configs: [configs/ablations/base/darcy.yaml, configs/ablations/base/poisson.yaml, configs/ablations/base/helmholtz.yaml, configs/ablations/base/nsnonbounded.yaml, configs/ablations/base/burger.yaml, configs/ablations/base/reaction_diffusion.yaml, configs/ablations/base/shallow_water.yaml, configs/ablations/base/heat.yaml, configs/ablations/base/wave.yaml, configs/ablations/base/advection_diffusion.yaml, configs/ablations/base/steady_heat_conduction.yaml]
 groups:
   guidance_components:
     fixed:

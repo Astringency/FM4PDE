@@ -74,6 +74,8 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     pde_param_sources: dict[str, str] = {}
     if config.loadby == "pair_h5":
         pde_params, pde_param_sources = _pair_h5_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
+    elif config.loadby == "h5py":
+        pde_params, pde_param_sources = _h5py_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
     elif config.loadby == "rd":
         pde_params, pde_param_sources = _rd_params_for_offsets(raw["__h5__"], offsets, pair.device)
     near_metadata: dict[str, Any] | None = None
@@ -545,6 +547,68 @@ def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[
     return params, sources
 
 
+def _h5py_params_for_offsets(file: Any, pde: str, offsets: list[int], device: Any) -> tuple[dict[str, Any], dict[str, str]]:
+    import torch
+
+    spec = get_pde_spec(pde)
+    params: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+    for name in spec.scalar_param_names:
+        storage_name = _h5py_param_storage_name(file, spec, name)
+        if storage_name is None:
+            if name in spec.optional_scalar_param_names:
+                continue
+            raise KeyError(f"Missing sample-level scalar PDE parameter {name!r} for loadby='h5py'")
+        values = [_read_h5py_scalar_value(file, storage_name, offset) for offset in offsets]
+        params[name] = torch.as_tensor(values, dtype=torch.float32, device=device)
+        sources[name] = f"dataset:{storage_name}" if storage_name in file else f"attrs:{storage_name}"
+    return params, sources
+
+
+def _h5py_param_storage_name(file: Any, spec: Any, name: str) -> str | None:
+    for candidate in spec.param_aliases.get(name, (name,)):
+        if candidate in file or candidate in file.attrs:
+            return candidate
+    return None
+
+
+def _read_h5py_scalar_value(file: Any, name: str, offset: int) -> float:
+    import numpy as np
+
+    if name in file:
+        dataset = file[name]
+        if dataset.shape == ():
+            value = dataset[()]
+        elif dataset.shape[0] == 1:
+            value = dataset[0]
+        elif offset < dataset.shape[0]:
+            value = dataset[offset]
+        else:
+            raise IndexError(
+                f"Sample offset {offset} is out of range for scalar PDE parameter dataset {name!r} "
+                f"with shape {tuple(dataset.shape)}"
+            )
+    elif name in file.attrs:
+        values = np.asarray(file.attrs[name])
+        if values.ndim == 0:
+            value = values
+        elif values.shape[0] == 1:
+            value = values.reshape(-1)[0]
+        elif offset < values.shape[0]:
+            value = values[offset]
+        else:
+            raise IndexError(
+                f"Sample offset {offset} is out of range for scalar PDE parameter attr {name!r} "
+                f"with shape {tuple(values.shape)}"
+            )
+    else:
+        raise KeyError(f"Missing sample-level scalar PDE parameter {name!r}")
+    arr = np.asarray(value, dtype=np.float32).reshape(-1)
+    if arr.size != 1:
+        raise ValueError(f"Sample-level scalar PDE parameter {name!r} must be scalar per sample, got shape {tuple(arr.shape)}")
+    return float(arr[0])
+
+
 def _swe_frame(group: Any, frame_idx: int) -> Any:
     import numpy as np
 
@@ -663,9 +727,47 @@ def _extract_full_trajectory_single(
             axis=1,
         )
         return trajectory, {"sample_offset": int(offset), "dataset_key": str(key)}
+    if config.loadby == "h5py" and config.pde == "nsnonbounded":
+        file = raw["__h5__"]
+        if config.solution_name not in file:
+            raise ValueError(
+                "full_trajectory_fd mode requires explicit full trajectory observations; "
+                f"nsnonbounded h5py data is missing solution dataset {config.solution_name!r}"
+            )
+        trajectory = _ns_h5py_trajectory_sample(file[config.solution_name], offset, config.solution_name)
+        return trajectory, {"sample_offset": int(offset), "trajectory_dataset": config.solution_name}
     raise ValueError(
         "full_trajectory_fd mode requires explicit full trajectory observations; "
         f"loadby={config.loadby!r} is not supported"
+    )
+
+
+def _ns_h5py_trajectory_sample(dataset: Any, offset: int, dataset_name: str) -> Any:
+    import numpy as np
+
+    if dataset.ndim < 4:
+        raise ValueError(
+            "full_trajectory_fd mode requires nsnonbounded h5py solution data with a sample and time axis; "
+            f"{dataset_name!r} has shape {tuple(dataset.shape)}"
+        )
+    if offset < 0 or offset >= dataset.shape[0]:
+        raise IndexError(f"Sample offset {offset} is out of range for {dataset_name!r} with shape {tuple(dataset.shape)}")
+    sample = np.asarray(dataset[offset], dtype=np.float32)
+    if sample.ndim == 3:
+        # Formal NS files usually store w as [N,H,W,T], so a single sample is HWT.
+        if sample.shape[0] == sample.shape[1] and sample.shape[-1] != sample.shape[-2]:
+            return np.moveaxis(sample, -1, 0)[:, None, :, :]
+        if sample.shape[-2] == sample.shape[-1]:
+            return sample[:, None, :, :]
+        raise ValueError(
+            "Cannot infer nsnonbounded h5py trajectory layout; expected sample shape [H,W,T] or [T,H,W], "
+            f"got {tuple(sample.shape)}"
+        )
+    if sample.ndim == 4:
+        return sample
+    raise ValueError(
+        "Cannot infer nsnonbounded h5py trajectory layout; expected sample shape [H,W,T], [T,H,W], "
+        f"[T,C,H,W], [C,T,H,W], or [T,H,W,C], got {tuple(sample.shape)}"
     )
 
 

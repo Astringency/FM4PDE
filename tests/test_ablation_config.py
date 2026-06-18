@@ -1,7 +1,5 @@
 import pytest
 
-import yaml
-
 from sampling.config import AblationConfig, VALID_RESIDUAL_MODES, VALID_SENSOR_MODES, load_config, parse_cli_overrides
 
 
@@ -53,7 +51,11 @@ def test_residual_mode_validation():
 def test_load_config_rejects_old_schema(tmp_path):
     path = tmp_path / "old.yaml"
     path.write_text(
-        yaml.safe_dump({"data": {"name": "heat"}, "generate": {"num_steps": 10}, "model": {}}),
+        "data:\n"
+        "  name: heat\n"
+        "generate:\n"
+        "  num_steps: 10\n"
+        "model: {}\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="old data/generate/model schema"):

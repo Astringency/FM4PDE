@@ -26,6 +26,8 @@ output_data
 
 Those dataset names are part of the file format. Scalar PDE parameters such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, `u_D`, `T`, and `dt` are sample-level metadata. They are stored in `PDEloader.pde_params`, training `data_metadata.json`, checkpoint `data_metadata`, and sampling `PDEGroundTruth.pde_params`; they are not Flow Matching input channels.
 
+Non-bounded Navier-Stokes keeps its generated HDF5 layout exposed as `loadby: h5py`, usually with `w0` as the initial vorticity field and `w` as the vorticity trajectory. Sampling reads optional sample-level `nu`, `viscosity`, `T`, `total_time`, and `dt` from root attributes or datasets using `data/specs.py`. When `residual_mode: full_trajectory_fd` is requested, the `w` trajectory is normalized to `[B,T,C,H,W]` and used as explicit trajectory state; missing or ambiguous trajectory data raises `ValueError`.
+
 ## Residual Families
 
 | PDE | residual_family | auto / mode | status |
@@ -40,7 +42,7 @@ Those dataset names are part of the file format. Scalar PDE parameters such as `
 | advection_diffusion | temporal_endpoint | hermite_bridge | approximate |
 | reaction_diffusion | temporal_endpoint | hermite_bridge | approximate |
 | shallow_water | temporal_endpoint | hermite_bridge | approximate |
-| nsnonbounded | temporal_endpoint | hermite_bridge | approximate |
+| nsnonbounded | temporal_endpoint | hermite_bridge | approximate; PDE guidance enabled |
 
 Temporal endpoint PDEs support `hermite_bridge`, `endpoint_secant`, `near_endpoint_temporal`, and `full_trajectory_fd`. `endpoint_secant` is a coarse ablation mode. `near_endpoint_temporal` requires explicit near-endpoint observations and masks. `full_trajectory_fd` requires an explicit full trajectory tensor.
 
@@ -67,6 +69,8 @@ python -m sampling.sweep \
   --grid configs/ablations/all_internal_ablation_grid.yaml \
   --group time_dependent_residual_mode
 ```
+
+`configs/ablations/all_internal_ablation_grid.yaml` includes `nsnonbounded` in the top-level `base_configs`, so NS participates in the same guidance, sensor, noise, zeta, time-grid, clipping, residual-region, and statistics ablations as the other PDEs. The time-dependent residual-mode group also includes NS with the other temporal endpoint PDEs.
 
 Formal base configs set `allow_synthetic_data: false`; dry-run smoke configs may use synthetic data.
 
@@ -104,3 +108,19 @@ python data/DataGen/python/generate_pair_h5s.py \
 ```
 
 More details are in `data/DataGen/pde_data_generation_summary.md`, `docs/sampling.md`, and `docs/normalization.md`.
+
+## Tests
+
+The focused refactor tests can be run in the `fm4pde` environment with:
+
+```bash
+conda run -n fm4pde python -m pytest \
+  tests/test_ablation_pair_h5_metadata.py \
+  tests/test_loader_shapes.py \
+  tests/test_pde_residuals_endpoint_and_static.py \
+  tests/test_sweep_all_pdes.py \
+  tests/test_ablation_config.py \
+  tests/test_sampling_no_synthetic_formal.py -q
+```
+
+`sampling.config` works with or without `PyYAML`; the tests avoid requiring `PyYAML` directly.

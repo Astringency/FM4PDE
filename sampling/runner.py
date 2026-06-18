@@ -294,14 +294,19 @@ def _has_guidance(config: AblationConfig) -> bool:
 
 def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
     requested_mode = normalize_residual_mode(config.residual_mode)
-    if config.pde in {"heat", "wave", "advection_diffusion", "reaction_diffusion", "shallow_water", "nsnonbounded"}:
+    from data.specs import get_pde_spec
+
+    spec = get_pde_spec(config.pde)
+    if spec.residual_family == "temporal_endpoint":
         resolved_mode = "hermite_bridge" if requested_mode == "auto" else requested_mode
-    elif config.pde == "burger":
+    elif spec.residual_family == "full_time_space":
         resolved_mode = "full_time_space"
     elif config.pde == "steady_heat_conduction":
         resolved_mode = "static_nonlinear_boundary"
-    else:
+    elif spec.residual_family == "static":
         resolved_mode = "static"
+    else:
+        raise ValueError(f"Unsupported residual_family={spec.residual_family!r} for {config.pde}")
     if resolved_mode == "hermite_bridge":
         temporal_derivative_mode = "hermite_bridge"
         endpoint_only = True
@@ -327,9 +332,6 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         endpoint_only = False
         uses_generated_trajectory = False
         uses_extra_temporal_observations = False
-    from data.specs import get_pde_spec
-
-    spec = get_pde_spec(config.pde)
     metadata = {
         "pde": config.pde,
         "residual_status": residual_status(config.pde),

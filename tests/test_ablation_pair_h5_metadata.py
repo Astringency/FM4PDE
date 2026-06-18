@@ -5,6 +5,7 @@ h5py = pytest.importorskip("h5py")
 torch = pytest.importorskip("torch")
 
 from data.load import PDEloader
+from data.specs import get_pde_spec
 from sampling.config import AblationConfig
 from sampling.data import load_ground_truth
 
@@ -16,6 +17,21 @@ def _write_heat_h5(path):
         file.create_dataset("alpha", data=np.array([0.2, 0.4], dtype=np.float32))
 
 
+def _write_ns_h5(path):
+    w = np.zeros((2, 6, 6, 4), dtype=np.float32)
+    for sample_idx in range(2):
+        for time_idx in range(4):
+            w[sample_idx, :, :, time_idx] = sample_idx + time_idx
+    with h5py.File(path, "w") as file:
+        file.create_dataset("w0", data=w[:, :, :, 0])
+        file.create_dataset("w", data=w)
+        file.attrs["nu"] = 0.002
+        file.create_dataset("viscosity", data=np.array([0.003, 0.004], dtype=np.float32))
+        file.attrs["T"] = 2.0
+        file.create_dataset("total_time", data=np.array([2.5, 3.5], dtype=np.float32))
+        file.create_dataset("dt", data=np.array([0.25, 0.5], dtype=np.float32))
+
+
 def test_pair_h5_loader_returns_metadata_without_scalar_fields(tmp_path):
     path = tmp_path / "heat_2-5-5_1.h5"
     _write_heat_h5(path)
@@ -24,7 +40,7 @@ def test_pair_h5_loader_returns_metadata_without_scalar_fields(tmp_path):
     data, labels, metadata = loader.load_data(str(path), return_metadata=True)
 
     assert tuple(data.shape) == (2, 2, 5, 5)
-    assert labels.tolist() == [7, 7]
+    assert labels.tolist() == [get_pde_spec("heat").label_id, get_pde_spec("heat").label_id]
     assert set(metadata["pde_params"]) == {"alpha"}
     assert torch.allclose(metadata["pde_params"]["alpha"], torch.tensor([0.2, 0.4]))
     assert metadata["channel_names"] == ["u0", "uT"]
@@ -162,3 +178,70 @@ def test_near_endpoint_temporal_loader_from_pair_h5_trajectory(tmp_path):
     assert near["mask_T"].sum().item() == pytest.approx(4.0)
     assert gt.metadata["near_endpoint_temporal"]["extra_observation_budget"] is True
     assert gt.metadata["near_endpoint_temporal"]["frame_metadata"][0]["trajectory_dataset"] == "full_trajectory"
+
+
+def test_nsnonbounded_h5py_reads_scalar_params(tmp_path):
+    path = tmp_path / "ns.h5"
+    _write_ns_h5(path)
+    cfg = AblationConfig(
+        pde="nsnonbounded",
+        task="both",
+        data_path=str(path),
+        data_config_path="",
+        checkpoint_path="",
+        loadby="h5py",
+        coef_name="w0",
+        solution_name="w",
+        img_channels=2,
+        img_resolution=6,
+        batch_size=2,
+        offset=0,
+        device="cpu",
+        allow_synthetic_data=False,
+    )
+
+    gt = load_ground_truth(cfg)
+
+    assert tuple(gt.coef.shape) == (2, 1, 6, 6)
+    assert tuple(gt.sol.shape) == (2, 1, 6, 6)
+    assert set(gt.pde_params) == {"nu", "viscosity", "T", "total_time", "dt"}
+    assert torch.allclose(gt.pde_params["nu"], torch.tensor([0.002, 0.002]))
+    assert torch.allclose(gt.pde_params["viscosity"], torch.tensor([0.003, 0.004]))
+    assert torch.allclose(gt.pde_params["T"], torch.tensor([2.0, 2.0]))
+    assert torch.allclose(gt.pde_params["total_time"], torch.tensor([2.5, 3.5]))
+    assert torch.allclose(gt.pde_params["dt"], torch.tensor([0.25, 0.5]))
+    assert gt.metadata["pde_params_sources"]["nu"] == "attrs:nu"
+    assert gt.metadata["pde_params_sources"]["viscosity"] == "dataset:viscosity"
+    assert gt.metadata["pde_params_sources"]["T"] == "attrs:T"
+    assert gt.metadata["pde_params_sources"]["dt"] == "dataset:dt"
+
+
+def test_nsnonbounded_h5py_full_trajectory_fd_reads_w(tmp_path):
+    path = tmp_path / "ns.h5"
+    _write_ns_h5(path)
+    cfg = AblationConfig(
+        pde="nsnonbounded",
+        task="both",
+        data_path=str(path),
+        data_config_path="",
+        checkpoint_path="",
+        loadby="h5py",
+        coef_name="w0",
+        solution_name="w",
+        img_channels=2,
+        img_resolution=6,
+        batch_size=1,
+        offset=1,
+        device="cpu",
+        allow_synthetic_data=False,
+        residual_mode="full_trajectory_fd",
+    )
+
+    gt = load_ground_truth(cfg)
+
+    trajectory = gt.pde_params["trajectory"]
+    assert tuple(trajectory.shape) == (1, 4, 1, 6, 6)
+    assert torch.allclose(trajectory[:, 0], gt.coef)
+    assert torch.allclose(trajectory[:, -1], gt.sol)
+    assert gt.metadata["full_trajectory_fd"]["source"] == "h5py"
+    assert gt.metadata["full_trajectory_fd"]["frame_metadata"][0]["trajectory_dataset"] == "w"

@@ -5,6 +5,7 @@ h5py = pytest.importorskip("h5py")
 torch = pytest.importorskip("torch")
 
 from data.load import PDEloader
+from data.specs import PDE_DATA_SPECS, get_pde_spec
 
 
 def _write_pair_h5(path, n_samples=3, input_channels=1, output_channels=1, attrs=None, datasets=None):
@@ -15,6 +16,13 @@ def _write_pair_h5(path, n_samples=3, input_channels=1, output_channels=1, attrs
             file.attrs[key] = value
         for key, value in (datasets or {}).items():
             file.create_dataset(key, data=value)
+
+
+def test_pde_loader_labels_match_registry_specs():
+    for pde, spec in PDE_DATA_SPECS.items():
+        data, labels = PDEloader(pde)._finalize(np.zeros((2, 1, 4, 4), dtype=np.float32))
+        assert tuple(data.shape) == (2, 1, 4, 4)
+        assert labels.tolist() == [spec.label_id, spec.label_id]
 
 
 @pytest.mark.parametrize(
@@ -53,6 +61,7 @@ def test_pair_h5_loader_shapes_and_scalar_metadata(
     assert tuple(data.shape) == (3, expected_channels, 6, 6)
     assert data.dtype == torch.float32
     assert labels.dtype == torch.long
+    assert labels.tolist() == [get_pde_spec(pde).label_id] * 3
     assert set(loader.pde_params) == param_names
     for value in loader.pde_params.values():
         assert tuple(value.shape) == (3,)

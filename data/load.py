@@ -108,10 +108,10 @@ class PDEloader:
             return path
         return self._pde_dir(data_path) / file_name
 
-    def _finalize(self, data, label_value):
+    def _finalize(self, data):
         data = torch.as_tensor(data, dtype=torch.float32).contiguous()
         self._assert_bchw(data, context=self.pde)
-        label = torch.full((int(data.shape[0]),), int(label_value), dtype=torch.long)
+        label = torch.full((int(data.shape[0]),), int(self.spec.label_id), dtype=torch.long)
         return data, label
 
     @staticmethod
@@ -143,7 +143,7 @@ class PDEloader:
                 if remaining <= 0:
                     break
 
-        return self._finalize(np.concatenate(dataset, axis=0), 0)
+        return self._finalize(np.concatenate(dataset, axis=0))
 
     def _poisson_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
@@ -160,7 +160,7 @@ class PDEloader:
                 if remaining <= 0:
                     break
 
-        return self._finalize(np.concatenate(dataset, axis=0), 1)
+        return self._finalize(np.concatenate(dataset, axis=0))
     
     def _helmholtz_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
@@ -177,7 +177,7 @@ class PDEloader:
                 if remaining <= 0:
                     break
 
-        return self._finalize(np.concatenate(dataset, axis=0), 2)
+        return self._finalize(np.concatenate(dataset, axis=0))
 
     def _nsnonbounded_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
@@ -198,7 +198,7 @@ class PDEloader:
                 if remaining <= 0:
                     break
         
-        return self._finalize(np.concatenate(dataset, axis=0), 3)
+        return self._finalize(np.concatenate(dataset, axis=0))
     
     def _burger_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
@@ -215,7 +215,7 @@ class PDEloader:
                 if remaining <= 0:
                     break
         
-        return self._finalize(np.concatenate(dataset, axis=0), 4)
+        return self._finalize(np.concatenate(dataset, axis=0))
 
     def _reaction_diffusion_load(
         self,
@@ -309,7 +309,7 @@ class PDEloader:
                 "check that each HDF5 file contains sample groups with a data dataset."
             )
 
-        data, label = self._finalize(np.concatenate(dataset, axis=0), 5)
+        data, label = self._finalize(np.concatenate(dataset, axis=0))
         for name, values in param_chunks.items():
             if len(values) != len(data):
                 raise ValueError(f"Reaction-diffusion parameter {name!r} was present for only part of the loaded samples")
@@ -539,19 +539,19 @@ class PDEloader:
             if max_samples is not None and sample_count >= max_samples:
                 break
 
-        return self._finalize(np.concatenate(dataset, axis=0), 6)
+        return self._finalize(np.concatenate(dataset, axis=0))
 
     def _heat_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._pair_h5_load(data_path, size=size, split=split, label_value=7, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, max_samples=max_samples)
 
     def _wave_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._pair_h5_load(data_path, size=size, split=split, label_value=8, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, max_samples=max_samples)
 
     def _advection_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._pair_h5_load(data_path, size=size, split=split, label_value=9, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, max_samples=max_samples)
 
     def _steady_heat_conduction_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._pair_h5_load(data_path, size=size, split=split, label_value=10, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, max_samples=max_samples)
 
     @staticmethod
     def _nsnonbounded_pair(w0, wt):
@@ -596,7 +596,7 @@ class PDEloader:
                 return arr[:, :, :, -1]
         raise ValueError(f"Cannot infer final-time slice for {name} with shape {arr.shape}")
 
-    def _pair_h5_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", label_value=0, materialize_params=False, max_samples=None):
+    def _pair_h5_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", materialize_params=False, max_samples=None):
         """Load endpoint-pair HDF5 data as model channels plus scalar PDE metadata.
 
         Spatially constant PDE parameters are not Flow Matching input channels by default.
@@ -641,7 +641,7 @@ class PDEloader:
             )
             sample_start = sample_stop
 
-        data, label = self._finalize(np.concatenate(dataset, axis=0), label_value)
+        data, label = self._finalize(np.concatenate(dataset, axis=0))
         for name, chunks in param_chunks.items():
             values = np.concatenate(chunks, axis=0)
             if values.shape[0] != len(data):

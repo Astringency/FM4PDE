@@ -168,6 +168,8 @@ def test_nsnonbounded_residual_enabled_and_backward():
     out = compute_pde_residual("nsnonbounded", q0, qT, residual_mode="hermite_bridge")
     assert out.status == "approximate"
     assert out.metadata["resolved_residual_mode"] == "hermite_bridge"
+    assert out.metadata["equation"] == "2D vorticity Navier-Stokes endpoint Hermite bridge residual"
+    assert out.metadata["rhs_equation"] == "2D vorticity Navier-Stokes"
     assert out.metadata["velocity_reconstruction"] == "periodic_fft_streamfunction"
     loss = out.residual.pow(2).mean()
     loss.backward()
