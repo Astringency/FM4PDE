@@ -156,18 +156,22 @@ latest_checkpoint_for_pde() {
   local pde="$1"
   local train_output_dir="$2"
   local checkpoint_path
+  local train_parent
+  local train_prefix
+  train_parent="$(dirname "${train_output_dir}")"
+  train_prefix="$(basename "${train_output_dir}")"
   checkpoint_path="$(
-    find "${train_output_dir}" -type f -name "fm4${pde}.pth" -printf '%T@ %p\n' \
-      | sort -nr \
-      | head -n 1 \
-      | cut -d' ' -f2-
+    {
+      find "${train_output_dir}" -type f -name "fm4${pde}.pth" -printf '%T@ %p\n'
+      find "${train_parent}" -maxdepth 2 -path "${train_parent}/${train_prefix}*" -type f -name "fm4${pde}.pth" -printf '%T@ %p\n'
+    } | sort -nr | head -n 1 | cut -d' ' -f2-
   )"
   if [[ -z "${checkpoint_path}" ]]; then
     checkpoint_path="$(
-      find "${train_output_dir}" -type f -name "fm4${pde}-checkpoint.pth" -printf '%T@ %p\n' \
-        | sort -nr \
-        | head -n 1 \
-        | cut -d' ' -f2-
+      {
+        find "${train_output_dir}" -type f -name "fm4${pde}-checkpoint.pth" -printf '%T@ %p\n'
+        find "${train_parent}" -maxdepth 2 -path "${train_parent}/${train_prefix}*" -type f -name "fm4${pde}-checkpoint.pth" -printf '%T@ %p\n'
+      } | sort -nr | head -n 1 | cut -d' ' -f2-
     )"
   fi
   printf '%s\n' "${checkpoint_path}"
@@ -204,7 +208,7 @@ run_one_pde() {
     -u train.py
     --dataset "${pde}"
     --data_path "${train_data_path}"
-    --output_dir "${train_output_dir}"
+    --output_dir "${train_output_dir}/"
     --epochs "${EPOCHS}"
     --batch_size "${TRAIN_BATCH_SIZE}"
     --accum_iter "${ACCUM_ITER}"
@@ -230,7 +234,7 @@ run_one_pde() {
   checkpoint_path="$(latest_checkpoint_for_pde "${pde}" "${train_output_dir}")"
   if [[ ! -s "${checkpoint_path}" ]]; then
     echo "Expected trained checkpoint was not created under: ${train_output_dir}" >&2
-    echo "Looked for fm4${pde}.pth or fm4${pde}-checkpoint.pth recursively." >&2
+    echo "Looked for fm4${pde}.pth or fm4${pde}-checkpoint.pth recursively, including old sibling dirs like ${train_output_dir}260618-..." >&2
     exit 1
   fi
   echo "checkpoint: ${checkpoint_path}"
