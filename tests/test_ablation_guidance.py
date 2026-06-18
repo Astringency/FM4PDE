@@ -2,10 +2,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.config import AblationConfig
-from fm4pde_ablation.guidance import compute_guidance_gradient, make_zeta_schedule
-from fm4pde_ablation.losses import GuidanceLossOutput, guidance_component_flags
-from fm4pde_ablation.runner import _disable_unreliable_pde_guidance
+from sampling.config import AblationConfig
+from sampling.guidance import compute_guidance_gradient, make_zeta_schedule
+from sampling.losses import GuidanceLossOutput, guidance_component_flags
+from sampling.runner import _disable_unreliable_pde_guidance
 
 
 def test_guidance_global_clip_records_scale():

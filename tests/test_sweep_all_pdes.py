@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-from fm4pde_ablation.sweep import expand_grid
+from sampling.sweep import expand_grid
 
 
 def test_all_internal_grid_lists_and_uses_group_base_configs():
@@ -9,7 +9,7 @@ def test_all_internal_grid_lists_and_uses_group_base_configs():
         [
             sys.executable,
             "-m",
-            "fm4pde_ablation.sweep",
+            "sampling.sweep",
             "--grid",
             "configs/ablations/all_internal_ablation_grid.yaml",
             "--list",

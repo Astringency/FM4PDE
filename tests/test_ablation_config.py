@@ -1,6 +1,6 @@
 import pytest
 
-from fm4pde_ablation.config import AblationConfig, VALID_SENSOR_MODES, load_config, parse_cli_overrides
+from sampling.config import AblationConfig, VALID_RESIDUAL_MODES, VALID_SENSOR_MODES, load_config, parse_cli_overrides
 
 
 def test_load_smoke_config():
@@ -31,3 +31,14 @@ def test_time_varying_sensor_mode_is_legacy_alias():
         cfg.validate()
     assert "time_varying" not in VALID_SENSOR_MODES
     assert cfg.sensor_mode == "per_sample_random"
+
+
+def test_residual_mode_validation_and_aliases():
+    cfg = AblationConfig(residual_mode="two_time_level")
+    cfg.validate()
+    assert cfg.residual_mode == "endpoint_secant"
+    assert "hermite_bridge" in VALID_RESIDUAL_MODES
+
+    bad = AblationConfig(residual_mode="near_endpoint_temporal")
+    with pytest.raises(ValueError, match="num_near_endpoint_obs"):
+        bad.validate()

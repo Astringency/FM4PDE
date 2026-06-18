@@ -6,7 +6,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.model_io import WrappedModel, load_fm4pde_checkpoint_bundle
+from sampling.model_io import WrappedModel, load_fm4pde_checkpoint_bundle
 from models.model_configs import MODEL_CONFIGS, instantiate_model
 from training.load_and_save import save_model
 

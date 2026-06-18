@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from fm4pde_ablation.losses import GuidanceLossOutput, guidance_component_flags
+from sampling.losses import GuidanceLossOutput, guidance_component_flags
 
 
 @dataclass

@@ -5,8 +5,8 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from data.load import PDEloader
-from fm4pde_ablation.config import AblationConfig
-from fm4pde_ablation.data import load_ground_truth
+from sampling.config import AblationConfig
+from sampling.data import load_ground_truth
 
 
 def _write_heat_h5(path):
@@ -87,3 +87,78 @@ def test_ablation_ground_truth_reads_future_time_scale_params(tmp_path):
     assert set(gt.pde_params) == {"alpha", "total_time"}
     assert torch.allclose(gt.pde_params["total_time"], torch.tensor([2.5, 2.5]))
     assert gt.metadata["pde_params_sources"]["total_time"] == "attrs:total_time"
+
+
+def test_near_endpoint_temporal_loader_requires_trajectory(tmp_path):
+    path = tmp_path / "heat_2-5-5_1.h5"
+    _write_heat_h5(path)
+    cfg = AblationConfig(
+        pde="heat",
+        task="both",
+        data_path=str(path),
+        data_config_path="",
+        checkpoint_path="",
+        loadby="future_h5",
+        coef_name="input_data",
+        solution_name="output_data",
+        img_channels=2,
+        img_resolution=5,
+        batch_size=1,
+        offset=0,
+        device="cpu",
+        allow_synthetic_data=False,
+        residual_mode="near_endpoint_temporal",
+        num_near_endpoint_obs=3,
+    )
+
+    with pytest.raises(ValueError, match="future_h5 input/output endpoint data does not contain"):
+        load_ground_truth(cfg)
+
+
+def test_near_endpoint_temporal_loader_from_future_h5_trajectory(tmp_path):
+    path = tmp_path / "heat_2-5-5_1.h5"
+    trajectory = np.stack(
+        [
+            np.zeros((1, 5, 5), dtype=np.float32),
+            np.ones((1, 5, 5), dtype=np.float32),
+            np.ones((1, 5, 5), dtype=np.float32) * 2,
+            np.ones((1, 5, 5), dtype=np.float32) * 3,
+        ],
+        axis=0,
+    )
+    with h5py.File(path, "w") as file:
+        file.create_dataset("input_data", data=trajectory[None, 0])
+        file.create_dataset("output_data", data=trajectory[None, -1])
+        file.create_dataset("full_trajectory", data=trajectory[None])
+        file.create_dataset("alpha", data=np.array([0.2], dtype=np.float32))
+        file.attrs["T"] = 3.0
+    cfg = AblationConfig(
+        pde="heat",
+        task="both",
+        data_path=str(path),
+        data_config_path="",
+        checkpoint_path="",
+        loadby="future_h5",
+        coef_name="input_data",
+        solution_name="output_data",
+        img_channels=2,
+        img_resolution=5,
+        batch_size=1,
+        offset=0,
+        device="cpu",
+        allow_synthetic_data=False,
+        residual_mode="near_endpoint_temporal",
+        num_near_endpoint_obs=4,
+        near_endpoint_mask_seed=123,
+    )
+
+    gt = load_ground_truth(cfg)
+
+    near = gt.pde_params["near_endpoint_temporal"]
+    assert torch.allclose(near["q_dt"], torch.ones(1, 1, 5, 5))
+    assert torch.allclose(near["q_T_minus_dt"], torch.ones(1, 1, 5, 5) * 2)
+    assert torch.allclose(near["dt"], torch.tensor([1.0]))
+    assert near["mask_0"].sum().item() == pytest.approx(4.0)
+    assert near["mask_T"].sum().item() == pytest.approx(4.0)
+    assert gt.metadata["near_endpoint_temporal"]["extra_observation_budget"] is True
+    assert gt.metadata["near_endpoint_temporal"]["frame_metadata"][0]["trajectory_dataset"] == "full_trajectory"

@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.state import compose_pair_state, split_pair_state
+from sampling.state import compose_pair_state, split_pair_state
 
 
 def test_split_even_pair():

@@ -4,10 +4,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.config import AblationConfig
-from fm4pde_ablation.losses import compute_guidance_losses
-from fm4pde_ablation.masks import PairMasks
-from fm4pde_ablation.state import SplitState
+from sampling.config import AblationConfig
+from sampling.losses import compute_guidance_losses
+from sampling.masks import PairMasks
+from sampling.state import SplitState
 
 
 @dataclass

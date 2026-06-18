@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fm4pde_ablation.runner import run_from_config_path
+from sampling.runner import run_from_config_path
 
 
 def test_runner_dry_run_writes_metrics(tmp_path):

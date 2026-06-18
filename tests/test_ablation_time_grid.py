@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.time_grid import affine_coefficients, make_time_grid, scheduler_coefficients
+from sampling.time_grid import affine_coefficients, make_time_grid, scheduler_coefficients
 
 
 def test_time_grid_has_num_steps_plus_one():

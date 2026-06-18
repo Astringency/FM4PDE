@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fm4pde_ablation.config import AblationConfig, save_resolved_config
+from sampling.config import AblationConfig, save_resolved_config
 
 
 def make_run_dir(config: AblationConfig) -> Path:
@@ -42,6 +42,7 @@ def write_run_metadata(
         "channel_names": ground_truth_metadata.get("channel_names", []),
         "pde_params_keys": ground_truth_metadata.get("pde_params_keys", []),
         "pde_params_sources": ground_truth_metadata.get("pde_params_sources", {}),
+        "near_endpoint_temporal": ground_truth_metadata.get("near_endpoint_temporal", {}),
         "scalar_params_loaded": ground_truth_metadata.get("scalar_params_loaded", False),
         "mask_seed": config.mask_seed,
         "noise_seed": config.noise_seed,

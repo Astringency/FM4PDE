@@ -10,13 +10,13 @@ This is a codebase for solving Partial Differential Equations (PDEs) based on Fl
 * **`models/`**: Model architecture definitions, primarily U-Net and its variants.
 * **`output/`**: Storage path for training results.
 * **`training/`**: Training loops, distributed training utilities, and model saving/loading logic.
-* **`sampling/`**: Code related to sampling and generating PDE solutions.
+* **`sampling/`**: Sampling, guidance, metrics, sweep, and ablation code for generating PDE solutions.
 * **`torchdiffeq/`**: Main implementation of Neural Ordinary Differential Equations (NODE).
 * **`train.py`**: Main entry point script for training.
 * **`train_arg_parser.py`**: The file defines the parameters that can be passed into the main training code.
-* **`sample.py`**: Main entry point script for inference/sampling.
+* **`sample.py`**: Legacy compatibility wrapper for old sampling arguments.
 * **`scripts/train/run_train.sh`**: Example script for training.
-* **`run_sample.sh`**: Example script for sampling.
+* **`scripts/sample/run_sample.sh`**: Example script for sampling.
 
 ## 🛠️ Installation & Environment
 
@@ -58,7 +58,7 @@ python train.py --dataset heat --data_path /large_storage/zhangxf/PDEdata/ --epo
 
 ### 2. Sampling
 
-After training, use `sample.py` or `python -m fm4pde_ablation.runner` to load the model and generate solutions. Sampling uses the saved training normalizer and must not estimate statistics from a test sample. Default configurations for different PDEs can be found in the `configs/` directory. Supported PDE types:
+After training, use `python -m sampling.runner` to load the model and generate solutions. The old argument style is still available through `python -m sampling.legacy` and the root `sample.py` wrapper. Sampling uses the saved training normalizer and must not estimate statistics from a test sample. Default configurations for different PDEs can be found in the `configs/` directory. Supported PDE types:
 
 * Burger's Equation (`burger.yaml`)
 * Darcy Flow (`darcy.yaml`)
@@ -75,7 +75,7 @@ After training, use `sample.py` or `python -m fm4pde_ablation.runner` to load th
 Example:
 
 ```bash
-python -m fm4pde_ablation.runner --config configs/heat.yaml --override checkpoint_path=.../fm4heat.pth
+python -m sampling.runner --config configs/heat.yaml --override checkpoint_path=.../fm4heat.pth
 ```
 
-Configurations in `sample.py` and the `configs/` directory must be tailored to the specific task. Users should pay particular attention to updating the paths for data input, model checkpoints, and result output to match their actual environment.
+Configurations in the `configs/` directory must be tailored to the specific task. Users should pay particular attention to updating the paths for data input, model checkpoints, and result output to match their actual environment. See [`docs/sampling.md`](docs/sampling.md) for the sampling and internal ablation entrypoints.

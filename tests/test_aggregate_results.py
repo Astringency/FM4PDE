@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from fm4pde_ablation.aggregate import aggregate_root
-from fm4pde_ablation.config import dump_yaml
+from sampling.aggregate import aggregate_root
+from sampling.config import dump_yaml
 
 
 def _write_run(root, name, rel_l2_a, rel_l2_u, config_updates=None):

@@ -1,8 +1,8 @@
-# FM4PDE Ablation Framework
+# FM4PDE Sampling Framework
 
-`fm4pde_ablation.runner` is the official FM4PDE sampling and internal ablation entrypoint. `sample.py` is only a legacy compatibility wrapper: it maps old CLI arguments into `AblationConfig`, stores ignored legacy knobs such as `dt_sampler`, `lr_decay`, `freq_decay`, `perturb`, and `perturb_rate` under `config.extra`, prints a deprecation warning, and delegates to the runner.
+`sampling.runner` is the official FM4PDE sampling and internal ablation entrypoint. `sampling.legacy` and the root `sample.py` wrapper only map old CLI arguments into `AblationConfig`, store ignored legacy knobs such as `dt_sampler`, `lr_decay`, `freq_decay`, `perturb`, and `perturb_rate` under `config.extra`, print a deprecation warning, and delegate to the runner.
 
-The sweep entrypoint is `python -m fm4pde_ablation.sweep`. It expands grouped internal ablation grids without mixing in any external method.
+The sweep entrypoint is `python -m sampling.sweep`. It expands grouped internal ablation grids without mixing in any external method.
 
 ## Main Defaults
 
@@ -40,7 +40,7 @@ Scalar or sample-level parameters are loaded into `PDEGroundTruth.pde_params` an
 - Advection-Diffusion: `b_x`, `b_y`, `kappa`
 - Steady Heat Conduction: `u_D` plus available sample metadata such as source parameters and solver diagnostics
 
-For Heat, Wave, and Advection-Diffusion residuals, the two-time-level derivative uses `(uT - u0) / T`. The residual code reads `T`, then `total_time`, then `dt` from `pde_params`; if none is present it uses `T=1.0` and records that default in residual metadata.
+For endpoint-only time-dependent PDEs, `residual_mode: auto` resolves to `hermite_bridge`. This keeps the FM endpoint pair interface unchanged and computes a PDE-aware cubic Hermite bridge residual from endpoint PDE derivatives. The old `(uT - u0) / T` two-time-level residual remains available as `residual_mode: endpoint_secant` or `legacy_endpoint_secant` for ablations. See `docs/time_dependent_residuals.md` for the mode definitions and metadata.
 
 Steady Heat Conduction residual fields include the interior PDE residual plus boundary residuals in the same tensor: bottom Dirichlet `u[..., 0, :] - u_D`, and zero-Neumann residuals on top, left, and right boundaries.
 
@@ -60,20 +60,20 @@ If a checkpoint still expects old scalar-parameter channels, sampling fails with
 Smoke:
 
 ```bash
-python -m fm4pde_ablation.runner --config configs/ablations/smoke.yaml --dry-run
+python -m sampling.runner --config configs/ablations/smoke.yaml --dry-run
 scripts/ablations/smoke.sh --dry-run
 ```
 
 List the formal grouped internal grid:
 
 ```bash
-python -m fm4pde_ablation.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
+python -m sampling.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
 ```
 
 Run one selected group:
 
 ```bash
-python -m fm4pde_ablation.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --group zeta_sensitivity
+python -m sampling.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --group zeta_sensitivity
 ```
 
 Aggregate results:

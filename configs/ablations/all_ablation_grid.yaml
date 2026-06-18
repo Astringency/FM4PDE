@@ -54,6 +54,40 @@ groups:
       sensor_mode: per_sample_random
     matrix:
       pde_residual_region: [full, observed, boundary_excluded, union_obs]
+  group5c_time_dependent_residual_mode:
+    base_configs:
+      - configs/ablations/base/heat.yaml
+      - configs/ablations/base/wave.yaml
+      - configs/ablations/base/advection_diffusion.yaml
+      - configs/ablations/base/reaction_diffusion.yaml
+      - configs/ablations/base/shallow_water.yaml
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sensor_mode: per_sample_random
+      num_near_endpoint_obs: 0
+    matrix:
+      residual_mode: [endpoint_secant, hermite_bridge]
+  group5d_near_endpoint_temporal_residual:
+    base_configs:
+      - configs/ablations/base/heat.yaml
+      - configs/ablations/base/wave.yaml
+      - configs/ablations/base/advection_diffusion.yaml
+      - configs/ablations/base/reaction_diffusion.yaml
+      - configs/ablations/base/shallow_water.yaml
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sensor_mode: per_sample_random
+      residual_mode: near_endpoint_temporal
+      num_near_endpoint_obs: 64
+      near_endpoint_sensor_mode: random
+      near_endpoint_mask_seed: 0
+      near_endpoint_shared_mask: true
+    matrix:
+      offset: [0]
   group6_sensor_sparsity:
     fixed:
       task: both

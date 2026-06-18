@@ -77,7 +77,7 @@ class FuturePDEGenerationTest(unittest.TestCase):
                 else:
                     self.assertNotIn("full_trajectory", h5)
 
-    def test_heat_alpha_materialization_and_decay(self) -> None:
+    def test_heat_alpha_metadata_and_decay(self) -> None:
         sys.path.insert(0, str(ROOT))
         from data.load import PDEloader
 
@@ -89,10 +89,12 @@ class FuturePDEGenerationTest(unittest.TestCase):
             vT = np.var(traj[:, -1], axis=(1, 2))
             self.assertTrue(np.all(vT <= v0 + 1e-5))
             self.assertTrue(np.isfinite(h5["output_data"][:]).all())
-        data, label = PDEloader("heat").load_data(str(self.out_root) + "/", size=2)
-        self.assertEqual(tuple(data.shape), (8, 4, 16, 16))
+        data, label, metadata = PDEloader("heat").load_data(str(self.out_root) + "/", size=2, return_metadata=True)
+        self.assertEqual(tuple(data.shape), (8, 2, 16, 16))
         self.assertEqual(float(label[0]), 7.0)
-        self.assertTrue(np.allclose(data[:, 1].numpy(), data[:, 3].numpy()))
+        self.assertEqual(metadata["channel_names"], ["u0", "uT"])
+        self.assertIn("alpha", metadata["pde_params"])
+        self.assertEqual(tuple(metadata["pde_params"]["alpha"].shape), (8,))
 
     def test_wave_vt_and_fixed_c_schema(self) -> None:
         path = self.out_root / "wave" / "wave_4-16-16_1.h5"
@@ -106,7 +108,7 @@ class FuturePDEGenerationTest(unittest.TestCase):
             self.assertTrue(np.allclose(v0, 0.0))
             self.assertGreater(float(np.max(np.abs(vT))), 1e-4)
 
-    def test_advection_diffusion_scalar_materialization_and_sign(self) -> None:
+    def test_advection_diffusion_scalar_metadata_and_sign(self) -> None:
         sys.path.insert(0, str(ROOT))
         from data.load import PDEloader
         from data.DataGen.python.common import periodic_wavenumbers
@@ -119,11 +121,15 @@ class FuturePDEGenerationTest(unittest.TestCase):
             self.assertEqual(h5["b_y"].shape, (4,))
             self.assertEqual(h5["kappa"].shape, (4,))
             self.assertTrue(np.all(h5["kappa"][:] > 0.0))
-        data, _ = PDEloader("advection_diffusion").load_data(str(self.out_root) + "/", size=2)
-        self.assertEqual(tuple(data.shape), (8, 8, 16, 16))
-        self.assertTrue(np.allclose(data[:, 1].numpy(), data[:, 5].numpy()))
-        self.assertTrue(np.allclose(data[:, 2].numpy(), data[:, 6].numpy()))
-        self.assertTrue(np.allclose(data[:, 3].numpy(), data[:, 7].numpy()))
+        data, _, metadata = PDEloader("advection_diffusion").load_data(
+            str(self.out_root) + "/",
+            size=2,
+            return_metadata=True,
+        )
+        self.assertEqual(tuple(data.shape), (8, 2, 16, 16))
+        self.assertEqual(metadata["channel_names"], ["u0", "uT"])
+        self.assertEqual(set(metadata["pde_params"]), {"b_x", "b_y", "kappa", "T"})
+        self.assertEqual(tuple(metadata["pde_params"]["kappa"].shape), (8,))
 
         s = 32
         x = np.arange(s) / s
@@ -163,10 +169,16 @@ class FuturePDEGenerationTest(unittest.TestCase):
             self.assertGreater(float(np.min(lam)), 0.0)
             self.assertTrue(np.isfinite(h5["residual_norm"][:]).all())
             self.assertTrue(np.all((h5["converged"][:] == 0) | (h5["converged"][:] == 1)))
-        data, label = PDEloader("steady_heat_conduction").load_data(str(self.out_root) + "/", size=2)
-        self.assertEqual(tuple(data.shape), (8, 4, 16, 16))
+        data, label, metadata = PDEloader("steady_heat_conduction").load_data(
+            str(self.out_root) + "/",
+            size=2,
+            return_metadata=True,
+        )
+        self.assertEqual(tuple(data.shape), (8, 2, 16, 16))
         self.assertEqual(float(label[0]), 10.0)
-        self.assertTrue(np.allclose(data[:, 1].numpy(), data[:, 3].numpy()))
+        self.assertEqual(metadata["channel_names"], ["f", "u"])
+        self.assertIn("u_D", metadata["pde_params"])
+        self.assertIn("residual_norm", metadata["pde_params"])
 
     def test_no_leakage_json_and_hashes(self) -> None:
         root_check = self.out_root / "no_leakage_check.json"
@@ -187,4 +199,3 @@ class FuturePDEGenerationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.noise import add_observation_noise
+from sampling.noise import add_observation_noise
 
 
 def test_noise_only_on_mask():

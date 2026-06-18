@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.masks import make_mask, make_pair_masks
+from sampling.masks import make_mask, make_pair_masks
 
 
 def test_random_mask_reproducible():

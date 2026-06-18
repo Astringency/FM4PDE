@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from fm4pde_ablation.sampler_wrappers import choose_loss_state, sampler_step
+from sampling.sampler_wrappers import choose_loss_state, sampler_step
 
 
 class AffineVelocity:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fm4pde_ablation.pde_residuals import residual_status
+from sampling.pde_residuals import residual_status
 
 
 PDE_REGISTRY = {

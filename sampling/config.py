@@ -49,6 +49,14 @@ VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_ra
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
 VALID_LOSS_TYPES = {"l1", "l2", "mse"}
+VALID_RESIDUAL_MODES = {
+    "auto",
+    "hermite_bridge",
+    "near_endpoint_temporal",
+    "endpoint_secant",
+    "legacy_endpoint_secant",
+    "disabled",
+}
 
 
 _LOCAL_CHECKPOINTS = {
@@ -116,6 +124,14 @@ class AblationConfig:
     loss_type: str = "l2"
     pde_residual_status: str = "auto"
     residual_mode: str = "auto"
+    hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
+    hermite_num_collocation: int = 0
+    hermite_include_integral_residual: bool = True
+    hermite_integral_weight: float = 1.0
+    num_near_endpoint_obs: int = 0
+    near_endpoint_sensor_mode: str = "random"
+    near_endpoint_mask_seed: int = 0
+    near_endpoint_shared_mask: bool = True
     data_path: str = ""
     offset: int = 0
     img_channels: int = 2
@@ -133,6 +149,7 @@ class AblationConfig:
     extra: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
+        self.residual_mode = normalize_residual_mode(self.residual_mode)
         if self.loss_state == "denoised_endpoint":
             import warnings
 
@@ -165,6 +182,8 @@ class AblationConfig:
             ("time_grid", self.time_grid, VALID_TIME_GRIDS),
             ("step_method", self.step_method, VALID_STEP_METHODS),
             ("loss_type", self.loss_type, VALID_LOSS_TYPES),
+            ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
+            ("near_endpoint_sensor_mode", self.near_endpoint_sensor_mode, VALID_SENSOR_MODES),
         ]
         for name, value, allowed in checks:
             if value not in allowed:
@@ -177,6 +196,17 @@ class AblationConfig:
             raise ValueError("batch_size must be positive")
         if self.num_obs < 0:
             raise ValueError("num_obs must be non-negative")
+        if self.num_near_endpoint_obs < 0:
+            raise ValueError("num_near_endpoint_obs must be non-negative")
+        if self.residual_mode == "near_endpoint_temporal" and self.num_near_endpoint_obs <= 0:
+            raise ValueError("residual_mode='near_endpoint_temporal' requires num_near_endpoint_obs > 0")
+        if self.hermite_num_collocation < 0:
+            raise ValueError("hermite_num_collocation must be non-negative")
+        if self.hermite_integral_weight < 0:
+            raise ValueError("hermite_integral_weight must be non-negative")
+        for value in self.hermite_collocation_times:
+            if not 0.0 < float(value) < 1.0:
+                raise ValueError("hermite_collocation_times values must lie inside (0, 1)")
         if self.clip_threshold <= 0 and self.clip_mode != "none":
             raise ValueError("clip_threshold must be positive when clipping is enabled")
         validate_task_guidance(self.task, self.guidance_components)
@@ -207,6 +237,21 @@ def validate_task_guidance(task: str, guidance_components: str) -> None:
         raise ValueError("task='forward' cannot request solution-side observation-only guidance")
     if task == "inverse" and guidance_components in {"coef_obs_only", "both_obs"}:
         raise ValueError("task='inverse' cannot request coefficient-side observation-only guidance")
+
+
+def normalize_residual_mode(mode: Any) -> str:
+    aliases = {
+        "": "auto",
+        "default": "auto",
+        "two_time_level": "endpoint_secant",
+        "legacy": "legacy_endpoint_secant",
+        "legacy_two_time_level": "legacy_endpoint_secant",
+        "coarse_endpoint": "endpoint_secant",
+    }
+    normalized = aliases.get(str(mode), str(mode))
+    if normalized not in VALID_RESIDUAL_MODES:
+        raise ValueError(f"residual_mode={mode!r} is invalid; expected one of {sorted(VALID_RESIDUAL_MODES)}")
+    return normalized
 
 
 def load_config(path: str | os.PathLike[str], overrides: dict[str, Any] | None = None) -> AblationConfig:

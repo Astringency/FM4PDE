@@ -5,7 +5,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
-from fm4pde_ablation.time_grid import endpoint_from_velocity
+from sampling.time_grid import endpoint_from_velocity
 
 
 @dataclass

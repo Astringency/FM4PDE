@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from fm4pde_ablation.masks import PairMasks, residual_region_mask
-from fm4pde_ablation.pde_residuals import compute_pde_residual
-from fm4pde_ablation.state import SplitState
+from sampling.masks import PairMasks, residual_region_mask
+from sampling.pde_residuals import compute_pde_residual
+from sampling.state import SplitState
 
 
 @dataclass
@@ -62,11 +62,12 @@ def compute_guidance_losses(
     status = "disabled"
     pde_meta: dict[str, Any] = {}
     if enabled["pde"]:
+        pde_params = _pde_params_with_residual_options(getattr(ground_truth, "pde_params", None), config)
         residual = compute_pde_residual(
             config.pde,
             phys_state.coef,
             phys_state.sol,
-            pde_params=getattr(ground_truth, "pde_params", None),
+            pde_params=pde_params,
             k=getattr(config, "k", 1),
             residual_mode=getattr(config, "residual_mode", "auto"),
         )
@@ -146,3 +147,17 @@ def _reduce_loss(residual: Any, loss_type: str) -> Any:
     if loss_type == "mse":
         return (residual**2).mean()
     raise ValueError(f"Unknown loss_type={loss_type!r}")
+
+
+def _pde_params_with_residual_options(pde_params: dict[str, Any] | None, config: Any) -> dict[str, Any]:
+    params = dict(pde_params or {})
+    option_names = (
+        "hermite_collocation_times",
+        "hermite_num_collocation",
+        "hermite_include_integral_residual",
+        "hermite_integral_weight",
+    )
+    for name in option_names:
+        if hasattr(config, name):
+            params[name] = getattr(config, name)
+    return params
