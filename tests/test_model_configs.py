@@ -10,6 +10,7 @@ from models.model_configs import (
     get_model_config_metadata,
     instantiate_model,
 )
+from models.unet import fourier_feature_channel_count
 
 
 EXPECTED_PDES = {
@@ -75,7 +76,7 @@ def test_model_config_metadata_does_not_pass_to_unet(monkeypatch):
 
 
 @pytest.mark.parametrize("channels", [1, 2, 4])
-def test_fourier_feature_channel_count_matches_forward(channels):
+def test_value_fourier_feature_channel_count_matches_forward(channels):
     cfg = {
         "in_channels": channels,
         "model_channels": 32,
@@ -94,10 +95,15 @@ def test_fourier_feature_channel_count_matches_forward(channels):
         "use_scale_shift_norm": False,
         "resblock_updown": False,
         "use_new_attention_order": False,
-        "with_fourier_features": True,
+        "with_value_fourier_features": True,
     }
     model = instantiate_model("heat", use_ema=False, model_config=cfg)
-    expected_input_channels = channels + channels * 4
+    expected_input_channels = channels + fourier_feature_channel_count(
+        channels,
+        start=cfg.get("fourier_feature_start", 6),
+        stop=cfg.get("fourier_feature_stop", 8),
+        step=cfg.get("fourier_feature_step", 1),
+    )
     assert model.input_blocks[0][0].weight.shape[1] == expected_input_channels
 
     x = torch.randn(1, channels, 8, 8)
@@ -120,6 +126,27 @@ def test_burger_axis_semantics():
     assert metadata["architecture_family"] == "full_time_space"
     assert metadata["axis_semantics"] == "BCHW_as_time_space_H_time_W_space"
     assert metadata["with_fourier_features"] is True
+    assert metadata["with_value_fourier_features"] is True
+    assert metadata["with_coordinate_fourier_features"] is True
+
+
+def test_burger_recommended_uses_coordinate_fourier():
+    metadata = get_model_config_metadata("burger", profile="recommended")
+    assert metadata["with_coordinate_fourier_features"] is True
+    assert metadata["axis_semantics"] == "BCHW_as_time_space_H_time_W_space"
+
+
+@pytest.mark.parametrize("pde", ["helmholtz", "wave", "steady_heat_conduction"])
+def test_helmholtz_wave_steady_heat_coordinate_fourier(pde):
+    metadata = get_model_config_metadata(pde, profile="recommended")
+    assert metadata["with_coordinate_fourier_features"] is True
+
+
+def test_ns_coordinate_fourier_default_false():
+    metadata = get_model_config_metadata("nsnonbounded", profile="recommended")
+    assert metadata["with_coordinate_fourier_features"] is False
+    assert "periodic" in metadata["notes"]
+    assert "translation-equivariance" in metadata["notes"]
 
 
 @pytest.mark.parametrize("pde", ["wave", "shallow_water", "nsnonbounded"])

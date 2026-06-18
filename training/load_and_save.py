@@ -177,6 +177,12 @@ def save_model(
     num_channels: int | None = None,
     data_metadata: dict[str, Any] | None = None,
     model_profile: str | None = None,
+    requested_model_profile: str | None = None,
+    resolved_model_profile: str | None = None,
+    resume_architecture_metadata: dict[str, Any] | None = None,
+    resume_model_profile_override: bool = False,
+    checkpoint_model_profile: str | None = None,
+    checkpoint_model_config_metadata: dict[str, Any] | None = None,
     model_config: dict[str, Any] | None = None,
     model_config_metadata: dict[str, Any] | None = None,
 ):
@@ -210,6 +216,12 @@ def save_model(
         },
         "data_metadata": data_metadata,
         "model_profile": model_profile or getattr(args, "model_profile", None),
+        "requested_model_profile": requested_model_profile or getattr(args, "model_profile", None),
+        "resolved_model_profile": resolved_model_profile or model_profile or getattr(args, "model_profile", None),
+        "resume_architecture_metadata": resume_architecture_metadata,
+        "resume_model_profile_override": bool(resume_model_profile_override),
+        "checkpoint_model_profile": checkpoint_model_profile,
+        "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
         "model_config": model_config,
         "model_config_metadata": model_config_metadata,
     }
@@ -227,6 +239,12 @@ def save_model(
             "normalizer": normalizer_state,
             "data_metadata": data_metadata,
             "model_profile": model_profile or getattr(args, "model_profile", None),
+            "requested_model_profile": requested_model_profile or getattr(args, "model_profile", None),
+            "resolved_model_profile": resolved_model_profile or model_profile or getattr(args, "model_profile", None),
+            "resume_architecture_metadata": resume_architecture_metadata,
+            "resume_model_profile_override": bool(resume_model_profile_override),
+            "checkpoint_model_profile": checkpoint_model_profile,
+            "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
             "model_config": model_config,
             "model_config_metadata": model_config_metadata,
         }
@@ -245,6 +263,12 @@ def save_model(
                 "normalizer": normalizer_state,
                 "data_metadata": data_metadata,
                 "model_profile": model_profile or getattr(args, "model_profile", None),
+                "requested_model_profile": requested_model_profile or getattr(args, "model_profile", None),
+                "resolved_model_profile": resolved_model_profile or model_profile or getattr(args, "model_profile", None),
+                "resume_architecture_metadata": resume_architecture_metadata,
+                "resume_model_profile_override": bool(resume_model_profile_override),
+                "checkpoint_model_profile": checkpoint_model_profile,
+                "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
                 "model_config": model_config,
                 "model_config_metadata": model_config_metadata,
             }
@@ -253,6 +277,43 @@ def save_model(
                 tag=f"fm4{args.dataset}",
                 client_state=client_state,
             )
+
+
+def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
+    checkpoint_path = Path(path)
+    result: dict[str, Any] = {
+        "checkpoint_path": str(checkpoint_path),
+        "has_checkpoint": checkpoint_path.exists(),
+        "has_model_config": False,
+        "checkpoint_model_profile": None,
+        "checkpoint_model_config": None,
+        "checkpoint_model_config_metadata": None,
+        "checkpoint_num_channels": None,
+        "checkpoint_schema_version": None,
+    }
+
+    payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    if not isinstance(payload, dict):
+        return result
+
+    model_config = payload.get("model_config")
+    model_config_metadata = payload.get("model_config_metadata")
+    if not isinstance(model_config, dict):
+        model_config = None
+    if not isinstance(model_config_metadata, dict):
+        model_config_metadata = None
+
+    result["has_model_config"] = bool(model_config)
+    result["checkpoint_model_config"] = model_config
+    result["checkpoint_model_config_metadata"] = model_config_metadata
+    result["checkpoint_model_profile"] = (
+        payload.get("model_profile")
+        or (model_config or {}).get("architecture_profile")
+        or (model_config_metadata or {}).get("architecture_profile")
+    )
+    result["checkpoint_num_channels"] = payload.get("num_channels")
+    result["checkpoint_schema_version"] = payload.get("checkpoint_schema_version")
+    return result
 
 
 def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> dict[str, Any] | None:

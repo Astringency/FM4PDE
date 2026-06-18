@@ -7,9 +7,11 @@
 import argparse
 import logging
 
-from models.model_configs import MODEL_CONFIGS, MODEL_PROFILE_CHOICES
+from models.model_configs import MODEL_CONFIGS
 
 logger = logging.getLogger(__name__)
+
+TRAIN_MODEL_PROFILE_CHOICES = ("auto", "recommended", "light", "base", "heavy", "legacy_base")
 
 
 class DatasetChoices:
@@ -118,12 +120,18 @@ def get_args_parser():
     )
     parser.add_argument(
         "--model_profile",
-        default="recommended",
-        choices=MODEL_PROFILE_CHOICES,
+        default="auto",
+        choices=TRAIN_MODEL_PROFILE_CHOICES,
         help=(
-            "Model architecture profile. recommended is the PDE-family registry; "
+            "Model architecture profile. auto uses recommended for new training and checkpoint metadata for resume; "
+            "recommended is the PDE-family registry; "
             "light/base/heavy are architecture ablations; legacy_base explicitly reproduces old configs."
         ),
+    )
+    parser.add_argument(
+        "--allow_model_profile_override",
+        action="store_true",
+        help="Allow resume training to instantiate a requested model_profile that differs from checkpoint metadata.",
     )
 
     # Dataset parameters

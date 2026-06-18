@@ -48,6 +48,8 @@ def test_training_metadata_records_model_config():
     assert metadata["attention_resolutions"] == [16]
     assert metadata["channel_mult"] == [1, 2, 4]
     assert metadata["with_fourier_features"] is False
+    assert metadata["with_value_fourier_features"] is False
+    assert metadata["with_coordinate_fourier_features"] is False
     assert metadata["scalar_conditioning"] is False
     assert "alpha" in metadata["scalar_conditioning_params"]
 
@@ -70,6 +72,9 @@ def test_checkpoint_payload_records_model_config(tmp_path):
         data_shape=(1, 2, 4, 4),
         num_channels=2,
         model_profile="recommended",
+        requested_model_profile="auto",
+        resolved_model_profile="recommended",
+        resume_architecture_metadata={"resume": False},
         model_config=model_config,
         model_config_metadata=model_metadata,
     )
@@ -77,8 +82,13 @@ def test_checkpoint_payload_records_model_config(tmp_path):
     checkpoint = torch.load(tmp_path / "fm4heat.pth", map_location="cpu", weights_only=False)
     assert checkpoint["checkpoint_schema_version"] == 3
     assert checkpoint["model_profile"] == "recommended"
+    assert checkpoint["requested_model_profile"] == "auto"
+    assert checkpoint["resolved_model_profile"] == "recommended"
+    assert checkpoint["resume_architecture_metadata"] == {"resume": False}
     assert checkpoint["model_config"]["in_channels"] == 2
     assert checkpoint["model_config_metadata"]["architecture_family"] == "light_smooth"
     assert checkpoint["model_config_metadata"]["attention_resolutions"] == [16]
     assert checkpoint["model_config_metadata"]["channel_mult"] == [1, 2, 4]
     assert checkpoint["model_config_metadata"]["with_fourier_features"] is False
+    assert checkpoint["model_config_metadata"]["with_value_fourier_features"] is False
+    assert checkpoint["model_config_metadata"]["with_coordinate_fourier_features"] is False

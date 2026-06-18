@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import warnings
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +26,16 @@ from data.load import PDEloader, TensorDataset
 from data.metadata import detach_pde_params, summarize_pde_params
 from data.specs import get_pde_spec
 from data.transform import PDEStandardizer
-from models.model_configs import get_model_config, get_model_config_metadata, instantiate_model
+from models.model_configs import (
+    get_model_config,
+    get_model_config_metadata,
+    instantiate_model,
+    model_config_metadata_from_config,
+)
 from train_arg_parser import get_args_parser
 from training import distributed_mode
 from training.grad_scaler import NativeScalerWithGradNormCount as NativeScaler
-from training.load_and_save import load_model, save_model
+from training.load_and_save import inspect_checkpoint_architecture, load_model, save_model
 from training.train_loop import train_one_epoch
 
 logger = logging.getLogger(__name__)
@@ -70,16 +76,13 @@ def main(args):
     num_channels = int(data.shape[1])
     logger.info(f"Loaded data shape={tuple(data.shape)}, labels dtype={label.dtype}")
     model_arch = pde_names[0]
-    model_config = get_model_config(
-        model_arch,
-        profile=args.model_profile,
-        in_channels=num_channels,
-        out_channels=num_channels,
-    )
-    model_config_metadata = _build_model_config_metadata(
+    resolved_model_profile, resume_arch_meta = resolve_training_model_profile(args)
+    resume_model_profile_override = bool(resume_arch_meta.get("override", False))
+    model_config, model_config_metadata = _resolve_training_model_config(
         model_arch=model_arch,
         pde_names=pde_names,
-        profile=args.model_profile,
+        resolved_model_profile=resolved_model_profile,
+        resume_arch_meta=resume_arch_meta,
         num_channels=num_channels,
     )
     data_metadata = _build_data_metadata(
@@ -89,6 +92,12 @@ def main(args):
         label=label,
         loader_metadata=loader_metadata,
         model_config_metadata=model_config_metadata,
+        requested_model_profile=args.model_profile,
+        resolved_model_profile=resolved_model_profile,
+        resume_architecture_metadata=resume_arch_meta,
+        resume_model_profile_override=resume_model_profile_override,
+        checkpoint_model_profile=resume_arch_meta.get("checkpoint_model_profile"),
+        checkpoint_model_config_metadata=resume_arch_meta.get("checkpoint_model_config_metadata"),
     )
     if distributed_mode.is_main_process() and args.output_dir:
         output_dir = Path(args.output_dir)
@@ -107,9 +116,7 @@ def main(args):
     model = instantiate_model(
         architechture=model_arch,
         use_ema=args.use_ema,
-        in_channels=num_channels,
-        out_channels=num_channels,
-        profile=args.model_profile,
+        model_config=model_config,
     )
     model.to(device)
 
@@ -235,7 +242,13 @@ def main(args):
                 data_shape=tuple(data.shape),
                 num_channels=num_channels,
                 data_metadata=data_metadata,
-                model_profile=args.model_profile,
+                model_profile=resolved_model_profile,
+                requested_model_profile=args.model_profile,
+                resolved_model_profile=resolved_model_profile,
+                resume_architecture_metadata=resume_arch_meta,
+                resume_model_profile_override=resume_model_profile_override,
+                checkpoint_model_profile=resume_arch_meta.get("checkpoint_model_profile"),
+                checkpoint_model_config_metadata=resume_arch_meta.get("checkpoint_model_config_metadata"),
                 model_config=model_config,
                 model_config_metadata=model_config_metadata,
             )
@@ -252,6 +265,134 @@ def main(args):
         logger.info(f"Loaded PDE metadata keys: {sorted(loader_metadata)}")
 
 
+def resolve_training_model_profile(args) -> tuple[str, dict[str, Any]]:
+    requested_profile = getattr(args, "model_profile", "auto")
+    allow_override = bool(getattr(args, "allow_model_profile_override", False))
+    resume = getattr(args, "resume", "") or ""
+
+    if not resume:
+        resolved_profile = "recommended" if requested_profile == "auto" else requested_profile
+        return resolved_profile, {
+            "resume": False,
+            "requested_model_profile": requested_profile,
+            "resolved_model_profile": resolved_profile,
+            "override": False,
+            "checkpoint_model_profile": None,
+            "checkpoint_model_config": None,
+            "checkpoint_model_config_metadata": None,
+        }
+
+    checkpoint_metadata = inspect_checkpoint_architecture(resume)
+    checkpoint_profile = checkpoint_metadata.get("checkpoint_model_profile")
+    has_model_config = bool(checkpoint_metadata.get("has_model_config", False))
+
+    resume_metadata = {
+        "resume": True,
+        "requested_model_profile": requested_profile,
+        "override": False,
+        **checkpoint_metadata,
+    }
+
+    if checkpoint_profile:
+        if requested_profile == "auto":
+            resolved_profile = str(checkpoint_profile)
+        elif requested_profile == checkpoint_profile:
+            resolved_profile = requested_profile
+        elif allow_override:
+            resolved_profile = requested_profile
+            resume_metadata["override"] = True
+            warnings.warn(
+                "resume checkpoint architecture/profile does not match requested model_profile; "
+                f"checkpoint_model_profile={checkpoint_profile}, "
+                f"requested_model_profile={requested_profile}. "
+                "Proceeding because --allow_model_profile_override was set.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            raise ValueError(
+                "resume checkpoint architecture/profile does not match requested model_profile; "
+                f"checkpoint_model_profile={checkpoint_profile}; "
+                f"requested_model_profile={requested_profile}. "
+                f"Use --model_profile {checkpoint_profile} or retrain. "
+                "To intentionally override, pass --allow_model_profile_override."
+            )
+    elif has_model_config and requested_profile == "auto":
+        resolved_profile = "checkpoint"
+    elif requested_profile == "auto":
+        raise ValueError(
+            "resume checkpoint lacks architecture metadata and model_config; auto model_profile cannot infer "
+            "the correct architecture. Pass an explicit --model_profile legacy_base or another correct profile."
+        )
+    else:
+        resolved_profile = requested_profile
+        resume_metadata["checkpoint_lacks_architecture_metadata"] = True
+
+    resume_metadata["resolved_model_profile"] = resolved_profile
+    return resolved_profile, resume_metadata
+
+
+def _resolve_training_model_config(
+    *,
+    model_arch: str,
+    pde_names: list[str],
+    resolved_model_profile: str,
+    resume_arch_meta: dict[str, Any],
+    num_channels: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    checkpoint_model_config = resume_arch_meta.get("checkpoint_model_config")
+    if checkpoint_model_config and not resume_arch_meta.get("override", False):
+        model_config = deepcopy(dict(checkpoint_model_config))
+        _validate_checkpoint_model_config_channels(
+            model_config,
+            num_channels=num_channels,
+            checkpoint_path=resume_arch_meta.get("checkpoint_path"),
+        )
+        checkpoint_metadata = resume_arch_meta.get("checkpoint_model_config_metadata")
+        model_config_metadata = {
+            **(checkpoint_metadata if isinstance(checkpoint_metadata, dict) else {}),
+            **model_config_metadata_from_config(model_config),
+        }
+        model_config_metadata["model_arch"] = model_arch
+        model_config_metadata["model_profile"] = resolved_model_profile
+        _add_joint_model_metadata(model_config_metadata, pde_names)
+        return model_config, model_config_metadata
+
+    model_config = get_model_config(
+        model_arch,
+        profile=resolved_model_profile,
+        in_channels=num_channels,
+        out_channels=num_channels,
+    )
+    model_config_metadata = _build_model_config_metadata(
+        model_arch=model_arch,
+        pde_names=pde_names,
+        profile=resolved_model_profile,
+        num_channels=num_channels,
+    )
+    return model_config, model_config_metadata
+
+
+def _validate_checkpoint_model_config_channels(
+    model_config: dict[str, Any],
+    *,
+    num_channels: int,
+    checkpoint_path: str | None = None,
+) -> None:
+    mismatches = []
+    for key in ("in_channels", "out_channels"):
+        if key in model_config and model_config[key] is not None:
+            if int(model_config[key]) != int(num_channels):
+                mismatches.append(f"{key}={model_config[key]}")
+    if mismatches:
+        raise ValueError(
+            "checkpoint architecture channel count does not match current training data; "
+            f"checkpoint_path={checkpoint_path}; "
+            f"checkpoint_model_config {', '.join(mismatches)}; "
+            f"current_training_num_channels={num_channels}."
+        )
+
+
 def _build_data_metadata(
     args,
     pde_names: list[str],
@@ -259,6 +400,12 @@ def _build_data_metadata(
     label: torch.Tensor,
     loader_metadata: dict[str, Any],
     model_config_metadata: dict[str, Any] | None = None,
+    requested_model_profile: str | None = None,
+    resolved_model_profile: str | None = None,
+    resume_architecture_metadata: dict[str, Any] | None = None,
+    resume_model_profile_override: bool = False,
+    checkpoint_model_profile: str | None = None,
+    checkpoint_model_config_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     specs = {pde: get_pde_spec(pde).to_metadata() for pde in pde_names}
     channel_names = _training_channel_names(pde_names, loader_metadata, int(data.shape[1]))
@@ -278,7 +425,13 @@ def _build_data_metadata(
         },
         "residual_family": {pde: specs[pde]["residual_family"] for pde in pde_names},
         "loadby": {pde: specs[pde]["default_loadby"] for pde in pde_names},
-        "model_profile": getattr(args, "model_profile", "recommended"),
+        "requested_model_profile": requested_model_profile or getattr(args, "model_profile", "auto"),
+        "resolved_model_profile": resolved_model_profile or getattr(args, "model_profile", "recommended"),
+        "model_profile": resolved_model_profile or getattr(args, "model_profile", "recommended"),
+        "resume_architecture_metadata": resume_architecture_metadata,
+        "resume_model_profile_override": bool(resume_model_profile_override),
+        "checkpoint_model_profile": checkpoint_model_profile,
+        "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
         "model_config": model_config_metadata,
         "model_config_metadata": model_config_metadata,
         "architecture_family": (model_config_metadata or {}).get("architecture_family"),
@@ -288,6 +441,10 @@ def _build_data_metadata(
         "model_channels": (model_config_metadata or {}).get("model_channels"),
         "num_res_blocks": (model_config_metadata or {}).get("num_res_blocks"),
         "with_fourier_features": (model_config_metadata or {}).get("with_fourier_features"),
+        "with_value_fourier_features": (model_config_metadata or {}).get("with_value_fourier_features"),
+        "with_coordinate_fourier_features": (model_config_metadata or {}).get("with_coordinate_fourier_features"),
+        "value_fourier_feature_channels": (model_config_metadata or {}).get("value_fourier_feature_channels"),
+        "coordinate_fourier_feature_channels": (model_config_metadata or {}).get("coordinate_fourier_feature_channels"),
         "axis_semantics": (model_config_metadata or {}).get("axis_semantics"),
         "scalar_conditioning": (model_config_metadata or {}).get("scalar_conditioning", False),
         "scalar_conditioning_params": (model_config_metadata or {}).get("scalar_conditioning_params", []),
@@ -317,6 +474,11 @@ def _build_model_config_metadata(
     )
     metadata["model_arch"] = model_arch
     metadata["model_profile"] = profile
+    _add_joint_model_metadata(metadata, pde_names)
+    return metadata
+
+
+def _add_joint_model_metadata(metadata: dict[str, Any], pde_names: list[str]) -> None:
     if len(pde_names) > 1:
         metadata["model_arch_source"] = "first_pde_in_joint_dataset"
         metadata["joint_pde_names"] = list(pde_names)
@@ -327,7 +489,6 @@ def _build_model_config_metadata(
     else:
         metadata["model_arch_source"] = "single_pde"
         metadata["joint_pde_names"] = list(pde_names)
-    return metadata
 
 
 def _training_channel_names(

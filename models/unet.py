@@ -475,9 +475,16 @@ class UNetModel(nn.Module):
     resblock_updown: bool = False
     use_new_attention_order: bool = False
     with_fourier_features: bool = False
+    with_value_fourier_features: bool = False
+    with_coordinate_fourier_features: bool = False
     fourier_feature_start: int = 6
     fourier_feature_stop: int = 8
     fourier_feature_step: int = 1
+    coordinate_fourier_start: int = 0
+    coordinate_fourier_stop: int = 4
+    coordinate_fourier_step: int = 1
+    coordinate_fourier_include_raw_coords: bool = True
+    coordinate_fourier_coord_range: str = "unit"
     ignore_time: bool = False
     input_projection: bool = True
 
@@ -488,15 +495,33 @@ class UNetModel(nn.Module):
         super().__init__()
 
         self.data_in_channels = int(self.in_channels)
-        self.fourier_feature_channels = 0
-        if self.with_fourier_features:
-            self.fourier_feature_channels = fourier_feature_channel_count(
+        self.with_value_fourier_features = bool(
+            self.with_value_fourier_features or self.with_fourier_features
+        )
+        self.with_fourier_features = self.with_value_fourier_features
+        self.with_coordinate_fourier_features = bool(self.with_coordinate_fourier_features)
+
+        self.value_fourier_feature_channels = 0
+        if self.with_value_fourier_features:
+            self.value_fourier_feature_channels = fourier_feature_channel_count(
                 self.data_in_channels,
                 start=self.fourier_feature_start,
                 stop=self.fourier_feature_stop,
                 step=self.fourier_feature_step,
             )
-            self.in_channels = self.data_in_channels + self.fourier_feature_channels
+        self.coordinate_fourier_feature_channels = 0
+        if self.with_coordinate_fourier_features:
+            self.coordinate_fourier_feature_channels = coordinate_fourier_feature_channel_count(
+                spatial_dims=2,
+                start=self.coordinate_fourier_start,
+                stop=self.coordinate_fourier_stop,
+                step=self.coordinate_fourier_step,
+                include_raw_coords=self.coordinate_fourier_include_raw_coords,
+            )
+        self.fourier_feature_channels = (
+            self.value_fourier_feature_channels + self.coordinate_fourier_feature_channels
+        )
+        self.in_channels = self.data_in_channels + self.fourier_feature_channels
 
         if self.num_heads_upsample == -1:
             self.num_heads_upsample = self.num_heads
@@ -673,7 +698,7 @@ class UNetModel(nn.Module):
             zero_module(conv_nd(self.dims, input_ch, self.out_channels, 3, padding=1)),
         )
 
-    def forward(self, x, timesteps, extra={'label': 0}):
+    def forward(self, x, timesteps, extra=None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -681,14 +706,39 @@ class UNetModel(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        if self.with_fourier_features:
-            z_f = base2_fourier_features(
-                x,
-                start=self.fourier_feature_start,
-                stop=self.fourier_feature_stop,
-                step=self.fourier_feature_step,
+        if extra is None:
+            extra = {}
+
+        if "concat_conditioning" in extra:
+            raise ValueError(
+                "concat_conditioning requires explicit concat_conditioning_channels in the model config; "
+                "implicit channel expansion is not supported."
             )
-            x = torch.cat([x, z_f], dim=1)
+
+        original_x = x
+        features = [x]
+        if self.with_value_fourier_features:
+            features.append(
+                base2_fourier_features(
+                    original_x,
+                    start=self.fourier_feature_start,
+                    stop=self.fourier_feature_stop,
+                    step=self.fourier_feature_step,
+                )
+            )
+        if self.with_coordinate_fourier_features:
+            features.append(
+                coordinate_fourier_features(
+                    original_x,
+                    start=self.coordinate_fourier_start,
+                    stop=self.coordinate_fourier_stop,
+                    step=self.coordinate_fourier_step,
+                    include_raw_coords=self.coordinate_fourier_include_raw_coords,
+                    coord_range=self.coordinate_fourier_coord_range,
+                )
+            )
+        if len(features) > 1:
+            x = torch.cat(features, dim=1)
 
         hs = []
         if timesteps.dim() == 0:
@@ -713,9 +763,6 @@ class UNetModel(nn.Module):
             emb = emb + self.label_emb(y)
 
         h = x
-        if "concat_conditioning" in extra:
-            h = torch.cat([x, extra["concat_conditioning"]], dim=1)
-
         for module in self.input_blocks:
             h = module(h, emb)
             hs.append(h)
@@ -754,3 +801,61 @@ def base2_fourier_features(
     h = w[:, :, None, None] * h
     h = torch.cat([torch.sin(h), torch.cos(h)], dim=1)
     return h
+
+
+def coordinate_fourier_feature_channel_count(
+    spatial_dims: int = 2,
+    start: int = 0,
+    stop: int = 4,
+    step: int = 1,
+    include_raw_coords: bool = True,
+) -> int:
+    if step == 0:
+        raise ValueError("coordinate fourier feature step must be non-zero")
+    num_freqs = len(range(int(start), int(stop), int(step)))
+    raw_channels = int(spatial_dims) if include_raw_coords else 0
+    return raw_channels + int(spatial_dims) * num_freqs * 2
+
+
+def coordinate_fourier_features(
+    inputs: torch.Tensor,
+    start: int = 0,
+    stop: int = 4,
+    step: int = 1,
+    include_raw_coords: bool = True,
+    coord_range: str = "unit",
+) -> torch.Tensor:
+    if inputs.dim() != 4:
+        raise ValueError(
+            f"coordinate_fourier_features expects BCHW inputs, got shape {tuple(inputs.shape)}"
+        )
+    if step == 0:
+        raise ValueError("coordinate fourier feature step must be non-zero")
+    if coord_range == "unit":
+        coord_min, coord_max = 0.0, 1.0
+    elif coord_range == "minus_one_one":
+        coord_min, coord_max = -1.0, 1.0
+    else:
+        raise ValueError("coordinate_fourier_coord_range must be 'unit' or 'minus_one_one'")
+
+    batch, _, height, width = inputs.shape
+    y = torch.linspace(coord_min, coord_max, height, device=inputs.device, dtype=inputs.dtype)
+    x = torch.linspace(coord_min, coord_max, width, device=inputs.device, dtype=inputs.dtype)
+    yy = y[:, None].expand(height, width)
+    xx = x[None, :].expand(height, width)
+    coords = torch.stack([yy, xx], dim=0).unsqueeze(0).expand(batch, -1, -1, -1)
+
+    features = []
+    if include_raw_coords:
+        features.append(coords)
+
+    freqs = torch.arange(start, stop, step, device=inputs.device, dtype=inputs.dtype)
+    if freqs.numel() > 0:
+        omega = (2.0**freqs) * 2 * np.pi
+        angles = coords.unsqueeze(2) * omega.view(1, 1, -1, 1, 1)
+        sin_cos = torch.cat([torch.sin(angles), torch.cos(angles)], dim=2)
+        features.append(sin_cos.reshape(batch, -1, height, width))
+
+    if not features:
+        return inputs.new_empty((batch, 0, height, width))
+    return torch.cat(features, dim=1)

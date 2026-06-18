@@ -11,7 +11,11 @@ from typing import Any, Mapping, Union
 from data.specs import PDE_DATA_SPECS, get_pde_spec
 from models.discrete_unet import DiscreteUNetModel
 from models.ema import EMA
-from models.unet import UNetModel
+from models.unet import (
+    UNetModel,
+    coordinate_fourier_feature_channel_count,
+    fourier_feature_channel_count,
+)
 
 
 MODEL_PROFILE_CHOICES = ("recommended", "light", "base", "heavy", "legacy_base")
@@ -22,6 +26,16 @@ MODEL_METADATA_KEYS = {
     "axis_semantics",
     "scalar_conditioning",
     "scalar_conditioning_params",
+    "fourier_feature_type",
+    "fourier_feature_notes",
+    "with_value_fourier_features",
+    "with_coordinate_fourier_features",
+    "value_fourier_feature_channels",
+    "coordinate_fourier_feature_channels",
+    "fourier_feature_channels",
+    "effective_in_channels",
+    "coordinate_fourier_coord_range",
+    "coordinate_fourier_include_raw_coords",
     "notes",
 }
 
@@ -44,13 +58,44 @@ MODEL_PARAMETER_KEYS = {
     "resblock_updown",
     "use_new_attention_order",
     "with_fourier_features",
+    "with_value_fourier_features",
+    "with_coordinate_fourier_features",
     "fourier_feature_start",
     "fourier_feature_stop",
     "fourier_feature_step",
+    "coordinate_fourier_start",
+    "coordinate_fourier_stop",
+    "coordinate_fourier_step",
+    "coordinate_fourier_include_raw_coords",
+    "coordinate_fourier_coord_range",
     "ignore_time",
     "input_projection",
     "image_size",
 }
+
+
+RECOMMENDED_VALUE_FOURIER_PDES = {"helmholtz", "wave", "nsnonbounded", "burger"}
+RECOMMENDED_COORDINATE_FOURIER_PDES = {
+    "darcy",
+    "helmholtz",
+    "steady_heat_conduction",
+    "advection_diffusion",
+    "wave",
+    "burger",
+}
+
+
+def _fourier_feature_type(
+    with_value_fourier_features: bool,
+    with_coordinate_fourier_features: bool,
+) -> str:
+    if with_value_fourier_features and with_coordinate_fourier_features:
+        return "value_and_coordinate"
+    if with_value_fourier_features:
+        return "value"
+    if with_coordinate_fourier_features:
+        return "coordinate"
+    return "none"
 
 
 def _base_config(
@@ -65,11 +110,24 @@ def _base_config(
     use_scale_shift_norm: bool = True,
     use_new_attention_order: bool = True,
     with_fourier_features: bool = False,
+    with_value_fourier_features: bool | None = None,
+    with_coordinate_fourier_features: bool = False,
+    coordinate_fourier_start: int = 0,
+    coordinate_fourier_stop: int = 4,
+    coordinate_fourier_step: int = 1,
+    coordinate_fourier_include_raw_coords: bool = True,
+    coordinate_fourier_coord_range: str = "unit",
     architecture_family: str = "base",
     axis_semantics: str = "spatial_2d",
     architecture_profile: str = "recommended",
     notes: str | None = None,
 ) -> dict[str, Any]:
+    value_fourier_enabled = bool(
+        with_fourier_features
+        if with_value_fourier_features is None
+        else with_value_fourier_features or with_fourier_features
+    )
+    coordinate_fourier_enabled = bool(with_coordinate_fourier_features)
     cfg: dict[str, Any] = {
         "in_channels": int(in_channels),
         "model_channels": int(model_channels),
@@ -88,15 +146,29 @@ def _base_config(
         "use_scale_shift_norm": bool(use_scale_shift_norm),
         "resblock_updown": False,
         "use_new_attention_order": bool(use_new_attention_order),
-        "with_fourier_features": bool(with_fourier_features),
+        "with_fourier_features": value_fourier_enabled,
+        "with_value_fourier_features": value_fourier_enabled,
+        "with_coordinate_fourier_features": coordinate_fourier_enabled,
         "fourier_feature_start": 6,
         "fourier_feature_stop": 8,
         "fourier_feature_step": 1,
+        "coordinate_fourier_start": int(coordinate_fourier_start),
+        "coordinate_fourier_stop": int(coordinate_fourier_stop),
+        "coordinate_fourier_step": int(coordinate_fourier_step),
+        "coordinate_fourier_include_raw_coords": bool(coordinate_fourier_include_raw_coords),
+        "coordinate_fourier_coord_range": str(coordinate_fourier_coord_range),
         "architecture_family": architecture_family,
         "axis_semantics": axis_semantics,
         "architecture_profile": architecture_profile,
         "scalar_conditioning": False,
         "scalar_conditioning_params": (),
+        "fourier_feature_type": _fourier_feature_type(
+            value_fourier_enabled, coordinate_fourier_enabled
+        ),
+        "fourier_feature_notes": (
+            "with_fourier_features is a backward-compatible alias for value Fourier features; "
+            "coordinate Fourier features are controlled separately."
+        ),
     }
     if notes:
         cfg["notes"] = notes
@@ -111,13 +183,21 @@ def _light_smooth_config(in_channels: int, *, profile: str = "recommended") -> d
         dropout=0.05,
         channel_mult=(1, 2, 4),
         attention_resolutions=(16,),
-        with_fourier_features=False,
+        with_value_fourier_features=False,
+        with_coordinate_fourier_features=False,
         architecture_family="light_smooth",
         architecture_profile=profile,
     )
 
 
-def _elliptic_static_config(in_channels: int, *, profile: str = "recommended") -> dict[str, Any]:
+def _elliptic_static_config(
+    in_channels: int,
+    *,
+    profile: str = "recommended",
+    with_value_fourier_features: bool = False,
+    with_coordinate_fourier_features: bool = True,
+    notes: str | None = None,
+) -> dict[str, Any]:
     return _base_config(
         in_channels,
         model_channels=128,
@@ -125,14 +205,23 @@ def _elliptic_static_config(in_channels: int, *, profile: str = "recommended") -
         dropout=0.05,
         channel_mult=(1, 2, 4),
         attention_resolutions=(8, 16),
-        with_fourier_features=True,
+        with_value_fourier_features=with_value_fourier_features,
+        with_coordinate_fourier_features=with_coordinate_fourier_features,
         use_scale_shift_norm=True,
         architecture_family="elliptic_static",
         architecture_profile=profile,
+        notes=notes,
     )
 
 
-def _temporal_endpoint_base_config(in_channels: int, *, profile: str = "recommended") -> dict[str, Any]:
+def _temporal_endpoint_base_config(
+    in_channels: int,
+    *,
+    profile: str = "recommended",
+    with_value_fourier_features: bool = False,
+    with_coordinate_fourier_features: bool = False,
+    notes: str | None = None,
+) -> dict[str, Any]:
     return _base_config(
         in_channels,
         model_channels=128,
@@ -140,9 +229,11 @@ def _temporal_endpoint_base_config(in_channels: int, *, profile: str = "recommen
         dropout=0.05,
         channel_mult=(1, 2, 4),
         attention_resolutions=(16,),
-        with_fourier_features=False,
+        with_value_fourier_features=with_value_fourier_features,
+        with_coordinate_fourier_features=with_coordinate_fourier_features,
         architecture_family="temporal_endpoint_base",
         architecture_profile=profile,
+        notes=notes,
     )
 
 
@@ -150,7 +241,8 @@ def _temporal_endpoint_heavy_config(
     in_channels: int,
     *,
     profile: str = "recommended",
-    with_fourier_features: bool,
+    with_value_fourier_features: bool,
+    with_coordinate_fourier_features: bool,
     notes: str | None = None,
 ) -> dict[str, Any]:
     return _base_config(
@@ -160,7 +252,8 @@ def _temporal_endpoint_heavy_config(
         dropout=0.05,
         channel_mult=(1, 2, 4, 4),
         attention_resolutions=(8, 16),
-        with_fourier_features=with_fourier_features,
+        with_value_fourier_features=with_value_fourier_features,
+        with_coordinate_fourier_features=with_coordinate_fourier_features,
         architecture_family="temporal_endpoint_heavy",
         architecture_profile=profile,
         notes=notes,
@@ -171,8 +264,9 @@ def _wave_config(in_channels: int = 4, *, profile: str = "recommended") -> dict[
     return _temporal_endpoint_heavy_config(
         in_channels,
         profile=profile,
-        with_fourier_features=True,
-        notes="wave profile enables Fourier features for oscillatory phase/frequency structure",
+        with_value_fourier_features=True,
+        with_coordinate_fourier_features=True,
+        notes="wave profile enables value and coordinate Fourier features for oscillatory phase/frequency structure",
     )
 
 
@@ -180,7 +274,8 @@ def _shallow_water_config(in_channels: int = 6, *, profile: str = "recommended")
     return _temporal_endpoint_heavy_config(
         in_channels,
         profile=profile,
-        with_fourier_features=False,
+        with_value_fourier_features=False,
+        with_coordinate_fourier_features=False,
         notes=(
             "shallow-water profile keeps Fourier features off initially because conservative "
             "variables can be scale-sensitive"
@@ -192,8 +287,12 @@ def _ns_config(in_channels: int = 2, *, profile: str = "recommended") -> dict[st
     return _temporal_endpoint_heavy_config(
         in_channels,
         profile=profile,
-        with_fourier_features=True,
-        notes="nsnonbounded profile enables Fourier features for periodic vorticity structure",
+        with_value_fourier_features=True,
+        with_coordinate_fourier_features=False,
+        notes=(
+            "nsnonbounded profile keeps coordinate Fourier disabled to preserve periodic "
+            "translation-equivariance while retaining value Fourier for vorticity value lift"
+        ),
     )
 
 
@@ -205,10 +304,12 @@ def _burger_time_space_config(in_channels: int = 1, *, profile: str = "recommend
         dropout=0.05,
         channel_mult=(1, 2, 4),
         attention_resolutions=(16,),
-        with_fourier_features=True,
+        with_value_fourier_features=True,
+        with_coordinate_fourier_features=True,
         architecture_family="full_time_space",
         axis_semantics="BCHW_as_time_space_H_time_W_space",
         architecture_profile=profile,
+        notes="burger profile uses value Fourier plus coordinate Fourier with H=time and W=space",
     )
 
 
@@ -221,7 +322,8 @@ def _profile_config(
     num_res_blocks: int,
     channel_mult: tuple[int, ...],
     attention_resolutions: tuple[int, ...],
-    with_fourier_features: bool,
+    with_value_fourier_features: bool,
+    with_coordinate_fourier_features: bool,
     axis_semantics: str = "spatial_2d",
     notes: str | None = None,
 ) -> dict[str, Any]:
@@ -232,7 +334,8 @@ def _profile_config(
         dropout=0.05,
         channel_mult=channel_mult,
         attention_resolutions=attention_resolutions,
-        with_fourier_features=with_fourier_features,
+        with_value_fourier_features=with_value_fourier_features,
+        with_coordinate_fourier_features=with_coordinate_fourier_features,
         architecture_family=architecture_family,
         axis_semantics=axis_semantics,
         architecture_profile=profile,
@@ -250,7 +353,14 @@ def _light_profile_config(pde: str, in_channels: int) -> dict[str, Any]:
         num_res_blocks=2 if pde in {"poisson", "heat"} else 3,
         channel_mult=(1, 2, 4),
         attention_resolutions=(16,),
-        with_fourier_features=pde in {"burger"},
+        with_value_fourier_features=pde in {"burger"},
+        with_coordinate_fourier_features=pde in {
+            "burger",
+            "darcy",
+            "helmholtz",
+            "steady_heat_conduction",
+            "advection_diffusion",
+        },
         axis_semantics=_axis_semantics(pde),
         notes=_profile_notes(pde, "light"),
     )
@@ -266,7 +376,8 @@ def _base_profile_config(pde: str, in_channels: int) -> dict[str, Any]:
         num_res_blocks=4,
         channel_mult=(1, 2, 4),
         attention_resolutions=(8, 16) if family in {"elliptic_static", "temporal_endpoint_heavy"} else (16,),
-        with_fourier_features=pde in {"darcy", "helmholtz", "steady_heat_conduction", "wave", "nsnonbounded", "burger"},
+        with_value_fourier_features=_recommended_value_fourier(pde),
+        with_coordinate_fourier_features=_recommended_coordinate_fourier(pde),
         axis_semantics=_axis_semantics(pde),
         notes=_profile_notes(pde, "base"),
     )
@@ -282,7 +393,8 @@ def _heavy_profile_config(pde: str, in_channels: int) -> dict[str, Any]:
         num_res_blocks=4,
         channel_mult=(1, 2, 4, 4),
         attention_resolutions=(8, 16),
-        with_fourier_features=pde not in {"poisson", "heat", "advection_diffusion", "reaction_diffusion", "shallow_water"},
+        with_value_fourier_features=_recommended_value_fourier(pde),
+        with_coordinate_fourier_features=_recommended_coordinate_fourier(pde),
         axis_semantics=_axis_semantics(pde),
         notes=_profile_notes(pde, "heavy"),
     )
@@ -299,7 +411,8 @@ def _legacy_base_config(in_channels: int, model_channels: int = 128, out_channel
         channel_mult=(1, 2, 4),
         use_scale_shift_norm=True,
         use_new_attention_order=True,
-        with_fourier_features=False,
+        with_value_fourier_features=False,
+        with_coordinate_fourier_features=False,
         architecture_family="legacy_base",
         architecture_profile="legacy_base",
         notes="explicit legacy reproduction of the old shared _base_config",
@@ -338,9 +451,22 @@ def _axis_semantics(pde: str) -> str:
     return "BCHW_as_time_space_H_time_W_space" if pde == "burger" else "spatial_2d"
 
 
+def _recommended_value_fourier(pde: str) -> bool:
+    return pde in RECOMMENDED_VALUE_FOURIER_PDES
+
+
+def _recommended_coordinate_fourier(pde: str) -> bool:
+    return pde in RECOMMENDED_COORDINATE_FOURIER_PDES
+
+
 def _profile_notes(pde: str, profile: str) -> str | None:
     if pde == "burger":
-        return f"{profile} profile preserves Burgers BCHW time-space axis semantics"
+        return f"{profile} profile preserves Burgers BCHW time-space axis semantics with coordinate Fourier"
+    if pde == "nsnonbounded":
+        return (
+            f"{profile} profile keeps coordinate Fourier disabled to preserve periodic "
+            "translation-equivariance; value Fourier remains enabled for vorticity value lift"
+        )
     if pde == "shallow_water":
         return f"{profile} profile keeps scalar FiLM conditioning disabled; conservative variables stay in native channels"
     return None
@@ -358,11 +484,46 @@ def _build_recommended_configs() -> dict[str, dict[str, Any]]:
     return {
         "poisson": _with_scalar_metadata("poisson", _light_smooth_config(2)),
         "heat": _with_scalar_metadata("heat", _light_smooth_config(2)),
-        "darcy": _with_scalar_metadata("darcy", _elliptic_static_config(2)),
-        "helmholtz": _with_scalar_metadata("helmholtz", _elliptic_static_config(2)),
-        "steady_heat_conduction": _with_scalar_metadata("steady_heat_conduction", _elliptic_static_config(2)),
-        "advection_diffusion": _with_scalar_metadata("advection_diffusion", _temporal_endpoint_base_config(2)),
-        "reaction_diffusion": _with_scalar_metadata("reaction_diffusion", _temporal_endpoint_base_config(4)),
+        "darcy": _with_scalar_metadata(
+            "darcy",
+            _elliptic_static_config(
+                2,
+                with_value_fourier_features=False,
+                with_coordinate_fourier_features=True,
+            ),
+        ),
+        "helmholtz": _with_scalar_metadata(
+            "helmholtz",
+            _elliptic_static_config(
+                2,
+                with_value_fourier_features=True,
+                with_coordinate_fourier_features=True,
+            ),
+        ),
+        "steady_heat_conduction": _with_scalar_metadata(
+            "steady_heat_conduction",
+            _elliptic_static_config(
+                2,
+                with_value_fourier_features=False,
+                with_coordinate_fourier_features=True,
+            ),
+        ),
+        "advection_diffusion": _with_scalar_metadata(
+            "advection_diffusion",
+            _temporal_endpoint_base_config(
+                2,
+                with_value_fourier_features=False,
+                with_coordinate_fourier_features=True,
+            ),
+        ),
+        "reaction_diffusion": _with_scalar_metadata(
+            "reaction_diffusion",
+            _temporal_endpoint_base_config(
+                4,
+                with_value_fourier_features=False,
+                with_coordinate_fourier_features=False,
+            ),
+        ),
         "wave": _with_scalar_metadata("wave", _wave_config(4)),
         "shallow_water": _with_scalar_metadata("shallow_water", _shallow_water_config(6)),
         "nsnonbounded": _with_scalar_metadata("nsnonbounded", _ns_config(2)),
@@ -436,6 +597,7 @@ def get_model_config(
     if "out_channels" not in cfg or cfg["out_channels"] is None:
         cfg["out_channels"] = int(cfg["in_channels"])
     cfg["architecture_profile"] = profile
+    _normalize_fourier_aliases(cfg)
     if architecture in PDE_DATA_SPECS:
         cfg["scalar_conditioning_params"] = tuple(get_pde_spec(architecture).scalar_param_names)
     return cfg
@@ -458,7 +620,68 @@ def get_model_config_metadata(
         in_channels=in_channels,
         out_channels=out_channels,
     )
+    return model_config_metadata_from_config(cfg)
+
+
+def model_config_metadata_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    cfg = deepcopy(dict(config))
+    _normalize_fourier_aliases(cfg)
+    _add_derived_fourier_metadata(cfg)
     return _jsonable_model_config(cfg)
+
+
+def _normalize_fourier_aliases(cfg: dict[str, Any]) -> None:
+    value_enabled = bool(
+        cfg.get("with_value_fourier_features", False)
+        or cfg.get("with_fourier_features", False)
+    )
+    coordinate_enabled = bool(cfg.get("with_coordinate_fourier_features", False))
+    cfg["with_fourier_features"] = value_enabled
+    cfg["with_value_fourier_features"] = value_enabled
+    cfg["with_coordinate_fourier_features"] = coordinate_enabled
+    cfg.setdefault("fourier_feature_start", 6)
+    cfg.setdefault("fourier_feature_stop", 8)
+    cfg.setdefault("fourier_feature_step", 1)
+    cfg.setdefault("coordinate_fourier_start", 0)
+    cfg.setdefault("coordinate_fourier_stop", 4)
+    cfg.setdefault("coordinate_fourier_step", 1)
+    cfg.setdefault("coordinate_fourier_include_raw_coords", True)
+    cfg.setdefault("coordinate_fourier_coord_range", "unit")
+    cfg["fourier_feature_type"] = _fourier_feature_type(value_enabled, coordinate_enabled)
+    cfg.setdefault(
+        "fourier_feature_notes",
+        "with_fourier_features is a backward-compatible alias for value Fourier features; "
+        "coordinate Fourier features are controlled separately.",
+    )
+
+
+def _add_derived_fourier_metadata(cfg: dict[str, Any]) -> None:
+    data_in_channels = int(cfg.get("in_channels", 0) or 0)
+    value_channels = 0
+    if cfg.get("with_value_fourier_features", False):
+        value_channels = fourier_feature_channel_count(
+            data_in_channels,
+            start=int(cfg.get("fourier_feature_start", 6)),
+            stop=int(cfg.get("fourier_feature_stop", 8)),
+            step=int(cfg.get("fourier_feature_step", 1)),
+        )
+    coordinate_channels = 0
+    if cfg.get("with_coordinate_fourier_features", False):
+        coordinate_channels = coordinate_fourier_feature_channel_count(
+            spatial_dims=2,
+            start=int(cfg.get("coordinate_fourier_start", 0)),
+            stop=int(cfg.get("coordinate_fourier_stop", 4)),
+            step=int(cfg.get("coordinate_fourier_step", 1)),
+            include_raw_coords=bool(cfg.get("coordinate_fourier_include_raw_coords", True)),
+        )
+    cfg["value_fourier_feature_channels"] = value_channels
+    cfg["coordinate_fourier_feature_channels"] = coordinate_channels
+    cfg["fourier_feature_channels"] = value_channels + coordinate_channels
+    cfg["effective_in_channels"] = data_in_channels + value_channels + coordinate_channels
+    cfg["coordinate_fourier_coord_range"] = str(cfg.get("coordinate_fourier_coord_range", "unit"))
+    cfg["coordinate_fourier_include_raw_coords"] = bool(
+        cfg.get("coordinate_fourier_include_raw_coords", True)
+    )
 
 
 def _jsonable_model_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
@@ -508,6 +731,7 @@ def instantiate_model(
             cfg["in_channels"] = int(in_channels)
         if out_channels is not None:
             cfg["out_channels"] = int(out_channels)
+        _normalize_fourier_aliases(cfg)
     else:
         cfg = get_model_config(
             architechture,
