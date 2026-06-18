@@ -68,6 +68,8 @@ def validate_root(root: Path) -> dict[str, Any]:
     report["checks"]["steady_heat_conduction"] = validate_steady_heat_conduction(entries["steady_heat_conduction"]["files"])
     report["checks"]["reaction_diffusion"] = validate_reaction_diffusion(entries["reaction_diffusion"]["files"])
     report["checks"]["shallow_water"] = validate_shallow_water(entries["shallow_water"]["files"])
+    if "nsnonbounded" in entries and entries["nsnonbounded"].get("status") == "ok":
+        report["checks"]["nsnonbounded"] = validate_nsnonbounded(entries["nsnonbounded"]["files"])
     report["ok"] = all(check["ok"] for check in report["checks"].values())
     return report
 
@@ -367,6 +369,60 @@ def validate_shallow_water(files: list[str]) -> dict[str, Any]:
     return {
         "ok": ok,
         "thresholds": {"mass_rel_change": MASS_REL_TOL, "momentum_abs": MOMENTUM_TOL},
+        "metrics": metrics,
+    }
+
+
+def validate_nsnonbounded(files: list[str]) -> dict[str, Any]:
+    metrics = {
+        "max_abs_w": 0.0,
+        "max_abs_velocity": 0.0,
+        "min_w0_std": float("inf"),
+        "max_time_monotonic_violation": 0.0,
+        "files_checked": len(files),
+        "samples_checked": 0,
+    }
+    for file_name in files:
+        with h5py.File(file_name, "r") as h5:
+            require_keys(h5, ["sample_seed", "w0", "w", "vx0", "vy0", "vx", "vy", "t"])
+            w0 = h5["w0"][:].astype(np.float64)
+            w = h5["w"][:].astype(np.float64)
+            vx0 = h5["vx0"][:].astype(np.float64)
+            vy0 = h5["vy0"][:].astype(np.float64)
+            vx = h5["vx"][:].astype(np.float64)
+            vy = h5["vy"][:].astype(np.float64)
+            times = h5["t"][:].astype(np.float64)
+            for name, arr in (("w0", w0), ("w", w), ("vx0", vx0), ("vy0", vy0), ("vx", vx), ("vy", vy), ("t", times)):
+                require_finite(arr, f"{file_name}:{name}")
+            if w0.ndim != 3 or vx0.shape != w0.shape or vy0.shape != w0.shape:
+                raise ValueError(f"Unexpected nsnonbounded initial shapes in {file_name}: w0={w0.shape}, vx0={vx0.shape}, vy0={vy0.shape}")
+            if w.ndim != 4 or vx.shape != w.shape or vy.shape != w.shape:
+                raise ValueError(f"Unexpected nsnonbounded trajectory shapes in {file_name}: w={w.shape}, vx={vx.shape}, vy={vy.shape}")
+            if w.shape[:3] != w0.shape or times.shape != (w.shape[-1],):
+                raise ValueError(f"Inconsistent nsnonbounded shapes in {file_name}: w0={w0.shape}, w={w.shape}, t={times.shape}")
+            time_diffs = np.diff(times)
+            if time_diffs.size:
+                metrics["max_time_monotonic_violation"] = max(
+                    metrics["max_time_monotonic_violation"],
+                    float(np.max(np.maximum(-time_diffs, 0.0))),
+                )
+            metrics["max_abs_w"] = max(metrics["max_abs_w"], float(max(np.max(np.abs(w0)), np.max(np.abs(w)))))
+            metrics["max_abs_velocity"] = max(
+                metrics["max_abs_velocity"],
+                float(max(np.max(np.abs(vx0)), np.max(np.abs(vy0)), np.max(np.abs(vx)), np.max(np.abs(vy)))),
+            )
+            metrics["min_w0_std"] = min(metrics["min_w0_std"], float(np.min(np.std(w0.reshape(w0.shape[0], -1), axis=1))))
+            metrics["samples_checked"] += int(w0.shape[0])
+    ok = (
+        metrics["samples_checked"] > 0
+        and metrics["min_w0_std"] > 1e-6
+        and metrics["max_abs_w"] < 1e4
+        and metrics["max_abs_velocity"] < 1e4
+        and metrics["max_time_monotonic_violation"] <= 0.0
+    )
+    return {
+        "ok": ok,
+        "thresholds": {"min_w0_std": 1e-6, "max_abs_value": 1e4, "time_monotonic_violation": 0.0},
         "metrics": metrics,
     }
 

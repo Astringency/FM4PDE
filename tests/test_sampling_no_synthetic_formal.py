@@ -59,9 +59,16 @@ def test_runner_missing_formal_data_raises_without_synthetic(tmp_path):
 
 
 def test_smoke_dry_run_can_use_synthetic_data(tmp_path):
+    missing_data_path = tmp_path / "missing_poisson_smoke.mat"
     result = run_from_config_path(
         "configs/ablations/smoke.yaml",
-        overrides={"dry_run": True, "output_dir": str(tmp_path), "num_steps": 1, "device": "cpu"},
+        overrides={
+            "dry_run": True,
+            "output_dir": str(tmp_path),
+            "num_steps": 1,
+            "device": "cpu",
+            "data_path": str(missing_data_path),
+        },
     )
 
     assert result["status"] == "ok"

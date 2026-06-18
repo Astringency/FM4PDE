@@ -5,7 +5,7 @@ This is a codebase for solving Partial Differential Equations (PDEs) based on Fl
 ## 📁 Project Structure
 
 * **`configs/`**: Configuration files for different PDE experiments (YAML format).
-* **`data/`**: Data generation and loading modules, including code related to `pdebench`.
+* **`data/`**: Data generation and loading modules, including the small PDEBench simulator subset required by FM4PDE.
 * **`flow_matching/`**: Core implementation of Flow Matching, including ODE solvers, paths, and loss functions.
 * **`models/`**: Model architecture definitions, primarily U-Net and its variants.
 * **`outputs/`**: Storage path for training and sampling results.
@@ -30,7 +30,7 @@ This project uses Conda for environment management. Please ensure you have Anaco
     ```
 
 2.  **Dependencies**: 
-This code is primarily implemented in a Python 3.12 environment. To prevent version conflicts, it includes the implementation code of some libraries, such as `flow_matching`, `torchdiffeq`, and `pdebench`. Researchers can also visit the homepage of these libraries and follow the prompts to install the latest version to suit their tasks.
+This code is primarily implemented in a Python 3.12 environment. To prevent version conflicts, it includes the implementation code of some libraries, such as `flow_matching`, `torchdiffeq`, and the PDEBench simulator subset used by the FM4PDE data generators. Researchers can also visit the homepage of these libraries and follow the prompts to install the latest version to suit their tasks.
 
 ## 🚀 Usage
 

@@ -68,6 +68,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--T", type=float, default=1.0)
     parser.add_argument("--chunk-size", type=int, default=5)
+    parser.add_argument("--device", default=None, help="Device for torch-based generators; defaults to cuda when available.")
+    parser.add_argument("--ns-dt", type=float, default=1e-4, help="Internal time step for nsnonbounded datacheck generation.")
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -137,6 +139,7 @@ def main() -> dict[str, Any]:
 
     summary["entries"]["reaction_diffusion"] = generate_reaction_diffusion(out_root, args)
     summary["entries"]["shallow_water"] = generate_shallow_water(out_root, args)
+    summary["entries"]["nsnonbounded"] = generate_nsnonbounded(out_root, args)
     summary["no_leakage_check"] = write_combined_no_leakage_check(out_root, summary["entries"])
 
     summary_path = out_root / "datacheck_summary.json"
@@ -404,6 +407,82 @@ def generate_shallow_water(out_root: Path, args: argparse.Namespace) -> dict[str
     return {"status": "ok", "files": [str(train_path), str(test_path)], "previews": previews, "no_leakage_check": str(check_path)}
 
 
+def generate_nsnonbounded(out_root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    pde_dir = out_root / "nsnonbounded"
+    pde_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        import math
+
+        import torch
+        from no_bound_ns.ns_2d import navier_stokes_2d
+        from no_bound_ns.random_fields import GaussianRF
+    except Exception as exc:  # pragma: no cover - dependency diagnostic
+        return write_error(pde_dir, "nsnonbounded", "import_failed", exc)
+
+    if args.device:
+        device = torch.device(args.device)
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    record_steps = args.n_time - 1
+    if record_steps < 1:
+        raise ValueError("--n-time must be at least 2 for nsnonbounded")
+
+    train_path = pde_dir / f"nsnonbounded_{args.n_train}-{args.resolution}-{args.resolution}-{record_steps}_1_new.mat"
+    test_path = pde_dir / f"nsnonbounded_test_{args.n_test}-{args.resolution}-{args.resolution}-{record_steps}.mat"
+
+    for path, split, count, base_seed, alpha, tau in (
+        (train_path, "train", args.n_train, TRAIN_BASE_SEED, 2.5, 7.0),
+        (test_path, "test", args.n_test, TEST_BASE_SEED, 3.0, 6.5),
+    ):
+        if path.exists():
+            path.unlink()
+        print(f"nsnonbounded {split} generating {count} samples on {device}", flush=True)
+        torch.manual_seed(int(base_seed))
+        if device.type == "cuda":
+            torch.cuda.manual_seed_all(int(base_seed))
+        s = int(args.resolution)
+        grf = GaussianRF(2, s, alpha=alpha, tau=tau, device=device)
+        grid = torch.linspace(0, 1, s + 1, device=device)[:-1]
+        x, y = torch.meshgrid(grid, grid, indexing="ij")
+        forcing = 0.1 * (torch.sin(2 * math.pi * (x + y)) + torch.cos(2 * math.pi * (x + y)))
+        w0 = grf.sample(int(count))
+        sol_vx0, sol_vy0, sol_w, sol_vx, sol_vy, sol_t = navier_stokes_2d(
+            w0,
+            forcing,
+            1e-3,
+            float(args.T),
+            float(args.ns_dt),
+            record_steps,
+        )
+        with h5py.File(path, "w") as h5:
+            h5.attrs["pde_name"] = "nsnonbounded"
+            h5.attrs["split"] = split
+            h5.attrs["n_samples"] = int(count)
+            h5.attrs["resolution"] = f"{s}x{s}"
+            h5.attrs["record_steps"] = int(record_steps)
+            h5.attrs["T"] = float(args.T)
+            h5.attrs["dt"] = float(args.ns_dt)
+            h5.attrs["viscosity"] = 1e-3
+            h5.attrs["forcing"] = "0.1*(sin(2*pi*(x+y))+cos(2*pi*(x+y)))"
+            h5.attrs["grf_alpha"] = float(alpha)
+            h5.attrs["grf_tau"] = float(tau)
+            h5.create_dataset("sample_seed", data=base_seed + np.arange(count, dtype=np.int64), dtype="int64")
+            h5.create_dataset("w0", data=w0.detach().cpu().numpy().astype("float32"), dtype="float32")
+            h5.create_dataset("w", data=sol_w.detach().cpu().numpy().astype("float32"), dtype="float32")
+            h5.create_dataset("vx0", data=sol_vx0.detach().cpu().numpy().astype("float32"), dtype="float32")
+            h5.create_dataset("vy0", data=sol_vy0.detach().cpu().numpy().astype("float32"), dtype="float32")
+            h5.create_dataset("vx", data=sol_vx.detach().cpu().numpy().astype("float32"), dtype="float32")
+            h5.create_dataset("vy", data=sol_vy.detach().cpu().numpy().astype("float32"), dtype="float32")
+            h5.create_dataset("t", data=sol_t.detach().cpu().numpy().astype("float32"), dtype="float32")
+
+    previews = {
+        "train": str(write_nsnonbounded_preview(train_path, pde_dir / "preview_train.png", "nsnonbounded (train, sample 0)")),
+        "test": str(write_nsnonbounded_preview(test_path, pde_dir / "preview_test.png", "nsnonbounded (test, sample 0)")),
+    }
+    check_path = write_split_no_leakage_check(pde_dir, "nsnonbounded", train_path, test_path)
+    return {"status": "ok", "files": [str(train_path), str(test_path)], "previews": previews, "no_leakage_check": str(check_path)}
+
+
 def write_error(pde_dir: Path, pde: str, status: str, exc: Exception) -> dict[str, Any]:
     error = {
         "status": status,
@@ -449,6 +528,17 @@ def write_group_multichannel_trajectory_preview(
         raise ValueError(f"Expected [T,H,W,C] data in {h5_path}, got {arr.shape}")
     series = np.moveaxis(arr, -1, 0)
     write_multichannel_trajectory_preview(series, preview_path, labels=labels, title=title, times=times)
+    return preview_path
+
+
+def write_nsnonbounded_preview(h5_path: Path, preview_path: Path, title: str) -> Path:
+    with h5py.File(h5_path, "r") as h5:
+        w = np.concatenate([h5["w0"][0][None, ...], np.moveaxis(h5["w"][0], -1, 0)], axis=0)
+        vx = np.concatenate([h5["vx0"][0][None, ...], np.moveaxis(h5["vx"][0], -1, 0)], axis=0)
+        vy = np.concatenate([h5["vy0"][0][None, ...], np.moveaxis(h5["vy"][0], -1, 0)], axis=0)
+        times = np.concatenate([[0.0], h5["t"][:].astype(np.float64)])
+    series = np.stack([w, vx, vy], axis=0)
+    write_multichannel_trajectory_preview(series, preview_path, labels=["w", "vx", "vy"], title=title, times=times)
     return preview_path
 
 
