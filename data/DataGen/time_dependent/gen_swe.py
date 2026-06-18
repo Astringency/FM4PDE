@@ -1,12 +1,14 @@
 import h5py
 import numpy as np
 import multiprocessing as mp
+from pathlib import Path
 from tqdm import tqdm
 from pdebench.data_gen.src.sim_radial_dam_break import RadialDamBreak2D
 
 def process_batch(batch_start, batch_size):
     batch_id = batch_start // batch_size
-    save_path = "/large_storage/zhangxf/PDEdata/test1125/"
+    save_dir = Path("/large_storage/zhangxf/PDEdata/shallow_water")
+    save_dir.mkdir(parents=True, exist_ok=True)
     for i in tqdm(range(batch_size), desc=f"Batch {batch_id+1}"):
         seed = batch_start + i
         rng = np.random.default_rng(seed)
@@ -25,8 +27,8 @@ def process_batch(batch_start, batch_size):
         
         swe.run(T=1.0, tsteps=10)
         
-        # file_name = f"{save_path}2d_swe_128_128_10_{batch_id}.h5"
-        file_name = f"{save_path}swe_test_1000-128-128-10.h5"
+        # file_name = str(save_dir / f"2d_swe_128_128_10_{batch_id}.h5")
+        file_name = str(save_dir / "shallow_water_test_1000-128-128-10.h5")
         seed_str = str(seed).zfill(5)
         
         with h5py.File(file_name, "a") as f:
@@ -59,4 +61,3 @@ if __name__ == "__main__":
     process_batch(0, total_samples)
 
     print(f"All {total_samples} samples done.")
-

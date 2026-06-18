@@ -25,7 +25,7 @@ from data.load import PDEloader, TensorDataset
 from data.metadata import detach_pde_params, summarize_pde_params
 from data.specs import get_pde_spec
 from data.transform import PDEStandardizer
-from models.model_configs import instantiate_model
+from models.model_configs import get_model_config, get_model_config_metadata, instantiate_model
 from train_arg_parser import get_args_parser
 from training import distributed_mode
 from training.grad_scaler import NativeScalerWithGradNormCount as NativeScaler
@@ -69,12 +69,26 @@ def main(args):
     )
     num_channels = int(data.shape[1])
     logger.info(f"Loaded data shape={tuple(data.shape)}, labels dtype={label.dtype}")
+    model_arch = pde_names[0]
+    model_config = get_model_config(
+        model_arch,
+        profile=args.model_profile,
+        in_channels=num_channels,
+        out_channels=num_channels,
+    )
+    model_config_metadata = _build_model_config_metadata(
+        model_arch=model_arch,
+        pde_names=pde_names,
+        profile=args.model_profile,
+        num_channels=num_channels,
+    )
     data_metadata = _build_data_metadata(
         args=args,
         pde_names=pde_names,
         data=data,
         label=label,
         loader_metadata=loader_metadata,
+        model_config_metadata=model_config_metadata,
     )
     if distributed_mode.is_main_process() and args.output_dir:
         output_dir = Path(args.output_dir)
@@ -89,13 +103,13 @@ def main(args):
         pde=args.dataset,
     )
 
-    model_arch = pde_names[0]
     logger.info("Initializing Model")
     model = instantiate_model(
         architechture=model_arch,
         use_ema=args.use_ema,
         in_channels=num_channels,
         out_channels=num_channels,
+        profile=args.model_profile,
     )
     model.to(device)
 
@@ -221,6 +235,9 @@ def main(args):
                 data_shape=tuple(data.shape),
                 num_channels=num_channels,
                 data_metadata=data_metadata,
+                model_profile=args.model_profile,
+                model_config=model_config,
+                model_config_metadata=model_config_metadata,
             )
             if final_epoch or args.test_run:
                 logger.info("Final model saved.")
@@ -241,6 +258,7 @@ def _build_data_metadata(
     data: torch.Tensor,
     label: torch.Tensor,
     loader_metadata: dict[str, Any],
+    model_config_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     specs = {pde: get_pde_spec(pde).to_metadata() for pde in pde_names}
     channel_names = _training_channel_names(pde_names, loader_metadata, int(data.shape[1]))
@@ -260,6 +278,19 @@ def _build_data_metadata(
         },
         "residual_family": {pde: specs[pde]["residual_family"] for pde in pde_names},
         "loadby": {pde: specs[pde]["default_loadby"] for pde in pde_names},
+        "model_profile": getattr(args, "model_profile", "recommended"),
+        "model_config": model_config_metadata,
+        "model_config_metadata": model_config_metadata,
+        "architecture_family": (model_config_metadata or {}).get("architecture_family"),
+        "attention_resolutions": (model_config_metadata or {}).get("attention_resolutions"),
+        "channel_mult": (model_config_metadata or {}).get("channel_mult"),
+        "dropout": (model_config_metadata or {}).get("dropout"),
+        "model_channels": (model_config_metadata or {}).get("model_channels"),
+        "num_res_blocks": (model_config_metadata or {}).get("num_res_blocks"),
+        "with_fourier_features": (model_config_metadata or {}).get("with_fourier_features"),
+        "axis_semantics": (model_config_metadata or {}).get("axis_semantics"),
+        "scalar_conditioning": (model_config_metadata or {}).get("scalar_conditioning", False),
+        "scalar_conditioning_params": (model_config_metadata or {}).get("scalar_conditioning_params", []),
         "num_samples": int(data.shape[0]),
         "label_values": sorted(int(value) for value in torch.unique(label).detach().cpu().tolist()),
         "pde_param_summary": summarize_pde_params(loader_metadata),
@@ -270,6 +301,33 @@ def _build_data_metadata(
             "channel_names": channel_names,
         },
     }
+
+
+def _build_model_config_metadata(
+    model_arch: str,
+    pde_names: list[str],
+    profile: str,
+    num_channels: int,
+) -> dict[str, Any]:
+    metadata = get_model_config_metadata(
+        model_arch,
+        profile=profile,
+        in_channels=num_channels,
+        out_channels=num_channels,
+    )
+    metadata["model_arch"] = model_arch
+    metadata["model_profile"] = profile
+    if len(pde_names) > 1:
+        metadata["model_arch_source"] = "first_pde_in_joint_dataset"
+        metadata["joint_pde_names"] = list(pde_names)
+        metadata["joint_architecture_limitation"] = (
+            "joint training uses the first PDE architecture because current joint datasets "
+            "require identical channel counts and a single UNet instance"
+        )
+    else:
+        metadata["model_arch_source"] = "single_pde"
+        metadata["joint_pde_names"] = list(pde_names)
+    return metadata
 
 
 def _training_channel_names(

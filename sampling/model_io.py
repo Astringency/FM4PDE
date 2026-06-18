@@ -27,6 +27,7 @@ def load_fm4pde_checkpoint(
     device: str | Any,
     wrap: bool = True,
     prefer_ema: bool = True,
+    model_profile: str | None = None,
 ) -> Any:
     model, _, _ = load_fm4pde_checkpoint_bundle(
         checkpoint_path,
@@ -34,6 +35,7 @@ def load_fm4pde_checkpoint(
         device,
         wrap=wrap,
         prefer_ema=prefer_ema,
+        model_profile=model_profile,
     )
     return model
 
@@ -44,6 +46,7 @@ def load_fm4pde_checkpoint_bundle(
     device: str | Any,
     wrap: bool = True,
     prefer_ema: bool = True,
+    model_profile: str | None = None,
 ) -> tuple[Any, Any | None, dict[str, Any]]:
     import torch
     from data.transform import PDEStandardizer
@@ -53,23 +56,30 @@ def load_fm4pde_checkpoint_bundle(
     loaded = torch.load(path, weights_only=False, map_location="cpu")
     payload = loaded if isinstance(loaded, dict) else {"model": loaded}
     num_channels = _infer_num_channels(payload)
-    model = instantiate_model(
-        architechture=pde_type,
-        use_ema=False,
-        in_channels=num_channels,
-        out_channels=num_channels,
+    model_cfg, selected_profile, selected_metadata = _select_model_config_from_payload(
+        payload,
+        pde_type=pde_type,
+        num_channels=num_channels,
+        requested_profile=model_profile,
     )
+    model = instantiate_model(architechture=pde_type, use_ema=False, model_config=model_cfg)
     state, selected_inference_weight = _select_inference_state(payload, model, prefer_ema=prefer_ema)
     try:
         model.load_state_dict(state, strict=True)
     except RuntimeError as exc:
         raise RuntimeError(
-            f"Could not load {selected_inference_weight} checkpoint weights from {path} "
-            "into a plain UNetModel."
+            "Checkpoint architecture does not match the current model profile. "
+            "Retrain with recommended profile or pass explicit legacy_base profile if this is an old checkpoint. "
+            f"checkpoint={path}, pde={pde_type}, selected_profile={selected_profile!r}, "
+            f"inference_weight={selected_inference_weight}."
         ) from exc
     model = model.to(device)
     model.eval()
     payload["selected_inference_weight"] = selected_inference_weight
+    payload["runtime_requested_model_profile"] = model_profile
+    payload["selected_model_profile"] = selected_profile
+    payload["selected_model_config_metadata"] = selected_metadata
+    payload["selected_architecture_family"] = selected_metadata.get("architecture_family")
     payload["has_ema"] = bool(
         payload.get("has_ema", False)
         or payload.get("model_ema") is not None
@@ -87,6 +97,63 @@ def load_fm4pde_checkpoint_bundle(
         )
     wrapped = WrappedModel(model).to(device) if wrap else model
     return wrapped, normalizer, payload
+
+
+def _select_model_config_from_payload(
+    payload: dict[str, Any],
+    *,
+    pde_type: str,
+    num_channels: int | None,
+    requested_profile: str | None,
+) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    from models.model_configs import get_model_config, get_model_config_metadata
+
+    checkpoint_cfg = payload.get("model_config")
+    if isinstance(checkpoint_cfg, dict) and checkpoint_cfg:
+        selected_profile = str(
+            payload.get("model_profile")
+            or checkpoint_cfg.get("architecture_profile")
+            or "checkpoint"
+        )
+        metadata = payload.get("model_config_metadata")
+        if not isinstance(metadata, dict) or not metadata:
+            metadata = _jsonable_model_config(checkpoint_cfg)
+            metadata.setdefault("architecture_profile", selected_profile)
+        return dict(checkpoint_cfg), selected_profile, dict(metadata)
+
+    if requested_profile is None:
+        raise ValueError(
+            "Checkpoint has no saved model_config. Pass an explicit model_profile, for example "
+            "model_profile=legacy_base for old checkpoints, or retrain so checkpoints include model_config."
+        )
+
+    model_cfg = get_model_config(
+        pde_type,
+        profile=requested_profile,
+        in_channels=num_channels,
+        out_channels=num_channels,
+    )
+    metadata = get_model_config_metadata(
+        pde_type,
+        profile=requested_profile,
+        in_channels=num_channels,
+        out_channels=num_channels,
+    )
+    return model_cfg, requested_profile, metadata
+
+
+def _jsonable_model_config(config: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in config.items():
+        if isinstance(value, tuple):
+            out[key] = list(value)
+        elif isinstance(value, list):
+            out[key] = value
+        elif isinstance(value, (str, int, float, bool)) or value is None:
+            out[key] = value
+        else:
+            out[key] = str(value)
+    return out
 
 
 def _select_inference_state(
@@ -214,6 +281,9 @@ def _infer_num_channels(payload: Any) -> int | None:
         return None
     if payload.get("num_channels") is not None:
         return int(payload["num_channels"])
+    model_config = payload.get("model_config")
+    if isinstance(model_config, dict) and model_config.get("in_channels") is not None:
+        return int(model_config["in_channels"])
     if payload.get("data_shape") is not None:
         return int(payload["data_shape"][1])
     normalizer = payload.get("normalizer")

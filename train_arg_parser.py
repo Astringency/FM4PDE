@@ -7,7 +7,7 @@
 import argparse
 import logging
 
-from models.model_configs import MODEL_CONFIGS
+from models.model_configs import MODEL_CONFIGS, MODEL_PROFILE_CHOICES
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,15 @@ def get_args_parser():
         default="float32",
         choices=["float32", "fp32", "float16", "fp16", "bfloat16", "bf16"],
         help="Autocast dtype used during training on CUDA.",
+    )
+    parser.add_argument(
+        "--model_profile",
+        default="recommended",
+        choices=MODEL_PROFILE_CHOICES,
+        help=(
+            "Model architecture profile. recommended is the PDE-family registry; "
+            "light/base/heavy are architecture ablations; legacy_base explicitly reproduces old configs."
+        ),
     )
 
     # Dataset parameters

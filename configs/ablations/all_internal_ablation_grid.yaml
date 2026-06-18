@@ -95,6 +95,24 @@ groups:
       sensor_mode: per_sample_random
     matrix:
       pde_residual_region: [full, observed, boundary_excluded, union_obs]
+  architecture_profile:
+    base_configs:
+      - configs/ablations/base/poisson.yaml
+      - configs/ablations/base/helmholtz.yaml
+      - configs/ablations/base/burger.yaml
+      - configs/ablations/base/reaction_diffusion.yaml
+      - configs/ablations/base/shallow_water.yaml
+      - configs/ablations/base/nsnonbounded.yaml
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+    matrix:
+      model_profile: [light, base, heavy]
   time_dependent_residual_mode:
     base_configs:
       - configs/ablations/base/heat.yaml

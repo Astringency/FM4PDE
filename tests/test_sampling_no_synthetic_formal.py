@@ -23,11 +23,53 @@ FORMAL_BASE_CONFIGS = [
     "nsnonbounded",
 ]
 
+TOP_LEVEL_CONFIGS = [
+    "advection_diffusion",
+    "burger",
+    "darcy",
+    "heat",
+    "heat_fixed",
+    "helmholtz",
+    "nsnonbounded",
+    "poisson",
+    "reaction_diffusion",
+    "shallow_water",
+    "steady_heat_conduction",
+    "wave",
+]
+
 
 def test_formal_base_configs_disable_synthetic_fallback():
     for name in FORMAL_BASE_CONFIGS:
         cfg = load_config(f"configs/ablations/base/{name}.yaml")
         assert cfg.allow_synthetic_data is False
+
+
+def test_formal_data_paths_use_pde_named_directories():
+    for name in FORMAL_BASE_CONFIGS:
+        cfg = load_config(f"configs/ablations/base/{name}.yaml")
+        path = Path(cfg.data_path)
+        path_text = path.as_posix()
+        assert "/pair_h5/" not in path_text
+        assert "/test1125/" not in path_text
+        if name == "burger":
+            assert path.parent.name in {"burger", "burgers"}
+        else:
+            assert path.parent.name == name
+
+
+def test_top_level_data_paths_use_pde_named_directories():
+    for name in TOP_LEVEL_CONFIGS:
+        cfg = load_config(f"configs/{name}.yaml")
+        path = Path(cfg.data_path)
+        path_text = path.as_posix()
+        assert "/pair_h5/" not in path_text
+        assert "/test1125/" not in path_text
+        expected_dir = "heat" if name == "heat_fixed" else name
+        if name == "burger":
+            assert path.parent.name in {"burger", "burgers"}
+        else:
+            assert path.parent.name == expected_dir
 
 
 def test_load_ground_truth_missing_formal_data_raises(tmp_path):

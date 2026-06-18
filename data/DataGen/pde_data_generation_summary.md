@@ -43,7 +43,7 @@
   速度由流函数恢复，固定 forcing 为 `0.1*(sin(2*pi*(x+y))+cos(2*pi*(x+y)))`。
 - 初边值条件：初始涡量 `w0` 从二维 GRF 采样；空间采用周期谱方法。
 - 生成代码：`data/DataGen/time_dependent/gen_nbns.py`，依赖 `no_bound_ns/ns_2d.py` 和 `no_bound_ns/random_fields.py`；时间 `T=1`，内部步长 `1e-4`，记录 `10` 个快照。
-- 磁盘格式：`nsnonbounded/nsnonbounded_10000-128-128-10_i_new.mat`，key 包括 `w0`、`w`、`vx0`、`vy0`、`vx`、`vy`、`t`。
+- 磁盘格式：train 为 `nsnonbounded/nsnonbounded_10000-128-128-10_i_new.mat`，test 为 `nsnonbounded/nsnonbounded_test_1000-128-128-10.mat`；key 包括 `w0`、`w`、`vx0`、`vy0`、`vx`、`vy`、`t`。
 - FM4PDE 读入：当前训练 loader 取 `[w0,wT]`，即 `[N,2,H,W]`；物理量为初始涡量和终态涡量，速度场只作为磁盘附加量保存。
 
 ## 5. Burgers
@@ -52,7 +52,7 @@
   $$\partial_tu+\frac12\partial_x(u^2)=\nu\partial_{xx}u,\quad x\in[0,1],\quad \nu=0.01.$$
 - 初边值条件：一维周期边界；初值 `u0` 从周期 GRF 采样。
 - 生成代码：`data/DataGen/static/gen_burgers1.m` 和 `burgers1.m`，MATLAB/Chebfun `spin` 时间推进；输出被组织为 `[space,time]` 的 `128 x 128` 时空图。
-- 磁盘格式：`burgers/burger_10000-128-128_i.mat`，key 为 `output`，形状 `[N,128,128]`。
+- 磁盘格式：train 为 `burgers/burger_10000-128-128_i.mat`，test 为 `burgers/burger_test_1000-128-128_1.mat`；key 为 `output`，形状 `[N,128,128]`。
 - FM4PDE 读入：`[u]`，即 `[N,1,128,128]`；采样端当前把同一时空场作为 coef/sol 单通道状态处理。
 
 ## 6. Reaction-Diffusion
@@ -73,7 +73,7 @@
   $$\partial_t(hv)+\partial_x(huv)+\partial_y(hv^2+\frac12gh^2)=0.$$
 - 初边值条件：径向溃坝初值，`h=h_inner` inside dam radius、外部 `h=1`，`hu=hv=0`；边界为 extrapolation/零阶 Neumann。
 - 生成代码：`data/DataGen/time_dependent/gen_swe.py`，依赖 `pdebench/data_gen/src/sim_radial_dam_break.py` 和 Clawpack/PyClaw；默认 `g=1`、`T=1`、`10` 个时间步。
-- 磁盘格式：HDF5 group 每个样本含 `data/h`、`data/hu`、`data/hv`、`grid/x`、`grid/y`、`grid/t`，并记录 `dam_radius`、`inner_height` 等 attrs。
+- 磁盘格式：test 为 `shallow_water/shallow_water_test_1000-128-128-10.h5`；HDF5 group 每个样本含 `data/h`、`data/hu`、`data/hv`、`grid/x`、`grid/y`、`grid/t`，并记录 `dam_radius`、`inner_height` 等 attrs。
 - FM4PDE 读入：`[h0,hu0,hv0,hT,huT,hvT]`，即 `[N,6,H,W]`；物理量为水深和两个方向动量。
 
 ## 8. Heat

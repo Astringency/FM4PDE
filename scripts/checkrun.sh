@@ -76,6 +76,7 @@ NUM_OBS="${NUM_OBS:-128}"
 OFFSET="${OFFSET:-0}"
 GUIDANCE_COMPONENTS="${GUIDANCE_COMPONENTS:-obs_pde}"
 RESIDUAL_MODE="${RESIDUAL_MODE:-auto}"
+MODEL_PROFILE="${MODEL_PROFILE:-recommended}"
 
 CONDA_ENV="${CONDA_ENV:-fm4pde}"
 PYTHON_BIN="${PYTHON_BIN:-}"
@@ -112,6 +113,7 @@ echo "pdes: ${PDES[*]}"
 echo "data_root: ${DATA_ROOT}"
 echo "device: ${DEVICE}"
 echo "epochs: ${EPOCHS}"
+echo "model_profile: ${MODEL_PROFILE}"
 echo "output_root: ${OUTPUT_ROOT}"
 
 # Force a single-process check run by default. This avoids accidental SLURM or
@@ -120,14 +122,17 @@ unset RANK WORLD_SIZE LOCAL_RANK MASTER_ADDR MASTER_PORT
 unset SLURM_PROCID SLURM_LOCALID SLURM_NTASKS
 
 infer_train_data_path() {
-  local pde="$1"
   if [[ -n "${TRAIN_DATA_PATH:-}" ]]; then
     printf '%s\n' "${TRAIN_DATA_PATH}"
-  elif [[ -d "${DATA_ROOT}/pair_h5/${pde}" ]]; then
-    printf '%s\n' "${DATA_ROOT}/pair_h5"
   else
     printf '%s\n' "${DATA_ROOT}"
   fi
+}
+
+upper_name() {
+  local value="$1"
+  value="${value^^}"
+  printf '%s\n' "${value//[^A-Z0-9]/_}"
 }
 
 config_for_pde() {
@@ -139,16 +144,105 @@ config_for_pde() {
   fi
 }
 
+test_data_patterns_for_pde() {
+  case "$1" in
+    darcy)
+      printf '%s\n' "darcy_test_*.mat" "*darcy*test*.mat"
+      ;;
+    poisson)
+      printf '%s\n' "poisson_test_*.mat" "*poisson*test*.mat"
+      ;;
+    helmholtz)
+      printf '%s\n' "helmholtz_test_*.mat" "*helmholtz*test*.mat"
+      ;;
+    nsnonbounded)
+      printf '%s\n' "nsnonbounded_test_*.mat" "*nsnonbounded*test*.mat" "nsnonbounded_*-*-*-*.mat"
+      ;;
+    burger)
+      printf '%s\n' "burger_test_*.mat" "burgers_test_*.mat" "*burger*test*.mat"
+      ;;
+    reaction_diffusion)
+      printf '%s\n' "reaction_diffusion_test_*.h5" "*reaction_diffusion*test*.h5"
+      ;;
+    shallow_water)
+      printf '%s\n' "shallow_water_test_*.h5" "swe_test_*.h5" "2d_swe_test_*.h5" "*shallow*water*test*.h5" "*swe*test*.h5"
+      ;;
+    heat)
+      printf '%s\n' "heat_test_*.h5" "heat_fixed_test_*.h5" "*heat*test*.h5"
+      ;;
+    wave)
+      printf '%s\n' "wave_test_*.h5" "*wave*test*.h5"
+      ;;
+    advection_diffusion)
+      printf '%s\n' "advection_diffusion_test_*.h5" "*advection*diffusion*test*.h5"
+      ;;
+    steady_heat_conduction)
+      printf '%s\n' "steady_heat_conduction_test_*.h5" "*steady*heat*conduction*test*.h5"
+      ;;
+    *)
+      printf '%s\n' "*${1}*test*"
+      ;;
+  esac
+}
+
+find_test_data_for_pde() {
+  local pde="$1"
+  local pde_dir
+  local pattern
+  local found
+  while IFS= read -r pde_dir; do
+    [[ -d "${pde_dir}" ]] || continue
+    while IFS= read -r pattern; do
+      found="$(
+        find "${pde_dir}" -maxdepth 1 -type f -name "${pattern}" -printf '%T@ %p\n' \
+          | sort -nr \
+          | head -n 1 \
+          | cut -d' ' -f2-
+      )"
+      if [[ -n "${found}" ]]; then
+        printf '%s\n' "${found}"
+        return
+      fi
+    done < <(test_data_patterns_for_pde "${pde}")
+  done < <(pde_data_dirs "${pde}")
+  printf '\n'
+}
+
+pde_data_dirs() {
+  local pde="$1"
+  printf '%s\n' "${DATA_ROOT}/${pde}"
+  if [[ "${pde}" == "burger" ]]; then
+    printf '%s\n' "${DATA_ROOT}/burgers"
+  fi
+}
+
 test_data_override_for_pde() {
-  local config="$1"
+  local pde="$1"
+  local config="$2"
+  local per_pde_key
+  local discovered
+  local config_data_path
+  per_pde_key="TEST_DATA_$(upper_name "${pde}")"
+  if [[ -n "${!per_pde_key:-}" ]]; then
+    printf '%s\n' "${!per_pde_key}"
+    return
+  fi
   if [[ -n "${TEST_DATA_PATH:-}" ]]; then
     printf '%s\n' "${TEST_DATA_PATH}"
     return
   fi
-  local config_data_path
+  discovered="$(find_test_data_for_pde "${pde}")"
+  if [[ -n "${discovered}" ]]; then
+    printf '%s\n' "${discovered}"
+    return
+  fi
   config_data_path="$(awk -F': ' '/^data_path:/ {print $2; exit}' "${config}" | tr -d '"' || true)"
   if [[ -n "${config_data_path}" && "${DATA_ROOT}" != "${DEFAULT_DATA_ROOT}" && "${config_data_path}" == "${DEFAULT_DATA_ROOT}"* ]]; then
     printf '%s\n' "${config_data_path/${DEFAULT_DATA_ROOT}/${DATA_ROOT}}"
+    return
+  fi
+  if [[ -n "${config_data_path}" ]]; then
+    printf '%s\n' "${config_data_path}"
   fi
 }
 
@@ -218,6 +312,7 @@ run_one_pde() {
     --device "${DEVICE}"
     --lr "${LR}"
     --seed "${SEED}"
+    --model_profile "${MODEL_PROFILE}"
     --eval_frequency -1
   )
   if [[ "${pde}" == "reaction_diffusion" ]]; then
@@ -249,15 +344,20 @@ run_one_pde() {
     --override "num_obs=${NUM_OBS}"
     --override "offset=${OFFSET}"
     --override "guidance_components=${GUIDANCE_COMPONENTS}"
+    --override "model_profile=${MODEL_PROFILE}"
     --override "allow_synthetic_data=false"
   )
   if [[ "${RESIDUAL_MODE}" != "auto" ]]; then
     sample_overrides+=(--override "residual_mode=${RESIDUAL_MODE}")
   fi
-  test_data_path="$(test_data_override_for_pde "${config}")"
+  test_data_path="$(test_data_override_for_pde "${pde}" "${config}")"
   if [[ -n "${test_data_path}" ]]; then
     if [[ ! -e "${test_data_path}" ]]; then
       echo "Test data path does not exist for ${pde}: ${test_data_path}" >&2
+      echo "Expected formal test data under these directories:" >&2
+      pde_data_dirs "${pde}" >&2
+      echo "Matching one of:" >&2
+      test_data_patterns_for_pde "${pde}" >&2
       exit 2
     fi
     sample_overrides+=(--override "data_path=${test_data_path}")

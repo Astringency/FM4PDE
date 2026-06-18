@@ -8,7 +8,7 @@ torch = pytest.importorskip("torch")
 
 from sampling.model_io import WrappedModel, load_fm4pde_checkpoint_bundle
 from data.transform import PDEStandardizer
-from models.model_configs import MODEL_CONFIGS, instantiate_model
+from models.model_configs import MODEL_CONFIGS, get_model_config_metadata, instantiate_model
 from training.load_and_save import save_model
 
 
@@ -63,6 +63,9 @@ def _save_heat_checkpoint(tmp_path, model, use_ema: bool):
         normalizer=normalizer,
         data_shape=(1, 2, 4, 4),
         num_channels=2,
+        model_profile="recommended",
+        model_config=MODEL_CONFIGS["heat"],
+        model_config_metadata=get_model_config_metadata("heat", profile="recommended", in_channels=2, out_channels=2),
     )
     return tmp_path / "fm4heat.pth"
 
@@ -84,10 +87,11 @@ def test_non_ema_checkpoint_loads_for_sampling(tmp_path):
         device=torch.device("cpu"),
         wrap=True,
         prefer_ema=True,
+        model_profile="recommended",
     )
 
     assert isinstance(wrapped, WrappedModel)
-    assert payload["checkpoint_schema_version"] == 2
+    assert payload["checkpoint_schema_version"] == 3
     assert payload["selected_inference_weight"] == "raw"
     assert payload["has_ema"] is False
 
@@ -116,6 +120,7 @@ def test_ema_checkpoint_loads_ema_or_raw_plain_weights(tmp_path):
         device=torch.device("cpu"),
         wrap=True,
         prefer_ema=True,
+        model_profile="recommended",
     )
     assert isinstance(wrapped_ema, WrappedModel)
     assert ema_payload["selected_inference_weight"] == "ema"
@@ -152,6 +157,7 @@ def test_legacy_ema_state_dict_fallback_loads_plain_model(tmp_path):
         device=torch.device("cpu"),
         wrap=True,
         prefer_ema=True,
+        model_profile="recommended",
     )
 
     first_trainable_name = next(name for name, param in model.model.named_parameters() if param.requires_grad)

@@ -15,15 +15,24 @@ Required data fields for formal runs:
 - `coef_name`
 - `solution_name`
 - `checkpoint_path`
+- `model_profile`
 - `img_channels`
 - `img_resolution`
 - `allow_synthetic_data: false`
 
 Smoke configs may set `allow_synthetic_data: true`; formal configs should fail if the dataset path is missing.
 
+`model_profile: recommended` is the formal default. `light`, `base`, and
+`heavy` are architecture ablation profiles; `legacy_base` is only for explicit
+old-checkpoint reproduction. Sampling reconstructs the model from checkpoint
+`model_config` first, then records both the requested runtime profile and the
+checkpoint architecture metadata in `run_metadata.json`.
+
 ## Pair HDF5 Metadata
 
 Heat, Wave, Advection-Diffusion, and Steady Heat Conduction use the endpoint pair HDF5 format exposed as `loadby: pair_h5`. The HDF5 dataset names remain `input_data` and `output_data`; those names are part of the disk format and do not imply any special code path.
+
+`pair_h5` is not a storage subdirectory. Formal data files are expected directly under `DATA_ROOT/<pde>/`, for example `PDEdata/heat/heat_test_1000-128-128.h5`.
 
 Scalar or sample-level PDE parameters are loaded into `PDEGroundTruth.pde_params` and are not Flow Matching input channels:
 

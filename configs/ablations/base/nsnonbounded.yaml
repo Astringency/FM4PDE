@@ -1,11 +1,12 @@
 pde: nsnonbounded
 task: both
 data_config_path: configs/nsnonbounded.yaml
-data_path: /large_storage/zhangxf/PDEdata/test1125/nsnonbounded_1000-128-128-10_1.mat
+data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_1000-128-128-10.mat
 loadby: h5py
 coef_name: w0
 solution_name: w
 checkpoint_path: outputs/pretrained/fm4nsnonbounded.pth
+model_profile: recommended
 output_dir: outputs/ablations
 img_channels: 2
 img_resolution: 128

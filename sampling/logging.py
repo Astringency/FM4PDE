@@ -28,6 +28,7 @@ def write_run_metadata(
     run_dir: str | os.PathLike[str],
     ground_truth_metadata: dict[str, Any] | None = None,
     residual_metadata: dict[str, Any] | None = None,
+    checkpoint_metadata: dict[str, Any] | None = None,
 ) -> None:
     run_dir = Path(run_dir)
     save_resolved_config(config, run_dir)
@@ -78,6 +79,14 @@ def write_run_metadata(
             "noise_level_sol": config.noise_level_sol,
         },
         "residual": residual_metadata or {},
+        "checkpoint": checkpoint_metadata or {},
+        "model": {
+            "runtime_requested_model_profile": config.model_profile,
+            "checkpoint_model_profile": (checkpoint_metadata or {}).get("model_profile"),
+            "selected_model_profile": (checkpoint_metadata or {}).get("selected_model_profile"),
+            "selected_architecture_family": (checkpoint_metadata or {}).get("selected_architecture_family"),
+            "selected_model_config_metadata": (checkpoint_metadata or {}).get("selected_model_config_metadata"),
+        },
         "device": config.device,
         "dtype": config.dtype,
         "torch": torch_runtime_metadata(),

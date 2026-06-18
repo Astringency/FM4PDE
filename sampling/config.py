@@ -60,6 +60,7 @@ VALID_RESIDUAL_MODES = {
     "full_time_space",
     "disabled",
 }
+VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy", "legacy_base"}
 
 
 _LOCAL_CHECKPOINTS = {
@@ -84,6 +85,7 @@ class AblationConfig:
     data_config_path: str = "configs/poisson.yaml"
     checkpoint_path: str = "outputs/pretrained/fm4poisson.pth"
     output_dir: str = "outputs/ablations"
+    model_profile: str = "recommended"
 
     guidance_components: str = "obs_pde"
     loss_state: str = "endpoint"
@@ -168,6 +170,7 @@ class AblationConfig:
             ("loss_type", self.loss_type, VALID_LOSS_TYPES),
             ("stochastic_guidance_time", self.stochastic_guidance_time, VALID_STOCHASTIC_GUIDANCE_TIMES),
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
+            ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
             ("near_endpoint_sensor_mode", self.near_endpoint_sensor_mode, VALID_SENSOR_MODES),
         ]
         for name, value, allowed in checks:

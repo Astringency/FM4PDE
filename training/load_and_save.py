@@ -176,6 +176,9 @@ def save_model(
     data_shape: tuple[int, ...] | None = None,
     num_channels: int | None = None,
     data_metadata: dict[str, Any] | None = None,
+    model_profile: str | None = None,
+    model_config: dict[str, Any] | None = None,
+    model_config_metadata: dict[str, Any] | None = None,
 ):
     output_dir = Path(args.output_dir)
     epoch_name = str(epoch)
@@ -192,7 +195,7 @@ def save_model(
         "use_ema": bool(getattr(args, "use_ema", False) or has_ema),
         "has_ema": bool(has_ema),
         "inference_weight": "ema" if has_ema else "raw",
-        "checkpoint_schema_version": 2,
+        "checkpoint_schema_version": 3,
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
         "lr_schedule": lr_schedule.state_dict() if lr_schedule is not None else None,
         "epoch": epoch,
@@ -206,6 +209,9 @@ def save_model(
             "eps": getattr(normalizer, "eps", None),
         },
         "data_metadata": data_metadata,
+        "model_profile": model_profile or getattr(args, "model_profile", None),
+        "model_config": model_config,
+        "model_config_metadata": model_config_metadata,
     }
 
     if loss_scaler is not None:
@@ -220,6 +226,9 @@ def save_model(
             "epoch": epoch,
             "normalizer": normalizer_state,
             "data_metadata": data_metadata,
+            "model_profile": model_profile or getattr(args, "model_profile", None),
+            "model_config": model_config,
+            "model_config_metadata": model_config_metadata,
         }
         model.save_checkpoint(
             save_dir=args.output_dir,
@@ -235,6 +244,9 @@ def save_model(
                 "epoch": epoch,
                 "normalizer": normalizer_state,
                 "data_metadata": data_metadata,
+                "model_profile": model_profile or getattr(args, "model_profile", None),
+                "model_config": model_config,
+                "model_config_metadata": model_config_metadata,
             }
             model.save_checkpoint(
                 save_dir=args.output_dir,

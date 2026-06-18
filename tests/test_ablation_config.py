@@ -48,6 +48,15 @@ def test_residual_mode_validation():
         bad.validate()
 
 
+def test_model_profile_validation():
+    cfg = AblationConfig(model_profile="legacy_base")
+    cfg.validate()
+
+    bad = AblationConfig(model_profile="old_default")
+    with pytest.raises(ValueError, match="model_profile"):
+        bad.validate()
+
+
 def test_load_config_rejects_old_schema(tmp_path):
     path = tmp_path / "old.yaml"
     path.write_text(

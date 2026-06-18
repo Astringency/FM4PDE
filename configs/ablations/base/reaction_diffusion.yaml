@@ -6,6 +6,7 @@ loadby: rd
 coef_name: a
 solution_name: u
 checkpoint_path: outputs/pretrained/fm4reaction_diffusion.pth
+model_profile: recommended
 output_dir: outputs/ablations
 img_channels: 4
 img_resolution: 128

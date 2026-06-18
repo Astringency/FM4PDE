@@ -83,8 +83,20 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         checkpoint_payload: dict[str, Any] = {}
     else:
         net, normalizer, checkpoint_payload = load_fm4pde_checkpoint_bundle(
-            config.checkpoint_path, config.pde, device=device, wrap=True
+            config.checkpoint_path,
+            config.pde,
+            device=device,
+            wrap=True,
+            model_profile=config.model_profile,
         )
+    checkpoint_metadata = _checkpoint_metadata(checkpoint_payload)
+    write_run_metadata(
+        config,
+        run_dir,
+        ground_truth_metadata=gt.metadata,
+        residual_metadata=_residual_metadata_for_config(config),
+        checkpoint_metadata=checkpoint_metadata,
+    )
     _check_sampling_channels(gt, normalizer, checkpoint_payload)
 
     grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta)
@@ -194,7 +206,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "intermediate": intermediates,
             "ground_truth_metadata": gt.metadata,
             "normalizer": normalizer.state_dict() if normalizer is not None else None,
-            "checkpoint_metadata": _checkpoint_metadata(checkpoint_payload),
+            "checkpoint_metadata": checkpoint_metadata,
             "config": config.asdict(),
         },
     )
@@ -266,6 +278,12 @@ def _checkpoint_metadata(payload: dict[str, Any]) -> dict[str, Any]:
         "use_ema": payload.get("use_ema"),
         "has_ema": payload.get("has_ema"),
         "selected_inference_weight": payload.get("selected_inference_weight"),
+        "model_profile": payload.get("model_profile"),
+        "model_config_metadata": payload.get("model_config_metadata"),
+        "runtime_requested_model_profile": payload.get("runtime_requested_model_profile"),
+        "selected_model_profile": payload.get("selected_model_profile"),
+        "selected_model_config_metadata": payload.get("selected_model_config_metadata"),
+        "selected_architecture_family": payload.get("selected_architecture_family"),
         "data_metadata": payload.get("data_metadata"),
     }
 

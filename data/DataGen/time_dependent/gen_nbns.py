@@ -4,6 +4,7 @@ from no_bound_ns.ns_2d import navier_stokes_2d
 import h5py
 import torch
 import math
+from pathlib import Path
 
 
 def main(batch=5, N_each_batch=10000, resolution=128, device='cuda', if_test=False):
@@ -38,12 +39,14 @@ def main(batch=5, N_each_batch=10000, resolution=128, device='cuda', if_test=Fal
         sol_vx0, sol_vy0, sol_w, sol_vx, sol_vy, sol_t = navier_stokes_2d(w0, f, 1e-3, 1.0, 1e-4, record_steps)
         a = w0.real
         
+        out_dir = Path('/large_storage/zhangxf/PDEdata/nsnonbounded')
+        out_dir.mkdir(parents=True, exist_ok=True)
         if if_test:
-            filename = f'/large_storage/zhangxf/PDEdata/test1125/nsnonbounded_{N}-{s}-{s}-{record_steps}_{i+1}.mat'
+            filename = out_dir / f'nsnonbounded_test_{N}-{s}-{s}-{record_steps}.mat'
         else:
-            filename = f'/large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_{N}-{s}-{s}-{record_steps}_{i+1}_new.mat'
+            filename = out_dir / f'nsnonbounded_{N}-{s}-{s}-{record_steps}_{i+1}_new.mat'
         
-        with h5py.File(filename, 'w') as f:
+        with h5py.File(str(filename), 'w') as f:
             f.create_dataset('w0', data=a.cpu().numpy())
             f.create_dataset('w', data=sol_w.cpu().numpy())
             f.create_dataset('vx0', data=sol_vx0.cpu().numpy())

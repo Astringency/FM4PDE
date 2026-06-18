@@ -1,7 +1,7 @@
 pde: darcy
 task: both
 data_config_path: configs/darcy.yaml
-data_path: /large_storage/zhangxf/PDEdata/test1125/darcy_test_1000-128-128.mat
+data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_1000-128-128.mat
 loadby: h5py
 coef_name: thresh_a_data
 solution_name: thresh_p_data
