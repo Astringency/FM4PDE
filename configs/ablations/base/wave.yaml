@@ -31,6 +31,6 @@ dtype: float32
 zeta_obs_a: 1
 zeta_obs_u: 1
 zeta_pde: 1
-allow_synthetic_data: true
+allow_synthetic_data: false
 img_channels: 4
 img_resolution: 128

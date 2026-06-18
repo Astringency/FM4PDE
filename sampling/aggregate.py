@@ -38,6 +38,17 @@ GROUP_DIMENSION_KEYS = [
     "clip_mode",
     "clip_threshold",
     "pde_residual_region",
+    "residual_mode",
+    "gradient_target",
+    "stochastic_guidance_time",
+    "hermite_collocation_times",
+    "hermite_num_collocation",
+    "hermite_include_integral_residual",
+    "hermite_integral_weight",
+    "num_near_endpoint_obs",
+    "near_endpoint_sensor_mode",
+    "near_endpoint_mask_seed",
+    "near_endpoint_shared_mask",
 ]
 
 GROUP_KEYS = ["ablation_family", "ablation_group_key", *GROUP_DIMENSION_KEYS]
@@ -136,7 +147,7 @@ def _read_curve_rows(run_dir: Path, config: dict[str, Any]) -> list[dict[str, An
 def _aggregate_rows(rows: list[dict[str, Any]], metrics: list[str], group_keys: list[str]) -> list[dict[str, Any]]:
     grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        grouped[tuple(row.get(key, "") for key in group_keys)].append(row)
+        grouped[tuple(normalize_group_value(row.get(key, "")) for key in group_keys)].append(row)
 
     out = []
     for key_values, group_rows in sorted(grouped.items(), key=lambda item: tuple(str(v) for v in item[0])):
@@ -191,11 +202,23 @@ def _ablation_family(row: dict[str, Any]) -> str:
 
 
 def _ablation_group_key(row: dict[str, Any]) -> str:
-    return _stable_join(f"{key}={row.get(key, '')}" for key in GROUP_DIMENSION_KEYS)
+    return _stable_join(f"{key}={normalize_group_value(row.get(key, ''))}" for key in GROUP_DIMENSION_KEYS)
 
 
 def _stable_join(values: Any) -> str:
     return "|".join(str(value) for value in values)
+
+
+def normalize_group_value(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    if isinstance(value, (list, tuple)):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _read_json(path: Path) -> dict[str, Any]:

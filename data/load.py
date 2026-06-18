@@ -223,23 +223,45 @@ class PDEloader:
         
         return self._finalize(np.concatenate(dataset, axis=0), 4)
 
-    def _reaction_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None, legacy_rd_files=False):
+    def _reaction_diffusion_load(
+        self,
+        data_path,
+        size=DEFAULT_TRAIN_SHARDS,
+        max_samples=None,
+        legacy_rd_files=False,
+        rd_init_mode_filter=None,
+    ):
         dataset = []
         sample_count = 0
         self.pde_params = {}
         self.pde_param_sources = {}
         self.pde_param_slices = []
         self.extra_metadata = {}
-        file_paths, selected_format, candidate_formats = self._reaction_diffusion_paths(
+        (
+            file_paths,
+            selected_format,
+            candidate_formats,
+            detected_init_modes,
+            mixed_init_modes,
+        ) = self._reaction_diffusion_paths(
             data_path,
             size=size,
             legacy_rd_files=legacy_rd_files,
+            rd_init_mode_filter=rd_init_mode_filter,
         )
         if not file_paths:
             raise FileNotFoundError(
                 f"No reaction_diffusion training HDF5 files found under {data_path}. "
                 "Expected new files named reaction_diffusion_*.h5; old "
                 "reaction_diffusion-128-128-* files are ignored unless legacy_rd_files=True."
+            )
+        if mixed_init_modes and rd_init_mode_filter is None:
+            warnings.warn(
+                "Multiple reaction-diffusion init modes were detected in the training directory; "
+                f"detected_init_modes={detected_init_modes}. Pass rd_init_mode_filter='grf' or 'iid' "
+                "to avoid mixing GRF and IID training files.",
+                RuntimeWarning,
+                stacklevel=2,
             )
 
         param_chunks = {}
@@ -305,6 +327,9 @@ class PDEloader:
             "selected_files": [str(path) for path in file_paths],
             "file_paths": [str(path) for path in file_paths],
             "num_loaded_samples": int(len(data)),
+            "rd_init_mode_filter": rd_init_mode_filter,
+            "detected_init_modes": detected_init_modes,
+            "mixed_init_modes": bool(mixed_init_modes),
         }
         if init_modes:
             self.extra_metadata["init_mode"] = init_modes
@@ -312,7 +337,15 @@ class PDEloader:
             self.extra_metadata["sample_seed"] = sample_seeds
         return data, label
 
-    def _reaction_diffusion_paths(self, data_path, size=DEFAULT_TRAIN_SHARDS, legacy_rd_files=False):
+    def _reaction_diffusion_paths(
+        self,
+        data_path,
+        size=DEFAULT_TRAIN_SHARDS,
+        legacy_rd_files=False,
+        rd_init_mode_filter=None,
+    ):
+        if rd_init_mode_filter not in {None, "grf", "iid"}:
+            raise ValueError("rd_init_mode_filter must be None, 'grf', or 'iid'")
         path = Path(data_path).expanduser()
         if path.is_file():
             selected_format = self._reaction_diffusion_file_format(path)
@@ -321,7 +354,14 @@ class PDEloader:
                     f"{path} matches the legacy reaction-diffusion file naming scheme; "
                     "pass legacy_rd_files=True to read legacy RD files explicitly."
                 )
-            return [path], selected_format, {selected_format}
+            init_mode = self._reaction_diffusion_init_mode_from_name(path)
+            detected = [init_mode] if init_mode else []
+            if selected_format == "new_gen_rd" and rd_init_mode_filter is not None and init_mode != rd_init_mode_filter:
+                raise FileNotFoundError(
+                    f"{path} has reaction-diffusion init_mode={init_mode!r}, "
+                    f"which does not match rd_init_mode_filter={rd_init_mode_filter!r}"
+                )
+            return [path], selected_format, {selected_format}, detected, False
 
         pde_dirs = []
         for candidate in (path, self._pde_dir(data_path)):
@@ -337,24 +377,41 @@ class PDEloader:
                 break
 
         found_new_paths = []
+        detected_init_modes: set[str] = set()
+        mixed_init_modes = False
         for pde_dir in pde_dirs:
-            new_paths = sorted(
+            all_new_paths = sorted(
                 file_path
                 for file_path in pde_dir.glob("reaction_diffusion_*.h5")
                 if not file_path.name.startswith("reaction_diffusion_test_")
             )
-            if new_paths:
+            if all_new_paths:
                 candidate_formats.add("new_gen_rd")
+            detected_init_modes = {
+                mode
+                for file_path in all_new_paths
+                if (mode := self._reaction_diffusion_init_mode_from_name(file_path)) is not None
+            }
+            mixed_init_modes = len(detected_init_modes) > 1
+            if rd_init_mode_filter is None:
+                new_paths = all_new_paths
+            else:
+                new_paths = [
+                    file_path
+                    for file_path in all_new_paths
+                    if self._reaction_diffusion_init_mode_from_name(file_path) == rd_init_mode_filter
+                ]
+            if new_paths:
                 if size is not None:
                     new_paths = new_paths[: int(size)]
                 found_new_paths = new_paths
                 break
 
         if legacy_rd_files and legacy_paths:
-            return legacy_paths, "legacy_rd", candidate_formats
+            return legacy_paths, "legacy_rd", candidate_formats, sorted(detected_init_modes), mixed_init_modes
         if found_new_paths:
-            return found_new_paths, "new_gen_rd", candidate_formats
-        return [], "", candidate_formats
+            return found_new_paths, "new_gen_rd", candidate_formats, sorted(detected_init_modes), mixed_init_modes
+        return [], "", candidate_formats, sorted(detected_init_modes), mixed_init_modes
 
     @staticmethod
     def _reaction_diffusion_file_format(path):
@@ -362,6 +419,15 @@ class PDEloader:
         if name.startswith(("reaction_diffusion-128-128-10_", "reaction_diffusion-128-128-100_")):
             return "legacy_rd"
         return "new_gen_rd"
+
+    @staticmethod
+    def _reaction_diffusion_init_mode_from_name(path):
+        name = Path(path).name
+        prefix = "reaction_diffusion_"
+        if not name.startswith(prefix) or name.startswith("reaction_diffusion_test_"):
+            return None
+        mode = name[len(prefix) :].split("_", 1)[0]
+        return mode if mode in {"grf", "iid"} else None
 
     @staticmethod
     def _legacy_reaction_diffusion_paths(pde_dir, size):

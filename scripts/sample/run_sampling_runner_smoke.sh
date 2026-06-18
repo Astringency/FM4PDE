@@ -10,7 +10,7 @@ python -m sampling.sweep \
   --list
 
 python -m sampling.runner \
-  --config configs/reaction_diffusion.yaml \
+  --config configs/ablations/smoke.yaml \
   --dry-run \
   --override num_steps=2 \
   --override device=cpu

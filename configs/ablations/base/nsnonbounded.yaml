@@ -28,6 +28,6 @@ zeta_obs_a: 30000
 zeta_obs_u: 300000
 zeta_pde: 0
 residual_mode: disabled
-allow_synthetic_data: true
+allow_synthetic_data: false
 img_channels: 2
 img_resolution: 128

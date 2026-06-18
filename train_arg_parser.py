@@ -144,6 +144,12 @@ def get_args_parser():
         help="Optional cap on loaded training samples per PDE for smoke tests.",
     )
     parser.add_argument(
+        "--rd_init_mode_filter",
+        default=None,
+        choices=["grf", "iid"],
+        help="Optional reaction-diffusion train-file init mode filter. Use grf or iid to avoid mixing RD train files.",
+    )
+    parser.add_argument(
         "--save_full_pde_params",
         action="store_true",
         help="Save full sample-aligned future PDE scalar parameters to output_dir/pde_params.pt.",

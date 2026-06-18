@@ -113,3 +113,48 @@ def test_statistics_seed_offset_groups_across_names_and_seeds(tmp_path):
     assert int(grouped[0]["rel_l2_a_n"]) == 3
     for raw_only_key in ("sample_seed", "mask_seed", "noise_seed", "offset", "batch_size", "ablation_name"):
         assert raw_only_key not in grouped[0]
+
+
+def test_residual_mode_is_grouped_separately(tmp_path):
+    _write_run(tmp_path, "endpoint", 1.0, 1.0, {"residual_mode": "endpoint_secant"})
+    _write_run(tmp_path, "hermite", 2.0, 2.0, {"residual_mode": "hermite_bridge"})
+
+    outputs = aggregate_root(tmp_path)
+    grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+
+    assert len(grouped) == 2
+    assert {row["residual_mode"] for row in grouped} == {"endpoint_secant", "hermite_bridge"}
+
+
+def test_gradient_target_is_grouped_separately(tmp_path):
+    _write_run(tmp_path, "chain", 1.0, 1.0, {"gradient_target": "current_state_chain_rule"})
+    _write_run(tmp_path, "direct", 2.0, 2.0, {"gradient_target": "loss_state_direct"})
+
+    outputs = aggregate_root(tmp_path)
+    grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+
+    assert len(grouped) == 2
+    assert {row["gradient_target"] for row in grouped} == {"current_state_chain_rule", "loss_state_direct"}
+
+
+def test_stochastic_guidance_time_is_grouped_separately(tmp_path):
+    _write_run(tmp_path, "t", 1.0, 1.0, {"stochastic_guidance_time": "t"})
+    _write_run(tmp_path, "t_next", 2.0, 2.0, {"stochastic_guidance_time": "t_next"})
+
+    outputs = aggregate_root(tmp_path)
+    grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+
+    assert len(grouped) == 2
+    assert {row["stochastic_guidance_time"] for row in grouped} == {"t", "t_next"}
+
+
+def test_list_group_values_are_stably_serialized(tmp_path):
+    _write_run(tmp_path, "list", 1.0, 1.0, {"hermite_collocation_times": [0.25, 0.5, 0.75]})
+    _write_run(tmp_path, "string", 2.0, 2.0, {"hermite_collocation_times": "[0.25,0.5,0.75]"})
+
+    outputs = aggregate_root(tmp_path)
+    grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+
+    assert len(grouped) == 1
+    assert grouped[0]["hermite_collocation_times"] == "[0.25,0.5,0.75]"
+    assert int(grouped[0]["rel_l2_a_n"]) == 2

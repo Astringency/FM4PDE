@@ -1,0 +1,69 @@
+from pathlib import Path
+
+import pytest
+
+torch = pytest.importorskip("torch")
+
+from sampling.config import AblationConfig, load_config
+from sampling.data import load_ground_truth
+from sampling.runner import run_from_config_path, run_single_ablation
+
+
+FORMAL_BASE_CONFIGS = [
+    "darcy",
+    "poisson",
+    "helmholtz",
+    "burger",
+    "reaction_diffusion",
+    "shallow_water",
+    "heat",
+    "wave",
+    "advection_diffusion",
+    "steady_heat_conduction",
+    "nsnonbounded",
+]
+
+
+def test_formal_base_configs_disable_synthetic_fallback():
+    for name in FORMAL_BASE_CONFIGS:
+        cfg = load_config(f"configs/ablations/base/{name}.yaml")
+        assert cfg.allow_synthetic_data is False
+
+
+def test_load_ground_truth_missing_formal_data_raises(tmp_path):
+    cfg = AblationConfig(
+        pde="heat",
+        data_path=str(tmp_path / "missing_heat.h5"),
+        loadby="future_h5",
+        allow_synthetic_data=False,
+    )
+
+    with pytest.raises(FileNotFoundError, match="Data path does not exist"):
+        load_ground_truth(cfg)
+
+
+def test_runner_missing_formal_data_raises_without_synthetic(tmp_path):
+    cfg = AblationConfig(
+        pde="heat",
+        task="both",
+        data_path=str(tmp_path / "missing_heat.h5"),
+        loadby="future_h5",
+        output_dir=str(tmp_path / "runs"),
+        dry_run=True,
+        allow_synthetic_data=False,
+        num_steps=1,
+    )
+
+    with pytest.raises(FileNotFoundError, match="Data path does not exist"):
+        run_single_ablation(cfg)
+
+
+def test_smoke_dry_run_can_use_synthetic_data(tmp_path):
+    result = run_from_config_path(
+        "configs/ablations/smoke.yaml",
+        overrides={"dry_run": True, "output_dir": str(tmp_path), "num_steps": 1, "device": "cpu"},
+    )
+
+    assert result["status"] == "ok"
+    assert result["synthetic_data"] is True
+    assert Path(result["run_dir"]).exists()

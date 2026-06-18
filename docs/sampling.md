@@ -48,7 +48,7 @@ If a checkpoint still expects old scalar-parameter channels, sampling fails with
 
 ## Reaction-Diffusion Data Split
 
-Training uses the new generator train files under the PDEdata root or the `reaction_diffusion/` directory, for example `reaction_diffusion_grf_50000-128-128-T1-steps10_shard000.h5` or `reaction_diffusion_grf_50000-128-128-T1-steps10.h5`. The training loader selects `reaction_diffusion_*.h5` train files by default, excludes `reaction_diffusion_test_*.h5`, and reads legacy `reaction_diffusion-128-128-*` files only when `legacy_rd_files=True` is passed explicitly.
+Training uses the new generator train files under the PDEdata root or the `reaction_diffusion/` directory, for example `reaction_diffusion_grf_50000-128-128-T1-steps10_shard000.h5` or `reaction_diffusion_grf_50000-128-128-T1-steps10.h5`. The training loader selects `reaction_diffusion_*.h5` train files by default, excludes `reaction_diffusion_test_*.h5`, and reads legacy `reaction_diffusion-128-128-*` files only when `legacy_rd_files=True` is passed explicitly. If GRF and IID train files coexist, pass `rd_init_mode_filter=grf` or `rd_init_mode_filter=iid`; `scripts/train/run_train.sh` defaults reaction-diffusion training to `RD_INIT_MODE_FILTER=grf`.
 
 Sampling and evaluation use held-out test files, for example `reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5`, as configured by `configs/reaction_diffusion.yaml`.
 
@@ -62,6 +62,10 @@ Sampling and evaluation use held-out test files, for example `reaction_diffusion
 `nsnonbounded` PDE guidance is currently disabled. If a config requests `pde_only`, the runner warns and maps it to `noguide`; if it requests `obs_pde`, the runner warns and maps it to `obs_only`. The original request and effective guidance are recorded in metadata so NS runs are not interpreted as PDE-guided results.
 
 ## Commands
+
+Formal experiment base configs set `allow_synthetic_data: false`. A missing
+dataset path must fail with `FileNotFoundError`; synthetic fallback is only for
+smoke and dry-run validation configs such as `configs/ablations/smoke.yaml`.
 
 Smoke:
 

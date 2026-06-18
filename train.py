@@ -64,6 +64,7 @@ def main(args):
         args.data_path,
         data_size=args.data_size,
         max_train_samples=args.max_train_samples,
+        rd_init_mode_filter=args.rd_init_mode_filter,
     )
     num_channels = int(data.shape[1])
     logger.info(f"Loaded data shape={tuple(data.shape)}, labels dtype={label.dtype}")
@@ -271,6 +272,7 @@ def _load_training_data(
     data_path: str,
     data_size: int = 5,
     max_train_samples: int | None = None,
+    rd_init_mode_filter: str | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
     dataset_list = []
     label_list = []
@@ -280,7 +282,10 @@ def _load_training_data(
     for pde_name in pde_names:
         logger.info(f">>> Initializing Dataset: {pde_name} <<<")
         pde_loader = PDEloader(pde_name)
-        dataset, label = pde_loader.load_data(data_path, size=data_size, max_samples=max_train_samples)
+        load_kwargs = {"size": data_size, "max_samples": max_train_samples}
+        if pde_name == "reaction_diffusion" and rd_init_mode_filter is not None:
+            load_kwargs["rd_init_mode_filter"] = rd_init_mode_filter
+        dataset, label = pde_loader.load_data(data_path, **load_kwargs)
         if dataset.ndim != 4:
             raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
         channel_counts[pde_name] = int(dataset.shape[1])

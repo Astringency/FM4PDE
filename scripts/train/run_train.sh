@@ -7,6 +7,7 @@ DATA_PATH="${DATA_PATH:-/large_storage/zhangxf/PDEdata/}"
 OUTPUT_DIR="${OUTPUT_DIR:-/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/}"
 EPOCHS="${EPOCHS:-500}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
+RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"
 
 extra_args=()
 if [[ "${SAVE_FULL_PDE_PARAMS}" == "1" ]]; then
@@ -19,6 +20,10 @@ run_train() {
   local batch_size="$3"
   local accum_iter="$4"
   local dataset="$5"
+  local dataset_args=()
+  if [[ "${dataset}" == "reaction_diffusion" ]]; then
+    dataset_args+=(--rd_init_mode_filter="${RD_INIT_MODE_FILTER}")
+  fi
 
   torchrun \
     --master_addr=127.0.0.1 \
@@ -32,6 +37,7 @@ run_train() {
     --dataset="${dataset}" \
     --data_path="${DATA_PATH}" \
     --output_dir="${OUTPUT_DIR}" \
+    "${dataset_args[@]}" \
     "${extra_args[@]}"
 }
 
