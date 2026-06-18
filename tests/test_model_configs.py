@@ -74,6 +74,41 @@ def test_model_config_metadata_does_not_pass_to_unet(monkeypatch):
     gc.collect()
 
 
+@pytest.mark.parametrize("channels", [1, 2, 4])
+def test_fourier_feature_channel_count_matches_forward(channels):
+    cfg = {
+        "in_channels": channels,
+        "model_channels": 32,
+        "out_channels": channels,
+        "num_res_blocks": 1,
+        "attention_resolutions": (),
+        "dropout": 0.0,
+        "channel_mult": (1,),
+        "conv_resample": True,
+        "dims": 2,
+        "num_classes": None,
+        "use_checkpoint": False,
+        "num_heads": 1,
+        "num_head_channels": -1,
+        "num_heads_upsample": -1,
+        "use_scale_shift_norm": False,
+        "resblock_updown": False,
+        "use_new_attention_order": False,
+        "with_fourier_features": True,
+    }
+    model = instantiate_model("heat", use_ema=False, model_config=cfg)
+    expected_input_channels = channels + channels * 4
+    assert model.input_blocks[0][0].weight.shape[1] == expected_input_channels
+
+    x = torch.randn(1, channels, 8, 8)
+    t = torch.tensor([0.5])
+    out = model(x, t, extra={})
+
+    assert out.shape == x.shape
+    del model
+    gc.collect()
+
+
 def test_attention_resolution_not_high_res_for_recommended():
     for pde in EXPECTED_PDES:
         metadata = get_model_config_metadata(pde, profile="recommended")

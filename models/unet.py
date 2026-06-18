@@ -475,6 +475,9 @@ class UNetModel(nn.Module):
     resblock_updown: bool = False
     use_new_attention_order: bool = False
     with_fourier_features: bool = False
+    fourier_feature_start: int = 6
+    fourier_feature_stop: int = 8
+    fourier_feature_step: int = 1
     ignore_time: bool = False
     input_projection: bool = True
 
@@ -484,8 +487,16 @@ class UNetModel(nn.Module):
     def __post_init__(self):
         super().__init__()
 
+        self.data_in_channels = int(self.in_channels)
+        self.fourier_feature_channels = 0
         if self.with_fourier_features:
-            self.in_channels += 12
+            self.fourier_feature_channels = fourier_feature_channel_count(
+                self.data_in_channels,
+                start=self.fourier_feature_start,
+                stop=self.fourier_feature_stop,
+                step=self.fourier_feature_step,
+            )
+            self.in_channels = self.data_in_channels + self.fourier_feature_channels
 
         if self.num_heads_upsample == -1:
             self.num_heads_upsample = self.num_heads
@@ -671,7 +682,12 @@ class UNetModel(nn.Module):
         :return: an [N x C x ...] Tensor of outputs.
         """
         if self.with_fourier_features:
-            z_f = base2_fourier_features(x, start=6, stop=8, step=1)
+            z_f = base2_fourier_features(
+                x,
+                start=self.fourier_feature_start,
+                stop=self.fourier_feature_stop,
+                step=self.fourier_feature_step,
+            )
             x = torch.cat([x, z_f], dim=1)
 
         hs = []
@@ -713,6 +729,17 @@ class UNetModel(nn.Module):
 
 
 # Based on https://github.com/google-research/vdm/blob/main/model_vdm.py
+def fourier_feature_channel_count(
+    in_channels: int,
+    start: int = 0,
+    stop: int = 8,
+    step: int = 1,
+) -> int:
+    if step == 0:
+        raise ValueError("fourier feature step must be non-zero")
+    return int(in_channels) * len(range(int(start), int(stop), int(step))) * 2
+
+
 def base2_fourier_features(
     inputs: torch.Tensor, start: int = 0, stop: int = 8, step: int = 1
 ) -> torch.Tensor:
