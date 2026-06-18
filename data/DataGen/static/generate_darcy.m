@@ -3,8 +3,7 @@ function generate(N, S)
     % for round = 1:5
     for round = 6
         if nargin < 1
-            % N = 10000; % Default number of generations
-            N = 1000; % Default number of generations
+            N = 10000; % Default number of generations
         end
         if nargin < 2
             S = 128; % Default resolution
@@ -24,6 +23,9 @@ function generate(N, S)
     
         % Forcing function, f(x) = 1
         f = ones(S, S);
+
+        t0 = tic;
+        updateEvery = max(1, floor(N / 100));
     
         for i = 1:N
             % Generate random coefficients from N(0,C)
@@ -46,16 +48,24 @@ function generate(N, S)
             thresh_a_data(i, :, :) = thresh_a;
             lognorm_p_data(i, :, :) = lognorm_p;
             thresh_p_data(i, :, :) = thresh_p;
+
+            if mod(i, updateEvery) == 0 || i == N
+                elapsed = toc(t0);
+                eta = elapsed * (N - i) / i;
+
+                fprintf('\rProgress [Darcy]: %6.2f%%  [%d/%d]  elapsed: %.1fs  ETA: %.1fs', ...
+                    100 * i / N, i, N, elapsed, eta);
+            end
         end
     
         % Ensure the data folder exists
-        if ~exist('data', 'dir')
-           mkdir('data')
+        if ~exist('/large_storage/zhangxf/PDEdata/darcy/', 'dir')
+           mkdir('/large_storage/zhangxf/PDEdata/darcy/')
         end
     
         % Save the data in a .mat file
         % filename = sprintf('/large_storage/zhangxf/PDEdata/darcy/darcy_%d-%d-%d_%d.mat', N, S, S, round);
-        filename = sprintf('/large_storage/zhangxf/PDEdata/darcy/darcy_%d-%d-%d_test_2.mat', N, S, S);
+        filename = sprintf('/large_storage/zhangxf/PDEdata/darcy/darcy_test_%d-%d-%d.mat', N, S, S);
         % filename = sprintf('/large_storage/zhangxf/PDEdata/darcy/darcy_%d-%d-%d_test.mat', N, S, S);
         save(filename, 'lognorm_a_data', 'thresh_a_data', 'lognorm_p_data', 'thresh_p_data', '-v7.3');
     end

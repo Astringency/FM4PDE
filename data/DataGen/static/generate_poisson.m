@@ -3,7 +3,7 @@ function generate_poisson_dataset(N, S)
     % for round = 1:5
     for round = 6
         if nargin < 1
-            N = 1000; % Number of generations
+            N = 10000; % Number of generations
         end
         if nargin < 2
             S = 128; % Resolution
@@ -18,6 +18,9 @@ function generate_poisson_dataset(N, S)
         % tau = 3;
         alpha = 3;
         tau = 4;
+
+        t0 = tic;
+        updateEvery = max(1, floor(N / 100));
     
         for i = 1:N
             % Generate the coefficient f using GRF
@@ -29,15 +32,23 @@ function generate_poisson_dataset(N, S)
             % Store the generated data
             f_data(i, :, :) = f;
             phi_data(i, :, :) = phi;
+
+            if mod(i, updateEvery) == 0 || i == N
+                elapsed = toc(t0);
+                eta = elapsed * (N - i) / i;
+
+                fprintf('\rProgress [Poisson]: %6.2f%%  [%d/%d]  elapsed: %.1fs  ETA: %.1fs', ...
+                    100 * i / N, i, N, elapsed, eta);
+            end
         end
     
         % Save the dataset
-        if ~exist('data', 'dir')
-            mkdir('data');
+        if ~exist('/large_storage/zhangxf/PDEdata/poisson', 'dir')
+            mkdir('/large_storage/zhangxf/PDEdata/poisson');
         end
         % filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_%d-%d-%d_%d.mat', N, S, S, round);
         % filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_%d-%d-%d_test.mat', N, S, S);
-        filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_%d-%d-%d_test_2.mat', N, S, S);
+        filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_test_%d-%d-%d.mat', N, S, S);
         save(filename, 'f_data', 'phi_data');
     end
 end
