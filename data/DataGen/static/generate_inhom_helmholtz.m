@@ -2,6 +2,7 @@ function generateHelmholtztestData(N, S, k)
 % function generateHelmholtztestData(N, S)
     % for round = 1:5
     for round = 6
+        rng(10000000 + round, "twister");
     % for k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         if nargin < 1
             N = 10000; % Default number of generations

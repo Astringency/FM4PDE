@@ -2,6 +2,7 @@ function generate(N, S)
     % Set default values if not provided
     % for round = 1:5
     for round = 6
+        rng(10000000 + round, "twister");
         if nargin < 1
             N = 10000; % Default number of generations
         end

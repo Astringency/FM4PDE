@@ -1,4 +1,6 @@
-for round = 1:5
+% for round = 1:5
+for round = 6
+    rng(round, "twister");
     sprintf("Init Round %d", round)
     % number of realizations to generate
     N = 10000;
@@ -26,11 +28,10 @@ for round = 1:5
     tspan = linspace(0,1,steps+1);
     x = linspace(0,1,s+1);
 
-    h = waitbar(0, 'Generating...');
+    t0 = tic;
+    updateEvery = max(1, floor(N / 100));
 
     for j=1:N
-        waitbar(j/N, h, sprintf('Generating: %d', j));
-
         u0 = GRF1(s/2, 0, gamma, tau, sigma, "periodic");
         u = burgers1(u0, tspan, s, visc);
         
@@ -46,9 +47,15 @@ for round = 1:5
         end
         
         output(j,1,:)=input(j,:);
-    
+
+        if mod(j, updateEvery) == 0 || j == N
+            elapsed = toc(t0);
+            eta = elapsed * (N - j) / j;
+
+            fprintf('\rProgress [Darcy]: %6.2f%%  [%d/%d]  elapsed: %.1fs  ETA: %.1fs', ...
+                100 * j / N, j, N, elapsed, eta);
+        end
     end
-    delete(h);
     
     sprintf("Saving (Round %d)", round)
 
@@ -56,7 +63,8 @@ for round = 1:5
     tspan = tspan(1:end);
     x = x(1:end);
 
-    filename = sprintf('/large_storage/zhangxf/PDEdata/burgers/burger_%d-%d-%d_%d.mat', N, s, steps+1, round);
+    % filename = sprintf('/large_storage/zhangxf/PDEdata/burgers/burger_%d-%d-%d_%d.mat', N, s, steps+1, round);
+    filename = sprintf('/large_storage/zhangxf/PDEdata/burgers/burger_test_%d-%d-%d_%d.mat', N, s, steps+1, round);
     save(filename, 'output', 'input');
 
 end

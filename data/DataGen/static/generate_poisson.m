@@ -2,6 +2,7 @@ function generate_poisson_dataset(N, S)
     % Default arguments
     % for round = 1:5
     for round = 6
+        rng(10000000 + round, "twister");
         if nargin < 1
             N = 10000; % Number of generations
         end
@@ -94,4 +95,3 @@ function phi = solve_poisson(f, S)
     % Reshape the solution back to a 2D grid
     phi = reshape(phi_vec, [S, S]);
 end
-
