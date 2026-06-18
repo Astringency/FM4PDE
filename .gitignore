@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
-output/pretrained/*
-output/datacheck/*
+outputs/pretrained/*
+outputs/datacheck/*
+outputs/ablations/*
