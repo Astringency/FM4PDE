@@ -61,6 +61,7 @@ groups:
       - configs/ablations/base/advection_diffusion.yaml
       - configs/ablations/base/reaction_diffusion.yaml
       - configs/ablations/base/shallow_water.yaml
+      - configs/ablations/base/nsnonbounded.yaml
     fixed:
       task: both
       guidance_components: obs_pde
@@ -74,8 +75,7 @@ groups:
       - configs/ablations/base/heat.yaml
       - configs/ablations/base/wave.yaml
       - configs/ablations/base/advection_diffusion.yaml
-      - configs/ablations/base/reaction_diffusion.yaml
-      - configs/ablations/base/shallow_water.yaml
+      # Include only formal files that carry extra temporal observations.
     fixed:
       task: both
       guidance_components: obs_pde

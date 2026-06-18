@@ -1,110 +1,117 @@
-# Time-Dependent PDE Residual Modes
+# Time-Dependent PDE Residuals
 
-FM4PDE endpoint models still generate endpoint pairs only. The model output is not changed into a full trajectory:
+FM4PDE separates residual family from residual status.
 
-- heat: `(u0, uT)`
-- wave: `([u0, v0], [uT, vT])`
-- advection_diffusion: `(u0, uT)`
-- reaction_diffusion: `([u0, v0], [uT, vT])`
-- shallow_water: `([h0, hu0, hv0], [hT, huT, hvT])`
+- `static`: Darcy, Poisson, Helmholtz, Steady Heat Conduction
+- `full_time_space`: Burgers
+- `temporal_endpoint`: Heat, Wave, Advection-Diffusion, Reaction-Diffusion, Shallow Water, Non-bounded Navier-Stokes
 
-All PDE residuals used by guidance are computed on the physical endpoint estimate passed into the guidance loss.
+Burgers is the only current full time-space tensor residual: the BCHW tensor itself stores a one-dimensional PDE time-space field, with `H` as time and `W` as space. It uses `u_t + u u_x - nu u_xx` with finite differences and records `status=reliable`.
+
+The other time-dependent PDEs use the unified temporal endpoint mode system below. Endpoint-only is the default in the current endpoint-pair FM setup, not the only valid temporal residual form.
 
 ## `hermite_bridge`
 
-`hermite_bridge` is the default mode for endpoint-only time-dependent PDEs when `residual_mode: auto`.
-
-The residual constructs an endpoint-induced cubic Hermite bridge using endpoint PDE derivatives:
+Default for `residual_mode: auto` on temporal endpoint PDEs.
 
 ```text
-q_t = F(q; params)
-f0 = F(q0)
-fT = F(qT)
+H(s) = h00(s) q0 + h10(s) T F(q0) + h01(s) qT + h11(s) T F(qT)
+residual = dH/dt - F(H)
 ```
 
-The bridge is evaluated at a few interior collocation times, defaulting to `[0.25, 0.5, 0.75]`, and penalizes:
-
-```text
-dH/dt(s) - F(H(s))
-```
-
-This bridge is not a generated physical trajectory and is not used as a training target. It is a differentiable endpoint-only residual used for PDE-aware guidance. By default an endpoint integral consistency term is also appended:
+An optional endpoint integral consistency residual is appended:
 
 ```text
 qT - q0 - 0.5 * T * (F(q0) + F(qT))
 ```
 
-Relevant config fields:
+Metadata marks this as:
 
 ```yaml
-residual_mode: hermite_bridge
-hermite_collocation_times: [0.25, 0.5, 0.75]
-hermite_num_collocation: 0
-hermite_include_integral_residual: true
-hermite_integral_weight: 1.0
+residual_family: temporal_endpoint
+temporal_derivative_mode: hermite_bridge
+endpoint_only: true
+uses_generated_trajectory: false
+uses_extra_temporal_observations: false
+status: approximate
 ```
 
 ## `near_endpoint_temporal`
 
-`near_endpoint_temporal` is an extra observation setting. It requires sparse temporal observations near both endpoints:
+Requires extra sparse temporal observations:
 
 ```text
 q_dt ~= q(delta t)
 q_T_minus_dt ~= q(T - delta t)
-mask_0, mask_T
+mask_0, mask_T, dt
 ```
 
-The residual uses local temporal differences:
+It computes:
 
 ```text
-(q_dt - q0) / dt - F(q0)
-(qT - q_T_minus_dt) / dt - F(qT)
+r0 = (q_dt - q0) / dt - F(q0)
+rT = (qT - q_T_minus_dt) / dt - F(qT)
 ```
 
-The residual is masked and normalized by the observed mask count so sparse masks do not artificially shrink the mean loss. If the near-endpoint observations or masks are missing, this mode raises `ValueError`; it never falls back to hidden dense trajectories.
+The residual is masked and normalized by observed count so sparse masks do not shrink the loss. Missing auxiliary observations raise `ValueError`; there is no fallback to Hermite.
 
-Relevant config fields:
+Metadata marks this as:
 
 ```yaml
-residual_mode: near_endpoint_temporal
-num_near_endpoint_obs: 64
-near_endpoint_sensor_mode: random
-near_endpoint_mask_seed: 0
-near_endpoint_shared_mask: true
+residual_family: temporal_endpoint
+temporal_derivative_mode: near_endpoint_sparse_fd
+endpoint_only: false
+uses_generated_trajectory: false
+uses_extra_temporal_observations: true
+requires_extra_temporal_observations: true
+status: approximate
 ```
-
-The loader supports explicit trajectory data for `future_h5` via datasets such as `full_trajectory`, `trajectory`, `states`, or `solution_trajectory`. For `swe` it uses frames `1` and `-2`; for `rd` it uses frames `51` and `-2` because the endpoint pair starts at frame `50`.
 
 ## `endpoint_secant`
 
-`endpoint_secant` keeps the old coarse two-time-level residual for ablations:
+Coarse two-endpoint residual for ablations only:
 
 ```text
-(qT - q0) / T - F(endpoint midpoint or endpoint average)
+(qT - q0) / T - F(q_mid)
 ```
 
 Metadata includes:
 
 ```yaml
-mode: endpoint_secant
-warning: coarse two-time-level endpoint residual; not a full spatiotemporal PDE residual
+residual_family: temporal_endpoint
+temporal_derivative_mode: endpoint_secant
+endpoint_only: true
+uses_generated_trajectory: false
+uses_extra_temporal_observations: false
 two_time_level_approx: true
+status: approximate
+warning: coarse two-time-level endpoint residual; not a full spatiotemporal PDE residual
 ```
 
-`legacy_endpoint_secant` is also accepted for compatibility. For shallow-water, `endpoint_secant` makes the time scale explicit; `legacy_endpoint_secant` records the legacy implicit unit-time behavior.
+## `full_trajectory_fd`
 
-## Exceptions
+Reserved for full-trajectory FM or explicit trajectory auxiliary state. It requires `pde_params["full_trajectory"]` or `pde_params["trajectory"]` with layout `[B,T,C,H,W]` or `[B,C,T,H,W]`.
 
-Static PDE residuals keep their original behavior.
+It computes finite-difference time derivatives across the trajectory and compares them with the same RHS `F(q; params)` used by Hermite and endpoint modes. If only endpoint state is present, this mode raises `ValueError`.
 
-Burger uses its existing full time-space tensor residual because the data tensor itself contains an explicit time-space grid.
+Metadata marks this as:
 
-`nsnonbounded` PDE guidance remains disabled. It does not compute a pseudo residual unless a reliable vorticity transport residual is implemented.
-
-## Example Commands
-
-```bash
-python -m sampling.runner --config configs/ablations/base/heat.yaml --override residual_mode=hermite_bridge
-python -m sampling.runner --config configs/ablations/base/heat.yaml --override residual_mode=endpoint_secant
-python -m sampling.runner --config configs/ablations/base/heat.yaml --override residual_mode=near_endpoint_temporal --override num_near_endpoint_obs=64
+```yaml
+residual_family: full_trajectory
+temporal_derivative_mode: full_fd
+endpoint_only: false
+uses_generated_trajectory: true
+uses_extra_temporal_observations: false
+status: reliable
 ```
+
+## RHS Definitions
+
+- Heat: `F(u) = alpha * Laplacian(u)`
+- Wave: `F([u,v]) = [v, c^2 Laplacian(u)]`
+- Advection-Diffusion: `F(u) = -b_x u_x - b_y u_y + kappa Laplacian(u)`
+- Reaction-Diffusion: FitzHugh-Nagumo RHS with Neumann Laplacian
+- Shallow Water: standard 2D conservative flux RHS with clamped safe depth
+- Non-bounded Navier-Stokes: 2D vorticity equation with periodic FFT stream-function velocity reconstruction
+
+Any experiment using extra temporal observations or full trajectory state must preserve the metadata fields above so endpoint-only results are not mixed with sparse-temporal or full-trajectory results.

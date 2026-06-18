@@ -11,7 +11,7 @@ except Exception:  # pragma: no cover - scipy is an existing FM4PDE dependency
 try:
     from .common import (
         ChunkResult,
-        FuturePDEConfig,
+        PairH5Config,
         ensure_finite,
         format_float_range,
         neumann_eigenvalues,
@@ -21,7 +21,7 @@ try:
 except ImportError:  # pragma: no cover
     from common import (
         ChunkResult,
-        FuturePDEConfig,
+        PairH5Config,
         ensure_finite,
         format_float_range,
         neumann_eigenvalues,
@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover
 ALPHA_RANGE = (5e-4, 5e-3)
 
 
-def heat_metadata(config: FuturePDEConfig) -> dict[str, object]:
+def heat_metadata(config: PairH5Config) -> dict[str, object]:
     return {
         "equation": "u_t = alpha * Delta u on [0,1]^2",
         "parameter_ranges": {"alpha": format_float_range(ALPHA_RANGE)},
@@ -55,7 +55,7 @@ def heat_metadata(config: FuturePDEConfig) -> dict[str, object]:
     }
 
 
-def solve_heat_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkResult:
+def solve_heat_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResult:
     n = len(global_ids)
     s = config.resolution
     times = np.linspace(0.0, config.T, config.n_time, dtype=np.float64)

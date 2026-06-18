@@ -26,7 +26,11 @@ def test_all_internal_grid_lists_and_uses_group_base_configs():
     paths = {path for path, _ in jobs}
     assert "configs/ablations/base/heat.yaml" in paths
     assert "configs/ablations/base/nsnonbounded.yaml" in paths
-    assert any(path.endswith("nsnonbounded.yaml") and params["ablation_group"] == "ns_observation_only" for path, params in jobs)
+    assert any(
+        path.endswith("nsnonbounded.yaml") and params["ablation_group"] == "time_dependent_residual_mode"
+        for path, params in jobs
+    )
+    assert not any(params["ablation_group"] == "ns_observation_only" for _, params in jobs)
     assert all(params.get("sensor_mode") != "time_varying" for _, params in jobs)
     assert all(params.get("loss_state") != "denoised_endpoint" for _, params in jobs)
     main_guidance = [

@@ -7,6 +7,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from sampling.model_io import WrappedModel, load_fm4pde_checkpoint_bundle
+from data.transform import PDEStandardizer
 from models.model_configs import MODEL_CONFIGS, instantiate_model
 from training.load_and_save import save_model
 
@@ -49,6 +50,7 @@ def _checkpoint_args(tmp_path, use_ema: bool) -> argparse.Namespace:
 
 
 def _save_heat_checkpoint(tmp_path, model, use_ema: bool):
+    normalizer = PDEStandardizer.identity(2, channel_names=["u0", "uT"], pde="heat")
     save_model(
         args=_checkpoint_args(tmp_path, use_ema=use_ema),
         epoch=0,
@@ -58,6 +60,7 @@ def _save_heat_checkpoint(tmp_path, model, use_ema: bool):
         lr_schedule=None,
         loss_scaler=_DummyScaler(),
         final=True,
+        normalizer=normalizer,
         data_shape=(1, 2, 4, 4),
         num_channels=2,
     )
@@ -138,7 +141,10 @@ def test_legacy_ema_state_dict_fallback_loads_plain_model(tmp_path):
     model.update_ema()
     legacy_state = model.state_dict()
     checkpoint_path = tmp_path / "legacy_ema.pth"
-    torch.save({"model": legacy_state, "num_channels": 2}, checkpoint_path)
+    torch.save(
+        {"model": legacy_state, "num_channels": 2, "normalizer": PDEStandardizer.identity(2).state_dict()},
+        checkpoint_path,
+    )
 
     wrapped, _, payload = load_fm4pde_checkpoint_bundle(
         str(checkpoint_path),

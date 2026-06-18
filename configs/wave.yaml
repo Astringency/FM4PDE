@@ -1,41 +1,45 @@
-data:
-  name: 'wave'
-  datapath: '/large_storage/zhangxf/PDEdata/future_pdes/wave/wave_test_1000-128-128.h5'
-  remark: 'test'
-  offset: 0
-  # Constant c is stored as attrs; loader returns [u0, v0, uT, vT].
-  img_channels: 4
-  img_resolution: 128
-  obs_size: 500
-  coef: input_data
-  solution: output_data
-  loadby: 'future_h5'
-
-model:
-  pre-trained: 'outputs/pretrained/fm4wave.pth'
-
-generate:
-  seed: 0
-  device: 'cuda'
-  batch_size: 1
-  zeta_obs_a: 1
-  zeta_obs_u: 1
-  zeta_pde: 0
-  num_steps: 1000
-  step_size: 0.001
-  method: 'euler'
-  guide: False
-  process: True
-  scheduler: "CondOT"
-  training: "velocity"
-  full: False
-  samplemode: "stochastic"
-  stochastic_t: 1
-  obsguide_t: 1
-  obsguide_decay: 1
-
-output:
-  savepath: 'outputs/samples/FM4PDE/'
-  plot: True
-  save: True
-  return: False
+pde: wave
+task: both
+data_config_path: configs/wave.yaml
+data_path: /large_storage/zhangxf/PDEdata/pair_h5/wave/wave_test_1000-128-128.h5
+loadby: pair_h5
+coef_name: input_data
+solution_name: output_data
+checkpoint_path: outputs/pretrained/fm4wave.pth
+output_dir: outputs/ablations
+img_channels: 4
+img_resolution: 128
+allow_synthetic_data: false
+guidance_components: obs_pde
+loss_state: endpoint
+gradient_target: current_state_chain_rule
+sampler_phase: stochastic
+switch_ratio: 0.5
+guidance_schedule: constant
+clip_mode: global_norm
+clip_threshold: 10000000000.0
+pde_residual_region: full
+residual_mode: hermite_bridge
+hermite_collocation_times: [0.25, 0.5, 0.75]
+hermite_include_integral_residual: true
+hermite_integral_weight: 1.0
+num_near_endpoint_obs: 0
+near_endpoint_sensor_mode: random
+near_endpoint_mask_seed: 0
+near_endpoint_shared_mask: true
+num_obs: 500
+sensor_mode: random
+shared_mask: false
+mask_seed: 0
+noise_level: 0.0
+noise_seed: 0
+time_grid: uniform
+num_steps: 100
+step_method: euler
+batch_size: 1
+sample_seed: 0
+device: cpu
+dtype: float32
+zeta_obs_a: 1
+zeta_obs_u: 1
+zeta_pde: 1

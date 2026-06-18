@@ -1,7 +1,7 @@
-import h5py
-import numpy as np
 import pytest
 
+np = pytest.importorskip("numpy")
+h5py = pytest.importorskip("h5py")
 torch = pytest.importorskip("torch")
 
 from data.load import PDEloader
@@ -16,7 +16,7 @@ def _write_heat_h5(path):
         file.create_dataset("alpha", data=np.array([0.2, 0.4], dtype=np.float32))
 
 
-def test_future_loader_returns_metadata_without_scalar_fields(tmp_path):
+def test_pair_h5_loader_returns_metadata_without_scalar_fields(tmp_path):
     path = tmp_path / "heat_2-5-5_1.h5"
     _write_heat_h5(path)
 
@@ -30,7 +30,7 @@ def test_future_loader_returns_metadata_without_scalar_fields(tmp_path):
     assert metadata["channel_names"] == ["u0", "uT"]
 
 
-def test_ablation_ground_truth_reads_sample_level_pde_params(tmp_path):
+def test_sampling_ground_truth_reads_pair_h5_params(tmp_path):
     path = tmp_path / "heat_2-5-5_1.h5"
     _write_heat_h5(path)
     cfg = AblationConfig(
@@ -39,7 +39,7 @@ def test_ablation_ground_truth_reads_sample_level_pde_params(tmp_path):
         data_path=str(path),
         data_config_path="",
         checkpoint_path="",
-        loadby="future_h5",
+        loadby="pair_h5",
         coef_name="input_data",
         solution_name="output_data",
         img_channels=2,
@@ -60,7 +60,7 @@ def test_ablation_ground_truth_reads_sample_level_pde_params(tmp_path):
     assert gt.metadata["pde_params_sources"] == {"alpha": "dataset"}
 
 
-def test_ablation_ground_truth_reads_future_time_scale_params(tmp_path):
+def test_sampling_ground_truth_reads_pair_h5_time_scale_params(tmp_path):
     path = tmp_path / "heat_2-5-5_1.h5"
     _write_heat_h5(path)
     with h5py.File(path, "a") as file:
@@ -71,7 +71,7 @@ def test_ablation_ground_truth_reads_future_time_scale_params(tmp_path):
         data_path=str(path),
         data_config_path="",
         checkpoint_path="",
-        loadby="future_h5",
+        loadby="pair_h5",
         coef_name="input_data",
         solution_name="output_data",
         img_channels=2,
@@ -98,7 +98,7 @@ def test_near_endpoint_temporal_loader_requires_trajectory(tmp_path):
         data_path=str(path),
         data_config_path="",
         checkpoint_path="",
-        loadby="future_h5",
+        loadby="pair_h5",
         coef_name="input_data",
         solution_name="output_data",
         img_channels=2,
@@ -111,11 +111,11 @@ def test_near_endpoint_temporal_loader_requires_trajectory(tmp_path):
         num_near_endpoint_obs=3,
     )
 
-    with pytest.raises(ValueError, match="future_h5 input/output endpoint data does not contain"):
+    with pytest.raises(ValueError, match="pair_h5 input/output endpoint data does not contain"):
         load_ground_truth(cfg)
 
 
-def test_near_endpoint_temporal_loader_from_future_h5_trajectory(tmp_path):
+def test_near_endpoint_temporal_loader_from_pair_h5_trajectory(tmp_path):
     path = tmp_path / "heat_2-5-5_1.h5"
     trajectory = np.stack(
         [
@@ -138,7 +138,7 @@ def test_near_endpoint_temporal_loader_from_future_h5_trajectory(tmp_path):
         data_path=str(path),
         data_config_path="",
         checkpoint_path="",
-        loadby="future_h5",
+        loadby="pair_h5",
         coef_name="input_data",
         solution_name="output_data",
         img_channels=2,

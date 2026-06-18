@@ -1,10 +1,18 @@
 pde: heat
 task: both
 data_config_path: configs/heat.yaml
+data_path: /large_storage/zhangxf/PDEdata/pair_h5/heat/heat_test_1000-128-128.h5
+loadby: pair_h5
+coef_name: input_data
+solution_name: output_data
 checkpoint_path: outputs/pretrained/fm4heat.pth
 output_dir: outputs/ablations
+img_channels: 2
+img_resolution: 128
+allow_synthetic_data: false
 guidance_components: obs_pde
 loss_state: endpoint
+gradient_target: current_state_chain_rule
 sampler_phase: stochastic
 switch_ratio: 0.5
 guidance_schedule: constant
@@ -15,6 +23,10 @@ residual_mode: hermite_bridge
 hermite_collocation_times: [0.25, 0.5, 0.75]
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0
+num_near_endpoint_obs: 0
+near_endpoint_sensor_mode: random
+near_endpoint_mask_seed: 0
+near_endpoint_shared_mask: true
 num_obs: 500
 sensor_mode: random
 shared_mask: false
@@ -31,6 +43,3 @@ dtype: float32
 zeta_obs_a: 1
 zeta_obs_u: 1
 zeta_pde: 1
-allow_synthetic_data: false
-img_channels: 2
-img_resolution: 128

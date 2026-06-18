@@ -8,6 +8,8 @@ import warnings
 import torch
 from torch.utils.data import Dataset
 
+from data.specs import get_pde_spec
+
 
 DEFAULT_TRAIN_SHARDS = 5
 
@@ -29,25 +31,10 @@ class TensorDataset(Dataset):
 
 
 class PDEloader:
-    FUTURE_H5_SCALAR_PARAMS = {
-        "heat": ("alpha", "T", "total_time", "dt"),
-        "wave": ("c", "T", "total_time", "dt"),
-        "advection_diffusion": ("b_x", "b_y", "kappa", "T", "total_time", "dt"),
-        "steady_heat_conduction": ("u_D",),
-    }
-    OPTIONAL_FUTURE_H5_SCALAR_PARAMS = {
-        "heat": {"alpha", "T", "total_time", "dt"},
-        "wave": {"c", "T", "total_time", "dt"},
-        "advection_diffusion": {"T", "total_time", "dt"},
-    }
-    FUTURE_H5_PARAM_ALIASES = {
-        "alpha": ("alpha", "fixed_alpha"),
-        "c": ("c", "fixed_c"),
-    }
-
     def __init__(self, pde: str):
         self.pde = pde.lower()
-        # Sample-aligned scalar PDE parameters cached by future HDF5 loads.
+        self.spec = get_pde_spec(self.pde)
+        # Sample-aligned scalar PDE parameters cached by pair HDF5 and generated HDF5 loads.
         self.pde_params = {}
         self.pde_param_sources = {}
         self.pde_param_slices = []
@@ -88,8 +75,15 @@ class PDEloader:
             "pde_param_sources": dict(self.pde_param_sources),
             "pde_param_slices": list(self.pde_param_slices),
             "channel_names": self._channel_names_for_loaded_data(),
+            "coef_channel_names": list(self.spec.coef_channel_names),
+            "sol_channel_names": list(self.spec.sol_channel_names),
             "scalar_params_loaded": bool(self.pde_params),
             "pde_param_summary": pde_param_summary,
+            "pde_data_spec": self.spec.to_metadata(),
+            "scalar_param_names": list(self.spec.scalar_param_names),
+            "optional_scalar_param_names": sorted(self.spec.optional_scalar_param_names),
+            "residual_family": self.spec.residual_family,
+            "loadby": self.spec.default_loadby,
             "extra_metadata": dict(self.extra_metadata),
             "selected_file_format": self.extra_metadata.get("selected_file_format"),
             "selected_files": list(self.extra_metadata.get("selected_files", [])),
@@ -548,16 +542,16 @@ class PDEloader:
         return self._finalize(np.concatenate(dataset, axis=0), 6)
 
     def _heat_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=7, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, label_value=7, max_samples=max_samples)
 
     def _wave_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=8, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, label_value=8, max_samples=max_samples)
 
     def _advection_diffusion_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=9, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, label_value=9, max_samples=max_samples)
 
     def _steady_heat_conduction_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
-        return self._future_h5_load(data_path, size=size, split=split, label_value=10, max_samples=max_samples)
+        return self._pair_h5_load(data_path, size=size, split=split, label_value=10, max_samples=max_samples)
 
     @staticmethod
     def _nsnonbounded_pair(w0, wt):
@@ -602,15 +596,15 @@ class PDEloader:
                 return arr[:, :, :, -1]
         raise ValueError(f"Cannot infer final-time slice for {name} with shape {arr.shape}")
 
-    def _future_h5_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", label_value=0, materialize_params=False, max_samples=None):
-        """Load future HDF5 data as model channels plus scalar PDE metadata.
+    def _pair_h5_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", label_value=0, materialize_params=False, max_samples=None):
+        """Load endpoint-pair HDF5 data as model channels plus scalar PDE metadata.
 
         Spatially constant PDE parameters are not Flow Matching input channels by default.
         They are cached in ``self.pde_params`` for PDE residual evaluation. Set
-        ``materialize_params=True`` only for legacy checkpoints that explicitly trained
+        ``materialize_params=True`` only for checkpoints that explicitly trained
         with scalar constants expanded into constant fields.
         """
-        file_paths = self._future_h5_paths(data_path, size=size, split=split)
+        file_paths = self._pair_h5_paths(data_path, size=size, split=split)
         dataset = []
         param_chunks = {}
         param_sources = {}
@@ -625,8 +619,8 @@ class PDEloader:
                 remaining = None if max_samples is None else max_samples - sample_start
                 if remaining is not None and remaining <= 0:
                     break
-                arr = self._future_h5_materialize(file, materialize_params=materialize_params, max_samples=remaining)
-                params, sources = self._future_h5_scalar_params(file, arr.shape[0])
+                arr = self._pair_h5_materialize(file, materialize_params=materialize_params, max_samples=remaining)
+                params, sources = self._pair_h5_scalar_params(file, arr.shape[0])
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim != 4:
                 raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
@@ -654,40 +648,44 @@ class PDEloader:
                 raise ValueError(f"Scalar parameter {name!r} was present for only part of the loaded samples")
             self.pde_params[name] = torch.tensor(values, dtype=torch.float32)
         self.pde_param_sources = param_sources
+        self.extra_metadata.update(
+            {
+                "selected_file_format": "pair_h5",
+                "selected_files": [str(path) for path in file_paths],
+                "file_paths": [str(path) for path in file_paths],
+                "num_loaded_samples": int(len(data)),
+                "residual_family": self.spec.residual_family,
+                "channel_names": list(self.spec.channel_names),
+            }
+        )
         return data, label
 
-    def _future_h5_materialize(self, file, materialize_params=False, max_samples=None):
+    def _pair_h5_materialize(self, file, materialize_params=False, max_samples=None):
         n_take = file["input_data"].shape[0] if max_samples is None else min(int(max_samples), file["input_data"].shape[0])
         input_data = np.asarray(file["input_data"][:n_take], dtype=np.float32)
         output_data = np.asarray(file["output_data"][:n_take], dtype=np.float32)
         if input_data.ndim != 4 or output_data.ndim != 4:
-            raise ValueError(f"future_h5 input/output must be [N,C,H,W], got {input_data.shape}, {output_data.shape}")
+            raise ValueError(f"pair_h5 input/output must be [N,C,H,W], got {input_data.shape}, {output_data.shape}")
         if materialize_params:
             warnings.warn(
-                "future_h5 materialize_params=True is deprecated and ignored. "
+                "pair_h5 materialize_params=True is ignored. "
                 "Scalar PDE parameters are returned as sample-level metadata, not FM channels.",
-                DeprecationWarning,
+                RuntimeWarning,
                 stacklevel=2,
             )
         return np.concatenate([input_data, output_data], axis=1)
 
-    def _future_h5_scalar_params(self, file, n_samples):
+    def _pair_h5_scalar_params(self, file, n_samples):
         params = {}
         sources = {}
-        optional = self.OPTIONAL_FUTURE_H5_SCALAR_PARAMS.get(self.pde, set())
-        for name in self.FUTURE_H5_SCALAR_PARAMS.get(self.pde, ()):
+        optional = self.spec.optional_scalar_param_names
+        for name in self.spec.scalar_param_names:
             storage_name = self._resolve_param_storage_name(file, name)
             if storage_name is not None:
                 params[name] = self._read_scalar_dataset_or_attr(file, storage_name, n_samples)
                 sources[name] = "dataset" if storage_name in file else f"attrs:{storage_name}"
             elif name not in optional:
                 raise KeyError(f"Missing scalar dataset or attr {name!r}")
-        if self.pde == "steady_heat_conduction":
-            for name in ("residual_norm", "picard_iters", "converged", "n_sources", "source_x", "source_y", "source_amp", "source_sigma"):
-                storage_name = self._resolve_param_storage_name(file, name)
-                if storage_name is not None:
-                    params[name] = self._read_scalar_dataset_or_attr(file, storage_name, n_samples)
-                    sources[name] = "dataset" if storage_name in file else f"attrs:{storage_name}"
         return params, sources
 
     @staticmethod
@@ -700,7 +698,7 @@ class PDEloader:
         return name in file or name in file.attrs
 
     def _resolve_param_storage_name(self, file, name):
-        for candidate in self.FUTURE_H5_PARAM_ALIASES.get(name, (name,)):
+        for candidate in self.spec.param_aliases.get(name, (name,)):
             if candidate in file or candidate in file.attrs:
                 return candidate
         return None
@@ -726,7 +724,7 @@ class PDEloader:
             raise ValueError(f"{name} must have shape [{n_samples}], got {values.shape}")
         return values
 
-    def _future_h5_paths(self, data_path, size=5, split="train"):
+    def _pair_h5_paths(self, data_path, size=5, split="train"):
         path = Path(data_path)
         if path.is_file():
             return [path]
@@ -735,7 +733,7 @@ class PDEloader:
         if not pde_dir.exists():
             pde_dir = path
         if not pde_dir.exists():
-            raise FileNotFoundError(f"Future PDE data directory does not exist: {pde_dir}")
+            raise FileNotFoundError(f"Pair HDF5 data directory does not exist: {pde_dir}")
 
         if split == "test":
             file_paths = sorted(pde_dir.glob(f"{self.pde}_test_*-*-*.h5"))
@@ -744,7 +742,7 @@ class PDEloader:
         elif split == "train":
             file_paths = sorted(
                 (p for p in pde_dir.glob(f"{self.pde}_*-*-*_[0-9]*.h5") if "_test_" not in p.name),
-                key=self._future_h5_sort_key,
+                key=self._pair_h5_sort_key,
             )
         else:
             raise ValueError(f"Unsupported split={split!r}; expected 'train', 'val', or 'test'")
@@ -756,17 +754,10 @@ class PDEloader:
         return file_paths
 
     @staticmethod
-    def _future_h5_sort_key(path):
+    def _pair_h5_sort_key(path):
         stem = path.stem
         shard = stem.rsplit("_", 1)[-1]
         return int(shard) if shard.isdigit() else stem
 
     def _channel_names_for_loaded_data(self):
-        names = {
-            "reaction_diffusion": ["u0", "v0", "uT", "vT"],
-            "heat": ["u0", "uT"],
-            "wave": ["u0", "v0", "uT", "vT"],
-            "advection_diffusion": ["u0", "uT"],
-            "steady_heat_conduction": ["f", "u"],
-        }
-        return names.get(self.pde)
+        return list(self.spec.channel_names)

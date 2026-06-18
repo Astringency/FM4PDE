@@ -34,7 +34,7 @@ def test_load_ground_truth_missing_formal_data_raises(tmp_path):
     cfg = AblationConfig(
         pde="heat",
         data_path=str(tmp_path / "missing_heat.h5"),
-        loadby="future_h5",
+        loadby="pair_h5",
         allow_synthetic_data=False,
     )
 
@@ -47,7 +47,7 @@ def test_runner_missing_formal_data_raises_without_synthetic(tmp_path):
         pde="heat",
         task="both",
         data_path=str(tmp_path / "missing_heat.h5"),
-        loadby="future_h5",
+        loadby="pair_h5",
         output_dir=str(tmp_path / "runs"),
         dry_run=True,
         allow_synthetic_data=False,

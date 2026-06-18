@@ -5,7 +5,7 @@ import numpy as np
 try:
     from .common import (
         ChunkResult,
-        FuturePDEConfig,
+        PairH5Config,
         ensure_finite,
         format_float_range,
         periodic_wavenumbers,
@@ -14,7 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     from common import (
         ChunkResult,
-        FuturePDEConfig,
+        PairH5Config,
         ensure_finite,
         format_float_range,
         periodic_wavenumbers,
@@ -26,7 +26,7 @@ B_RANGE = (-1.0, 1.0)
 KAPPA_RANGE = (5e-4, 5e-3)
 
 
-def advection_diffusion_metadata(config: FuturePDEConfig) -> dict[str, object]:
+def advection_diffusion_metadata(config: PairH5Config) -> dict[str, object]:
     return {
         "equation": "u_t + b_x u_x + b_y u_y = kappa * Delta u on [0,1]^2",
         "parameter_ranges": {
@@ -47,7 +47,7 @@ def advection_diffusion_metadata(config: FuturePDEConfig) -> dict[str, object]:
     }
 
 
-def solve_advection_diffusion_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkResult:
+def solve_advection_diffusion_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResult:
     if config.bc != "periodic":
         raise ValueError("advection_diffusion generator currently supports periodic boundary conditions")
     n = len(global_ids)

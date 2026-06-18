@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATA_ROOT="${1:-/tmp/fm4pde_future_pdes}"
+DATA_ROOT="${1:-/tmp/fm4pde_pair_h5}"
 
-python data/DataGen/python/generate_future_pdes.py \
+python data/DataGen/python/generate_pair_h5s.py \
   --pde all \
   --out-root "${DATA_ROOT}" \
   --resolution 128 \

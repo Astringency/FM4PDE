@@ -64,7 +64,7 @@ def write_run_metadata(
         "sampler": {
             "sampler_phase": config.sampler_phase,
             "switch_ratio": config.switch_ratio,
-            "loss_state": "endpoint" if config.loss_state == "denoised_endpoint" else config.loss_state,
+            "loss_state": config.loss_state,
             "time_grid": config.time_grid,
             "num_steps": config.num_steps,
             "step_method": config.step_method,

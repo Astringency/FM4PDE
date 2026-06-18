@@ -29,7 +29,7 @@ PDE_TABLE = {
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate FM4PDE future PDE HDF5 datasets.")
+    parser = argparse.ArgumentParser(description="Generate FM4PDE endpoint-pair HDF5 datasets.")
     add_common_arguments(parser)
     parser.add_argument("--alpha-mode", choices=["random", "fixed"], default="random")
     parser.add_argument("--alpha", type=float, default=1e-3, help="Fixed heat diffusivity for --alpha-mode fixed.")

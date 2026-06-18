@@ -7,7 +7,7 @@ import numpy as np
 try:
     from .common import (
         ChunkResult,
-        FuturePDEConfig,
+        PairH5Config,
         ensure_finite,
         finite_difference_periodic_laplacian,
         format_float_range,
@@ -18,7 +18,7 @@ try:
 except ImportError:  # pragma: no cover
     from common import (
         ChunkResult,
-        FuturePDEConfig,
+        PairH5Config,
         ensure_finite,
         finite_difference_periodic_laplacian,
         format_float_range,
@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover
 C_RANGE = (0.75, 1.25)
 
 
-def wave_metadata(config: FuturePDEConfig) -> dict[str, object]:
+def wave_metadata(config: PairH5Config) -> dict[str, object]:
     variable_c = bool(config.extra.get("variable_c", False))
     c_mode = config.extra.get("c_mode", "fixed")
     return {
@@ -55,7 +55,7 @@ def wave_metadata(config: FuturePDEConfig) -> dict[str, object]:
     }
 
 
-def solve_wave_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkResult:
+def solve_wave_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResult:
     if config.bc != "periodic":
         raise ValueError("wave generator currently supports periodic boundary conditions")
     if config.extra.get("variable_c", False):
@@ -63,7 +63,7 @@ def solve_wave_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkRe
     return solve_wave_constant_c_chunk(global_ids, config)
 
 
-def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkResult:
+def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResult:
     n = len(global_ids)
     s = config.resolution
     times = np.linspace(0.0, config.T, config.n_time, dtype=np.float64)
@@ -129,7 +129,7 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: FuturePDEConfig)
     )
 
 
-def solve_wave_variable_c_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkResult:
+def solve_wave_variable_c_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResult:
     n = len(global_ids)
     s = config.resolution
     times = np.linspace(0.0, config.T, config.n_time, dtype=np.float64)

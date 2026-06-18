@@ -1,13 +1,13 @@
-import h5py
-import numpy as np
 import pytest
 
+np = pytest.importorskip("numpy")
+h5py = pytest.importorskip("h5py")
 torch = pytest.importorskip("torch")
 
 from data.load import PDEloader
 
 
-def _write_future_h5(path, n_samples=3, input_channels=1, output_channels=1, attrs=None, datasets=None):
+def _write_pair_h5(path, n_samples=3, input_channels=1, output_channels=1, attrs=None, datasets=None):
     with h5py.File(path, "w") as file:
         file.create_dataset("input_data", data=np.zeros((n_samples, input_channels, 6, 6), dtype=np.float32))
         file.create_dataset("output_data", data=np.ones((n_samples, output_channels, 6, 6), dtype=np.float32))
@@ -34,7 +34,7 @@ def _write_future_h5(path, n_samples=3, input_channels=1, output_channels=1, att
         ("steady_heat_conduction", 1, 1, {"u_D": 5.0}, {}, 2, {"u_D"}),
     ],
 )
-def test_future_h5_loader_shapes_and_scalar_metadata(
+def test_pair_h5_loader_shapes_and_scalar_metadata(
     tmp_path,
     pde,
     input_channels,
@@ -45,7 +45,7 @@ def test_future_h5_loader_shapes_and_scalar_metadata(
     param_names,
 ):
     path = tmp_path / f"{pde}_1-6-6_1.h5"
-    _write_future_h5(path, input_channels=input_channels, output_channels=output_channels, attrs=attrs, datasets=datasets)
+    _write_pair_h5(path, input_channels=input_channels, output_channels=output_channels, attrs=attrs, datasets=datasets)
 
     loader = PDEloader(pde)
     data, labels = loader.load_data(str(path))

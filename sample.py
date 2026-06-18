@@ -1,4 +1,4 @@
-from sampling.legacy import build_parser, main
+from sampling.runner import main
 
 
 if __name__ == "__main__":

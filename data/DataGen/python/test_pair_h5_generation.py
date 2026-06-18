@@ -12,13 +12,13 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[3]
-GEN = ROOT / "data" / "DataGen" / "python" / "generate_future_pdes.py"
+GEN = ROOT / "data" / "DataGen" / "python" / "generate_pair_h5s.py"
 
 
-class FuturePDEGenerationTest(unittest.TestCase):
+class PairH5GenerationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.tmp = tempfile.TemporaryDirectory(prefix="fm4pde_future_pdes_")
+        cls.tmp = tempfile.TemporaryDirectory(prefix="fm4pde_pair_h5_")
         cls.out_root = Path(cls.tmp.name)
         cmd = [
             sys.executable,

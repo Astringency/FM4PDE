@@ -1,45 +1,38 @@
-data:
-  name: 'burger'
-  # datapath: '/large_storage/zhangxf/PDEdata/burgers/burger_10000-128-128_1.mat'
-  datapath: '/large_storage/zhangxf/PDEdata/test1125/burger_test_1000-128-128.mat'
-  remark: 'test_sensor20'
-  # remark: 'test_points'
-  offset: 0
-  img_channels: 1
-  img_resolution: 128
-  obs_size: 500
-  sensor_size: 20
-  coef: output
-  solution: output
-  loadby: 'scipy'
-
-model:
-  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/fm4burgers.pth'
-
-generate:
-  seed: 0
-  device: 'cuda'
-  batch_size: 1
-  zeta_obs_a: 0
-  zeta_obs_u: 3200
-  zeta_pde: 10
-  num_steps: 500
-  step_size: 0.002
-  method: 'euler'
-  guide: True
-  process: True
-  scheduler: "CondOT"
-  training: "velocity"
-  full: False
-  sensor: True
-  samplemode: "stochastic"
-  # samplemode: "deterministic"
-  stochastic_t: 1
-  obsguide_t: 1
-  obsguide_decay: 1
-
-output:
-  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
-  save: True
-  plot: True
-  return: False
+pde: burger
+task: both
+data_config_path: configs/burger.yaml
+data_path: /large_storage/zhangxf/PDEdata/test1125/burger_test_1000-128-128.mat
+loadby: scipy
+coef_name: output
+solution_name: output
+checkpoint_path: outputs/pretrained/fm4burgers.pth
+output_dir: outputs/ablations
+img_channels: 1
+img_resolution: 128
+allow_synthetic_data: false
+guidance_components: obs_pde
+loss_state: endpoint
+gradient_target: current_state_chain_rule
+sampler_phase: stochastic
+switch_ratio: 0.5
+guidance_schedule: constant
+clip_mode: global_norm
+clip_threshold: 10000000000.0
+pde_residual_region: full
+residual_mode: auto
+num_obs: 500
+sensor_mode: sensor_column
+shared_mask: false
+mask_seed: 0
+noise_level: 0.0
+noise_seed: 0
+time_grid: uniform
+num_steps: 100
+step_method: euler
+batch_size: 1
+sample_seed: 0
+device: cpu
+dtype: float32
+zeta_obs_a: 0
+zeta_obs_u: 3200
+zeta_pde: 10

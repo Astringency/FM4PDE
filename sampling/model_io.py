@@ -80,11 +80,10 @@ def load_fm4pde_checkpoint_bundle(
     if payload.get("normalizer") is not None:
         normalizer = PDEStandardizer.from_state_dict(payload["normalizer"])
     else:
-        warnings.warn(
-            "Checkpoint has no normalizer; sampling will treat model state as physical identity. "
-            "Use legacy_minmax=True only for explicit legacy min-max checkpoints.",
-            RuntimeWarning,
-            stacklevel=2,
+        raise ValueError(
+            "Checkpoint has no PDEStandardizer normalizer. "
+            "Sampling requires a checkpoint with saved normalization metadata; dry_run is the only path "
+            "that creates an explicit identity normalizer."
         )
     wrapped = WrappedModel(model).to(device) if wrap else model
     return wrapped, normalizer, payload

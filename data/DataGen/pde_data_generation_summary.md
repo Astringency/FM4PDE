@@ -6,7 +6,7 @@
 
 - 默认空间分辨率为 `128 x 128`，除 Burgers 外均表示二维空间网格。
 - 训练 loader 输出 BCHW 张量 `[N,C,H,W]`，标签由 `data/load.py` 中的 PDE 顺序给出。
-- 对于 `future_h5` 数据，磁盘中的 scalar 物理参数默认不展开成模型通道，而是进入 `PDEloader.pde_params`、训练 `data_metadata` 和采样 `pde_params`。
+- 对于 `pair_h5` 数据，磁盘中的 scalar 物理参数默认不展开成模型通道，而是进入 `PDEloader.pde_params`、训练 `data_metadata` 和采样 `pde_params`。
 - 采样端会把模型状态反标准化回物理量后再计算 observation loss 和 PDE residual。
 
 ## 1. Darcy Flow
@@ -81,7 +81,7 @@
 - 公式：
   $$\partial_tu=\alpha\Delta u,\quad (x,y)\in[0,1]^2.$$
 - 初边值条件：默认周期边界；可选 Neumann 生成分支；初值由平滑 GRF 采样。
-- 生成代码：`data/DataGen/python/generate_heat.py`，统一入口为 `generate_future_pdes.py`；默认 `alpha~U(5e-4,5e-3)`、`T=1`、`n_time=11`，谱方法精确推进。
+- 生成代码：`data/DataGen/python/generate_heat.py`，统一入口为 `generate_pair_h5s.py`；默认 `alpha~U(5e-4,5e-3)`、`T=1`、`n_time=11`，谱方法精确推进。
 - 磁盘格式：`heat/heat_10000-128-128_i.h5` 和 `heat/heat_test_1000-128-128.h5`；key 为 `input_data=[N,1,H,W]`、`output_data=[N,1,H,W]`、可选 `full_trajectory=[N,1,T,H,W]`，随机 alpha 存为 `alpha=[N]`，固定 alpha 存 attrs `fixed_alpha`。
 - FM4PDE 读入：当前 loader 返回 `[u0,uT]`，即 `[N,2,H,W]`；`alpha,T,dt` 作为 metadata/pde_params。
 

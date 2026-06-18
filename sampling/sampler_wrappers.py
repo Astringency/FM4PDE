@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -81,14 +80,6 @@ def choose_loss_state(loss_state: str, x_cur: Any, x_next: Any, x_endpoint: Any)
 
 
 def _normalize_loss_state(loss_state: str) -> str:
-    if loss_state == "denoised_endpoint":
-        warnings.warn(
-            "loss_state='denoised_endpoint' is deprecated and maps to 'endpoint'; "
-            "the ablation sampler does not run a separate denoising pass.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        return "endpoint"
     return loss_state
 
 

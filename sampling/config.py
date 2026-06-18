@@ -33,7 +33,7 @@ VALID_GUIDANCE_COMPONENTS = {
     "sol_obs_only",
     "both_obs",
 }
-VALID_LOSS_STATES = {"xt", "x_next", "endpoint", "denoised_endpoint"}
+VALID_LOSS_STATES = {"xt", "x_next", "endpoint"}
 VALID_GRADIENT_TARGETS = {"current_state_chain_rule", "loss_state_direct", "next_state_direct"}
 VALID_SAMPLER_PHASES = {"deterministic", "stochastic", "hybrid_d2s", "hybrid_s2d"}
 VALID_GUIDANCE_SCHEDULES = {
@@ -56,7 +56,8 @@ VALID_RESIDUAL_MODES = {
     "hermite_bridge",
     "near_endpoint_temporal",
     "endpoint_secant",
-    "legacy_endpoint_secant",
+    "full_trajectory_fd",
+    "full_time_space",
     "disabled",
 }
 
@@ -144,35 +145,13 @@ class AblationConfig:
     solution_name: str = ""
     loadby: str = ""
     ablation_name: str = ""
-    legacy_mode: str = "sparse"
     allow_synthetic_data: bool = True
     empty_cache_each_step: bool = False
-    legacy_pickle: bool = True
-    legacy_minmax: bool = False
     k: int = 1
     extra: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         self.residual_mode = normalize_residual_mode(self.residual_mode)
-        if self.loss_state == "denoised_endpoint":
-            import warnings
-
-            warnings.warn(
-                "loss_state='denoised_endpoint' is deprecated and maps to 'endpoint'; "
-                "there is no separate denoising step in the FM4PDE ablation sampler.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        if self.sensor_mode == "time_varying":
-            import warnings
-
-            warnings.warn(
-                "sensor_mode='time_varying' is deprecated for BCHW endpoint data; "
-                "use 'per_sample_random' for independently sampled endpoint masks.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.sensor_mode = "per_sample_random"
         checks = [
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),
@@ -249,10 +228,6 @@ def normalize_residual_mode(mode: Any) -> str:
     aliases = {
         "": "auto",
         "default": "auto",
-        "two_time_level": "endpoint_secant",
-        "legacy": "legacy_endpoint_secant",
-        "legacy_two_time_level": "legacy_endpoint_secant",
-        "coarse_endpoint": "endpoint_secant",
     }
     normalized = aliases.get(str(mode), str(mode))
     if normalized not in VALID_RESIDUAL_MODES:
@@ -263,7 +238,10 @@ def normalize_residual_mode(mode: Any) -> str:
 def load_config(path: str | os.PathLike[str], overrides: dict[str, Any] | None = None) -> AblationConfig:
     raw = load_yaml_file(path)
     if "data" in raw or "generate" in raw or "model" in raw:
-        cfg = config_from_legacy(raw, str(path))
+        raise ValueError(
+            "This config uses the old data/generate/model schema. "
+            "Please convert it to flat AblationConfig format."
+        )
     else:
         cfg = AblationConfig(**{k: v for k, v in raw.items() if k in _field_names()})
         cfg.extra.update({k: v for k, v in raw.items() if k not in _field_names()})
@@ -271,61 +249,6 @@ def load_config(path: str | os.PathLike[str], overrides: dict[str, Any] | None =
         set_config_value(cfg, key, value)
     cfg.validate()
     return cfg
-
-
-def config_from_legacy(raw: dict[str, Any], data_config_path: str) -> AblationConfig:
-    data = raw.get("data", {})
-    generate = raw.get("generate", {})
-    model = raw.get("model", {})
-    output = raw.get("output", {})
-
-    pde = str(data.get("name", "poisson")).strip("'\"")
-    checkpoint = str(model.get("pre-trained", _LOCAL_CHECKPOINTS.get(pde, ""))).strip("'\"")
-    if checkpoint and not Path(checkpoint).exists():
-        local = _LOCAL_CHECKPOINTS.get(pde, checkpoint)
-        if Path(local).exists():
-            checkpoint = local
-
-    return AblationConfig(
-        pde=pde,
-        task="both",
-        data_config_path=data_config_path,
-        checkpoint_path=checkpoint,
-        output_dir=_safe_output_dir(str(output.get("savepath", "outputs/ablations")).strip("'\"")),
-        guidance_components="obs_pde" if _to_bool(generate.get("guide", True)) else "noguide",
-        sampler_phase=str(generate.get("samplemode", "stochastic")).strip("'\""),
-        switch_ratio=float(generate.get("stochastic_t", 1.0)),
-        guidance_schedule="obs_decay",
-        clip_mode="global_norm",
-        clip_threshold=1e10,
-        num_obs=int(data.get("obs_size", 500)),
-        sensor_mode="sensor_column" if _to_bool(generate.get("sensor", False)) else "random",
-        shared_mask=False,
-        mask_seed=int(generate.get("seed", 0)),
-        noise_seed=int(generate.get("seed", 0)),
-        time_grid="geometric" if str(generate.get("samplemode", "")) == "deterministic" else "uniform",
-        num_steps=int(generate.get("num_steps", 100)),
-        step_method=str(generate.get("method", "euler")).strip("'\""),
-        batch_size=int(generate.get("batch_size", 1)),
-        sample_seed=int(generate.get("seed", 0)),
-        device=str(generate.get("device", "cpu")).strip("'\""),
-        save_intermediate=_to_bool(generate.get("process", False)),
-        save_plots=_to_bool(output.get("plot", False)),
-        zeta_obs_a=float(generate.get("zeta_obs_a", 1.0)),
-        zeta_obs_u=float(generate.get("zeta_obs_u", 1.0)),
-        zeta_pde=float(generate.get("zeta_pde", 1.0)),
-        obs_decay=float(generate.get("obsguide_decay", 1.0)),
-        obs_decay_start_ratio=float(generate.get("obsguide_t", 1.0)),
-        data_path=str(data.get("datapath", "")).strip("'\""),
-        offset=int(data.get("offset", 0)),
-        img_channels=int(data.get("img_channels", 2)),
-        img_resolution=int(data.get("img_resolution", 128)),
-        coef_name=str(data.get("coef", "")).strip("'\""),
-        solution_name=str(data.get("solution", "")).strip("'\""),
-        loadby=str(data.get("loadby", "")).strip("'\""),
-        extra={"legacy": raw},
-    )
-
 
 def save_resolved_config(cfg: AblationConfig, output_dir: str | os.PathLike[str]) -> Path:
     path = Path(output_dir) / "resolved_config.yaml"
@@ -400,7 +323,7 @@ def _field_names() -> set[str]:
 
 def _simple_yaml_load(text: str) -> dict[str, Any]:
     root: dict[str, Any] = {}
-    stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
+    stack: list[tuple[int, Any, Any | None, str | None]] = [(-1, root, None, None)]
     for raw_line in text.splitlines():
         line = raw_line.split("#", 1)[0].rstrip()
         if not line.strip():
@@ -410,6 +333,20 @@ def _simple_yaml_load(text: str) -> dict[str, Any]:
         while stack and indent <= stack[-1][0]:
             stack.pop()
         parent = stack[-1][1]
+        if stripped.startswith("- "):
+            item = _parse_scalar(stripped[2:].strip())
+            if isinstance(parent, dict):
+                container_parent = stack[-1][2]
+                container_key = stack[-1][3]
+                if parent or not isinstance(container_parent, dict) or container_key is None:
+                    continue
+                replacement: list[Any] = []
+                container_parent[container_key] = replacement
+                stack[-1] = (stack[-1][0], replacement, container_parent, container_key)
+                parent = replacement
+            if isinstance(parent, list):
+                parent.append(item)
+            continue
         if ":" not in stripped:
             continue
         key, value = stripped.split(":", 1)
@@ -418,7 +355,7 @@ def _simple_yaml_load(text: str) -> dict[str, Any]:
         if value == "":
             child: dict[str, Any] = {}
             parent[key] = child
-            stack.append((indent, child))
+            stack.append((indent, child, parent, key))
         else:
             parent[key] = _parse_scalar(value)
     return root
@@ -486,17 +423,3 @@ def _to_bool(value: Any) -> bool:
         if value.lower() in {"0", "false", "no", "n", "off"}:
             return False
     return bool(value)
-
-
-def _safe_output_dir(path: str) -> str:
-    if not path:
-        return "outputs/ablations"
-    candidate = Path(path).expanduser()
-    if not candidate.is_absolute():
-        return str(candidate)
-    probe = candidate
-    while not probe.exists() and probe.parent != probe:
-        probe = probe.parent
-    if probe.exists() and os.access(probe, os.W_OK):
-        return str(candidate)
-    return "outputs/ablations"

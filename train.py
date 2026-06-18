@@ -23,6 +23,7 @@ import torch.backends.cudnn as cudnn
 
 from data.load import PDEloader, TensorDataset
 from data.metadata import detach_pde_params, summarize_pde_params
+from data.specs import get_pde_spec
 from data.transform import PDEStandardizer
 from models.model_configs import instantiate_model
 from train_arg_parser import get_args_parser
@@ -84,7 +85,7 @@ def main(args):
     fitted_normalizer = PDEStandardizer.fit(
         data,
         eps=args.normalization_eps,
-        channel_names=[f"channel_{idx}" for idx in range(num_channels)],
+        channel_names=_training_channel_names(pde_names, loader_metadata, num_channels),
         pde=args.dataset,
     )
 
@@ -241,14 +242,24 @@ def _build_data_metadata(
     label: torch.Tensor,
     loader_metadata: dict[str, Any],
 ) -> dict[str, Any]:
+    specs = {pde: get_pde_spec(pde).to_metadata() for pde in pde_names}
+    channel_names = _training_channel_names(pde_names, loader_metadata, int(data.shape[1]))
     return {
         "dataset": args.dataset,
         "pde_names": list(pde_names),
+        "pde_data_specs": specs,
         "data_path": args.data_path,
         "data_size": args.data_size,
         "max_train_samples": args.max_train_samples,
         "data_shape": [int(dim) for dim in data.shape],
         "num_channels": int(data.shape[1]),
+        "channel_names": channel_names,
+        "scalar_param_keys": {
+            pde: sorted((loader_metadata.get(pde, {}) or {}).get("pde_params", {}))
+            for pde in pde_names
+        },
+        "residual_family": {pde: specs[pde]["residual_family"] for pde in pde_names},
+        "loadby": {pde: specs[pde]["default_loadby"] for pde in pde_names},
         "num_samples": int(data.shape[0]),
         "label_values": sorted(int(value) for value in torch.unique(label).detach().cpu().tolist()),
         "pde_param_summary": summarize_pde_params(loader_metadata),
@@ -256,8 +267,31 @@ def _build_data_metadata(
         "normalization": {
             "type": "channelwise_standardization",
             "eps": args.normalization_eps,
+            "channel_names": channel_names,
         },
     }
+
+
+def _training_channel_names(
+    pde_names: list[str],
+    loader_metadata: dict[str, Any],
+    num_channels: int,
+) -> list[str]:
+    per_pde = []
+    for pde_name in pde_names:
+        entry = loader_metadata.get(pde_name, {}) if isinstance(loader_metadata, dict) else {}
+        names = entry.get("channel_names") if isinstance(entry, dict) else None
+        if not names:
+            names = list(get_pde_spec(pde_name).channel_names)
+        if len(names) == num_channels:
+            per_pde.append(list(names))
+    if per_pde and all(names == per_pde[0] for names in per_pde):
+        return per_pde[0]
+    if len(pde_names) == 1:
+        names = list(get_pde_spec(pde_names[0]).channel_names)
+        if len(names) == num_channels:
+            return names
+    return [f"channel_{idx}" for idx in range(num_channels)]
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -317,6 +351,13 @@ def _loader_metadata_for_json(loader_metadata: dict[str, Any]) -> dict[str, Any]
             "pde_param_sources": _jsonable(entry.get("pde_param_sources", {})),
             "pde_param_slices": _jsonable(entry.get("pde_param_slices", [])),
             "channel_names": _jsonable(entry.get("channel_names")),
+            "coef_channel_names": _jsonable(entry.get("coef_channel_names")),
+            "sol_channel_names": _jsonable(entry.get("sol_channel_names")),
+            "pde_data_spec": _jsonable(entry.get("pde_data_spec", get_pde_spec(pde_name).to_metadata())),
+            "scalar_param_names": _jsonable(entry.get("scalar_param_names", get_pde_spec(pde_name).scalar_param_names)),
+            "optional_scalar_param_names": _jsonable(entry.get("optional_scalar_param_names", [])),
+            "residual_family": _jsonable(entry.get("residual_family", get_pde_spec(pde_name).residual_family)),
+            "loadby": _jsonable(entry.get("loadby", get_pde_spec(pde_name).default_loadby)),
             "scalar_params_loaded": bool(entry.get("scalar_params_loaded", bool(pde_params))),
             "selected_file_format": _jsonable(entry.get("selected_file_format")),
             "selected_files": _jsonable(entry.get("selected_files", [])),

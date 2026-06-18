@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Formal FM4PDE future-PDE data generation.
+# Formal FM4PDE endpoint-pair HDF5 data generation.
 #
 # Defaults:
 #   - PDEs: heat, wave, advection_diffusion, steady_heat_conduction
@@ -13,13 +13,13 @@ set -euo pipefail
 #   - output root: /large_storage/zhangxf/PDEdata
 #
 # Run from the repository root or from any directory:
-#   bash data/DataGen/run_generate_future_pdes_50k_10k_fulltraj.sh
+#   bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 #
 # Useful overrides:
-#   PYTHON_BIN=/path/to/python bash data/DataGen/run_generate_future_pdes_50k_10k_fulltraj.sh
-#   DATA_ROOT=/other/path OVERWRITE=1 bash data/DataGen/run_generate_future_pdes_50k_10k_fulltraj.sh
-#   CHUNK_SIZE=64 COMPRESSION=gzip bash data/DataGen/run_generate_future_pdes_50k_10k_fulltraj.sh
-#   DRY_RUN=1 bash data/DataGen/run_generate_future_pdes_50k_10k_fulltraj.sh
+#   PYTHON_BIN=/path/to/python bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
+#   DATA_ROOT=/other/path OVERWRITE=1 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
+#   CHUNK_SIZE=64 COMPRESSION=gzip bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
+#   DRY_RUN=1 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -61,7 +61,7 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
 fi
 
 cat <<EOF
-FM4PDE formal future-PDE generation
+FM4PDE formal endpoint-pair HDF5 generation
   repo:              ${REPO_ROOT}
   python:            ${PYTHON_BIN}
   data root:         ${DATA_ROOT}
@@ -82,7 +82,7 @@ EOF
 for PDE in "${PDE_LIST[@]}"; do
   echo
   echo "===== Generating ${PDE} ====="
-  "${PYTHON_BIN}" "${REPO_ROOT}/data/DataGen/python/generate_future_pdes.py" \
+  "${PYTHON_BIN}" "${REPO_ROOT}/data/DataGen/python/generate_pair_h5s.py" \
     --pde "${PDE}" \
     --out-root "${DATA_ROOT}" \
     --resolution "${RESOLUTION}" \

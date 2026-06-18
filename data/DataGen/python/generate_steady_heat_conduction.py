@@ -10,9 +10,9 @@ except Exception:  # pragma: no cover - scipy is an existing FM4PDE dependency
     spsolve = None
 
 try:
-    from .common import ChunkResult, FuturePDEConfig, ensure_finite, format_float_range
+    from .common import ChunkResult, PairH5Config, ensure_finite, format_float_range
 except ImportError:  # pragma: no cover
-    from common import ChunkResult, FuturePDEConfig, ensure_finite, format_float_range
+    from common import ChunkResult, PairH5Config, ensure_finite, format_float_range
 
 
 UD_RANGE = (288.0, 308.0)
@@ -22,7 +22,7 @@ SOURCE_SIGMA_RANGE = (0.04, 0.12)
 LAMBDA_MIN = 0.1
 
 
-def steady_heat_conduction_metadata(config: FuturePDEConfig) -> dict[str, object]:
+def steady_heat_conduction_metadata(config: PairH5Config) -> dict[str, object]:
     return {
         "equation": "-div(lambda(u) grad u) = f, lambda(u)=1+0.05*(u-298)",
         "boundary_condition": "bottom Dirichlet u=u_D; top/left/right zero Neumann",
@@ -49,7 +49,7 @@ def steady_heat_conduction_metadata(config: FuturePDEConfig) -> dict[str, object
     }
 
 
-def solve_steady_heat_conduction_chunk(global_ids: np.ndarray, config: FuturePDEConfig) -> ChunkResult:
+def solve_steady_heat_conduction_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResult:
     if coo_matrix is None or spsolve is None:
         raise RuntimeError("scipy.sparse is required for steady_heat_conduction")
     n = len(global_ids)
@@ -127,7 +127,7 @@ def sample_heat_sources(rng: np.random.Generator, resolution: int) -> tuple[np.n
     return f, {"n_sources": n_sources, "x": xs, "y": ys, "amp": amps, "sigma": sigmas}
 
 
-def solve_nonlinear_heat(f: np.ndarray, u_d: float, config: FuturePDEConfig) -> dict[str, object]:
+def solve_nonlinear_heat(f: np.ndarray, u_d: float, config: PairH5Config) -> dict[str, object]:
     s = f.shape[0]
     max_iter = int(config.extra.get("picard_max_iter", 30))
     tol = float(config.extra.get("picard_tol", 1e-5))

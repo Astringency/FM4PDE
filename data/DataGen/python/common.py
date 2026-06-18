@@ -23,7 +23,7 @@ NO_LEAKAGE_NOTE = (
 
 
 @dataclass(frozen=True)
-class FuturePDEConfig:
+class PairH5Config:
     pde: str
     out_root: Path
     resolution: int = 128
@@ -68,7 +68,7 @@ class ChunkResult:
     params: dict[str, np.ndarray]
 
 
-SolverFn = Callable[[np.ndarray, FuturePDEConfig], ChunkResult]
+SolverFn = Callable[[np.ndarray, PairH5Config], ChunkResult]
 
 
 def apply_quick_test_defaults(args: Any) -> None:
@@ -123,7 +123,7 @@ def add_common_arguments(parser: Any) -> None:
     parser.add_argument("--quick-test", action="store_true")
 
 
-def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None) -> FuturePDEConfig:
+def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None) -> PairH5Config:
     if args.recfno_split and args.n_train == 50_000 and args.n_val == 0 and args.n_test == 1_000:
         args.n_train = 4_000
         args.n_val = 1_000
@@ -140,7 +140,7 @@ def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None
             "n_train must equal samples_per_shard * train_shards "
             f"({args.n_train} != {samples_per_shard} * {args.train_shards})"
         )
-    return FuturePDEConfig(
+    return PairH5Config(
         pde=pde,
         out_root=Path(args.out_root),
         resolution=args.resolution,
@@ -169,7 +169,7 @@ def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None
     )
 
 
-def generate_dataset(config: FuturePDEConfig, solver: SolverFn, metadata: dict[str, Any]) -> list[Path]:
+def generate_dataset(config: PairH5Config, solver: SolverFn, metadata: dict[str, Any]) -> list[Path]:
     validate_config(config)
     pde_dir = config.out_root / config.pde
     files = plan_files(config)
@@ -199,7 +199,7 @@ def generate_dataset(config: FuturePDEConfig, solver: SolverFn, metadata: dict[s
     return written
 
 
-def validate_config(config: FuturePDEConfig) -> None:
+def validate_config(config: PairH5Config) -> None:
     if config.resolution <= 1:
         raise ValueError("resolution must be > 1")
     if config.n_time < 2:
@@ -224,11 +224,11 @@ def validate_config(config: FuturePDEConfig) -> None:
             raise ValueError("val/test seed ranges overlap")
 
 
-def plan_files(config: FuturePDEConfig) -> list[Path]:
+def plan_files(config: PairH5Config) -> list[Path]:
     return [item[-1] for item in files_with_splits(config)]
 
 
-def files_with_splits(config: FuturePDEConfig) -> list[tuple[int, int, int, str, Path]]:
+def files_with_splits(config: PairH5Config) -> list[tuple[int, int, int, str, Path]]:
     pde_dir = config.out_root / config.pde
     files: list[tuple[int, int, int, str, Path]] = []
     for shard_idx in range(config.train_shards):
@@ -244,7 +244,7 @@ def files_with_splits(config: FuturePDEConfig) -> list[tuple[int, int, int, str,
     return files
 
 
-def print_plan(config: FuturePDEConfig, files: list[Path]) -> None:
+def print_plan(config: PairH5Config, files: list[Path]) -> None:
     print(
         json.dumps(
             {
@@ -265,7 +265,7 @@ def print_plan(config: FuturePDEConfig, files: list[Path]) -> None:
 
 def write_h5_shard(
     path: Path,
-    config: FuturePDEConfig,
+    config: PairH5Config,
     split: str,
     shard_id: int,
     n_samples: int,
@@ -336,7 +336,7 @@ def write_h5_shard(
         )
 
 
-def create_main_datasets(h5: h5py.File, n_samples: int, result: ChunkResult, config: FuturePDEConfig) -> dict[str, h5py.Dataset]:
+def create_main_datasets(h5: h5py.File, n_samples: int, result: ChunkResult, config: PairH5Config) -> dict[str, h5py.Dataset]:
     kwargs = compression_kwargs(config)
     dsets = {
         "input_data": h5.create_dataset(
@@ -395,7 +395,7 @@ def cast_chunk_result(result: ChunkResult, dtype: str) -> ChunkResult:
 
 def write_attrs(
     h5: h5py.File,
-    config: FuturePDEConfig,
+    config: PairH5Config,
     split: str,
     shard_id: int,
     n_samples: int,
@@ -438,7 +438,7 @@ def encode_attr(value: Any) -> Any:
     return json.dumps(value, sort_keys=True)
 
 
-def compression_kwargs(config: FuturePDEConfig) -> dict[str, Any]:
+def compression_kwargs(config: PairH5Config) -> dict[str, Any]:
     if config.compression is None:
         return {}
     if config.compression == "gzip":
@@ -504,7 +504,7 @@ def normalize_field(field: np.ndarray) -> np.ndarray:
     return field / std
 
 
-def sample_rng(global_sample_id: int, config: FuturePDEConfig, split_base_seed: int | None = None) -> np.random.Generator:
+def sample_rng(global_sample_id: int, config: PairH5Config, split_base_seed: int | None = None) -> np.random.Generator:
     base = config.base_seed_train if split_base_seed is None else split_base_seed
     return np.random.default_rng(base + int(global_sample_id))
 
@@ -524,7 +524,7 @@ def hash_array(arr: np.ndarray) -> str:
     return hashlib.sha256(contiguous.view(np.uint8)).hexdigest()
 
 
-def run_no_leakage_check(config: FuturePDEConfig, files: list[Path]) -> dict[str, Any]:
+def run_no_leakage_check(config: PairH5Config, files: list[Path]) -> dict[str, Any]:
     train_files = [path for path in files if "_test_" not in path.name]
     val_files = [path for path in train_files if "_val_" in path.name]
     train_files = [path for path in train_files if "_val_" not in path.name]
@@ -581,7 +581,7 @@ def collect_input_hashes(files: list[Path]) -> set[str]:
     return hashes
 
 
-def base_seed_for_split(config: FuturePDEConfig, split: str) -> int:
+def base_seed_for_split(config: PairH5Config, split: str) -> int:
     if split == "train":
         return config.base_seed_train
     if split == "val":

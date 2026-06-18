@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -152,43 +151,3 @@ class PDEStandardizer:
         expected = int(self.mean.shape[1])
         if int(x.shape[1]) != expected:
             raise ValueError(f"Expected {expected} channels, got {int(x.shape[1])}")
-
-
-class PDEtransform:
-    """Deprecated compatibility wrapper around training-set standardization."""
-
-    def __init__(self, data: torch.Tensor, mode: str = "train", eps: float = 1e-6):
-        if mode != "train":
-            warnings.warn(
-                "PDEtransform(mode='sample') no longer estimates per-sample statistics. "
-                "Use a saved PDEStandardizer from the training checkpoint.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-        self.data = data
-        self.mode = mode
-        if mode == "train":
-            self.standardizer = PDEStandardizer.fit(data.unsqueeze(0) if data.ndim == 3 else data, eps=eps)
-        else:
-            channels = int(data.shape[0] if data.ndim == 3 else data.shape[1])
-            self.standardizer = PDEStandardizer.identity(channels, eps=eps)
-
-    def transform(self) -> torch.Tensor:
-        return self.standardizer.transform(self.data.unsqueeze(0)).squeeze(0) if self.data.ndim == 3 else self.standardizer.transform(self.data)
-
-    def inverse_transform(self) -> torch.Tensor:
-        return (
-            self.standardizer.inverse_transform(self.data.unsqueeze(0)).squeeze(0)
-            if self.data.ndim == 3
-            else self.standardizer.inverse_transform(self.data)
-        )
-
-    def transform_sample(self, a: torch.Tensor, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        pair = torch.cat([a, u], dim=1)
-        split = self.standardizer.transform(pair)
-        return split[:, : a.shape[1]], split[:, a.shape[1] :]
-
-    def inverse_transform_sample(self, a: torch.Tensor, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        pair = torch.cat([a, u], dim=1)
-        split = self.standardizer.inverse_transform(pair)
-        return split[:, : a.shape[1]], split[:, a.shape[1] :]

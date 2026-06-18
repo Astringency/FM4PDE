@@ -152,7 +152,7 @@ def get_args_parser():
     parser.add_argument(
         "--save_full_pde_params",
         action="store_true",
-        help="Save full sample-aligned future PDE scalar parameters to output_dir/pde_params.pt.",
+        help="Save full sample-aligned PDE scalar parameters to output_dir/pde_params.pt.",
     )
     parser.add_argument(
         "--output_dir",

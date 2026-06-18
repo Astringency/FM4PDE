@@ -1,5 +1,7 @@
 import pytest
 
+import yaml
+
 from sampling.config import AblationConfig, VALID_RESIDUAL_MODES, VALID_SENSOR_MODES, load_config, parse_cli_overrides
 
 
@@ -25,20 +27,34 @@ def test_invalid_task_guidance_conflict():
         cfg.validate()
 
 
-def test_time_varying_sensor_mode_is_legacy_alias():
+def test_time_varying_sensor_mode_is_rejected():
     cfg = AblationConfig(sensor_mode="time_varying")
-    with pytest.warns(DeprecationWarning):
+    with pytest.raises(ValueError, match="sensor_mode"):
         cfg.validate()
     assert "time_varying" not in VALID_SENSOR_MODES
-    assert cfg.sensor_mode == "per_sample_random"
 
 
-def test_residual_mode_validation_and_aliases():
-    cfg = AblationConfig(residual_mode="two_time_level")
+def test_residual_mode_validation():
+    cfg = AblationConfig(residual_mode="endpoint_secant")
     cfg.validate()
     assert cfg.residual_mode == "endpoint_secant"
     assert "hermite_bridge" in VALID_RESIDUAL_MODES
+    assert "full_trajectory_fd" in VALID_RESIDUAL_MODES
+
+    alias = AblationConfig(residual_mode="two_time_level")
+    with pytest.raises(ValueError, match="residual_mode"):
+        alias.validate()
 
     bad = AblationConfig(residual_mode="near_endpoint_temporal")
     with pytest.raises(ValueError, match="num_near_endpoint_obs"):
         bad.validate()
+
+
+def test_load_config_rejects_old_schema(tmp_path):
+    path = tmp_path / "old.yaml"
+    path.write_text(
+        yaml.safe_dump({"data": {"name": "heat"}, "generate": {"num_steps": 10}, "model": {}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="old data/generate/model schema"):
+        load_config(path)

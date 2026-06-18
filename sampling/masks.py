@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,14 +33,6 @@ def make_mask(
     spatial_count = h * w
     k = min(int(num_obs), spatial_count)
     gen = torch.Generator(device="cpu").manual_seed(int(seed))
-
-    if mode == "time_varying":
-        warnings.warn(
-            "sensor_mode='time_varying' is deprecated for BCHW endpoint data; using 'per_sample_random'.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        mode = "per_sample_random"
 
     if mode == "random":
         idx = torch.randperm(spatial_count, generator=gen)[:k]

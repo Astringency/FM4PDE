@@ -29,7 +29,7 @@ if str(THIS_DIR) not in sys.path:
 if str(TIME_DEPENDENT_DIR) not in sys.path:
     sys.path.insert(0, str(TIME_DEPENDENT_DIR))
 
-from common import FuturePDEConfig, generate_dataset  # noqa: E402
+from common import PairH5Config, generate_dataset  # noqa: E402
 from generate_advection_diffusion import advection_diffusion_metadata, solve_advection_diffusion_chunk  # noqa: E402
 from generate_heat import heat_metadata, solve_heat_chunk  # noqa: E402
 from generate_steady_heat_conduction import (  # noqa: E402
@@ -107,7 +107,7 @@ def main() -> dict[str, Any]:
     ]
 
     for pde, solver, metadata_fn, extra, time_dependent in future_entries:
-        config = FuturePDEConfig(
+        config = PairH5Config(
             pde=pde,
             out_root=out_root,
             resolution=args.resolution,

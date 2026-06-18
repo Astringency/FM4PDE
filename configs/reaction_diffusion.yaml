@@ -1,45 +1,45 @@
-data:
-  name: 'reaction_diffusion'
-  # Sampling/evaluation uses the held-out test split. Training scripts should
-  # point at the PDEdata root or reaction_diffusion directory so the loader
-  # selects train files named reaction_diffusion_*.h5 and excludes
-  # reaction_diffusion_test_*.h5.
-  datapath: '/large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5'
-  remark: 'test'
-  offset: 0
-  img_channels: 4
-  img_resolution: 128
-  obs_size: 500
-  coef: a
-  solution: u
-  loadby: 'rd'
-
-model:
-  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/fm4reaction_diffusion.pth'
-
-generate:
-  seed: 0
-  device: 'cuda'
-  batch_size: 1
-  zeta_obs_a: 40000000
-  zeta_obs_u: 40000000
-  zeta_pde: 10
-  num_steps: 1000
-  step_size: 0.001
-  method: 'euler'
-  guide: True
-  process: True
-  scheduler: "CondOT"
-  training: "velocity"
-  full: False
-  samplemode: "stochastic"
-  stochastic_t: 1
-  obsguide_t: 0.8
-  obsguide_decay: 0.1
-
-output:
-  savepath: '/research_data/users/zhangxifeng/C01Python/Eval/DeepLearning4PDE/samples/FM4PDE/'
-  plot: True
-  save: True
-  return: False
-  
+pde: reaction_diffusion
+task: both
+data_config_path: configs/reaction_diffusion.yaml
+data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5
+loadby: rd
+coef_name: a
+solution_name: u
+checkpoint_path: outputs/pretrained/fm4reaction_diffusion.pth
+output_dir: outputs/ablations
+img_channels: 4
+img_resolution: 128
+allow_synthetic_data: false
+guidance_components: obs_pde
+loss_state: endpoint
+gradient_target: current_state_chain_rule
+sampler_phase: stochastic
+switch_ratio: 0.5
+guidance_schedule: constant
+clip_mode: global_norm
+clip_threshold: 10000000000.0
+pde_residual_region: full
+residual_mode: hermite_bridge
+hermite_collocation_times: [0.25, 0.5, 0.75]
+hermite_include_integral_residual: true
+hermite_integral_weight: 1.0
+num_near_endpoint_obs: 0
+near_endpoint_sensor_mode: random
+near_endpoint_mask_seed: 0
+near_endpoint_shared_mask: true
+num_obs: 500
+sensor_mode: random
+shared_mask: false
+mask_seed: 0
+noise_level: 0.0
+noise_seed: 0
+time_grid: uniform
+num_steps: 100
+step_method: euler
+batch_size: 1
+sample_seed: 0
+device: cpu
+dtype: float32
+zeta_obs_a: 40000000
+zeta_obs_u: 40000000
+zeta_pde: 10

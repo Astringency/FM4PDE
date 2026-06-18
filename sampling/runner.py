@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import os
-import pickle
 import random
 import time
-import warnings
 from pathlib import Path
 from typing import Any
 
-from sampling.config import AblationConfig, load_config, normalize_residual_mode, parse_cli_overrides, str2bool
+from sampling.config import AblationConfig, load_config, normalize_residual_mode, parse_cli_overrides
 from sampling.data import finalize_ground_truth_config, load_ground_truth
 from sampling.guidance import apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
 from sampling.logging import make_run_dir, save_torch, write_run_metadata
@@ -27,7 +24,6 @@ from sampling.time_grid import affine_coefficients, make_time_grid, scheduler_co
 def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     config = finalize_ground_truth_config(config)
     config.validate()
-    _disable_unreliable_pde_guidance(config)
 
     if config.dry_run and not _torch_available():
         run_dir = make_run_dir(config)
@@ -202,20 +198,6 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "config": config.asdict(),
         },
     )
-    if config.legacy_pickle:
-        with (run_dir / "legacy_results.pkl").open("wb") as handle:
-            pickle.dump(
-                {
-                    "obs_index": {"known_index_a": masks.coef.detach().cpu(), "known_index_u": masks.sol.detach().cpu()},
-                    "coef_final": final_phys.coef.detach().cpu(),
-                    "sol_final": final_phys.sol.detach().cpu(),
-                    "loss": rows,
-                    "intermediate": intermediates,
-                    "time": final["wall_clock_time"],
-                    "config": config.asdict(),
-                },
-                handle,
-            )
     return final
 
 
@@ -224,56 +206,9 @@ def run_from_config_path(config_path: str, overrides: dict[str, Any] | None = No
     return run_single_ablation(cfg)
 
 
-def run_from_legacy_args(args: argparse.Namespace) -> list[dict[str, Any]]:
-    overrides: dict[str, Any] = {
-        "pde": args.pdetype,
-        "task": args.problem,
-        "legacy_mode": args.mode,
-        "k": args.k,
-    }
-    if args.num_steps:
-        overrides["num_steps"] = args.num_steps
-    if args.num_obs:
-        overrides["num_obs"] = args.num_obs
-    if args.sampler:
-        if args.hybrid and args.sampler == "deterministic":
-            overrides["sampler_phase"] = "hybrid_d2s"
-            overrides["switch_ratio"] = 0.5
-        elif args.hybrid and args.sampler == "stochastic":
-            overrides["sampler_phase"] = "hybrid_s2d"
-            overrides["switch_ratio"] = 0.5
-        else:
-            overrides["sampler_phase"] = args.sampler
-    if args.guide is not None and not str2bool(args.guide):
-        overrides["guidance_components"] = "noguide"
-    if not args.pdeguide:
-        overrides["zeta_pde"] = 0.0
-    if args.dry_run:
-        overrides["dry_run"] = True
-    overrides["extra"] = {
-        "legacy_remark": args.remark,
-        "legacy_dt_sampler": args.dt_sampler,
-        "legacy_perturb": args.perturb,
-        "legacy_perturb_rate": args.perturb_rate,
-        "legacy_lr_decay": args.lr_decay,
-        "legacy_freq_decay": args.freq_decay,
-    }
-    results = []
-    for i in range(int(args.batch)):
-        cfg = load_config(args.config, overrides=overrides)
-        cfg.offset += i
-        if args.problem == "forward" and cfg.guidance_components in {"obs_pde", "obs_only"}:
-            pass
-        if args.mode == "full":
-            cfg.num_obs = cfg.img_resolution * cfg.img_resolution
-            cfg.sensor_mode = "fixed"
-        results.append(run_single_ablation(cfg))
-    return results
-
-
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a single FM4PDE ablation.")
-    parser.add_argument("--config", required=True, help="Ablation YAML or legacy PDE YAML.")
+    parser.add_argument("--config", required=True, help="Flat AblationConfig YAML.")
     parser.add_argument("--override", action="append", default=[], help="Override key=value. Can be repeated.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and run without loading the checkpoint.")
     return parser
@@ -296,7 +231,6 @@ def _physical_from_model_state(x_model: Any, config: AblationConfig, normalizer:
         pde=config.pde,
         img_channels=config.img_channels,
         normalizer=normalizer,
-        legacy_minmax=getattr(config, "legacy_minmax", False),
     )
 
 
@@ -358,47 +292,52 @@ def _has_guidance(config: AblationConfig) -> bool:
     return flags["obs_a"] or flags["obs_u"] or flags["pde"]
 
 
-def _disable_unreliable_pde_guidance(config: AblationConfig) -> None:
-    if config.pde == "nsnonbounded":
-        mapped = {"pde_only": "noguide", "obs_pde": "obs_only"}.get(config.guidance_components)
-        if mapped is not None:
-            original = config.guidance_components
-            message = (
-                f"nsnonbounded guidance_components={original!r} requests PDE guidance, but NS PDE guidance is "
-                f"disabled because no reliable two-time-level vorticity residual is implemented; using {mapped!r}."
-            )
-            warnings.warn(message, RuntimeWarning, stacklevel=2)
-            config.guidance_components = mapped
-            config.zeta_pde = 0.0
-            config.extra["guidance_components_requested"] = original
-            config.extra["guidance_components_effective"] = mapped
-            config.extra["ns_pde_guidance_disabled"] = True
-            config.extra["ns_pde_guidance_warning"] = message
-            return
-
-    flags = guidance_component_flags(config.guidance_components, config.task)
-    if config.pde == "nsnonbounded" and flags["pde"] and float(config.zeta_pde) != 0.0:
-        warnings.warn(
-            "nsnonbounded PDE guidance is disabled because no reliable NS residual is implemented; setting zeta_pde=0.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        config.zeta_pde = 0.0
-
-
 def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
     requested_mode = normalize_residual_mode(config.residual_mode)
-    if config.pde in {"heat", "wave", "advection_diffusion", "reaction_diffusion", "shallow_water"}:
+    if config.pde in {"heat", "wave", "advection_diffusion", "reaction_diffusion", "shallow_water", "nsnonbounded"}:
         resolved_mode = "hermite_bridge" if requested_mode == "auto" else requested_mode
     elif config.pde == "burger":
         resolved_mode = "full_time_space"
-    elif config.pde == "nsnonbounded":
-        resolved_mode = "disabled"
+    elif config.pde == "steady_heat_conduction":
+        resolved_mode = "static_nonlinear_boundary"
     else:
-        resolved_mode = requested_mode
+        resolved_mode = "static"
+    if resolved_mode == "hermite_bridge":
+        temporal_derivative_mode = "hermite_bridge"
+        endpoint_only = True
+        uses_generated_trajectory = False
+        uses_extra_temporal_observations = False
+    elif resolved_mode == "near_endpoint_temporal":
+        temporal_derivative_mode = "near_endpoint_sparse_fd"
+        endpoint_only = False
+        uses_generated_trajectory = False
+        uses_extra_temporal_observations = True
+    elif resolved_mode == "endpoint_secant":
+        temporal_derivative_mode = "endpoint_secant"
+        endpoint_only = True
+        uses_generated_trajectory = False
+        uses_extra_temporal_observations = False
+    elif resolved_mode in {"full_time_space", "full_trajectory_fd"}:
+        temporal_derivative_mode = "full_fd"
+        endpoint_only = False
+        uses_generated_trajectory = True
+        uses_extra_temporal_observations = False
+    else:
+        temporal_derivative_mode = "none"
+        endpoint_only = False
+        uses_generated_trajectory = False
+        uses_extra_temporal_observations = False
+    from data.specs import get_pde_spec
+
+    spec = get_pde_spec(config.pde)
     metadata = {
         "pde": config.pde,
         "residual_status": residual_status(config.pde),
+        "residual_family": "full_trajectory" if resolved_mode == "full_trajectory_fd" else spec.residual_family,
+        "temporal_derivative_mode": temporal_derivative_mode,
+        "endpoint_only": endpoint_only,
+        "uses_generated_trajectory": uses_generated_trajectory,
+        "uses_extra_temporal_observations": uses_extra_temporal_observations,
         "residual_mode": config.residual_mode,
         "resolved_residual_mode": resolved_mode,
         "zeta_pde": config.zeta_pde,
@@ -411,14 +350,6 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         "near_endpoint_mask_seed": config.near_endpoint_mask_seed,
         "near_endpoint_shared_mask": config.near_endpoint_shared_mask,
     }
-    for key in (
-        "guidance_components_requested",
-        "guidance_components_effective",
-        "ns_pde_guidance_disabled",
-        "ns_pde_guidance_warning",
-    ):
-        if key in config.extra:
-            metadata[key] = config.extra[key]
     return metadata
 
 
