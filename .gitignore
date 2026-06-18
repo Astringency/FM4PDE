@@ -1,5 +1,10 @@
+# Python bytecode/cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
 outputs/pretrained/*
 outputs/datacheck/*
 outputs/ablations/*
+outputs/checkrun/*
