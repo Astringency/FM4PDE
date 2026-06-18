@@ -1,7 +1,7 @@
 pde: steady_heat_conduction
 task: both
 data_config_path: configs/steady_heat_conduction.yaml
-checkpoint_path: output/pretrained/fm4steady_heat_conduction.pth
+checkpoint_path: outputs/pretrained/fm4steady_heat_conduction.pth
 output_dir: outputs/ablations
 guidance_components: obs_pde
 loss_state: endpoint

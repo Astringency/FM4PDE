@@ -12,7 +12,7 @@ data:
   loadby: 'future_h5'
 
 model:
-  pre-trained: 'output/pretrained/fm4heat_fixed.pth'
+  pre-trained: 'outputs/pretrained/fm4heat_fixed.pth'
 
 generate:
   seed: 0

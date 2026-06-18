@@ -12,7 +12,7 @@ data:
   loadby: 'h5py'
 
 model:
-  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4nsnonbounded.pth'
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/fm4nsnonbounded.pth'
 
 generate:
   seed: 0

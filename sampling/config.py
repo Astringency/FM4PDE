@@ -62,17 +62,17 @@ VALID_RESIDUAL_MODES = {
 
 
 _LOCAL_CHECKPOINTS = {
-    "darcy": "output/pretrained/fm4darcy.pth",
-    "poisson": "output/pretrained/fm4poisson.pth",
-    "helmholtz": "output/pretrained/fm4helmholtz.pth",
-    "nsnonbounded": "output/pretrained/fm4nsnonbounded.pth",
-    "burger": "output/pretrained/fm4burgers.pth",
-    "reaction_diffusion": "output/pretrained/fm4reaction_diffusion.pth",
-    "shallow_water": "output/pretrained/fm4shallow_water.pth",
-    "heat": "output/pretrained/fm4heat.pth",
-    "wave": "output/pretrained/fm4wave.pth",
-    "advection_diffusion": "output/pretrained/fm4advection_diffusion.pth",
-    "steady_heat_conduction": "output/pretrained/fm4steady_heat_conduction.pth",
+    "darcy": "outputs/pretrained/fm4darcy.pth",
+    "poisson": "outputs/pretrained/fm4poisson.pth",
+    "helmholtz": "outputs/pretrained/fm4helmholtz.pth",
+    "nsnonbounded": "outputs/pretrained/fm4nsnonbounded.pth",
+    "burger": "outputs/pretrained/fm4burgers.pth",
+    "reaction_diffusion": "outputs/pretrained/fm4reaction_diffusion.pth",
+    "shallow_water": "outputs/pretrained/fm4shallow_water.pth",
+    "heat": "outputs/pretrained/fm4heat.pth",
+    "wave": "outputs/pretrained/fm4wave.pth",
+    "advection_diffusion": "outputs/pretrained/fm4advection_diffusion.pth",
+    "steady_heat_conduction": "outputs/pretrained/fm4steady_heat_conduction.pth",
 }
 
 
@@ -81,7 +81,7 @@ class AblationConfig:
     pde: str = "poisson"
     task: str = "forward"
     data_config_path: str = "configs/poisson.yaml"
-    checkpoint_path: str = "output/pretrained/fm4poisson.pth"
+    checkpoint_path: str = "outputs/pretrained/fm4poisson.pth"
     output_dir: str = "outputs/ablations"
 
     guidance_components: str = "obs_pde"

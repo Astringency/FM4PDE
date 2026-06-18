@@ -4,7 +4,7 @@ set -euo pipefail
 # Training points at the PDEdata root. The reaction_diffusion loader defaults
 # to train files reaction_diffusion_*.h5 and excludes reaction_diffusion_test_*.h5.
 DATA_PATH="${DATA_PATH:-/large_storage/zhangxf/PDEdata/}"
-OUTPUT_DIR="${OUTPUT_DIR:-/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/}"
+OUTPUT_DIR="${OUTPUT_DIR:-/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/}"
 EPOCHS="${EPOCHS:-500}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
 RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"

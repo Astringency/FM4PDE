@@ -8,7 +8,7 @@ This is a codebase for solving Partial Differential Equations (PDEs) based on Fl
 * **`data/`**: Data generation and loading modules, including code related to `pdebench`.
 * **`flow_matching/`**: Core implementation of Flow Matching, including ODE solvers, paths, and loss functions.
 * **`models/`**: Model architecture definitions, primarily U-Net and its variants.
-* **`output/`**: Storage path for training results.
+* **`outputs/`**: Storage path for training and sampling results.
 * **`training/`**: Training loops, distributed training utilities, and model saving/loading logic.
 * **`sampling/`**: Sampling, guidance, metrics, sweep, and ablation code for generating PDE solutions.
 * **`torchdiffeq/`**: Main implementation of Neural Ordinary Differential Equations (NODE).

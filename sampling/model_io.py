@@ -246,7 +246,7 @@ def _resolve_checkpoint_path(checkpoint_path: str, pde_type: str) -> Path:
         "advection_diffusion": "fm4advection_diffusion.pth",
         "steady_heat_conduction": "fm4steady_heat_conduction.pth",
     }
-    fallback = Path("output/pretrained") / fallback_names.get(pde_type, f"fm4{pde_type}.pth")
+    fallback = Path("outputs/pretrained") / fallback_names.get(pde_type, f"fm4{pde_type}.pth")
     if fallback.exists():
         return fallback
     raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path} (fallback {fallback} also missing)")

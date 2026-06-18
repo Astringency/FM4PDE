@@ -45,7 +45,7 @@ TEST_BASE_SEED = 10_000_000
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Small DataGen smoke check with HDF5 outputs and PNG previews.")
-    parser.add_argument("--out-root", type=Path, default=Path("output/datacheck"))
+    parser.add_argument("--out-root", type=Path, default=Path("outputs/datacheck"))
     parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--n-train", type=int, default=5)
     parser.add_argument("--n-test", type=int, default=5)

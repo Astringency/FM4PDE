@@ -14,7 +14,7 @@ data:
   loadby: 'scipy'
 
 model:
-  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4burgers.pth'
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/fm4burgers.pth'
 
 generate:
   seed: 0

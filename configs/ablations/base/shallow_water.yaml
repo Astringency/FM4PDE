@@ -1,7 +1,7 @@
 pde: shallow_water
 task: both
 data_config_path: configs/shallow_water.yaml
-checkpoint_path: output/pretrained/fm4shallow_water.pth
+checkpoint_path: outputs/pretrained/fm4shallow_water.pth
 output_dir: outputs/ablations
 guidance_components: obs_pde
 loss_state: endpoint

@@ -1,7 +1,7 @@
 pde: wave
 task: both
 data_config_path: configs/wave.yaml
-checkpoint_path: output/pretrained/fm4wave.pth
+checkpoint_path: outputs/pretrained/fm4wave.pth
 output_dir: outputs/ablations
 guidance_components: obs_pde
 loss_state: endpoint

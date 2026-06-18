@@ -1,7 +1,7 @@
 pde: poisson
 task: both
 data_config_path: configs/poisson.yaml
-checkpoint_path: output/pretrained/fm4poisson.pth
+checkpoint_path: outputs/pretrained/fm4poisson.pth
 output_dir: outputs/ablations
 guidance_components: obs_pde
 loss_state: endpoint

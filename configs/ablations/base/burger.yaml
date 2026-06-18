@@ -1,7 +1,7 @@
 pde: burger
 task: both
 data_config_path: configs/burger.yaml
-checkpoint_path: output/pretrained/fm4burgers.pth
+checkpoint_path: outputs/pretrained/fm4burgers.pth
 output_dir: outputs/ablations
 guidance_components: obs_pde
 loss_state: endpoint

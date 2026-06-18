@@ -13,7 +13,7 @@ data:
   loadby: 'scipy'
 
 model:
-  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4poisson.pth'
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/fm4poisson.pth'
 
 generate:
   seed: 42

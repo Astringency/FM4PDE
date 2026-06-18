@@ -15,7 +15,7 @@ data:
   loadby: 'rd'
 
 model:
-  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/fm4reaction_diffusion.pth'
+  pre-trained: '/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/fm4reaction_diffusion.pth'
 
 generate:
   seed: 0

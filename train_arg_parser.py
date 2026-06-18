@@ -156,7 +156,7 @@ def get_args_parser():
     )
     parser.add_argument(
         "--output_dir",
-        default="/research_data/users/zhangxifeng/C01Python/FM4PDE/output/pretrained/",
+        default="/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/",
         help="path where to save, empty for no saving",
     )
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")

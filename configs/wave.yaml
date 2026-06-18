@@ -12,7 +12,7 @@ data:
   loadby: 'future_h5'
 
 model:
-  pre-trained: 'output/pretrained/fm4wave.pth'
+  pre-trained: 'outputs/pretrained/fm4wave.pth'
 
 generate:
   seed: 0
