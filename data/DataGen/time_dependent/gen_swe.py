@@ -1,63 +1,147 @@
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
 import h5py
 import numpy as np
-import multiprocessing as mp
-from pathlib import Path
 from tqdm import tqdm
-from pdebench.data_gen.src.sim_radial_dam_break import RadialDamBreak2D
+
+THIS_DIR = Path(__file__).resolve().parent
+if str(THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(THIS_DIR))
+
+
+DEFAULT_OUT_DIR = Path("/large_storage/zhangxf/PDEdata/shallow_water")
+TRAIN_BASE_SEED = 0
+TEST_BASE_SEED = 10_000_000
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Generate FM4PDE shallow-water radial dam-break HDF5 data.")
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--split", choices=["train", "test"], default="test")
+    parser.add_argument("--total-samples", type=int, default=1000)
+    parser.add_argument("--resolution", type=int, default=128)
+    parser.add_argument("--tsteps", type=int, default=10, help="Number of saved intervals; file n_time is tsteps + 1.")
+    parser.add_argument("--T", type=float, default=1.0)
+    parser.add_argument("--base-seed", type=int, default=None)
+    parser.add_argument("--overwrite", action="store_true")
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
+
+
+def output_path(
+    out_dir: Path,
+    *,
+    split: str,
+    total_samples: int,
+    resolution: int,
+    tsteps: int,
+) -> Path:
+    prefix = "shallow_water_test" if split == "test" else "shallow_water"
+    return out_dir / f"{prefix}_{total_samples}-{resolution}-{resolution}-{tsteps}.h5"
+
+
+def generate_dataset(args: argparse.Namespace) -> Path:
+    if args.total_samples < 1:
+        raise ValueError("--total-samples must be positive")
+    if args.resolution < 2:
+        raise ValueError("--resolution must be at least 2")
+    if args.tsteps < 1:
+        raise ValueError("--tsteps must be positive")
+
+    try:
+        from pdebench.data_gen.src.sim_radial_dam_break import RadialDamBreak2D
+    except Exception as exc:
+        raise RuntimeError(
+            "shallow_water generation requires the Clawpack/PyClaw dependency used by "
+            "pdebench.data_gen.src.sim_radial_dam_break"
+        ) from exc
+
+    split = str(args.split)
+    base_seed = args.base_seed
+    if base_seed is None:
+        base_seed = TEST_BASE_SEED if split == "test" else TRAIN_BASE_SEED
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = output_path(
+        out_dir,
+        split=split,
+        total_samples=int(args.total_samples),
+        resolution=int(args.resolution),
+        tsteps=int(args.tsteps),
+    )
+    if path.exists():
+        if args.overwrite:
+            path.unlink()
+        else:
+            raise FileExistsError(f"{path} exists; pass --overwrite to replace it")
+
+    with h5py.File(path, "w") as h5:
+        h5.attrs["pde_name"] = "shallow_water_radial_dam_break"
+        h5.attrs["split"] = split
+        h5.attrs["n_samples"] = int(args.total_samples)
+        h5.attrs["resolution"] = f"{args.resolution}x{args.resolution}"
+        h5.attrs["n_time"] = int(args.tsteps) + 1
+        h5.attrs["tsteps"] = int(args.tsteps)
+        h5.attrs["T"] = float(args.T)
+        h5.attrs["base_seed"] = int(base_seed)
+        h5.create_dataset(
+            "sample_seed",
+            data=int(base_seed) + np.arange(int(args.total_samples), dtype=np.int64),
+            dtype="int64",
+        )
+        for idx in tqdm(range(int(args.total_samples)), desc=f"shallow_water {split}"):
+            seed = int(base_seed) + idx
+            rng = np.random.default_rng(seed)
+            dam_radius = float(rng.uniform(0.4, 0.8))
+            inner_height = float(rng.uniform(2.0, 3.0))
+
+            sim = RadialDamBreak2D(
+                xdim=int(args.resolution),
+                ydim=int(args.resolution),
+                grav=1.0,
+                dam_radius=dam_radius,
+                inner_height=inner_height,
+            )
+            sim.run(T=float(args.T), tsteps=int(args.tsteps))
+
+            seed_group = f"{idx:06d}"
+            sim.save_state_to_disk(h5, seed_group)
+            group = h5[seed_group]
+            group.attrs["seed"] = seed
+            group.attrs["xdim"] = sim.xdim
+            group.attrs["ydim"] = sim.ydim
+            group.attrs["grav"] = sim.grav
+            group.attrs["dam_radius"] = dam_radius
+            group.attrs["inner_height"] = inner_height
+            group.attrs["x_range"] = (sim.xlower, sim.xupper)
+            group.attrs["y_range"] = (sim.ylower, sim.yupper)
+            group.attrs["T"] = float(args.T)
+
+    return path
+
 
 def process_batch(batch_start, batch_size):
-    batch_id = batch_start // batch_size
-    save_dir = Path("/large_storage/zhangxf/PDEdata/shallow_water")
-    save_dir.mkdir(parents=True, exist_ok=True)
-    for i in tqdm(range(batch_size), desc=f"Batch {batch_id+1}"):
-        seed = batch_start + i
-        rng = np.random.default_rng(seed)
-        # dam_radius = rng.uniform(0.3, 0.7)
-        # inner_height = rng.uniform(1.5, 2.5)
-        dam_radius = rng.uniform(0.4, 0.8)
-        inner_height = rng.uniform(2, 3)
-        
-        swe = RadialDamBreak2D(
-            xdim=128,
-            ydim=128,
-            grav=1.0,
-            dam_radius=dam_radius,
-            inner_height=inner_height
-        )
-        
-        swe.run(T=1.0, tsteps=10)
-        
-        # file_name = str(save_dir / f"2d_swe_128_128_10_{batch_id}.h5")
-        file_name = str(save_dir / "shallow_water_test_1000-128-128-10.h5")
-        seed_str = str(seed).zfill(5)
-        
-        with h5py.File(file_name, "a") as f:
-            swe.save_state_to_disk(f, seed_str)
-            seed_group = f[seed_str]
-            seed_group.attrs["xdim"] = swe.xdim
-            seed_group.attrs["ydim"] = swe.ydim
-            seed_group.attrs["grav"] = swe.grav
-            seed_group.attrs["dam_radius"] = dam_radius
-            seed_group.attrs["inner_height"] = inner_height
-            seed_group.attrs["x_range"] = (swe.xlower, swe.xupper)
-            seed_group.attrs["y_range"] = (swe.ylower, swe.yupper)
-        
+    """Backward-compatible helper used by older ad-hoc calls."""
+    args = argparse.Namespace(
+        out_dir=DEFAULT_OUT_DIR,
+        split="test",
+        total_samples=int(batch_size),
+        resolution=128,
+        tsteps=10,
+        T=1.0,
+        base_seed=int(batch_start),
+        overwrite=True,
+    )
+    return generate_dataset(args)
+
+
 if __name__ == "__main__":
-    # generate training data
-    # total_samples = 50000
-    # processes = 5
-    # samples_per_process = total_samples // processes 
-    #
-    # batch_starts = [i * samples_per_process for i in range(processes)]
-    #
-    # with mp.Pool(processes=processes) as pool:
-    #     pool.starmap(process_batch, [(start, samples_per_process) for start in batch_starts])
-    #
-    # print(f"All {total_samples} samples done.")
-
-    # === #
-    # generate test data
-    total_samples = 1000
-    process_batch(0, total_samples)
-
-    print(f"All {total_samples} samples done.")
+    print(generate_dataset(parse_args()))

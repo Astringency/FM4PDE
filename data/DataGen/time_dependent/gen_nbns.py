@@ -1,69 +1,225 @@
-from tqdm import tqdm
-from no_bound_ns.random_fields import GaussianRF
-from no_bound_ns.ns_2d import navier_stokes_2d
-import h5py
-import torch
+from __future__ import annotations
+
+import argparse
 import math
+import sys
 from pathlib import Path
 
+import h5py
+import numpy as np
+import torch
 
-def main(batch=5, N_each_batch=10000, resolution=128, device='cuda', if_test=False):
-    device = torch.device(device)
+THIS_DIR = Path(__file__).resolve().parent
+if str(THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(THIS_DIR))
+
+from no_bound_ns.ns_2d import navier_stokes_2d
+from no_bound_ns.random_fields import GaussianRF
+
+
+DEFAULT_OUT_DIR = Path("/large_storage/zhangxf/PDEdata/nsnonbounded")
+TRAIN_BASE_SEED = 0
+TEST_BASE_SEED = 10_000_000
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Generate FM4PDE non-bounded Navier-Stokes HDF5/MAT data.")
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--split", choices=["train", "test"], default="test")
+    parser.add_argument("--total-samples", type=int, default=1000)
+    parser.add_argument(
+        "--samples-per-file",
+        type=int,
+        default=None,
+        help="Samples per train shard. Defaults to total-samples for test and 10000 for train.",
+    )
+    parser.add_argument("--resolution", type=int, default=128)
+    parser.add_argument("--record-steps", type=int, default=10)
+    parser.add_argument("--T", type=float, default=1.0)
+    parser.add_argument("--dt", type=float, default=1e-4)
+    parser.add_argument("--viscosity", type=float, default=1e-3)
+    parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--seed-offset", type=int, default=None)
+    parser.add_argument("--overwrite", action="store_true")
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
+
+
+def _sample_counts(total_samples: int, samples_per_file: int) -> list[int]:
+    if total_samples < 1:
+        raise ValueError("--total-samples must be positive")
+    if samples_per_file < 1:
+        raise ValueError("--samples-per-file must be positive")
+    counts = []
+    remaining = int(total_samples)
+    while remaining > 0:
+        count = min(int(samples_per_file), remaining)
+        counts.append(count)
+        remaining -= count
+    return counts
+
+
+def _output_path(
+    out_dir: Path,
+    *,
+    split: str,
+    sample_count: int,
+    resolution: int,
+    record_steps: int,
+    file_index: int,
+) -> Path:
+    if split == "test":
+        return out_dir / f"nsnonbounded_test_{sample_count}-{resolution}-{resolution}-{record_steps}.mat"
+    return out_dir / f"nsnonbounded_{sample_count}-{resolution}-{resolution}-{record_steps}_{file_index + 1}_new.mat"
+
+
+def generate_file(
+    *,
+    path: Path,
+    split: str,
+    sample_count: int,
+    sample_start: int,
+    resolution: int,
+    device: torch.device,
+    record_steps: int,
+    T: float,
+    dt: float,
+    viscosity: float,
+    seed_offset: int,
+    overwrite: bool,
+) -> None:
+    if path.exists():
+        if overwrite:
+            path.unlink()
+        else:
+            raise FileExistsError(f"{path} exists; pass --overwrite to replace it")
+
+    print(f"nsnonbounded {split} generating {sample_count} samples on {device}", flush=True)
+    torch.manual_seed(int(seed_offset + sample_start))
+    if device.type == "cuda":
+        torch.cuda.manual_seed_all(int(seed_offset + sample_start))
+
+    s = int(resolution)
+    alpha, tau = (3.0, 6.5) if split == "test" else (2.5, 7.0)
+    grf = GaussianRF(2, s, alpha=alpha, tau=tau, device=device)
+    grid = torch.linspace(0, 1, s + 1, device=device)[:-1]
+    x, y = torch.meshgrid(grid, grid, indexing="ij")
+    forcing = 0.1 * (torch.sin(2 * math.pi * (x + y)) + torch.cos(2 * math.pi * (x + y)))
+
+    w0 = grf.sample(int(sample_count))
+    sol_vx0, sol_vy0, sol_w, sol_vx, sol_vy, sol_t = navier_stokes_2d(
+        w0,
+        forcing,
+        float(viscosity),
+        float(T),
+        float(dt),
+        int(record_steps),
+    )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sample_seed = seed_offset + np.arange(sample_start, sample_start + sample_count, dtype=np.int64)
+    with h5py.File(str(path), "w") as h5:
+        h5.attrs["pde_name"] = "nsnonbounded"
+        h5.attrs["split"] = split
+        h5.attrs["n_samples"] = int(sample_count)
+        h5.attrs["sample_start"] = int(sample_start)
+        h5.attrs["resolution"] = f"{s}x{s}"
+        h5.attrs["record_steps"] = int(record_steps)
+        h5.attrs["T"] = float(T)
+        h5.attrs["dt"] = float(dt)
+        h5.attrs["viscosity"] = float(viscosity)
+        h5.attrs["grf_alpha"] = float(alpha)
+        h5.attrs["grf_tau"] = float(tau)
+        h5.create_dataset("sample_seed", data=sample_seed, dtype="int64")
+        h5.create_dataset("w0", data=w0.real.detach().cpu().numpy().astype("float32"), dtype="float32")
+        h5.create_dataset("w", data=sol_w.detach().cpu().numpy().astype("float32"), dtype="float32")
+        h5.create_dataset("vx0", data=sol_vx0.detach().cpu().numpy().astype("float32"), dtype="float32")
+        h5.create_dataset("vy0", data=sol_vy0.detach().cpu().numpy().astype("float32"), dtype="float32")
+        h5.create_dataset("vx", data=sol_vx.detach().cpu().numpy().astype("float32"), dtype="float32")
+        h5.create_dataset("vy", data=sol_vy.detach().cpu().numpy().astype("float32"), dtype="float32")
+        h5.create_dataset("t", data=sol_t.detach().cpu().numpy().astype("float32"), dtype="float32")
+
+
+def generate_dataset(args: argparse.Namespace) -> list[Path]:
+    split = str(args.split)
+    samples_per_file = args.samples_per_file
+    if samples_per_file is None:
+        samples_per_file = args.total_samples if split == "test" else 10000
+    if split == "test" and int(samples_per_file) != int(args.total_samples):
+        raise ValueError("test split writes one file; omit --samples-per-file or set it equal to --total-samples")
+    counts = _sample_counts(args.total_samples, samples_per_file)
+    device = torch.device(args.device)
+    seed_offset = args.seed_offset
+    if seed_offset is None:
+        seed_offset = TEST_BASE_SEED if split == "test" else TRAIN_BASE_SEED
+
+    paths = []
+    sample_start = 0
+    for file_index, sample_count in enumerate(counts):
+        path = _output_path(
+            Path(args.out_dir),
+            split=split,
+            sample_count=sample_count,
+            resolution=int(args.resolution),
+            record_steps=int(args.record_steps),
+            file_index=file_index,
+        )
+        generate_file(
+            path=path,
+            split=split,
+            sample_count=sample_count,
+            sample_start=sample_start,
+            resolution=int(args.resolution),
+            device=device,
+            record_steps=int(args.record_steps),
+            T=float(args.T),
+            dt=float(args.dt),
+            viscosity=float(args.viscosity),
+            seed_offset=int(seed_offset),
+            overwrite=bool(args.overwrite),
+        )
+        paths.append(path)
+        sample_start += sample_count
+    return paths
+
+
+def main(batch=5, N_each_batch=10000, resolution=128, device="cuda", if_test=False):
+    """Backward-compatible entry point used by older scripts."""
+    device_obj = torch.device(device)
+    split = "test" if if_test else "train"
+    seed_offset = TEST_BASE_SEED if if_test else TRAIN_BASE_SEED
 
     for i in range(batch):
-        print(f">>> Generate 2D Non-bounded Navier Stokes {i+1} <<<")
-        # Resolution
-        s = resolution
-
-        # Number of solutions to generate
-        N = N_each_batch
-
-        # Set up 2d GRF with covariance parameters
-        if if_test:
-            GRF = GaussianRF(2, s, alpha=3, tau=6.5, device=device)
-        else:
-            GRF = GaussianRF(2, s, alpha=2.5, tau=7, device=device)
-
-        # Forcing function: 0.1*(sin(2pi(x+y)) + cos(2pi(x+y)))
-        t = torch.linspace(0, 1, s+1, device=device)
-        t = t[0:-1]
-
-        X, Y = torch.meshgrid(t, t, indexing='ij')
-        f = 0.1*(torch.sin(2*math.pi*(X + Y)) + torch.cos(2*math.pi*(X + Y)))
-
-        # Number of snapshots from solution
-        record_steps = 10
-
-        # Solve equations in batches (order of magnitude speed-up)
-        w0 = GRF.sample(N)
-        sol_vx0, sol_vy0, sol_w, sol_vx, sol_vy, sol_t = navier_stokes_2d(w0, f, 1e-3, 1.0, 1e-4, record_steps)
-        a = w0.real
-        
-        out_dir = Path('/large_storage/zhangxf/PDEdata/nsnonbounded')
-        out_dir.mkdir(parents=True, exist_ok=True)
-        if if_test:
-            filename = out_dir / f'nsnonbounded_test_{N}-{s}-{s}-{record_steps}.mat'
-        else:
-            filename = out_dir / f'nsnonbounded_{N}-{s}-{s}-{record_steps}_{i+1}_new.mat'
-        
-        with h5py.File(str(filename), 'w') as f:
-            f.create_dataset('w0', data=a.cpu().numpy())
-            f.create_dataset('w', data=sol_w.cpu().numpy())
-            f.create_dataset('vx0', data=sol_vx0.cpu().numpy())
-            f.create_dataset('vy0', data=sol_vy0.cpu().numpy())
-            f.create_dataset('vx', data=sol_vx.cpu().numpy())
-            f.create_dataset('vy', data=sol_vy.cpu().numpy())
-            f.create_dataset('t', data=sol_t.cpu().numpy())
+        path = _output_path(
+            DEFAULT_OUT_DIR,
+            split=split,
+            sample_count=int(N_each_batch),
+            resolution=int(resolution),
+            record_steps=10,
+            file_index=i,
+        )
+        generate_file(
+            path=path,
+            split=split,
+            sample_count=int(N_each_batch),
+            sample_start=i * int(N_each_batch),
+            resolution=int(resolution),
+            device=device_obj,
+            record_steps=10,
+            T=1.0,
+            dt=1e-4,
+            viscosity=1e-3,
+            seed_offset=seed_offset,
+            overwrite=True,
+        )
 
     print(f"Done. Generate {batch * N_each_batch} Non-bounded navier-Stokes Equations.")
 
-if __name__ == "__main__":
-    batch = 5
-    N_each = 10000
-    batch_test = 1
-    N_each_test = 1000
-    resolution = 128
-    device = 'cuda:0'
 
-    # main(batch, N_each, resolution, device)
-    main(batch_test, N_each_test, resolution, device, True)
+if __name__ == "__main__":
+    generated = generate_dataset(parse_args())
+    for item in generated:
+        print(item)

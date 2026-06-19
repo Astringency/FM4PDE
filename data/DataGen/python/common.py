@@ -30,6 +30,7 @@ class PairH5Config:
     n_train: int = 50_000
     n_val: int = 0
     n_test: int = 1_000
+    split: str = "both"
     train_shards: int = 5
     samples_per_shard: int | None = None
     n_time: int = 11
@@ -102,6 +103,12 @@ def add_common_arguments(parser: Any) -> None:
     parser.add_argument("--n-train", type=int, default=50_000)
     parser.add_argument("--n-val", type=int, default=0)
     parser.add_argument("--n-test", type=int, default=1_000)
+    parser.add_argument(
+        "--split",
+        choices=["both", "train", "test"],
+        default="both",
+        help="Which split(s) to generate. train includes optional validation; test writes only the test file.",
+    )
     parser.add_argument("--train-shards", type=int, default=5)
     parser.add_argument("--samples-per-shard", type=int, default=None)
     parser.add_argument("--n-time", type=int, default=11)
@@ -124,18 +131,20 @@ def add_common_arguments(parser: Any) -> None:
 
 
 def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None) -> PairH5Config:
-    if args.recfno_split and args.n_train == 50_000 and args.n_val == 0 and args.n_test == 1_000:
+    if args.recfno_split and args.split == "both" and args.n_train == 50_000 and args.n_val == 0 and args.n_test == 1_000:
         args.n_train = 4_000
         args.n_val = 1_000
         args.n_test = 1_000
         if args.samples_per_shard is None:
             args.samples_per_shard = args.n_train // args.train_shards
     samples_per_shard = args.samples_per_shard
-    if samples_per_shard is None:
+    if args.split == "test":
+        samples_per_shard = 0 if samples_per_shard is None else samples_per_shard
+    elif samples_per_shard is None:
         if args.n_train % args.train_shards != 0:
             raise ValueError("n_train must be divisible by train_shards")
         samples_per_shard = args.n_train // args.train_shards
-    if args.n_train != samples_per_shard * args.train_shards:
+    if args.split != "test" and args.n_train != samples_per_shard * args.train_shards:
         raise ValueError(
             "n_train must equal samples_per_shard * train_shards "
             f"({args.n_train} != {samples_per_shard} * {args.train_shards})"
@@ -147,6 +156,7 @@ def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None
         n_train=args.n_train,
         n_val=args.n_val,
         n_test=args.n_test,
+        split=args.split,
         train_shards=args.train_shards,
         samples_per_shard=samples_per_shard,
         n_time=args.n_time,
@@ -200,6 +210,8 @@ def generate_dataset(config: PairH5Config, solver: SolverFn, metadata: dict[str,
 
 
 def validate_config(config: PairH5Config) -> None:
+    if config.split not in {"both", "train", "test"}:
+        raise ValueError("split must be one of: both, train, test")
     if config.resolution <= 1:
         raise ValueError("resolution must be > 1")
     if config.n_time < 2:
@@ -210,6 +222,12 @@ def validate_config(config: PairH5Config) -> None:
         raise ValueError("train_shards must be positive")
     if config.chunk_size < 1:
         raise ValueError("chunk_size must be positive")
+    if config.split == "test" and config.n_test < 1:
+        raise ValueError("n_test must be positive when split='test'")
+    if config.split == "train" and config.n_train < 1 and config.n_val < 1:
+        raise ValueError("n_train or n_val must be positive when split='train'")
+    if config.split == "both" and config.n_train < 1 and config.n_val < 1 and config.n_test < 1:
+        raise ValueError("at least one split must have a positive sample count")
     if config.base_seed_train == config.base_seed_test:
         raise ValueError("train and test base seeds must differ")
     train_seed_end = config.base_seed_train + max(config.n_train - 1, 0)
@@ -231,16 +249,18 @@ def plan_files(config: PairH5Config) -> list[Path]:
 def files_with_splits(config: PairH5Config) -> list[tuple[int, int, int, str, Path]]:
     pde_dir = config.out_root / config.pde
     files: list[tuple[int, int, int, str, Path]] = []
-    for shard_idx in range(config.train_shards):
-        shard_id = shard_idx + 1
-        sample_start = shard_idx * config.shard_size
-        path = pde_dir / f"{config.pde}_{config.shard_size}-{config.resolution}-{config.resolution}_{shard_id}.h5"
-        files.append((shard_id, config.shard_size, sample_start, "train", path))
-    if config.n_val:
+    if config.split in {"both", "train"} and config.n_train:
+        for shard_idx in range(config.train_shards):
+            shard_id = shard_idx + 1
+            sample_start = shard_idx * config.shard_size
+            path = pde_dir / f"{config.pde}_{config.shard_size}-{config.resolution}-{config.resolution}_{shard_id}.h5"
+            files.append((shard_id, config.shard_size, sample_start, "train", path))
+    if config.split in {"both", "train"} and config.n_val:
         val_path = pde_dir / f"{config.pde}_val_{config.n_val}-{config.resolution}-{config.resolution}.h5"
         files.append((0, config.n_val, 0, "val", val_path))
-    test_path = pde_dir / f"{config.pde}_test_{config.n_test}-{config.resolution}-{config.resolution}.h5"
-    files.append((0, config.n_test, 0, "test", test_path))
+    if config.split in {"both", "test"} and config.n_test:
+        test_path = pde_dir / f"{config.pde}_test_{config.n_test}-{config.resolution}-{config.resolution}.h5"
+        files.append((0, config.n_test, 0, "test", test_path))
     return files
 
 
@@ -249,6 +269,7 @@ def print_plan(config: PairH5Config, files: list[Path]) -> None:
         json.dumps(
             {
                 "pde": config.pde,
+                "split": config.split,
                 "resolution": config.resolution,
                 "n_train": config.n_train,
                 "n_test": config.n_test,

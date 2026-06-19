@@ -9,6 +9,54 @@
 - 对于 `pair_h5` 数据，磁盘中的 scalar 物理参数默认不展开成模型通道，而是进入 `PDEloader.pde_params`、训练 `data_metadata` 和采样 `pde_params`。
 - 采样端会把模型状态反标准化回物理量后再计算 observation loss 和 PDE residual。
 
+## 只生成 test 数据
+
+统一 endpoint-pair HDF5 入口支持只生成 test split：
+
+```bash
+python data/DataGen/python/generate_pair_h5s.py \
+  --pde heat \
+  --out-root /large_storage/zhangxf/PDEdata \
+  --split test \
+  --n-test 10000 \
+  --overwrite
+```
+
+批量生成 `heat`、`wave`、`advection_diffusion`、`steady_heat_conduction` 的 test 数据：
+
+```bash
+SPLIT=test N_TEST=10000 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
+```
+
+Reaction-diffusion 已有 test-only split：
+
+```bash
+python data/DataGen/time_dependent/gen_rd.py \
+  --save-path /large_storage/zhangxf/PDEdata/reaction_diffusion \
+  --total-samples 10000 \
+  --samples-per-file 10000 \
+  --split test \
+  --seed-offset 10000000 \
+  --overwrite
+```
+
+Non-bounded Navier-Stokes 和 shallow-water 也提供参数化 test-only CLI：
+
+```bash
+python data/DataGen/time_dependent/gen_nbns.py \
+  --split test \
+  --total-samples 10000 \
+  --resolution 128 \
+  --device cuda:0 \
+  --overwrite
+
+python data/DataGen/time_dependent/gen_swe.py \
+  --split test \
+  --total-samples 10000 \
+  --resolution 128 \
+  --overwrite
+```
+
 ## 1. Darcy Flow
 
 - 公式：

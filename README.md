@@ -133,6 +133,12 @@ Endpoint pair HDF5 generation:
 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 ```
 
+Only generate endpoint-pair test data:
+
+```bash
+SPLIT=test N_TEST=10000 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
+```
+
 Quick check:
 
 ```bash

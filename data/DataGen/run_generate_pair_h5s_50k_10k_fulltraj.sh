@@ -19,6 +19,7 @@ set -euo pipefail
 #   PYTHON_BIN=/path/to/python bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 #   DATA_ROOT=/other/path OVERWRITE=1 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 #   CHUNK_SIZE=64 COMPRESSION=gzip bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
+#   SPLIT=test N_TEST=10000 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 #   DRY_RUN=1 bash data/DataGen/run_generate_pair_h5s_50k_10k_fulltraj.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,6 +35,7 @@ TRAIN_SHARDS="${TRAIN_SHARDS:-5}"
 SAMPLES_PER_SHARD="${SAMPLES_PER_SHARD:-10000}"
 N_TIME="${N_TIME:-11}"
 T_FINAL="${T_FINAL:-1.0}"
+SPLIT="${SPLIT:-both}"
 CHUNK_SIZE="${CHUNK_SIZE:-128}"
 COMPRESSION="${COMPRESSION:-lzf}"
 COMPRESSION_LEVEL="${COMPRESSION_LEVEL:-4}"
@@ -66,6 +68,7 @@ FM4PDE formal endpoint-pair HDF5 generation
   python:            ${PYTHON_BIN}
   data root:         ${DATA_ROOT}
   PDEs:              ${PDE_LIST[*]}
+  split:             ${SPLIT}
   resolution:        ${RESOLUTION}x${RESOLUTION}
   train samples:     ${N_TRAIN} (${TRAIN_SHARDS} shards x ${SAMPLES_PER_SHARD})
   test samples:      ${N_TEST}
@@ -88,6 +91,7 @@ for PDE in "${PDE_LIST[@]}"; do
     --resolution "${RESOLUTION}" \
     --n-train "${N_TRAIN}" \
     --n-test "${N_TEST}" \
+    --split "${SPLIT}" \
     --train-shards "${TRAIN_SHARDS}" \
     --samples-per-shard "${SAMPLES_PER_SHARD}" \
     --n-time "${N_TIME}" \
