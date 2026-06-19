@@ -190,3 +190,19 @@ conda run -n fm4pde python -m pytest \
 ```
 
 `sampling.config` works with or without `PyYAML`; the tests avoid requiring `PyYAML` directly.
+
+## Citation
+
+If you use this codebase, please cite:
+
+```bibtex
+@misc{zhang2026guidedflowmatchingforward,
+      title={Guided Flow Matching for Forward and Inverse PDE Problems with Sparse Observations: Algorithm and Theory},
+      author={Xifeng Zhang and Jin Zhao},
+      year={2026},
+      eprint={2605.25509},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML},
+      url={https://arxiv.org/abs/2605.25509},
+}
+```
