@@ -65,6 +65,27 @@ Model configs are centralized in `models/model_configs.py` and selected by
 | wave, shallow_water, nsnonbounded | `temporal_endpoint_heavy` |
 | burger | `full_time_space` |
 
+Current `recommended` profile details and raw UNet parameter counts are:
+
+| PDE | family | data C in/out | effective input C | model channels | res blocks | channel mult | attention | value Fourier | coordinate Fourier | parameters |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | ---: |
+| `darcy` | `elliptic_static` | 2 / 2 | 20 | 128 | 4 | `(1, 2, 4)` | `(8, 16)` | false | true | 96,455,042 (96.46M) |
+| `poisson` | `light_smooth` | 2 / 2 | 2 | 96 | 3 | `(1, 2, 4)` | `(16,)` | false | false | 44,121,218 (44.12M) |
+| `helmholtz` | `elliptic_static` | 2 / 2 | 28 | 128 | 4 | `(1, 2, 4)` | `(8, 16)` | true | true | 96,464,258 (96.46M) |
+| `nsnonbounded` | `temporal_endpoint_heavy` | 2 / 2 | 10 | 192 | 4 | `(1, 2, 4, 4)` | `(8, 16)` | true | false | 387,487,682 (387.49M) |
+| `burger` | `full_time_space` | 1 / 1 | 23 | 128 | 4 | `(1, 2, 4)` | `(16,)` | true | true | 96,457,345 (96.46M) |
+| `reaction_diffusion` | `temporal_endpoint_base` | 4 / 4 | 4 | 128 | 4 | `(1, 2, 4)` | `(16,)` | false | false | 96,438,916 (96.44M) |
+| `shallow_water` | `temporal_endpoint_heavy` | 6 / 6 | 6 | 192 | 4 | `(1, 2, 4, 4)` | `(8, 16)` | false | false | 387,487,686 (387.49M) |
+| `heat` | `light_smooth` | 2 / 2 | 2 | 96 | 3 | `(1, 2, 4)` | `(16,)` | false | false | 44,121,218 (44.12M) |
+| `wave` | `temporal_endpoint_heavy` | 4 / 4 | 38 | 192 | 4 | `(1, 2, 4, 4)` | `(8, 16)` | true | true | 387,539,524 (387.54M) |
+| `advection_diffusion` | `temporal_endpoint_base` | 2 / 2 | 20 | 128 | 4 | `(1, 2, 4)` | `(16,)` | false | true | 96,455,042 (96.46M) |
+| `steady_heat_conduction` | `elliptic_static` | 2 / 2 | 20 | 128 | 4 | `(1, 2, 4)` | `(8, 16)` | false | true | 96,455,042 (96.46M) |
+
+`effective input C` includes internal value/coordinate Fourier feature channels
+added inside `UNetModel`; `data C in/out` remains the standardized PDE data
+channel count. Parameter counts are for the raw UNet with `use_ema=false`, so
+they do not include optimizer state, EMA shadow weights, or checkpoint metadata.
+
 The `light`, `base`, and `heavy` profiles are explicit architecture ablations.
 `legacy_base` is only for reproducing old checkpoints and is not the formal
 default. Recommended configs move attention away from downsample factor `2` to
