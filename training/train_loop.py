@@ -55,7 +55,6 @@ def train_one_epoch(
     model: torch.nn.Module,
     data_loader: Iterable,
     optimizer: torch.optim.Optimizer,
-    lr_schedule: torch.optim.lr_scheduler.LRScheduler,
     device: torch.device,
     epoch: int,
     loss_scaler: NativeScalerWithGradNormCount,
@@ -120,7 +119,6 @@ def train_one_epoch(
                 f"Epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {batch_loss.compute()}, lr = {lr}"
             )
 
-    lr_schedule.step()
     return {"loss": epoch_loss.compute()}
 
 

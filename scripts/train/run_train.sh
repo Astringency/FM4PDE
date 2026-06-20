@@ -35,11 +35,14 @@ LR="${LR:-0.0001}"
 SEED="${SEED:-0}"
 SAMPLING_DTYPE="${SAMPLING_DTYPE:-float32}"
 MODEL_PROFILE="${MODEL_PROFILE:-recommended}"
+LR_SCHEDULER="${LR_SCHEDULER:-warmup_cosine}"
+MIN_LR="${MIN_LR:-0.000001}"
+WARMUP_EPOCHS="${WARMUP_EPOCHS:-5}"
 EVAL_FREQUENCY="${EVAL_FREQUENCY:-50}"
 RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
 USE_EMA="${USE_EMA:-0}"
-DECAY_LR="${DECAY_LR:-1}"
+DECAY_LR="${DECAY_LR:-0}"
 MASTER_PORT_BASE="${MASTER_PORT_BASE:-29500}"
 
 DEFAULT_PDE_LIST=(
@@ -165,6 +168,9 @@ echo "data_path: ${DATA_PATH}"
 echo "output_dir: ${OUTPUT_DIR}"
 echo "epochs: ${EPOCHS}"
 echo "model_profile: ${MODEL_PROFILE}"
+echo "lr_scheduler: ${LR_SCHEDULER}"
+echo "min_lr: ${MIN_LR}"
+echo "warmup_epochs: ${WARMUP_EPOCHS}"
 echo "eval_frequency: ${EVAL_FREQUENCY}"
 echo "default_nproc_per_node: ${NPROC_DEFAULT}"
 echo "target_effective_batch: ${TARGET_EFFECTIVE_BATCH}"
@@ -245,9 +251,12 @@ run_train() {
       --device="${device}" \
       --num_workers="${NUM_WORKERS}" \
       --lr="${LR}" \
+      --min_lr="${MIN_LR}" \
       --seed="${SEED}" \
       --sampling_dtype="${SAMPLING_DTYPE}" \
       --model_profile="${MODEL_PROFILE}" \
+      --lr_scheduler="${LR_SCHEDULER}" \
+      --warmup_epochs="${WARMUP_EPOCHS}" \
       --eval_frequency="${EVAL_FREQUENCY}" \
       "${extra_args[@]}" 2>&1 | tee "${log_path}"
   else
@@ -262,9 +271,12 @@ run_train() {
       --device="${device}" \
       --num_workers="${NUM_WORKERS}" \
       --lr="${LR}" \
+      --min_lr="${MIN_LR}" \
       --seed="${SEED}" \
       --sampling_dtype="${SAMPLING_DTYPE}" \
       --model_profile="${MODEL_PROFILE}" \
+      --lr_scheduler="${LR_SCHEDULER}" \
+      --warmup_epochs="${WARMUP_EPOCHS}" \
       --eval_frequency="${EVAL_FREQUENCY}" \
       "${extra_args[@]}" 2>&1 | tee "${log_path}"
   fi

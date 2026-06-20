@@ -46,6 +46,109 @@ logger = logging.getLogger(__name__)
 DEFAULT_VAL_RATIO = 0.1
 
 
+def _resolve_lr_scheduler_name(args) -> str:
+    scheduler_name = getattr(args, "lr_scheduler", "warmup_cosine")
+    if getattr(args, "decay_lr", False):
+        if scheduler_name != "linear":
+            warnings.warn(
+                "--decay_lr is a legacy alias and overrides --lr_scheduler to 'linear'. "
+                "Prefer --lr_scheduler linear for new runs.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return "linear"
+    return scheduler_name
+
+
+def _validate_lr_scheduler_args(args) -> tuple[float, int, float]:
+    min_lr = float(getattr(args, "min_lr", 1e-6))
+    base_lr = float(args.lr)
+    if base_lr <= 0:
+        raise ValueError(f"--lr must be positive, got {base_lr}")
+    if min_lr < 0:
+        raise ValueError(f"--min_lr must be non-negative, got {min_lr}")
+    if min_lr > base_lr:
+        raise ValueError(f"--min_lr must be <= --lr, got min_lr={min_lr}, lr={base_lr}")
+
+    warmup_epochs = int(getattr(args, "warmup_epochs", 5))
+    if warmup_epochs < 0:
+        raise ValueError(f"--warmup_epochs must be non-negative, got {warmup_epochs}")
+
+    warmup_start_factor = float(getattr(args, "warmup_start_factor", 0.1))
+    if not 0 < warmup_start_factor <= 1:
+        raise ValueError(
+            "--warmup_start_factor must be in (0, 1], "
+            f"got {warmup_start_factor}"
+        )
+    return min_lr, warmup_epochs, warmup_start_factor
+
+
+def _build_lr_scheduler(optimizer: torch.optim.Optimizer, args, scheduler_name: str):
+    min_lr, warmup_epochs, warmup_start_factor = _validate_lr_scheduler_args(args)
+    total_epochs = max(int(args.epochs), 1)
+
+    if scheduler_name == "constant":
+        return torch.optim.lr_scheduler.ConstantLR(
+            optimizer,
+            total_iters=total_epochs,
+            factor=1.0,
+        )
+
+    if scheduler_name == "linear":
+        return torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            total_iters=total_epochs,
+            start_factor=1.0,
+            end_factor=min_lr / float(args.lr),
+        )
+
+    if scheduler_name == "warmup_cosine":
+        warmup_epochs = min(warmup_epochs, total_epochs)
+        if warmup_epochs == 0:
+            return torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer,
+                T_max=total_epochs,
+                eta_min=min_lr,
+            )
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            total_iters=warmup_epochs,
+            start_factor=warmup_start_factor,
+            end_factor=1.0,
+        )
+        if warmup_epochs == total_epochs:
+            return warmup
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=total_epochs - warmup_epochs,
+            eta_min=min_lr,
+        )
+        return torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup, cosine],
+            milestones=[warmup_epochs],
+        )
+
+    if scheduler_name == "plateau":
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=float(getattr(args, "plateau_factor", 0.5)),
+            patience=int(getattr(args, "plateau_patience", 10)),
+            threshold=float(getattr(args, "plateau_threshold", 1e-4)),
+            min_lr=min_lr,
+        )
+
+    raise ValueError(f"Unsupported lr_scheduler={scheduler_name!r}")
+
+
+def _step_lr_scheduler(lr_schedule, scheduler_name: str, val_loss: float) -> None:
+    if scheduler_name == "plateau":
+        lr_schedule.step(float(val_loss))
+    else:
+        lr_schedule.step()
+
+
 def main(args):
     logging.basicConfig(
         level=logging.INFO,
@@ -159,19 +262,12 @@ def main(args):
         model_without_ddp.parameters(), lr=args.lr, betas=args.optimizer_betas
     )
 
-    if args.decay_lr:
-        lr_schedule = torch.optim.lr_scheduler.LinearLR(
-            optimizer,
-            total_iters=args.epochs,
-            start_factor=1.0,
-            end_factor=1e-8 / args.lr,
-        )
-    else:
-        lr_schedule = torch.optim.lr_scheduler.ConstantLR(
-            optimizer, total_iters=args.epochs, factor=1.0
-        )
+    resolved_lr_scheduler = _resolve_lr_scheduler_name(args)
+    args.resolved_lr_scheduler = resolved_lr_scheduler
+    lr_schedule = _build_lr_scheduler(optimizer, args, resolved_lr_scheduler)
 
     logger.info(f"Optimizer: {optimizer}")
+    logger.info(f"Resolved LR scheduler: {resolved_lr_scheduler}")
     logger.info(f"Learning-Rate Schedule: {lr_schedule}")
 
     loss_scaler = NativeScaler()
@@ -231,7 +327,6 @@ def main(args):
             model=model,
             data_loader=data_loader_train,
             optimizer=optimizer,
-            lr_schedule=lr_schedule,
             device=device,
             epoch=epoch,
             loss_scaler=loss_scaler,
@@ -245,11 +340,14 @@ def main(args):
             args=args,
         )
 
+        _step_lr_scheduler(lr_schedule, resolved_lr_scheduler, val_stats["loss"])
+
         log_stats = {
             "epoch": epoch,
             **{f"train_{k}": v for k, v in train_stats.items()},
             **{f"val_{k}": v for k, v in val_stats.items()},
             "lr": optimizer.param_groups[0]["lr"],
+            "lr_scheduler": resolved_lr_scheduler,
             "num_channels": num_channels,
         }
 

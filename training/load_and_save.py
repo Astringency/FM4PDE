@@ -194,6 +194,20 @@ def save_model(
     ema_model_state = _ema_model_state_dict(model_without_ddp)
     resume_state = _resume_state_dict(model_without_ddp)
     has_ema = ema_model_state is not None
+    lr_scheduler_metadata = {
+        "lr_scheduler": getattr(args, "lr_scheduler", None),
+        "resolved_lr_scheduler": getattr(
+            args,
+            "resolved_lr_scheduler",
+            getattr(args, "lr_scheduler", None),
+        ),
+        "min_lr": getattr(args, "min_lr", None),
+        "warmup_epochs": getattr(args, "warmup_epochs", None),
+        "warmup_start_factor": getattr(args, "warmup_start_factor", None),
+        "plateau_factor": getattr(args, "plateau_factor", None),
+        "plateau_patience": getattr(args, "plateau_patience", None),
+        "plateau_threshold": getattr(args, "plateau_threshold", None),
+    }
     payload = {
         "model": base_model_state,
         "model_ema": ema_model_state,
@@ -224,6 +238,7 @@ def save_model(
         "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
         "model_config": model_config,
         "model_config_metadata": model_config_metadata,
+        **lr_scheduler_metadata,
     }
 
     if loss_scaler is not None:
@@ -247,6 +262,7 @@ def save_model(
             "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
             "model_config": model_config,
             "model_config_metadata": model_config_metadata,
+            **lr_scheduler_metadata,
         }
         model.save_checkpoint(
             save_dir=args.output_dir,
@@ -271,6 +287,7 @@ def save_model(
                 "checkpoint_model_config_metadata": checkpoint_model_config_metadata,
                 "model_config": model_config,
                 "model_config_metadata": model_config_metadata,
+                **lr_scheduler_metadata,
             }
             model.save_checkpoint(
                 save_dir=args.output_dir,
@@ -354,7 +371,18 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
     ):
         optimizer.load_state_dict(checkpoint["optimizer"])
         if "lr_schedule" in checkpoint and checkpoint.get("lr_schedule") is not None:
-            lr_schedule.load_state_dict(checkpoint["lr_schedule"])
+            try:
+                lr_schedule.load_state_dict(checkpoint["lr_schedule"])
+            except Exception as exc:
+                warnings.warn(
+                    "Could not load checkpoint LR scheduler state into the current scheduler; "
+                    "continuing with the current --lr_scheduler initialization. "
+                    f"checkpoint_lr_scheduler={checkpoint.get('resolved_lr_scheduler') or checkpoint.get('lr_scheduler')}, "
+                    f"current_lr_scheduler={getattr(args, 'resolved_lr_scheduler', getattr(args, 'lr_scheduler', None))}. "
+                    f"Original error: {exc}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
         args.start_epoch = checkpoint["epoch"] + 1
         if "scaler" in checkpoint and checkpoint.get("scaler") is not None:
             loss_scaler.load_state_dict(checkpoint["scaler"])

@@ -56,6 +56,51 @@ def get_args_parser():
         help="learning rate (absolute lr)",
     )
     parser.add_argument(
+        "--min_lr",
+        type=float,
+        default=1e-6,
+        help="Minimum learning rate for cosine, linear, and plateau LR schedulers.",
+    )
+    parser.add_argument(
+        "--lr_scheduler",
+        default="warmup_cosine",
+        choices=["constant", "linear", "warmup_cosine", "plateau"],
+        help=(
+            "Learning-rate scheduler. warmup_cosine uses linear warmup followed by cosine decay; "
+            "plateau uses validation loss with ReduceLROnPlateau."
+        ),
+    )
+    parser.add_argument(
+        "--warmup_epochs",
+        type=int,
+        default=5,
+        help="Number of warmup epochs for --lr_scheduler warmup_cosine.",
+    )
+    parser.add_argument(
+        "--warmup_start_factor",
+        type=float,
+        default=0.1,
+        help="Initial LR factor at the beginning of warmup_cosine.",
+    )
+    parser.add_argument(
+        "--plateau_factor",
+        type=float,
+        default=0.5,
+        help="Multiplicative LR decay factor for --lr_scheduler plateau.",
+    )
+    parser.add_argument(
+        "--plateau_patience",
+        type=int,
+        default=10,
+        help="Validation epochs without improvement before ReduceLROnPlateau decays LR.",
+    )
+    parser.add_argument(
+        "--plateau_threshold",
+        type=float,
+        default=1e-4,
+        help="Improvement threshold for --lr_scheduler plateau.",
+    )
+    parser.add_argument(
         "--optimizer_betas",
         nargs="+",
         type=float,
@@ -65,7 +110,7 @@ def get_args_parser():
     parser.add_argument(
         "--decay_lr",
         action="store_true",
-        help="Adds a linear decay to the lr during training.",
+        help="Legacy alias for --lr_scheduler linear.",
     )
     parser.add_argument(
         "--skewed_timesteps",
