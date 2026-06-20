@@ -35,6 +35,7 @@ LR="${LR:-0.0001}"
 SEED="${SEED:-0}"
 SAMPLING_DTYPE="${SAMPLING_DTYPE:-float32}"
 MODEL_PROFILE="${MODEL_PROFILE:-recommended}"
+EVAL_FREQUENCY="${EVAL_FREQUENCY:-50}"
 RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
 USE_EMA="${USE_EMA:-0}"
@@ -164,6 +165,7 @@ echo "data_path: ${DATA_PATH}"
 echo "output_dir: ${OUTPUT_DIR}"
 echo "epochs: ${EPOCHS}"
 echo "model_profile: ${MODEL_PROFILE}"
+echo "eval_frequency: ${EVAL_FREQUENCY}"
 echo "default_nproc_per_node: ${NPROC_DEFAULT}"
 echo "target_effective_batch: ${TARGET_EFFECTIVE_BATCH}"
 
@@ -246,6 +248,7 @@ run_train() {
       --seed="${SEED}" \
       --sampling_dtype="${SAMPLING_DTYPE}" \
       --model_profile="${MODEL_PROFILE}" \
+      --eval_frequency="${EVAL_FREQUENCY}" \
       "${extra_args[@]}" 2>&1 | tee "${log_path}"
   else
     python -u train.py \
@@ -262,6 +265,7 @@ run_train() {
       --seed="${SEED}" \
       --sampling_dtype="${SAMPLING_DTYPE}" \
       --model_profile="${MODEL_PROFILE}" \
+      --eval_frequency="${EVAL_FREQUENCY}" \
       "${extra_args[@]}" 2>&1 | tee "${log_path}"
   fi
 }
