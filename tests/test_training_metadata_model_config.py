@@ -43,8 +43,8 @@ def test_training_metadata_records_model_config():
     )
 
     assert metadata["model_profile"] == "recommended"
-    assert metadata["model_config_metadata"]["architecture_family"] == "light_smooth"
-    assert metadata["architecture_family"] == "light_smooth"
+    assert metadata["model_config_metadata"]["architecture_family"] == "temporal_endpoint_base"
+    assert metadata["architecture_family"] == "temporal_endpoint_base"
     assert metadata["attention_resolutions"] == [16]
     assert metadata["channel_mult"] == [1, 2, 4]
     assert metadata["with_fourier_features"] is False
@@ -86,7 +86,7 @@ def test_checkpoint_payload_records_model_config(tmp_path):
     assert checkpoint["resolved_model_profile"] == "recommended"
     assert checkpoint["resume_architecture_metadata"] == {"resume": False}
     assert checkpoint["model_config"]["in_channels"] == 2
-    assert checkpoint["model_config_metadata"]["architecture_family"] == "light_smooth"
+    assert checkpoint["model_config_metadata"]["architecture_family"] == "temporal_endpoint_base"
     assert checkpoint["model_config_metadata"]["attention_resolutions"] == [16]
     assert checkpoint["model_config_metadata"]["channel_mult"] == [1, 2, 4]
     assert checkpoint["model_config_metadata"]["with_fourier_features"] is False

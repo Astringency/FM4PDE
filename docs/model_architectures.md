@@ -9,9 +9,9 @@ ablations; `legacy_base` is only for reproducing old checkpoints.
 
 | PDEs | architecture family |
 | --- | --- |
-| poisson, heat | `light_smooth` |
+| poisson | `light_smooth` |
 | darcy, helmholtz, steady_heat_conduction | `elliptic_static` |
-| advection_diffusion, reaction_diffusion | `temporal_endpoint_base` |
+| heat, advection_diffusion, reaction_diffusion | `temporal_endpoint_base` |
 | wave, shallow_water, nsnonbounded | `temporal_endpoint_heavy` |
 | burger | `full_time_space` |
 

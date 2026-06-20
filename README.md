@@ -59,9 +59,9 @@ Model configs are centralized in `models/model_configs.py` and selected by
 
 | PDEs | architecture family |
 | --- | --- |
-| poisson, heat | `light_smooth` |
+| poisson | `light_smooth` |
 | darcy, helmholtz, steady_heat_conduction | `elliptic_static` |
-| advection_diffusion, reaction_diffusion | `temporal_endpoint_base` |
+| heat, advection_diffusion, reaction_diffusion | `temporal_endpoint_base` |
 | wave, shallow_water, nsnonbounded | `temporal_endpoint_heavy` |
 | burger | `full_time_space` |
 
@@ -76,7 +76,7 @@ Current `recommended` profile details and raw UNet parameter counts are:
 | `burger` | `full_time_space` | 1 / 1 | 23 | 128 | 4 | `(1, 2, 4)` | `(16,)` | true | true | 96,457,345 (96.46M) |
 | `reaction_diffusion` | `temporal_endpoint_base` | 4 / 4 | 4 | 128 | 4 | `(1, 2, 4)` | `(16,)` | false | false | 96,438,916 (96.44M) |
 | `shallow_water` | `temporal_endpoint_heavy` | 6 / 6 | 6 | 192 | 4 | `(1, 2, 4, 4)` | `(8, 16)` | false | false | 387,487,686 (387.49M) |
-| `heat` | `light_smooth` | 2 / 2 | 2 | 96 | 3 | `(1, 2, 4)` | `(16,)` | false | false | 44,121,218 (44.12M) |
+| `heat` | `temporal_endpoint_base` | 2 / 2 | 2 | 128 | 4 | `(1, 2, 4)` | `(16,)` | false | false | 96,434,306 (96.43M) |
 | `wave` | `temporal_endpoint_heavy` | 4 / 4 | 38 | 192 | 4 | `(1, 2, 4, 4)` | `(8, 16)` | true | true | 387,539,524 (387.54M) |
 | `advection_diffusion` | `temporal_endpoint_base` | 2 / 2 | 20 | 128 | 4 | `(1, 2, 4)` | `(16,)` | false | true | 96,455,042 (96.46M) |
 | `steady_heat_conduction` | `elliptic_static` | 2 / 2 | 20 | 128 | 4 | `(1, 2, 4)` | `(8, 16)` | false | true | 96,455,042 (96.46M) |

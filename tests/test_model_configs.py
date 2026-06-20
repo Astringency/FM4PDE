@@ -156,8 +156,21 @@ def test_temporal_heavy_pdes_are_heavier(pde):
     assert metadata["model_channels"] >= 160
 
 
-@pytest.mark.parametrize("pde", ["poisson", "heat"])
+@pytest.mark.parametrize("pde", ["poisson"])
 def test_light_pdes_are_not_heavy(pde):
     metadata = get_model_config_metadata(pde, profile="recommended")
     assert metadata["architecture_family"] == "light_smooth"
     assert metadata["model_channels"] <= 128
+
+
+def test_heat_recommended_uses_base_architecture():
+    metadata = get_model_config_metadata("heat", profile="recommended")
+    base_metadata = get_model_config_metadata("heat", profile="base")
+
+    assert metadata["architecture_family"] == "temporal_endpoint_base"
+    assert metadata["model_channels"] == base_metadata["model_channels"] == 128
+    assert metadata["num_res_blocks"] == base_metadata["num_res_blocks"] == 4
+    assert tuple(metadata["channel_mult"]) == tuple(base_metadata["channel_mult"]) == (1, 2, 4)
+    assert tuple(metadata["attention_resolutions"]) == tuple(base_metadata["attention_resolutions"]) == (16,)
+    assert metadata["with_value_fourier_features"] is False
+    assert metadata["with_coordinate_fourier_features"] is False

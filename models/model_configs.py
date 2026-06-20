@@ -434,12 +434,12 @@ def _legacy_elliptic_config(in_channels: int = 2) -> dict[str, Any]:
 
 
 def _recommended_family(pde: str) -> str:
-    if pde in {"poisson", "heat"}:
+    if pde == "poisson":
         return "light_smooth"
+    if pde in {"heat", "advection_diffusion", "reaction_diffusion"}:
+        return "temporal_endpoint_base"
     if pde in {"darcy", "helmholtz", "steady_heat_conduction"}:
         return "elliptic_static"
-    if pde in {"advection_diffusion", "reaction_diffusion"}:
-        return "temporal_endpoint_base"
     if pde in {"wave", "shallow_water", "nsnonbounded"}:
         return "temporal_endpoint_heavy"
     if pde == "burger":
@@ -483,7 +483,14 @@ def _with_scalar_metadata(pde: str, cfg: dict[str, Any]) -> dict[str, Any]:
 def _build_recommended_configs() -> dict[str, dict[str, Any]]:
     return {
         "poisson": _with_scalar_metadata("poisson", _light_smooth_config(2)),
-        "heat": _with_scalar_metadata("heat", _light_smooth_config(2)),
+        "heat": _with_scalar_metadata(
+            "heat",
+            _temporal_endpoint_base_config(
+                2,
+                with_value_fourier_features=False,
+                with_coordinate_fourier_features=False,
+            ),
+        ),
         "darcy": _with_scalar_metadata(
             "darcy",
             _elliptic_static_config(
