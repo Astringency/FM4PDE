@@ -33,12 +33,17 @@ from models.model_configs import (
     model_config_metadata_from_config,
 )
 from train_arg_parser import get_args_parser
+from sampling.metrics import pde_residual_norm
+from sampling.pde_residuals import compute_pde_residual
+from sampling.state import split_pair_state
 from training import distributed_mode
 from training.grad_scaler import NativeScalerWithGradNormCount as NativeScaler
 from training.load_and_save import inspect_checkpoint_architecture, load_model, save_model
-from training.train_loop import train_one_epoch
+from training.train_loop import train_one_epoch, validate_one_epoch
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_VAL_RATIO = 0.1
 
 
 def main(args):
@@ -66,15 +71,27 @@ def main(args):
     cudnn.benchmark = True
 
     pde_names = args.dataset.split("-")
-    data, label, loader_metadata = _load_training_data(
+    (
+        data,
+        label,
+        loader_metadata,
+        data_val,
+        label_val,
+        val_loader_metadata,
+        validation_metadata,
+    ) = _load_training_and_validation_data(
         pde_names,
         args.data_path,
         data_size=args.data_size,
         max_train_samples=args.max_train_samples,
         rd_init_mode_filter=args.rd_init_mode_filter,
+        seed=args.seed,
     )
     num_channels = int(data.shape[1])
-    logger.info(f"Loaded data shape={tuple(data.shape)}, labels dtype={label.dtype}")
+    logger.info(
+        f"Loaded train data shape={tuple(data.shape)}, validation data shape={tuple(data_val.shape)}, "
+        f"labels dtype={label.dtype}"
+    )
     model_arch = pde_names[0]
     resolved_model_profile, resume_arch_meta = resolve_training_model_profile(args)
     resume_model_profile_override = bool(resume_arch_meta.get("override", False))
@@ -98,6 +115,7 @@ def main(args):
         resume_model_profile_override=resume_model_profile_override,
         checkpoint_model_profile=resume_arch_meta.get("checkpoint_model_profile"),
         checkpoint_model_config_metadata=resume_arch_meta.get("checkpoint_model_config_metadata"),
+        validation_metadata=validation_metadata,
     )
     if distributed_mode.is_main_process() and args.output_dir:
         output_dir = Path(args.output_dir)
@@ -170,9 +188,12 @@ def main(args):
         normalizer.save(Path(args.output_dir) / "normalizer.pt")
 
     data_train = normalizer.transform(data)
+    data_validation = normalizer.transform(data_val)
     dataset_train = TensorDataset(data_train, label)
+    dataset_val = TensorDataset(data_validation, label_val)
 
     logger.info(dataset_train)
+    logger.info(dataset_val)
     logger.info("Intializing DataLoader")
     num_tasks = distributed_mode.get_world_size()
     global_rank = distributed_mode.get_rank()
@@ -186,6 +207,14 @@ def main(args):
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
+    )
+    data_loader_val = torch.utils.data.DataLoader(
+        dataset_val,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=False,
     )
     logger.info(str(sampler_train))
 
@@ -208,13 +237,36 @@ def main(args):
             loss_scaler=loss_scaler,
             args=args,
         )
+        val_stats = validate_one_epoch(
+            model=model,
+            data_loader=data_loader_val,
+            device=device,
+            epoch=epoch,
+            args=args,
+        )
 
         log_stats = {
             "epoch": epoch,
             **{f"train_{k}": v for k, v in train_stats.items()},
+            **{f"val_{k}": v for k, v in val_stats.items()},
             "lr": optimizer.param_groups[0]["lr"],
             "num_channels": num_channels,
         }
+
+        should_eval = args.output_dir and args.eval_frequency > 0 and (epoch + 1) % args.eval_frequency == 0
+        if should_eval and distributed_mode.is_main_process():
+            eval_stats = _run_periodic_flow_eval(
+                args=args,
+                model=model_without_ddp,
+                normalizer=normalizer,
+                pde_name=pde_names[0],
+                epoch=epoch,
+                num_channels=num_channels,
+                resolution=int(data_val.shape[-1]),
+                device=device,
+                val_loader_metadata=val_loader_metadata,
+            )
+            log_stats.update(eval_stats)
 
         if args.output_dir and distributed_mode.is_main_process():
             with open(
@@ -226,7 +278,7 @@ def main(args):
         should_save = args.output_dir and (
             final_epoch
             or args.test_run
-            or (args.eval_frequency > 0 and (epoch + 1) % args.eval_frequency == 0)
+            or should_eval
         )
         if should_save:
             save_model(
@@ -406,6 +458,7 @@ def _build_data_metadata(
     resume_model_profile_override: bool = False,
     checkpoint_model_profile: str | None = None,
     checkpoint_model_config_metadata: dict[str, Any] | None = None,
+    validation_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     specs = {pde: get_pde_spec(pde).to_metadata() for pde in pde_names}
     channel_names = _training_channel_names(pde_names, loader_metadata, int(data.shape[1]))
@@ -450,6 +503,7 @@ def _build_data_metadata(
         "scalar_conditioning_params": (model_config_metadata or {}).get("scalar_conditioning_params", []),
         "num_samples": int(data.shape[0]),
         "label_values": sorted(int(value) for value in torch.unique(label).detach().cpu().tolist()),
+        "validation": _jsonable(validation_metadata or {}),
         "pde_param_summary": summarize_pde_params(loader_metadata),
         "loader_metadata": _loader_metadata_for_json(loader_metadata),
         "normalization": {
@@ -557,6 +611,407 @@ def _load_training_data(
     data = torch.cat(dataset_list, dim=0).to(torch.float32)
     label = torch.cat(label_list, dim=0).to(torch.long)
     return data, label, metadata
+
+
+def _load_training_and_validation_data(
+    pde_names: list[str],
+    data_path: str,
+    data_size: int = 5,
+    max_train_samples: int | None = None,
+    rd_init_mode_filter: str | None = None,
+    seed: int = 0,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    dict[str, Any],
+    torch.Tensor,
+    torch.Tensor,
+    dict[str, Any],
+    dict[str, Any],
+]:
+    train_data_parts = []
+    train_label_parts = []
+    val_data_parts = []
+    val_label_parts = []
+    train_metadata: dict[str, Any] = {}
+    val_metadata: dict[str, Any] = {}
+    split_metadata: dict[str, Any] = {"val_ratio": DEFAULT_VAL_RATIO, "per_pde": {}}
+    train_channel_counts = {}
+    val_channel_counts = {}
+
+    for pde_name in pde_names:
+        logger.info(f">>> Initializing Dataset: {pde_name} <<<")
+        pde_loader = PDEloader(pde_name)
+        load_kwargs = {"size": data_size, "max_samples": max_train_samples}
+        if pde_name == "reaction_diffusion" and rd_init_mode_filter is not None:
+            load_kwargs["rd_init_mode_filter"] = rd_init_mode_filter
+        dataset, label = pde_loader.load_data(data_path, **load_kwargs)
+        if dataset.ndim != 4:
+            raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
+        loader_meta = pde_loader.metadata()
+
+        val_loaded = _try_load_validation_data(
+            pde_name,
+            data_path,
+            data_size=data_size,
+            max_train_samples=max_train_samples,
+        )
+        if val_loaded is None:
+            train_idx, val_idx = _train_val_split_indices(
+                int(dataset.shape[0]),
+                seed=seed + int(get_pde_spec(pde_name).label_id) * 1009,
+                val_ratio=DEFAULT_VAL_RATIO,
+            )
+            train_dataset = dataset[train_idx].contiguous()
+            train_label = label[train_idx].long().contiguous()
+            val_dataset = dataset[val_idx].contiguous()
+            val_label = label[val_idx].long().contiguous()
+            pde_train_meta = _slice_loader_metadata(loader_meta, train_idx)
+            pde_val_meta = _slice_loader_metadata(loader_meta, val_idx)
+            split_source = "fallback_random_9_1_split"
+        else:
+            val_dataset, val_label, pde_val_meta = val_loaded
+            train_dataset = dataset
+            train_label = label.long()
+            pde_train_meta = loader_meta
+            split_source = "validation_files"
+
+        train_channel_counts[pde_name] = int(train_dataset.shape[1])
+        val_channel_counts[pde_name] = int(val_dataset.shape[1])
+        train_data_parts.append(train_dataset)
+        train_label_parts.append(train_label)
+        val_data_parts.append(val_dataset)
+        val_label_parts.append(val_label.long())
+        if pde_train_meta.get("pde_params") or pde_train_meta.get("extra_metadata"):
+            train_metadata[pde_name] = pde_train_meta
+        if pde_val_meta.get("pde_params") or pde_val_meta.get("extra_metadata"):
+            val_metadata[pde_name] = pde_val_meta
+        split_metadata["per_pde"][pde_name] = {
+            "source": split_source,
+            "train_samples": int(train_dataset.shape[0]),
+            "validation_samples": int(val_dataset.shape[0]),
+            "original_loaded_samples": int(dataset.shape[0]),
+        }
+
+    if len(set(train_channel_counts.values())) != 1 or len(set(val_channel_counts.values())) != 1:
+        raise ValueError(
+            "Joint PDE training requires identical channel counts; "
+            f"got train={train_channel_counts}, validation={val_channel_counts}."
+        )
+    if set(train_channel_counts.values()) != set(val_channel_counts.values()):
+        raise ValueError(
+            "Training and validation channel counts must match; "
+            f"got train={train_channel_counts}, validation={val_channel_counts}."
+        )
+
+    train_data = torch.cat(train_data_parts, dim=0).to(torch.float32)
+    train_label = torch.cat(train_label_parts, dim=0).to(torch.long)
+    validation_data = torch.cat(val_data_parts, dim=0).to(torch.float32)
+    validation_label = torch.cat(val_label_parts, dim=0).to(torch.long)
+    split_metadata["train_samples"] = int(train_data.shape[0])
+    split_metadata["validation_samples"] = int(validation_data.shape[0])
+    return (
+        train_data,
+        train_label,
+        train_metadata,
+        validation_data,
+        validation_label,
+        val_metadata,
+        split_metadata,
+    )
+
+
+def _try_load_validation_data(
+    pde_name: str,
+    data_path: str,
+    data_size: int,
+    max_train_samples: int | None,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]] | None:
+    if get_pde_spec(pde_name).default_loadby != "pair_h5":
+        return None
+    if not _find_validation_h5_files(pde_name, data_path):
+        return None
+    val_loader = PDEloader(pde_name)
+    dataset, label = val_loader.load_data(
+        data_path,
+        size=data_size,
+        split="val",
+        max_samples=max_train_samples,
+    )
+    logger.info(f"Loaded validation files for {pde_name}: shape={tuple(dataset.shape)}")
+    return dataset, label.long(), val_loader.metadata()
+
+
+def _find_validation_h5_files(pde_name: str, data_path: str) -> list[Path]:
+    path = Path(data_path).expanduser()
+    if path.is_file():
+        return []
+    candidates = []
+    for candidate in (path / pde_name, path):
+        if candidate.exists() and candidate not in candidates:
+            candidates.append(candidate)
+    files: list[Path] = []
+    for candidate in candidates:
+        files.extend(sorted(candidate.glob(f"{pde_name}_val_*.h5")))
+    return files
+
+
+def _train_val_split_indices(
+    num_samples: int,
+    seed: int,
+    val_ratio: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if num_samples < 1:
+        raise ValueError("Cannot split an empty dataset")
+    if num_samples == 1:
+        warnings.warn(
+            "Only one sample was loaded; reusing it for validation because a distinct 9:1 split is impossible.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        index = torch.tensor([0], dtype=torch.long)
+        return index, index
+    val_count = max(1, int(round(float(num_samples) * float(val_ratio))))
+    val_count = min(val_count, num_samples - 1)
+    generator = torch.Generator(device="cpu").manual_seed(int(seed))
+    permutation = torch.randperm(num_samples, generator=generator)
+    val_idx = permutation[:val_count].sort().values
+    train_idx = permutation[val_count:].sort().values
+    return train_idx, val_idx
+
+
+def _slice_loader_metadata(metadata: dict[str, Any], indices: torch.Tensor) -> dict[str, Any]:
+    sliced = dict(metadata or {})
+    count = int(indices.numel())
+    index = indices.detach().cpu().long()
+    if isinstance(sliced.get("pde_params"), dict):
+        sliced["pde_params"] = {
+            name: _slice_sample_aligned_value(value, index)
+            for name, value in sliced["pde_params"].items()
+        }
+    extra = sliced.get("extra_metadata")
+    if isinstance(extra, dict):
+        sliced["extra_metadata"] = {
+            name: _slice_sample_aligned_value(value, index)
+            for name, value in extra.items()
+        }
+    sliced["num_loaded_samples"] = count
+    sliced["pde_param_slices"] = []
+    if isinstance(extra, dict):
+        sliced.setdefault("extra_metadata", {})["num_loaded_samples"] = count
+    return sliced
+
+
+def _slice_sample_aligned_value(value: Any, indices: torch.Tensor) -> Any:
+    if isinstance(value, torch.Tensor):
+        if value.ndim > 0 and int(value.shape[0]) >= int(indices.max().item()) + 1:
+            return value.index_select(0, indices.to(value.device))
+        return value
+    if isinstance(value, np.ndarray):
+        if value.ndim > 0 and int(value.shape[0]) >= int(indices.max().item()) + 1:
+            return value[indices.numpy()]
+        return value
+    if isinstance(value, list):
+        if len(value) >= int(indices.max().item()) + 1:
+            return [value[int(idx)] for idx in indices.tolist()]
+        return list(value)
+    if isinstance(value, tuple):
+        if len(value) >= int(indices.max().item()) + 1:
+            return tuple(value[int(idx)] for idx in indices.tolist())
+        return tuple(value)
+    return value
+
+
+def _run_periodic_flow_eval(
+    args,
+    model: torch.nn.Module,
+    normalizer: PDEStandardizer,
+    pde_name: str,
+    epoch: int,
+    num_channels: int,
+    resolution: int,
+    device: torch.device,
+    val_loader_metadata: dict[str, Any],
+) -> dict[str, Any]:
+    eval_epoch = int(epoch) + 1
+    batch_size = int(getattr(args, "eval_num_samples", 1))
+    num_steps = int(getattr(args, "eval_num_steps", 100))
+    if batch_size < 1:
+        raise ValueError("--eval_num_samples must be positive")
+    if num_steps < 1:
+        raise ValueError("--eval_num_steps must be positive")
+
+    sample_standardized = _euler_flow_sample(
+        model=model,
+        pde_name=pde_name,
+        batch_size=batch_size,
+        num_channels=num_channels,
+        resolution=resolution,
+        num_steps=num_steps,
+        device=device,
+        dtype=torch.float32,
+        seed=int(args.seed) + 1_000_003 + eval_epoch,
+    )
+    sample_physical = normalizer.inverse_transform(sample_standardized)
+    split = split_pair_state(sample_physical, pde_name)
+    pde_params = _pde_params_for_eval(
+        val_loader_metadata,
+        pde_name=pde_name,
+        batch_size=batch_size,
+        device=device,
+        dtype=sample_physical.dtype,
+    )
+    residual = compute_pde_residual(
+        pde_name,
+        split.coef,
+        split.sol,
+        pde_params=pde_params,
+        residual_mode=getattr(args, "eval_residual_mode", "auto"),
+    )
+    residual_norm = pde_residual_norm(residual.residual)
+
+    check_dir = Path(args.output_dir) / "check_figs"
+    check_dir.mkdir(parents=True, exist_ok=True)
+    stem = f"epoch_{eval_epoch:04d}_{pde_name}"
+    figure_path = check_dir / f"{stem}.pdf"
+    _save_eval_figure(
+        figure_path,
+        sample_physical=sample_physical,
+        residual_field=residual.residual,
+        pde_name=pde_name,
+        eval_epoch=eval_epoch,
+        residual_norm=residual_norm,
+    )
+    logger.info(
+        f"Eval epoch {eval_epoch}: pde={pde_name}, residual_norm={residual_norm:.6g}, "
+        f"figure={figure_path}"
+    )
+    return {
+        "eval_epoch": eval_epoch,
+        "eval_pde": pde_name,
+        "eval_num_steps": num_steps,
+        "eval_num_samples": batch_size,
+        "eval_pde_residual_norm": residual_norm,
+        "eval_pde_residual_status": residual.status,
+        "eval_pde_residual_mode": residual.metadata.get("resolved_residual_mode", getattr(args, "eval_residual_mode", "auto")),
+        "eval_figure_path": str(figure_path),
+    }
+
+
+@torch.no_grad()
+def _euler_flow_sample(
+    model: torch.nn.Module,
+    pde_name: str,
+    batch_size: int,
+    num_channels: int,
+    resolution: int,
+    num_steps: int,
+    device: torch.device,
+    dtype: torch.dtype,
+    seed: int,
+) -> torch.Tensor:
+    was_training = model.training
+    model.eval()
+    try:
+        generator_device = device if device.type == "cuda" else torch.device("cpu")
+        generator = torch.Generator(device=generator_device).manual_seed(int(seed))
+        x = torch.randn(
+            batch_size,
+            num_channels,
+            resolution,
+            resolution,
+            device=device,
+            dtype=dtype,
+            generator=generator,
+        )
+        label = torch.full(
+            (batch_size,),
+            int(get_pde_spec(pde_name).label_id),
+            device=device,
+            dtype=torch.long,
+        )
+        extra = _eval_conditioning_for_model(model, label)
+        grid = torch.linspace(0.0, 1.0, num_steps + 1, device=device, dtype=dtype)
+        for step in range(num_steps):
+            t = torch.full((batch_size,), float(grid[step].item()), device=device, dtype=dtype)
+            step_size = grid[step + 1] - grid[step]
+            velocity = model(x, t, extra=extra)
+            if velocity.shape != x.shape:
+                raise ValueError(f"Eval model output shape {tuple(velocity.shape)} does not match sample shape {tuple(x.shape)}")
+            x = x + step_size * velocity
+        return x.detach()
+    finally:
+        model.train(was_training)
+
+
+def _eval_conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor) -> dict[str, torch.Tensor]:
+    module = getattr(model, "module", model)
+    if hasattr(module, "model") and hasattr(module.model, "num_classes"):
+        module = module.model
+    if getattr(module, "num_classes", None) is None:
+        return {}
+    return {"label": labels.long()}
+
+
+def _pde_params_for_eval(
+    loader_metadata: dict[str, Any],
+    pde_name: str,
+    batch_size: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> dict[str, Any]:
+    entry = loader_metadata.get(pde_name, {}) if isinstance(loader_metadata, dict) else {}
+    params = entry.get("pde_params", {}) if isinstance(entry, dict) else {}
+    if not isinstance(params, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for name, value in params.items():
+        tensor = torch.as_tensor(value, device=device)
+        if torch.is_floating_point(tensor):
+            tensor = tensor.to(dtype=dtype)
+        if tensor.ndim == 0:
+            tensor = tensor.repeat(batch_size)
+        elif int(tensor.shape[0]) >= batch_size:
+            tensor = tensor[:batch_size]
+        elif int(tensor.shape[0]) == 1:
+            tensor = tensor.repeat(batch_size, *([1] * (tensor.ndim - 1)))
+        else:
+            continue
+        out[name] = tensor
+    return out
+
+
+def _save_eval_figure(
+    path: Path,
+    sample_physical: torch.Tensor,
+    residual_field: torch.Tensor | None,
+    pde_name: str,
+    eval_epoch: int,
+    residual_norm: float,
+) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    sample = sample_physical[0].detach().cpu()
+    panels = [(f"sample[{idx}]", sample[idx]) for idx in range(int(sample.shape[0]))]
+    if residual_field is not None:
+        residual_map = residual_field[0].detach().cpu().abs().mean(dim=0)
+        panels.append(("abs residual mean", residual_map))
+    cols = len(panels)
+    fig, axes = plt.subplots(1, cols, figsize=(max(3 * cols, 4), 3.2), constrained_layout=True)
+    if cols == 1:
+        axes = [axes]
+    for ax, (title, field) in zip(axes, panels):
+        field_np = field.numpy()
+        im = ax.imshow(field_np, cmap="viridis")
+        ax.set_title(title)
+        ax.axis("off")
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig.suptitle(f"{pde_name} epoch {eval_epoch} | PDE residual {residual_norm:.6g}")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
 
 
 def _loader_metadata_for_json(loader_metadata: dict[str, Any]) -> dict[str, Any]:

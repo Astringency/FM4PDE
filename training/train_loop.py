@@ -78,26 +78,16 @@ def train_one_epoch(
 
         samples = samples.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True).long()
-        if samples.ndim != 4:
-            raise ValueError(f"train_one_epoch expects samples [N,C,H,W], got {tuple(samples.shape)}")
-
-        conditioning = _conditioning_for_model(model, labels, args.class_drop_prob)
-
-        noise = torch.randn_like(samples)
-        if args.skewed_timesteps:
-            t = skewed_timestep_sample(samples.shape[0], device=device)
-        else:
-            t = torch.rand(samples.shape[0], device=device).clamp(TIMESTEP_EPS, 1.0 - TIMESTEP_EPS)
-
-        path_sample = path.sample(t=t, x_0=noise, x_1=samples)
-        x_t = path_sample.x_t
-        u_t = path_sample.dx_t
-
-        with _autocast_context(device, getattr(args, "sampling_dtype", "float32")):
-            model_out = model(x_t, t, extra=conditioning)
-            if model_out.shape != u_t.shape:
-                raise ValueError(f"Model output shape {tuple(model_out.shape)} does not match target {tuple(u_t.shape)}")
-            loss = torch.pow(model_out - u_t, 2).mean()
+        loss = _flow_matching_loss(
+            model=model,
+            samples=samples,
+            labels=labels,
+            path=path,
+            device=device,
+            class_drop_prob=args.class_drop_prob,
+            skewed_timesteps=args.skewed_timesteps,
+            sampling_dtype=getattr(args, "sampling_dtype", "float32"),
+        )
 
         loss_value = float(loss.detach().cpu())
         batch_loss.update(loss)
@@ -132,6 +122,80 @@ def train_one_epoch(
 
     lr_schedule.step()
     return {"loss": epoch_loss.compute()}
+
+
+@torch.no_grad()
+def validate_one_epoch(
+    model: torch.nn.Module,
+    data_loader: Iterable,
+    device: torch.device,
+    epoch: int,
+    args: argparse.Namespace,
+):
+    gc.collect()
+    was_training = model.training
+    model.eval()
+    epoch_loss = MeanAccumulator()
+    path = CondOTProbPath()
+
+    try:
+        for data_iter_step, (samples, labels) in enumerate(data_loader):
+            samples = samples.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True).long()
+            loss = _flow_matching_loss(
+                model=model,
+                samples=samples,
+                labels=labels,
+                path=path,
+                device=device,
+                class_drop_prob=0.0,
+                skewed_timesteps=getattr(args, "skewed_timesteps", False),
+                sampling_dtype=getattr(args, "sampling_dtype", "float32"),
+            )
+            loss_value = float(loss.detach().cpu())
+            if not math.isfinite(loss_value):
+                raise ValueError(f"Validation loss is {loss_value}, stopping training")
+            epoch_loss.update(loss)
+            if data_iter_step % PRINT_FREQUENCY == 0:
+                logger.info(
+                    f"Validation epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {epoch_loss.compute()}"
+                )
+    finally:
+        model.train(was_training)
+
+    return {"loss": epoch_loss.compute()}
+
+
+def _flow_matching_loss(
+    model: torch.nn.Module,
+    samples: torch.Tensor,
+    labels: torch.Tensor,
+    path: CondOTProbPath,
+    device: torch.device,
+    class_drop_prob: float,
+    skewed_timesteps: bool,
+    sampling_dtype: str,
+) -> torch.Tensor:
+    if samples.ndim != 4:
+        raise ValueError(f"Flow matching expects samples [N,C,H,W], got {tuple(samples.shape)}")
+
+    conditioning = _conditioning_for_model(model, labels, class_drop_prob)
+
+    noise = torch.randn_like(samples)
+    if skewed_timesteps:
+        t = skewed_timestep_sample(samples.shape[0], device=device)
+    else:
+        t = torch.rand(samples.shape[0], device=device).clamp(TIMESTEP_EPS, 1.0 - TIMESTEP_EPS)
+
+    path_sample = path.sample(t=t, x_0=noise, x_1=samples)
+    x_t = path_sample.x_t
+    u_t = path_sample.dx_t
+
+    with _autocast_context(device, sampling_dtype):
+        model_out = model(x_t, t, extra=conditioning)
+        if model_out.shape != u_t.shape:
+            raise ValueError(f"Model output shape {tuple(model_out.shape)} does not match target {tuple(u_t.shape)}")
+        return torch.pow(model_out - u_t, 2).mean()
 
 
 def _conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor, class_drop_prob: float) -> dict[str, torch.Tensor]:

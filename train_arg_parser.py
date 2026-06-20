@@ -86,7 +86,36 @@ def get_args_parser():
         "--eval_frequency",
         default=50,
         type=int,
-        help="Frequency (in number of epochs) for running FID evaluation. -1 to never run evaluation.",
+        help=(
+            "Frequency in epochs for checkpointing plus a lightweight Euler Flow Matching sample "
+            "and PDE residual evaluation. Use -1 to disable periodic eval/checkpoint saves."
+        ),
+    )
+    parser.add_argument(
+        "--eval_num_steps",
+        default=100,
+        type=int,
+        help="Number of Euler steps used by periodic Flow Matching sampling evaluation.",
+    )
+    parser.add_argument(
+        "--eval_num_samples",
+        default=1,
+        type=int,
+        help="Number of generated samples for periodic PDE residual evaluation.",
+    )
+    parser.add_argument(
+        "--eval_residual_mode",
+        default="auto",
+        choices=[
+            "auto",
+            "hermite_bridge",
+            "near_endpoint_temporal",
+            "endpoint_secant",
+            "full_trajectory_fd",
+            "full_time_space",
+            "disabled",
+        ],
+        help="PDE residual mode used during periodic generated-sample evaluation.",
     )
     parser.add_argument(
         "--cfg_scale",

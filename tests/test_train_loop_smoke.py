@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from training.grad_scaler import NativeScalerWithGradNormCount
-from training.train_loop import train_one_epoch
+from training.train_loop import train_one_epoch, validate_one_epoch
 
 
 class TinyVelocityModel(torch.nn.Module):
@@ -49,3 +49,29 @@ def test_train_one_epoch_updates_optimizer():
 
     assert "loss" in stats
     assert not torch.allclose(before, model.scale.detach())
+
+
+def test_validate_one_epoch_reports_loss_without_optimizer_update():
+    data = torch.randn(4, 2, 8, 8)
+    labels = torch.zeros(4, dtype=torch.long)
+    loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(data, labels), batch_size=2)
+    model = TinyVelocityModel()
+    args = argparse.Namespace(
+        class_drop_prob=0.0,
+        skewed_timesteps=False,
+        sampling_dtype="float32",
+    )
+
+    before = model.scale.detach().clone()
+    stats = validate_one_epoch(
+        model=model,
+        data_loader=loader,
+        device=torch.device("cpu"),
+        epoch=0,
+        args=args,
+    )
+
+    assert "loss" in stats
+    assert stats["loss"] > 0
+    assert torch.allclose(before, model.scale.detach())
+    assert model.training

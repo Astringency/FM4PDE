@@ -111,6 +111,27 @@ def test_train_data_metadata_keeps_loader_metadata():
     assert rd_meta["extra_metadata"]["init_mode"] == ["grf", "grf"]
 
 
+def test_fallback_train_validation_split_is_9_to_1():
+    from train import _train_val_split_indices
+
+    train_idx, val_idx = _train_val_split_indices(100, seed=123, val_ratio=0.1)
+
+    assert len(train_idx) == 90
+    assert len(val_idx) == 10
+    assert set(train_idx.tolist()).isdisjoint(set(val_idx.tolist()))
+    assert sorted(train_idx.tolist() + val_idx.tolist()) == list(range(100))
+
+
+def test_eval_frequency_help_describes_residual_eval_not_fid():
+    from train_arg_parser import get_args_parser
+
+    parser = get_args_parser()
+    action = next(action for action in parser._actions if action.dest == "eval_frequency")
+
+    assert "PDE residual" in action.help
+    assert "FID" not in action.help
+
+
 def test_save_model_includes_data_metadata(tmp_path):
     model = torch.nn.Linear(1, 1)
     data_metadata = {
