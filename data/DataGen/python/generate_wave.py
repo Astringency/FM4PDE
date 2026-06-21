@@ -36,6 +36,7 @@ def wave_metadata(config: PairH5Config) -> dict[str, object]:
     c_mode = config.extra.get("c_mode", "fixed")
     return {
         "equation": "u_tt = c(x,y)^2 * Delta u on [0,1]^2",
+        "boundary_condition": "periodic",
         "parameter_ranges": {"c": format_float_range(C_RANGE) if c_mode == "random" else {"fixed": float(config.extra.get("c", 1.0))}},
         "initial_velocity": "random GRF" if config.extra.get("random_v0", False) else "zero",
         "variable_c": variable_c,

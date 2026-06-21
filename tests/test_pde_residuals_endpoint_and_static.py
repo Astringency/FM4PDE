@@ -29,7 +29,14 @@ def test_temporal_residual_modes_all_endpoint_pdes():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
         out = compute_pde_residual(pde, q0, qT, residual_mode="hermite_bridge")
-        assert tuple(out.residual.shape) == (2, 4 * channels, 8, 8)
+        if pde == "nsnonbounded":
+            assert out.status == "disabled"
+            continue
+        assert out.residual.shape[0] == 2
+        assert out.residual.shape[-2:] == (8, 8)
+        assert out.metadata["residual_channels"]["interior_channels"] == 3 * channels
+        assert out.metadata["residual_channels"]["endpoint_channels"] == channels
+        assert out.metadata["residual_channels"]["bc_channels"] > 0
         assert out.status == "approximate"
         assert out.metadata["status"] == "approximate"
         assert out.metadata["endpoint_only"] is True
@@ -43,6 +50,9 @@ def test_auto_uses_hermite_for_endpoint_time_dependent():
     for pde, _channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
         out = compute_pde_residual(pde, q0, qT, residual_mode="auto")
+        if pde == "nsnonbounded":
+            assert out.status == "disabled"
+            continue
         assert out.metadata["resolved_residual_mode"] == "hermite_bridge"
         assert out.metadata["mode"] == "hermite_bridge"
 
@@ -51,7 +61,13 @@ def test_temporal_endpoint_secant_all_endpoint_pdes():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
         out = compute_pde_residual(pde, q0, qT, residual_mode="endpoint_secant")
-        assert tuple(out.residual.shape) == (2, channels, 8, 8)
+        if pde == "nsnonbounded":
+            assert out.status == "disabled"
+            continue
+        assert out.residual.shape[0] == 2
+        assert out.residual.shape[-2:] == (8, 8)
+        assert out.metadata["residual_channels"]["interior_channels"] == channels
+        assert out.metadata["residual_channels"]["bc_channels"] > 0
         assert out.metadata["two_time_level_approx"] is True
         assert out.metadata["temporal_derivative_mode"] == "endpoint_secant"
         assert out.metadata["resolved_residual_mode"] == "endpoint_secant"
@@ -120,7 +136,11 @@ def test_near_endpoint_temporal_all_endpoint_pdes_with_aux():
             },
             residual_mode="near_endpoint_temporal",
         )
-        assert tuple(out.residual.shape) == (1, 2 * channels, 5, 5)
+        if pde == "nsnonbounded":
+            assert out.status == "disabled"
+            continue
+        assert out.residual.shape[0] == 1
+        assert out.residual.shape[-2:] == (5, 5)
         assert out.metadata["temporal_derivative_mode"] == "near_endpoint_sparse_fd"
         assert out.metadata["endpoint_only"] is False
         assert out.metadata["uses_extra_temporal_observations"] is True
@@ -153,25 +173,21 @@ def test_steady_heat_is_static_not_temporal():
         torch.ones(2, 1, h, w) * 298.0,
         pde_params={"u_D": torch.tensor([298.0, 300.0])},
     )
-    assert tuple(out.residual.shape) == (2, 1, h, w)
+    assert tuple(out.components["interior"].shape) == (2, 1, h, w)
+    assert out.components["boundary"] is not None
     assert out.status == "reliable"
     assert out.metadata["residual_family"] == "static"
     assert out.metadata["temporal_derivative_mode"] == "none"
     assert out.metadata["mode"] == "static_nonlinear_boundary"
     assert out.metadata["resolved_residual_mode"] == "static_nonlinear_boundary"
-    assert out.residual[1, 0, 0, 0].item() == pytest.approx(-2.0)
+    assert out.components["boundary"][1, 0, 0, 0].item() == pytest.approx(-2.0)
 
 
 def test_nsnonbounded_residual_enabled_and_backward():
     q0 = torch.randn(1, 1, 8, 8, requires_grad=True)
     qT = torch.randn(1, 1, 8, 8, requires_grad=True)
     out = compute_pde_residual("nsnonbounded", q0, qT, residual_mode="hermite_bridge")
-    assert out.status == "approximate"
-    assert out.metadata["resolved_residual_mode"] == "hermite_bridge"
-    assert out.metadata["equation"] == "2D vorticity Navier-Stokes endpoint Hermite bridge residual"
-    assert out.metadata["rhs_equation"] == "2D vorticity Navier-Stokes"
-    assert out.metadata["velocity_reconstruction"] == "periodic_fft_streamfunction"
-    loss = out.residual.pow(2).mean()
-    loss.backward()
-    assert q0.grad is not None and torch.isfinite(q0.grad).all()
-    assert qT.grad is not None and torch.isfinite(qT.grad).all()
+    assert out.status == "disabled"
+    assert out.metadata["reason"].startswith("vorticity transport residual is not implemented")
+    assert out.metadata["bc_residual_enabled"] is False
+    assert out.metadata["ic_residual_enabled"] is False

@@ -51,6 +51,25 @@ def detach_pde_params(loader_metadata: dict[str, Any]) -> dict[str, dict[str, to
     }
 
 
+def summarize_boundary_conditions(loader_metadata: dict[str, Any]) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    for pde_name, entry in (loader_metadata or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        boundary = entry.get("boundary_condition") or entry.get("boundary_condition_kind")
+        source = entry.get("boundary_condition_source")
+        extra = entry.get("extra_metadata") if isinstance(entry.get("extra_metadata"), dict) else {}
+        if boundary is None and extra:
+            boundary = extra.get("boundary_condition") or extra.get("boundary_condition_kind")
+            source = source or extra.get("boundary_condition_source")
+        if boundary is not None:
+            summary[pde_name] = {
+                "boundary_condition": boundary,
+                "source": source or "metadata",
+            }
+    return summary
+
+
 def _extract_pde_params(entry: Any) -> dict[str, Any]:
     if isinstance(entry, dict) and isinstance(entry.get("pde_params"), dict):
         return entry["pde_params"]

@@ -33,7 +33,11 @@ def test_reaction_diffusion_residual_uses_neumann_metadata_on_arbitrary_shape():
         residual_mode="hermite_bridge",
     )
 
-    assert tuple(out.residual.shape) == (1, 8, 16, 16)
+    assert out.residual.shape[0] == 1
+    assert out.residual.shape[-2:] == (16, 16)
+    assert out.metadata["residual_channels"]["interior_channels"] == 6
+    assert out.metadata["residual_channels"]["endpoint_channels"] == 2
+    assert out.metadata["residual_channels"]["bc_channels"] == 10
     assert torch.isfinite(out.residual).all()
     assert out.metadata["boundary_condition"] == "homogeneous_neumann"
     assert out.metadata["laplacian"] == "neumann"
@@ -57,7 +61,10 @@ def test_reaction_diffusion_residual_default_domain_works_on_32x32():
         residual_mode="endpoint_secant",
     )
 
-    assert tuple(out.residual.shape) == (1, 2, 32, 32)
+    assert out.residual.shape[0] == 1
+    assert out.residual.shape[-2:] == (32, 32)
+    assert out.metadata["residual_channels"]["interior_channels"] == 2
+    assert out.metadata["residual_channels"]["bc_channels"] == 4
     assert torch.isfinite(out.residual).all()
     assert out.metadata["boundary_condition"] == "homogeneous_neumann"
     assert out.metadata["domain"]["defaulted"] is True

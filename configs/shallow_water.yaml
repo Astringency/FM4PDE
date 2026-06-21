@@ -20,6 +20,16 @@ clip_mode: global_norm
 clip_threshold: 10000000000.0
 pde_residual_region: full
 residual_mode: hermite_bridge
+enforce_boundary_conditions: true
+enforce_initial_conditions: true
+boundary_condition_mode: open
+initial_condition_mode: auto
+bc_weight: 1.0
+ic_weight: 1.0
+endpoint_bc_weight: 1.0
+boundary_residual_normalization: sqrt_grid_over_mask
+allow_unknown_boundary_conditions: false
+legacy_ignore_boundary: false
 hermite_collocation_times: [0.25, 0.5, 0.75]
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0

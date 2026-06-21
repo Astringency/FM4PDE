@@ -78,6 +78,7 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         pde_params, pde_param_sources = _h5py_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
     elif config.loadby == "rd":
         pde_params, pde_param_sources = _rd_params_for_offsets(raw["__h5__"], offsets, pair.device)
+    _attach_boundary_metadata_params(config, raw.get("__h5__") if isinstance(raw, dict) else None, pde_params, pde_param_sources)
     near_metadata: dict[str, Any] | None = None
     if normalize_residual_mode(config.residual_mode) == "near_endpoint_temporal":
         near_params, near_metadata = _near_endpoint_temporal_for_offsets(config, raw, offsets, coef_t, sol_t, pde_params)
@@ -107,6 +108,8 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         "pde_params_keys": sorted(pde_params),
         "pde_params_sources": pde_param_sources,
         "scalar_params_loaded": bool(pde_params),
+        "boundary_condition": pde_params.get("boundary_condition_kind", None),
+        "boundary_condition_source": pde_param_sources.get("boundary_condition_kind", None),
     }
     if near_metadata is not None:
         metadata["near_endpoint_temporal"] = near_metadata
@@ -463,6 +466,48 @@ def _sample_group_key(file: Any, offset: int) -> str:
     if offset < 0 or offset >= len(keys):
         raise IndexError(f"Sample offset {offset} is out of range for {len(keys)} HDF5 sample groups")
     return keys[offset]
+
+
+def _attach_boundary_metadata_params(config: AblationConfig, file: Any, params: dict[str, Any], sources: dict[str, str]) -> None:
+    if "boundary_condition_kind" in params:
+        return
+    raw = None
+    source = None
+    if file is not None:
+        for name in ("boundary_condition_kind", "boundary_condition", "bc"):
+            if name in file.attrs:
+                raw = file.attrs[name]
+                source = f"root_attr:{name}"
+                break
+    if raw is None:
+        defaults = {
+            "heat": "periodic" if getattr(config, "boundary_condition_mode", "auto") == "auto" else None,
+            "wave": "periodic",
+            "advection_diffusion": "periodic",
+            "reaction_diffusion": "neumann",
+            "shallow_water": "open",
+            "steady_heat_conduction": "mixed",
+        }
+        raw = defaults.get(config.pde)
+        source = "loader_confirmed_default" if raw is not None else None
+    if raw is None:
+        return
+    text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    lowered = text.lower()
+    if "periodic" in lowered:
+        kind = "periodic"
+    elif "neumann" in lowered or "extrap" in lowered or "open" in lowered:
+        kind = "open" if "extrap" in lowered or "open" in lowered else "neumann"
+    elif "dirichlet" in lowered and "neumann" in lowered:
+        kind = "mixed"
+    elif "dirichlet" in lowered:
+        kind = "dirichlet"
+    elif lowered in {"periodic", "neumann", "dirichlet", "mixed", "open", "wall"}:
+        kind = lowered
+    else:
+        kind = text
+    params["boundary_condition_kind"] = kind
+    sources["boundary_condition_kind"] = source or "metadata"
 
 
 def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[dict[str, Any], dict[str, str]]:

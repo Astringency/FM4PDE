@@ -63,6 +63,11 @@ def compute_guidance_losses(
     pde_meta: dict[str, Any] = {}
     if enabled["pde"]:
         pde_params = _pde_params_with_residual_options(getattr(ground_truth, "pde_params", None), config)
+        if getattr(config, "enforce_initial_conditions", True):
+            observed_initial = target_coef * masks.coef
+            pde_params.setdefault("observed_initial", observed_initial)
+            pde_params.setdefault("initial_mask", masks.coef)
+            pde_params.setdefault("initial_condition_source", "observation_loss_masked_coef")
         residual = compute_pde_residual(
             config.pde,
             phys_state.coef,
@@ -74,6 +79,7 @@ def compute_guidance_losses(
         pde_field = residual.residual
         status = residual.status
         pde_meta = residual.metadata
+        pde_meta["component_norms"] = _component_norms(residual.components)
         region = residual_region_mask(config.pde_residual_region, masks.coef, masks.sol, tuple(pde_field.shape))
         if region is not None:
             pde_field = pde_field * region
@@ -156,8 +162,31 @@ def _pde_params_with_residual_options(pde_params: dict[str, Any] | None, config:
         "hermite_num_collocation",
         "hermite_include_integral_residual",
         "hermite_integral_weight",
+        "enforce_boundary_conditions",
+        "enforce_initial_conditions",
+        "boundary_condition_mode",
+        "initial_condition_mode",
+        "bc_weight",
+        "ic_weight",
+        "endpoint_bc_weight",
+        "boundary_residual_normalization",
+        "allow_unknown_boundary_conditions",
+        "legacy_ignore_boundary",
     )
     for name in option_names:
         if hasattr(config, name):
             params[name] = getattr(config, name)
     return params
+
+
+def _component_norms(components: dict[str, Any] | None) -> dict[str, float]:
+    import torch
+
+    norms: dict[str, float] = {}
+    for name in ("interior", "boundary", "initial", "endpoint"):
+        value = None if components is None else components.get(name)
+        if value is None:
+            norms[name] = 0.0
+        else:
+            norms[name] = float((torch.linalg.vector_norm(value) / max(value.numel(), 1)).detach().cpu())
+    return norms

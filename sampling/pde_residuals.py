@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from data.specs import FULL_TIME_SPACE_PDES, STATIC_PDES, TEMPORAL_ENDPOINT_PDES, get_pde_spec
@@ -14,6 +14,40 @@ class ResidualOutput:
     residual: Any
     status: str
     metadata: dict[str, Any]
+    components: dict[str, Any] | None = None
+
+
+@dataclass
+class BoundaryConditionSpec:
+    kind: str
+    value: Any | None = None
+    sides: dict[str, Any] = field(default_factory=dict)
+    source: str = "unknown"
+    strict: bool = True
+
+
+@dataclass
+class InitialConditionSpec:
+    kind: str
+    value: Any | None = None
+    source: str = "unknown"
+    strict: bool = True
+
+
+@dataclass
+class PDEConstraintSpec:
+    pde: str
+    bc: BoundaryConditionSpec
+    ic: InitialConditionSpec | None
+    bc_weight: float
+    ic_weight: float
+    endpoint_weight: float
+    normalize_by_mask: bool
+    boundary_residual_normalization: str
+    allow_unknown_bc: bool
+    legacy_ignore_boundary: bool
+    enforce_boundary_conditions: bool
+    enforce_initial_conditions: bool
 
 
 def compute_pde_residual(
@@ -26,13 +60,28 @@ def compute_pde_residual(
     residual_mode: str = "auto",
 ) -> ResidualOutput:
     pde_params = pde_params or {}
+    constraint_spec = _constraint_spec_from_params(pde, pde_params)
     normalized_mode = _normalize_residual_mode(residual_mode)
+    if pde == "nsnonbounded":
+        out = _disabled_residual(coef, sol, pde, residual_mode)
+        out.metadata.update(
+            {
+                "reason": "vorticity transport residual is not implemented for strict sampling guidance",
+                "bc_residual_enabled": False,
+                "ic_residual_enabled": False,
+                "boundary_condition_type": "none",
+                "initial_condition_type": "none",
+                "legacy_ignore_boundary": False,
+            }
+        )
+        return out
     if pde in TEMPORAL_ENDPOINT_PDES:
         return _endpoint_time_dependent_residual(
             pde,
             coef,
             sol,
             pde_params=pde_params,
+            constraint_spec=constraint_spec,
             requested_mode=residual_mode,
             normalized_mode=normalized_mode,
         )
@@ -43,11 +92,11 @@ def compute_pde_residual(
     if pde in FULL_TIME_SPACE_PDES and normalized_mode in {"hermite_bridge", "near_endpoint_temporal", "endpoint_secant"}:
         raise ValueError(f"{pde} already uses a full time-space residual; temporal endpoint mode {normalized_mode!r} is invalid")
     table: dict[str, Callable[..., ResidualOutput]] = {
-        "darcy": _darcy,
-        "poisson": _poisson,
-        "helmholtz": lambda a, u: _helmholtz(a, u, k=k),
-        "burger": lambda a, u: _burger(a, u, residual_mode=residual_mode),
-        "steady_heat_conduction": lambda a, u: _steady_heat_conduction(a, u, pde_params=pde_params),
+        "darcy": lambda a, u: _darcy(a, u, constraint_spec),
+        "poisson": lambda a, u: _poisson(a, u, constraint_spec),
+        "helmholtz": lambda a, u: _helmholtz(a, u, constraint_spec, k=k),
+        "burger": lambda a, u: _burger(a, u, constraint_spec, pde_params=pde_params, residual_mode=residual_mode),
+        "steady_heat_conduction": lambda a, u: _steady_heat_conduction(a, u, pde_params=pde_params, spec=constraint_spec),
     }
     if pde not in table:
         raise ValueError(f"Unsupported PDE residual: {pde}")
@@ -65,11 +114,13 @@ def residual_status(pde: str) -> str:
     if pde in STATIC_PDES or pde in FULL_TIME_SPACE_PDES:
         return "reliable"
     if pde in TEMPORAL_ENDPOINT_PDES:
+        if pde == "nsnonbounded":
+            return "disabled"
         return "approximate"
     return "disabled"
 
 
-def _darcy(a: Any, u: Any) -> ResidualOutput:
+def _darcy(a: Any, u: Any, spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
     deriv_x, deriv_y = _central_kernels(u)
@@ -78,21 +129,48 @@ def _darcy(a: Any, u: Any) -> ResidualOutput:
     div = torch.nn.functional.conv2d(a * ux, deriv_x, padding=(0, 1)) + torch.nn.functional.conv2d(
         a * uy, deriv_y, padding=(1, 0)
     )
-    residual = div + 1.0
-    return _out(_zero_boundary(residual), "reliable", {"equation": "div(a grad u) + 1", "mode": "static"})
+    interior = _interior_only(div + 1.0)
+    return _with_constraints(
+        pde="darcy",
+        state=u,
+        interior=interior,
+        status="reliable",
+        metadata={"equation": "div(a grad u) + 1", "mode": "static"},
+        spec=spec,
+    )
 
 
-def _poisson(a: Any, u: Any) -> ResidualOutput:
-    residual = _laplacian(u) - a
-    return _out(_zero_boundary(residual), "reliable", {"equation": "laplace(u) - f", "mode": "static"})
+def _poisson(a: Any, u: Any, spec: PDEConstraintSpec) -> ResidualOutput:
+    interior = _interior_only(_laplacian(u) - a)
+    return _with_constraints(
+        pde="poisson",
+        state=u,
+        interior=interior,
+        status="reliable",
+        metadata={"equation": "laplace(u) - f", "mode": "static"},
+        spec=spec,
+    )
 
 
-def _helmholtz(a: Any, u: Any, k: int = 1) -> ResidualOutput:
-    residual = _laplacian(u) + float(k**2) * u - a
-    return _out(_zero_boundary(residual), "reliable", {"equation": "laplace(u) + k^2 u - f", "k": k, "mode": "static"})
+def _helmholtz(a: Any, u: Any, spec: PDEConstraintSpec, k: int = 1) -> ResidualOutput:
+    interior = _interior_only(_laplacian(u) + float(k**2) * u - a)
+    return _with_constraints(
+        pde="helmholtz",
+        state=u,
+        interior=interior,
+        status="reliable",
+        metadata={"equation": "laplace(u) + k^2 u - f", "k": k, "mode": "static"},
+        spec=spec,
+    )
 
 
-def _burger(a: Any, u: Any, residual_mode: str = "auto") -> ResidualOutput:
+def _burger(
+    a: Any,
+    u: Any,
+    spec: PDEConstraintSpec,
+    pde_params: dict[str, Any],
+    residual_mode: str = "auto",
+) -> ResidualOutput:
     import torch
 
     deriv_t = torch.tensor([[-1.0], [0.0], [1.0]], dtype=u.dtype, device=u.device).view(1, 1, 3, 1) / 2.0
@@ -100,11 +178,13 @@ def _burger(a: Any, u: Any, residual_mode: str = "auto") -> ResidualOutput:
     ut = torch.nn.functional.conv2d(u, deriv_t, padding=(1, 0))
     ux = torch.nn.functional.conv2d(u, deriv_x, padding=(0, 1))
     uxx = torch.nn.functional.conv2d(ux, deriv_x, padding=(0, 1))
-    residual = ut + u * ux - 0.01 * uxx
-    return _out(
-        _zero_boundary(residual),
-        "reliable",
-        {
+    interior = _interior_time_space(ut + u * ux - 0.01 * uxx)
+    return _with_constraints(
+        pde="burger",
+        state=u,
+        interior=interior,
+        status="reliable",
+        metadata={
             "equation": "u_t + u u_x - nu u_xx",
             "nu": 0.01,
             "axis": "BCHW-as-time-space",
@@ -119,6 +199,8 @@ def _burger(a: Any, u: Any, residual_mode: str = "auto") -> ResidualOutput:
             "uses_extra_temporal_observations": False,
             "two_time_level_approx": False,
         },
+        spec=spec,
+        pde_params=pde_params,
     )
 
 
@@ -128,6 +210,7 @@ def _endpoint_time_dependent_residual(
     u: Any,
     *,
     pde_params: dict[str, Any],
+    constraint_spec: PDEConstraintSpec,
     requested_mode: str,
     normalized_mode: str,
 ) -> ResidualOutput:
@@ -135,13 +218,13 @@ def _endpoint_time_dependent_residual(
     if resolved_mode == "disabled":
         return _disabled_residual(a, u, pde, requested_mode)
     if resolved_mode == "hermite_bridge":
-        out = _hermite_bridge_residual(pde, a, u, pde_params)
+        out = _hermite_bridge_residual(pde, a, u, pde_params, constraint_spec)
     elif resolved_mode == "near_endpoint_temporal":
-        out = _near_endpoint_temporal_residual(pde, a, u, pde_params)
+        out = _near_endpoint_temporal_residual(pde, a, u, pde_params, constraint_spec)
     elif resolved_mode == "endpoint_secant":
-        out = _endpoint_secant_residual(pde, a, u, pde_params)
+        out = _endpoint_secant_residual(pde, a, u, pde_params, constraint_spec)
     elif resolved_mode == "full_trajectory_fd":
-        out = _full_trajectory_fd_residual(pde, a, u, pde_params)
+        out = _full_trajectory_fd_residual(pde, a, u, pde_params, constraint_spec)
     else:
         raise ValueError(f"residual_mode={requested_mode!r} is invalid for temporal endpoint PDE {pde!r}")
     out.metadata.setdefault("requested_residual_mode", requested_mode)
@@ -161,33 +244,36 @@ def _endpoint_secant_residual(
     a: Any,
     u: Any,
     pde_params: dict[str, Any],
+    spec: PDEConstraintSpec,
 ) -> ResidualOutput:
     if pde == "heat":
-        return _heat_endpoint_secant(a, u, pde_params)
+        return _heat_endpoint_secant(a, u, pde_params, spec)
     if pde == "wave":
-        return _wave_endpoint_secant(a, u, pde_params)
+        return _wave_endpoint_secant(a, u, pde_params, spec)
     if pde == "advection_diffusion":
-        return _advection_diffusion_endpoint_secant(a, u, pde_params)
+        return _advection_diffusion_endpoint_secant(a, u, pde_params, spec)
     if pde == "reaction_diffusion":
-        return _reaction_diffusion_endpoint_secant(a, u, pde_params)
+        return _reaction_diffusion_endpoint_secant(a, u, pde_params, spec)
     if pde == "shallow_water":
-        return _shallow_water_endpoint_secant(a, u, pde_params)
+        return _shallow_water_endpoint_secant(a, u, pde_params, spec)
     if pde == "nsnonbounded":
         return _generic_endpoint_secant(pde, a, u, pde_params)
     raise ValueError(f"endpoint_secant residual is not implemented for {pde!r}")
 
 
-def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"heat expects 1+1 channels, got a={a.shape}, u={u.shape}")
     alpha = _param_field(pde_params, "alpha", u, default=1.0)
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    residual = (u - a) / time_scale - alpha * _laplacian(u_mid)
-    return _out(
-        _zero_boundary(residual),
-        "approximate",
-        {
+    interior = _interior_only((u - a) / time_scale - alpha * _laplacian(u_mid))
+    return _with_constraints(
+        pde="heat",
+        state=u_mid,
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": "(uT - u0) / T - alpha * laplace(u_mid)",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
@@ -195,10 +281,13 @@ def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any]) -> Residua
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("alpha", "T", "total_time", "dt")),
         },
+        spec=spec,
+        endpoint_states=[a, u, u_mid],
+        pde_params=pde_params,
     )
 
 
-def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
     if a.shape[1] != 2 or u.shape[1] != 2:
@@ -211,10 +300,13 @@ def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any]) -> Residua
     v_mid = 0.5 * (v0 + v_t)
     res_u = (u_t - u0) / time_scale - v_mid
     res_v = (v_t - v0) / time_scale - (c**2) * _laplacian(u_mid)
-    return _out(
-        torch.cat([_zero_boundary(res_u), _zero_boundary(res_v)], dim=1),
-        "approximate",
-        {
+    interior = _interior_only(torch.cat([res_u, res_v], dim=1))
+    return _with_constraints(
+        pde="wave",
+        state=torch.cat([u_mid, v_mid], dim=1),
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": "(uT - u0) / T - v_mid, (vT - v0) / T - c^2 laplace(u_mid)",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
@@ -222,6 +314,9 @@ def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any]) -> Residua
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("c", "T", "total_time", "dt")),
         },
+        spec=spec,
+        endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
+        pde_params=pde_params,
     )
 
 
@@ -229,6 +324,7 @@ def _advection_diffusion_endpoint_secant(
     a: Any,
     u: Any,
     pde_params: dict[str, Any],
+    spec: PDEConstraintSpec,
 ) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"advection_diffusion expects 1+1 channels, got a={a.shape}, u={u.shape}")
@@ -237,11 +333,13 @@ def _advection_diffusion_endpoint_secant(
     kappa = _param_field(pde_params, "kappa", u, default=1.0)
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    residual = (u - a) / time_scale + bx * _dx(u_mid) + by * _dy(u_mid) - kappa * _laplacian(u_mid)
-    return _out(
-        _zero_boundary(residual),
-        "approximate",
-        {
+    interior = _interior_only((u - a) / time_scale + bx * _dx(u_mid) + by * _dy(u_mid) - kappa * _laplacian(u_mid))
+    return _with_constraints(
+        pde="advection_diffusion",
+        state=u_mid,
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": "(uT - u0) / T + b_x u_x + b_y u_y - kappa laplace(u_mid)",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
@@ -249,6 +347,9 @@ def _advection_diffusion_endpoint_secant(
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("b_x", "b_y", "kappa", "T", "total_time", "dt")),
         },
+        spec=spec,
+        endpoint_states=[a, u, u_mid],
+        pde_params=pde_params,
     )
 
 
@@ -256,6 +357,7 @@ def _reaction_diffusion_endpoint_secant(
     a: Any,
     u: Any,
     pde_params: dict[str, Any],
+    spec: PDEConstraintSpec,
 ) -> ResidualOutput:
     import torch
 
@@ -273,10 +375,13 @@ def _reaction_diffusion_endpoint_secant(
     lap_v = _neumann_laplacian(u_v, pde_params)
     res_u = u_t - (d_u * lap_u + u_u - u_u**3 - k - u_v)
     res_v = v_t - (d_v * lap_v + u_u - u_v)
-    return _out(
-        torch.cat([res_u, res_v], dim=1),
-        "approximate",
-        {
+    interior = _interior_only(torch.cat([res_u, res_v], dim=1))
+    return _with_constraints(
+        pde="reaction_diffusion",
+        state=u,
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": "two-time-level FitzHugh-Nagumo reaction-diffusion residual",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
@@ -305,6 +410,9 @@ def _reaction_diffusion_endpoint_secant(
             ),
             **_reaction_diffusion_spatial_metadata(pde_params, u_u),
         },
+        spec=spec,
+        endpoint_states=[a, u],
+        pde_params=pde_params,
     )
 
 
@@ -312,6 +420,7 @@ def _shallow_water_endpoint_secant(
     a: Any,
     u: Any,
     pde_params: dict[str, Any],
+    spec: PDEConstraintSpec,
 ) -> ResidualOutput:
     import torch
 
@@ -333,10 +442,13 @@ def _shallow_water_endpoint_secant(
     mom_y = (hv - hv0) / time_scale + _dx(hu_mid * hv_mid / h_safe) + _dy(
         (hv_mid**2) / h_safe + 0.5 * g * h_mid**2
     )
-    return _out(
-        torch.cat([mass, mom_x, mom_y], dim=1),
-        "approximate",
-        {
+    interior = _interior_only(torch.cat([mass, mom_x, mom_y], dim=1))
+    return _with_constraints(
+        pde="shallow_water",
+        state=torch.cat([h_mid, hu_mid, hv_mid], dim=1),
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": "two-time-level shallow-water conservative residual",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
@@ -345,6 +457,9 @@ def _shallow_water_endpoint_secant(
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("g", "eps", "T", "total_time", "dt")),
         },
+        spec=spec,
+        endpoint_states=[a, u, torch.cat([h_mid, hu_mid, hv_mid], dim=1)],
+        pde_params=pde_params,
     )
 
 
@@ -369,7 +484,7 @@ def _generic_endpoint_secant(pde: str, a: Any, u: Any, pde_params: dict[str, Any
     )
 
 
-def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
     trajectory = _extract_full_trajectory(pde_params)
@@ -410,12 +525,14 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
             q_t = (btchw[:, -1] - btchw[:, -2]) / dt
         else:
             q_t = (btchw[:, idx + 1] - btchw[:, idx - 1]) / (2.0 * dt)
-        residuals.append(_apply_endpoint_residual_boundary(pde, q_t - _rhs_time_dependent(pde, q, pde_params)))
-    residual = torch.cat(residuals, dim=1)
-    return _out(
-        residual,
-        "reliable",
-        {
+        residuals.append(_interior_only(q_t - _rhs_time_dependent(pde, q, pde_params)))
+    interior = torch.cat(residuals, dim=1)
+    return _with_constraints(
+        pde=pde,
+        state=btchw.reshape(-1, *btchw.shape[2:]).mean(dim=0, keepdim=True).repeat(q0.shape[0], 1, 1, 1),
+        interior=interior,
+        status="reliable",
+        metadata={
             "equation": f"{pde} full trajectory finite-difference residual",
             "mode": "full_trajectory_fd",
             "resolved_residual_mode": "full_trajectory_fd",
@@ -426,6 +543,9 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
             "pde_params_used": _rhs_param_usage(pde, pde_params),
             **_rhs_metadata(pde, pde_params, btchw[:, 0]),
         },
+        spec=spec,
+        endpoint_states=[btchw[:, idx] for idx in range(int(btchw.shape[1]))],
+        pde_params=pde_params,
     )
 
 
@@ -434,6 +554,276 @@ def _extract_full_trajectory(params: dict[str, Any]) -> Any:
         if name in params:
             return params[name]
     raise ValueError("full_trajectory_fd mode requires explicit full trajectory state in pde_params['full_trajectory'] or pde_params['trajectory']")
+
+
+def _constraint_spec_from_params(pde: str, params: dict[str, Any]) -> PDEConstraintSpec:
+    bc_mode = str(params.get("boundary_condition_mode", params.get("boundary_condition", "auto")))
+    ic_mode = str(params.get("initial_condition_mode", "auto"))
+    legacy = _as_bool(params.get("legacy_ignore_boundary", False)) or bc_mode == "legacy_ignore"
+    allow_unknown = _as_bool(params.get("allow_unknown_boundary_conditions", False))
+    enforce_bc = _as_bool(params.get("enforce_boundary_conditions", True))
+    enforce_ic = _as_bool(params.get("enforce_initial_conditions", True))
+    bc = _resolve_boundary_spec(pde, bc_mode, params, legacy, allow_unknown)
+    ic = _resolve_initial_spec(ic_mode, params)
+    return PDEConstraintSpec(
+        pde=pde,
+        bc=bc,
+        ic=ic,
+        bc_weight=float(params.get("bc_weight", 1.0)),
+        ic_weight=float(params.get("ic_weight", 1.0)),
+        endpoint_weight=float(params.get("endpoint_bc_weight", params.get("lambda_endpoint", 1.0))),
+        normalize_by_mask=str(params.get("boundary_residual_normalization", "sqrt_grid_over_mask")) != "mean",
+        boundary_residual_normalization=str(params.get("boundary_residual_normalization", "sqrt_grid_over_mask")),
+        allow_unknown_bc=allow_unknown,
+        legacy_ignore_boundary=legacy,
+        enforce_boundary_conditions=enforce_bc,
+        enforce_initial_conditions=enforce_ic,
+    )
+
+
+def _resolve_boundary_spec(
+    pde: str,
+    mode: str,
+    params: dict[str, Any],
+    legacy: bool,
+    allow_unknown: bool,
+) -> BoundaryConditionSpec:
+    if legacy:
+        return BoundaryConditionSpec(kind="none", source="legacy_ignore", strict=False)
+    aliases = {
+        "dirichlet_zero": ("dirichlet", 0.0, "config"),
+        "neumann_zero": ("neumann", 0.0, "config"),
+        "periodic": ("periodic", None, "config"),
+        "mixed": ("mixed", None, "config"),
+        "none": ("none", None, "config"),
+        "open": ("open", 0.0, "config"),
+        "wall": ("wall", 0.0, "config"),
+    }
+    if mode in aliases:
+        kind, value, source = aliases[mode]
+        if pde == "burger" and kind == "periodic":
+            kind = "periodic_x"
+        sides = params.get("boundary_sides", {})
+        return BoundaryConditionSpec(kind=kind, value=value, sides=dict(sides) if isinstance(sides, dict) else {}, source=source)
+    if mode != "auto":
+        raise ValueError(f"boundary_condition_mode={mode!r} is invalid")
+    if "boundary_condition_kind" in params:
+        kind = _normalize_boundary_kind(str(params["boundary_condition_kind"]), pde)
+        return BoundaryConditionSpec(
+            kind=kind,
+            value=params.get("boundary_condition_value"),
+            sides=dict(params.get("boundary_sides", {})) if isinstance(params.get("boundary_sides", {}), dict) else {},
+            source="metadata",
+        )
+    defaults: dict[str, tuple[str, Any, str]] = {
+        "darcy": ("dirichlet", 0.0, "default_confirmed_static_dataset"),
+        "poisson": ("dirichlet", 0.0, "default_confirmed_static_dataset"),
+        "helmholtz": ("dirichlet", 0.0, "default_confirmed_static_dataset"),
+        "heat": ("periodic", None, "pair_h5_generator_default"),
+        "wave": ("periodic", None, "pair_h5_generator"),
+        "advection_diffusion": ("periodic", None, "pair_h5_generator"),
+        "reaction_diffusion": ("neumann", 0.0, "reaction_diffusion_generator"),
+        "shallow_water": ("open", 0.0, "clawpack_extrap_boundary"),
+        "burger": ("periodic_x", None, "burgers_dataset_convention"),
+        "steady_heat_conduction": ("mixed", None, "steady_heat_conduction_generator"),
+        "nsnonbounded": ("none", None, "residual_disabled"),
+    }
+    if pde in defaults:
+        kind, value, source = defaults[pde]
+        sides = {}
+        if pde == "steady_heat_conduction":
+            sides = {
+                "bottom": {"kind": "dirichlet", "value_param": "u_D"},
+                "top": {"kind": "neumann", "value": 0.0},
+                "left": {"kind": "neumann", "value": 0.0},
+                "right": {"kind": "neumann", "value": 0.0},
+            }
+        return BoundaryConditionSpec(kind=kind, value=value, sides=sides, source=source, strict=True)
+    if allow_unknown:
+        return BoundaryConditionSpec(kind="unknown", source="unknown", strict=False)
+    raise ValueError(f"Could not resolve boundary condition for PDE {pde!r}; set boundary_condition_mode or allow_unknown_boundary_conditions=true")
+
+
+def _normalize_boundary_kind(kind: str, pde: str) -> str:
+    text = kind.lower()
+    if "periodic" in text:
+        return "periodic_x" if pde == "burger" else "periodic"
+    if "neumann" in text:
+        return "neumann"
+    if "dirichlet" in text:
+        return "dirichlet"
+    if "extrap" in text or "open" in text:
+        return "open"
+    if "wall" in text or "reflect" in text:
+        return "wall"
+    return text
+
+
+def _resolve_initial_spec(mode: str, params: dict[str, Any]) -> InitialConditionSpec:
+    if mode == "legacy_ignore":
+        return InitialConditionSpec(kind="none", source="legacy_ignore", strict=False)
+    if mode in {"none", "auto"}:
+        if "observed_initial" in params:
+            return InitialConditionSpec(kind="observed_initial", value=params["observed_initial"], source="pde_params.observed_initial")
+        if "true_initial" in params:
+            return InitialConditionSpec(kind="trajectory_initial", value=params["true_initial"], source="pde_params.true_initial")
+        if mode == "none":
+            return InitialConditionSpec(kind="none", source="config", strict=False)
+        return InitialConditionSpec(kind="unknown", source="not_available", strict=False)
+    if mode in {"endpoint_initial", "observed_initial", "trajectory_initial"}:
+        for key in ("observed_initial", "true_initial"):
+            if key in params:
+                return InitialConditionSpec(kind=mode, value=params[key], source=f"pde_params.{key}")
+        return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
+    raise ValueError(f"initial_condition_mode={mode!r} is invalid")
+
+
+def _with_constraints(
+    pde: str,
+    state: Any,
+    interior: Any,
+    status: str,
+    metadata: dict[str, Any],
+    spec: PDEConstraintSpec,
+    *,
+    bc_states: list[Any] | None = None,
+    endpoint_states: list[Any] | None = None,
+    endpoint_component: Any | None = None,
+    pde_params: dict[str, Any] | None = None,
+) -> ResidualOutput:
+    import torch
+
+    pde_params = pde_params or {}
+    if spec.legacy_ignore_boundary:
+        residual = interior
+        components = {"interior": interior, "boundary": None, "initial": None, "endpoint": endpoint_component}
+        out = _out(residual, status, metadata, components=components)
+        _constraint_metadata(out, spec, interior, None, None, endpoint_component, legacy_used=True, unresolved=[])
+        return out
+    bc = None
+    unresolved = []
+    if spec.enforce_boundary_conditions:
+        sources = bc_states if bc_states is not None else (endpoint_states if endpoint_states is not None else [state])
+        bc_parts = [_compute_boundary_residual(pde, q, spec.bc, spec.boundary_residual_normalization, pde_params) for q in sources]
+        if bc_parts:
+            bc = torch.cat(bc_parts, dim=1)
+    ic = None
+    if spec.enforce_initial_conditions and spec.ic is not None:
+        ic = _compute_initial_residual(state if endpoint_states is None else endpoint_states[0], spec.ic, pde_params)
+        if ic is None and spec.ic.kind == "unknown":
+            unresolved.append("initial_condition")
+    residual = _append_constraint_residuals(
+        interior,
+        bc,
+        ic,
+        endpoint_component,
+        bc_weight=spec.bc_weight,
+        ic_weight=spec.ic_weight,
+        endpoint_weight=spec.endpoint_weight,
+    )
+    components = {"interior": interior, "boundary": bc, "initial": ic, "endpoint": endpoint_component}
+    out = _out(residual, status, metadata, components=components)
+    _constraint_metadata(out, spec, interior, bc, ic, endpoint_component, legacy_used=False, unresolved=unresolved)
+    return out
+
+
+def _append_constraint_residuals(
+    interior: Any,
+    bc: Any | None,
+    ic: Any | None,
+    endpoint: Any | None,
+    *,
+    bc_weight: float,
+    ic_weight: float,
+    endpoint_weight: float,
+) -> Any:
+    import torch
+
+    parts = [interior]
+    if bc is not None and bc_weight > 0.0:
+        parts.append(torch.as_tensor(bc_weight, dtype=interior.dtype, device=interior.device).sqrt() * bc)
+    if ic is not None and ic_weight > 0.0:
+        parts.append(torch.as_tensor(ic_weight, dtype=interior.dtype, device=interior.device).sqrt() * ic)
+    if endpoint is not None and endpoint_weight > 0.0:
+        parts.append(torch.as_tensor(endpoint_weight, dtype=interior.dtype, device=interior.device).sqrt() * endpoint)
+    return torch.cat(parts, dim=1)
+
+
+def _constraint_metadata(
+    out: ResidualOutput,
+    spec: PDEConstraintSpec,
+    interior: Any,
+    bc: Any | None,
+    ic: Any | None,
+    endpoint: Any | None,
+    *,
+    legacy_used: bool,
+    unresolved: list[str],
+) -> None:
+    out.metadata.update(
+        {
+            "interior_residual_enabled": True,
+            "bc_residual_enabled": bc is not None,
+            "ic_residual_enabled": ic is not None,
+            "endpoint_residual_enabled": endpoint is not None,
+            "boundary_condition_type": spec.bc.kind,
+            "boundary_condition_source": spec.bc.source,
+            "initial_condition_type": spec.ic.kind if spec.ic is not None else "none",
+            "initial_condition_source": spec.ic.source if spec.ic is not None else "none",
+            "hard_coded_defaults": [spec.bc.source] if "default" in spec.bc.source else [],
+            "unresolved_conditions": unresolved + (["boundary_condition"] if spec.bc.kind == "unknown" else []),
+            "legacy_ignore_boundary": spec.legacy_ignore_boundary,
+            "legacy_boundary_ignored": legacy_used,
+            "boundary_enforced": bc is not None,
+            "initial_enforced": ic is not None,
+            "boundary_residual_normalization": spec.boundary_residual_normalization,
+            "residual_channels": {
+                "interior_channels": int(interior.shape[1]),
+                "bc_channels": int(bc.shape[1]) if bc is not None else 0,
+                "ic_channels": int(ic.shape[1]) if ic is not None else 0,
+                "endpoint_channels": int(endpoint.shape[1]) if endpoint is not None else 0,
+                "total_channels": int(out.residual.shape[1]),
+            },
+        }
+    )
+
+
+def _compute_boundary_residual(
+    pde: str,
+    q: Any,
+    bc: BoundaryConditionSpec,
+    normalization: str,
+    pde_params: dict[str, Any],
+) -> Any | None:
+    if bc.kind in {"none", "unknown"}:
+        return None
+    if bc.kind == "dirichlet":
+        return _dirichlet_residual(q, bc.value if bc.value is not None else 0.0, bc.sides, normalization)
+    if bc.kind == "neumann":
+        return _neumann_residual(q, bc.value if bc.value is not None else 0.0, bc.sides, normalization)
+    if bc.kind == "periodic":
+        return _periodic_residual(q, axes=("x", "y"), include_derivative_continuity=True, normalization=normalization)
+    if bc.kind == "periodic_x":
+        return _periodic_residual(q, axes=("x",), include_derivative_continuity=True, normalization=normalization)
+    if bc.kind == "mixed":
+        return _mixed_boundary_residual(pde, q, bc, normalization, pde_params)
+    if bc.kind == "wall":
+        return _wall_residual(q, normalization)
+    if bc.kind == "open":
+        return _neumann_residual(q, 0.0, {}, normalization)
+    raise ValueError(f"Unsupported boundary condition kind={bc.kind!r}")
+
+
+def _compute_initial_residual(q0: Any, ic: InitialConditionSpec, pde_params: dict[str, Any]) -> Any | None:
+    if ic.kind in {"none", "unknown"} or ic.value is None:
+        return None
+    target = _as_bchw_like(ic.value, q0, ic.source)
+    residual = q0 - target
+    if "initial_mask" in pde_params:
+        mask = _as_mask_like(pde_params["initial_mask"], q0, "initial_mask")
+        residual = residual * mask
+        return _normalize_masked_residual(residual, mask, "sqrt_grid_over_mask")
+    return residual
 
 
 def _trajectory_dt_field(params: dict[str, Any], reference: Any, n_time: int) -> tuple[Any, dict[str, Any]]:
@@ -454,7 +844,7 @@ def _trajectory_dt_field(params: dict[str, Any], reference: Any, n_time: int) ->
     return dt, {"source": "default_unit_interval/(n_time-1)", "defaulted": True, "value": _metadata_values(dt)}
 
 
-def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
     _validate_time_dependent_state(pde, q0, qT)
@@ -463,6 +853,7 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
     fT = _rhs_time_dependent(pde, qT, pde_params)
     collocation_times = _hermite_collocation_times(pde_params)
     residuals = []
+    collocation_states = []
     for s_value in collocation_times:
         s = torch.as_tensor(s_value, dtype=q0.dtype, device=q0.device)
         s2 = s * s
@@ -479,24 +870,28 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
             + (-6.0 * s2 + 6.0 * s) * qT
             + (3.0 * s2 - 2.0 * s) * time_scale * fT
         )
-        residuals.append(_apply_endpoint_residual_boundary(pde, dh_ds / time_scale - _rhs_time_dependent(pde, h, pde_params)))
+        collocation_states.append(h)
+        residuals.append(_interior_only(dh_ds / time_scale - _rhs_time_dependent(pde, h, pde_params)))
 
     include_integral = _hermite_include_integral(pde_params)
     integral_weight = _hermite_integral_weight(pde_params)
+    endpoint_component = None
     if include_integral:
         weight = torch.as_tensor(integral_weight, dtype=q0.dtype, device=q0.device).sqrt()
         integral_residual = qT - q0 - 0.5 * time_scale * (f0 + fT)
-        residuals.append(_apply_endpoint_residual_boundary(pde, weight * integral_residual))
-    residual = torch.cat(residuals, dim=1)
+        endpoint_component = _interior_only(weight * integral_residual)
+    interior = torch.cat(residuals, dim=1)
     equation = (
         "2D vorticity Navier-Stokes endpoint Hermite bridge residual"
         if pde == "nsnonbounded"
         else f"{pde} endpoint-induced cubic Hermite bridge residual"
     )
-    return _out(
-        residual,
-        "approximate",
-        {
+    return _with_constraints(
+        pde=pde,
+        state=qT,
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": equation,
             "mode": "hermite_bridge",
             "bridge_type": "cubic_hermite_endpoint_pde_derivatives",
@@ -509,15 +904,19 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
             "two_time_level_approx": False,
             "endpoint_only": True,
             "full_trajectory_required": False,
-            "residual_channels": int(residual.shape[1]),
+            "residual_channels": int(interior.shape[1]),
             "state_channels": int(q0.shape[1]),
             "pde_params_used": _rhs_param_usage(pde, pde_params),
             **_rhs_metadata(pde, pde_params, q0),
         },
+        spec=spec,
+        bc_states=[q0, *collocation_states, qT],
+        endpoint_component=endpoint_component,
+        pde_params=pde_params,
     )
 
 
-def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
     _validate_time_dependent_state(pde, q0, qT)
@@ -530,18 +929,20 @@ def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dic
 
     td0 = (q_dt - q0) / dt
     tdT = (qT - q_T_minus_dt) / dt
-    r0 = _apply_endpoint_residual_boundary(pde, td0 - _rhs_time_dependent(pde, q0, pde_params))
-    rT = _apply_endpoint_residual_boundary(pde, tdT - _rhs_time_dependent(pde, qT, pde_params))
+    r0 = _interior_only(td0 - _rhs_time_dependent(pde, q0, pde_params))
+    rT = _interior_only(tdT - _rhs_time_dependent(pde, qT, pde_params))
     scale0, count0 = _mask_normalization(mask_0, r0)
     scaleT, countT = _mask_normalization(mask_T, rT)
     r0_masked = r0 * mask_0 * scale0
     rT_masked = rT * mask_T * scaleT
-    residual = torch.cat([r0_masked, rT_masked], dim=1)
+    interior = torch.cat([r0_masked, rT_masked], dim=1)
     source_meta = near.get("metadata", {})
-    return _out(
-        residual,
-        "approximate",
-        {
+    return _with_constraints(
+        pde=pde,
+        state=qT,
+        interior=interior,
+        status="approximate",
+        metadata={
             "equation": f"{pde} near-endpoint sparse temporal residual",
             "mode": "near_endpoint_temporal",
             "rhs": _rhs_name(pde),
@@ -566,6 +967,9 @@ def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dic
             "pde_params_used": _rhs_param_usage(pde, pde_params),
             **_rhs_metadata(pde, pde_params, q0),
         },
+        spec=spec,
+        bc_states=[q0, qT],
+        pde_params=pde_params,
     )
 
 
@@ -722,7 +1126,7 @@ def _validate_time_dependent_state(pde: str, q0: Any, qT: Any) -> None:
 
 def _apply_endpoint_residual_boundary(pde: str, residual: Any) -> Any:
     if pde in {"heat", "wave", "advection_diffusion"}:
-        return _zero_boundary(residual)
+        return _interior_only(residual)
     return residual
 
 
@@ -920,16 +1324,18 @@ def _disabled_residual(a: Any, u: Any, pde: str, residual_mode: str) -> Residual
     )
 
 
-def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"steady_heat_conduction expects 1+1 channels, got a={a.shape}, u={u.shape}")
     conductivity = (1.0 + 0.05 * (u - 298.0)).clamp_min(0.1)
     u_d = _param_field(pde_params, "u_D", u, default=298.0)
-    residual = _steady_heat_residual_with_boundary(u, conductivity, a[:, :1], u_d)
-    return _out(
-        residual,
-        "reliable",
-        {
+    interior = _interior_only(_nonlinear_heat_conduction_residual(u, conductivity, a[:, :1]))
+    return _with_constraints(
+        pde="steady_heat_conduction",
+        state=u,
+        interior=interior,
+        status="reliable",
+        metadata={
             "equation": "-div(lambda(u) grad u) - f, lambda(u)=max(1+0.05*(u-298),0.1)",
             "mode": "static_nonlinear_boundary",
             "resolved_residual_mode": "static_nonlinear_boundary",
@@ -938,6 +1344,7 @@ def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any]) -> Resid
             "endpoint_only": False,
             "boundary_condition": "bottom Dirichlet u=u_D; top/left/right zero Neumann",
             "boundary_enforced": True,
+            "boundary_condition_type": "mixed",
             "boundary_residual": {
                 "included_in_field": True,
                 "bottom": "u[..., 0, :] - u_D",
@@ -947,6 +1354,8 @@ def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any]) -> Resid
             },
             "pde_params_used": _used_params(pde_params, ("u_D",)),
         },
+        spec=spec,
+        pde_params=pde_params,
     )
 
 
@@ -1092,7 +1501,7 @@ def _reaction_diffusion_spatial_metadata(pde_params: dict[str, Any], reference: 
     }
 
 
-def _zero_boundary(x: Any) -> Any:
+def _interior_only(x: Any) -> Any:
     y = x.clone()
     if y.shape[-1] > 1 and y.shape[-2] > 1:
         y[..., 0, :] = 0
@@ -1100,6 +1509,222 @@ def _zero_boundary(x: Any) -> Any:
         y[..., :, 0] = 0
         y[..., :, -1] = 0
     return y
+
+
+def _interior_time_space(x: Any) -> Any:
+    y = _interior_only(x)
+    if y.shape[-2] > 1:
+        y[..., 0, :] = 0
+        y[..., -1, :] = 0
+    return y
+
+
+def _boundary_mask_like(x: Any) -> dict[str, Any]:
+    import torch
+
+    base = torch.zeros_like(x[:, :1])
+    masks = {}
+    masks["bottom"] = base.clone()
+    masks["bottom"][..., 0, :] = 1.0
+    masks["top"] = base.clone()
+    masks["top"][..., -1, :] = 1.0
+    masks["left"] = base.clone()
+    masks["left"][..., :, 0] = 1.0
+    masks["right"] = base.clone()
+    masks["right"][..., :, -1] = 1.0
+    masks["corners"] = base.clone()
+    masks["corners"][..., 0, 0] = 1.0
+    masks["corners"][..., 0, -1] = 1.0
+    masks["corners"][..., -1, 0] = 1.0
+    masks["corners"][..., -1, -1] = 1.0
+    boundary = base.clone()
+    boundary[..., 0, :] = 1.0
+    boundary[..., -1, :] = 1.0
+    boundary[..., :, 0] = 1.0
+    boundary[..., :, -1] = 1.0
+    masks["boundary"] = boundary
+    return masks
+
+
+def _normalize_masked_residual(residual: Any, mask: Any, mode: str) -> Any:
+    import torch
+
+    if mode == "mean":
+        return residual
+    count = mask.expand_as(residual).reshape(residual.shape[0], -1).sum(dim=1).clamp_min(1.0)
+    total = float(residual[0].numel())
+    scale = torch.sqrt(torch.full_like(count, total) / count).view(residual.shape[0], 1, 1, 1)
+    if mode in {"sqrt_grid_over_mask", "mask_mean"}:
+        return residual * scale
+    raise ValueError(f"boundary_residual_normalization={mode!r} is invalid")
+
+
+def _dirichlet_residual(u: Any, value: Any, sides: dict[str, Any] | None = None, normalization: str = "sqrt_grid_over_mask") -> Any:
+    import torch
+
+    sides = sides or {}
+    target = _boundary_value(value, u)
+    residual = torch.zeros_like(u)
+    mask = torch.zeros_like(u[:, :1])
+    active = _active_sides(sides)
+    if "left" in active:
+        residual[..., :, 0] = u[..., :, 0] - target[..., 0, 0].unsqueeze(-1)
+        mask[..., :, 0] = 1.0
+    if "right" in active:
+        residual[..., :, -1] = u[..., :, -1] - target[..., 0, 0].unsqueeze(-1)
+        mask[..., :, -1] = 1.0
+    if "bottom" in active:
+        residual[..., 0, :] = u[..., 0, :] - target[..., 0, 0].unsqueeze(-1)
+        mask[..., 0, :] = 1.0
+    if "top" in active:
+        residual[..., -1, :] = u[..., -1, :] - target[..., 0, 0].unsqueeze(-1)
+        mask[..., -1, :] = 1.0
+    return _normalize_masked_residual(residual, mask, normalization)
+
+
+def _neumann_residual(
+    u: Any,
+    normal_derivative_value: Any,
+    sides: dict[str, Any] | None = None,
+    normalization: str = "sqrt_grid_over_mask",
+) -> Any:
+    import torch
+
+    value = _boundary_value(normal_derivative_value, u)
+    residual = torch.zeros_like(u)
+    mask = torch.zeros_like(u[:, :1])
+    h, w = int(u.shape[-2]), int(u.shape[-1])
+    dx = 1.0 / max(w - 1, 1)
+    dy = 1.0 / max(h - 1, 1)
+    active = _active_sides(sides or {})
+    val = value[..., 0, 0].unsqueeze(-1)
+    if w > 1 and "left" in active:
+        residual[..., :, 0] = (u[..., :, 1] - u[..., :, 0]) / dx - val
+        mask[..., :, 0] = 1.0
+    if w > 1 and "right" in active:
+        residual[..., :, -1] = (u[..., :, -1] - u[..., :, -2]) / dx - val
+        mask[..., :, -1] = 1.0
+    if h > 1 and "bottom" in active:
+        residual[..., 0, :] = (u[..., 1, :] - u[..., 0, :]) / dy - val
+        mask[..., 0, :] = 1.0
+    if h > 1 and "top" in active:
+        residual[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / dy - val
+        mask[..., -1, :] = 1.0
+    return _normalize_masked_residual(residual, mask, normalization)
+
+
+def _periodic_residual(
+    u: Any,
+    axes: tuple[str, ...] = ("x", "y"),
+    include_derivative_continuity: bool = True,
+    normalization: str = "sqrt_grid_over_mask",
+) -> Any:
+    import torch
+
+    parts = []
+    if "x" in axes:
+        r = torch.zeros_like(u)
+        mask = torch.zeros_like(u[:, :1])
+        jump = u[..., :, 0] - u[..., :, -1]
+        r[..., :, 0] = jump
+        r[..., :, -1] = -jump
+        mask[..., :, 0] = 1.0
+        mask[..., :, -1] = 1.0
+        parts.append(_normalize_masked_residual(r, mask, normalization))
+        if include_derivative_continuity and u.shape[-1] > 2:
+            d = torch.zeros_like(u)
+            djump = (u[..., :, 1] - u[..., :, 0]) - (u[..., :, -1] - u[..., :, -2])
+            d[..., :, 0] = djump
+            d[..., :, -1] = -djump
+            parts.append(_normalize_masked_residual(d, mask, normalization))
+    if "y" in axes:
+        r = torch.zeros_like(u)
+        mask = torch.zeros_like(u[:, :1])
+        jump = u[..., 0, :] - u[..., -1, :]
+        r[..., 0, :] = jump
+        r[..., -1, :] = -jump
+        mask[..., 0, :] = 1.0
+        mask[..., -1, :] = 1.0
+        parts.append(_normalize_masked_residual(r, mask, normalization))
+        if include_derivative_continuity and u.shape[-2] > 2:
+            d = torch.zeros_like(u)
+            djump = (u[..., 1, :] - u[..., 0, :]) - (u[..., -1, :] - u[..., -2, :])
+            d[..., 0, :] = djump
+            d[..., -1, :] = -djump
+            parts.append(_normalize_masked_residual(d, mask, normalization))
+    return torch.cat(parts, dim=1) if parts else None
+
+
+def _mixed_boundary_residual(
+    pde: str,
+    q: Any,
+    spec: BoundaryConditionSpec,
+    normalization: str,
+    pde_params: dict[str, Any],
+) -> Any:
+    import torch
+
+    if pde == "steady_heat_conduction":
+        u_d = _param_field(pde_params, "u_D", q, default=298.0)
+        return torch.cat(
+            [
+                _dirichlet_residual(q, u_d, {"bottom": {}}, normalization),
+                _neumann_residual(q, 0.0, {"top": {}, "left": {}, "right": {}}, normalization),
+            ],
+            dim=1,
+        )
+    parts = []
+    for side, side_spec in (spec.sides or {}).items():
+        kind = side_spec.get("kind") if isinstance(side_spec, dict) else None
+        value = side_spec.get("value", spec.value) if isinstance(side_spec, dict) else spec.value
+        if kind == "dirichlet":
+            parts.append(_dirichlet_residual(q, value if value is not None else 0.0, {side: {}}, normalization))
+        elif kind == "neumann":
+            parts.append(_neumann_residual(q, value if value is not None else 0.0, {side: {}}, normalization))
+    return torch.cat(parts, dim=1) if parts else None
+
+
+def _wall_residual(q: Any, normalization: str) -> Any:
+    import torch
+
+    if q.shape[1] < 3:
+        return _neumann_residual(q, 0.0, {}, normalization)
+    residual = torch.zeros_like(q)
+    mask = torch.zeros_like(q[:, :1])
+    residual[:, 1:2, :, 0] = q[:, 1:2, :, 0]
+    residual[:, 1:2, :, -1] = q[:, 1:2, :, -1]
+    residual[:, 2:3, 0, :] = q[:, 2:3, 0, :]
+    residual[:, 2:3, -1, :] = q[:, 2:3, -1, :]
+    mask[..., :, 0] = 1.0
+    mask[..., :, -1] = 1.0
+    mask[..., 0, :] = 1.0
+    mask[..., -1, :] = 1.0
+    return _normalize_masked_residual(residual, mask, normalization)
+
+
+def _boundary_value(value: Any, reference: Any) -> Any:
+    import torch
+
+    if hasattr(value, "shape") or isinstance(value, (list, tuple)):
+        tensor = torch.as_tensor(value, dtype=reference.dtype, device=reference.device)
+        if tensor.ndim == 0:
+            return torch.full((reference.shape[0], reference.shape[1], 1, 1), float(tensor), dtype=reference.dtype, device=reference.device)
+        if tensor.ndim == 1:
+            if tensor.numel() == 1:
+                tensor = tensor.repeat(reference.shape[0])
+            if tensor.numel() == reference.shape[0]:
+                return tensor.view(reference.shape[0], 1, 1, 1).expand(-1, reference.shape[1], -1, -1)
+        if tensor.ndim == 4:
+            if tensor.shape[0] == 1 and reference.shape[0] > 1:
+                tensor = tensor.repeat(reference.shape[0], 1, 1, 1)
+            return tensor
+    return torch.full((reference.shape[0], reference.shape[1], 1, 1), float(value), dtype=reference.dtype, device=reference.device)
+
+
+def _active_sides(sides: dict[str, Any]) -> set[str]:
+    if not sides:
+        return {"left", "right", "bottom", "top"}
+    return {side for side in ("left", "right", "bottom", "top") if side in sides}
 
 
 def _dx(f: Any) -> Any:
@@ -1262,11 +1887,11 @@ def _used_params(params: dict[str, Any], names: tuple[str, ...]) -> dict[str, bo
     return {name: name in params for name in names}
 
 
-def _out(residual: Any, status: str, metadata: dict[str, Any]) -> ResidualOutput:
+def _out(residual: Any, status: str, metadata: dict[str, Any], components: dict[str, Any] | None = None) -> ResidualOutput:
     metadata = dict(metadata)
     metadata.setdefault("residual_status", status)
     metadata.setdefault("status", status)
-    return ResidualOutput(residual, status, metadata)
+    return ResidualOutput(residual, status, metadata, components=components)
 
 
 def _apply_family_metadata(

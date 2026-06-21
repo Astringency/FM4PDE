@@ -55,8 +55,55 @@ Every PDE residual writes:
 - `requested_residual_mode`
 - `resolved_residual_mode`
 - `residual_status`
+- `interior_residual_enabled`
+- `bc_residual_enabled`
+- `ic_residual_enabled`
+- `endpoint_residual_enabled`
+- `boundary_condition_type`
+- `boundary_condition_source`
+- `initial_condition_type`
+- `initial_condition_source`
+- `legacy_ignore_boundary`
+- `residual_channels`
 
 Status is not the same as family. Static PDEs and Burgers are `reliable`; endpoint temporal residuals are `approximate` because the default endpoint/sparse temporal guidance approximates time dynamics.
+
+The sampling PDE loss is assembled from differentiable residual components:
+
+```text
+L_pde = L_interior + lambda_bc * L_bc + lambda_ic * L_ic + lambda_endpoint * L_endpoint
+```
+
+The old boundary handling zeroed boundary entries in the PDE residual. That excluded boundary points from the interior equation but did not enforce BCs. Formal configs now use explicit BC residual channels. The legacy behavior is available only with `legacy_ignore_boundary: true` or `boundary_condition_mode: legacy_ignore`.
+
+New config fields:
+
+- `enforce_boundary_conditions: true`
+- `enforce_initial_conditions: true`
+- `boundary_condition_mode: auto`
+- `initial_condition_mode: auto`
+- `bc_weight: 1.0`
+- `ic_weight: 1.0`
+- `endpoint_bc_weight: 1.0`
+- `boundary_residual_normalization: sqrt_grid_over_mask`
+- `allow_unknown_boundary_conditions: false`
+- `legacy_ignore_boundary: false`
+
+Supported `boundary_condition_mode` values are `auto`, `dirichlet_zero`, `neumann_zero`, `periodic`, `mixed`, `none`, `wall`, `open`, and `legacy_ignore`. Supported `initial_condition_mode` values are `auto`, `endpoint_initial`, `observed_initial`, `trajectory_initial`, `none`, and `legacy_ignore`.
+
+Current formal config BC/IC sources:
+
+- Darcy, Poisson, Helmholtz: `dirichlet_zero` from config/static dataset convention; IC disabled.
+- Heat: `periodic` from pair-HDF5 generator/config; IC is added only when an observed or true initial field is passed.
+- Wave: `periodic` from generator/config; velocity boundary follows the state channels.
+- Advection-Diffusion: `periodic` from generator/config.
+- Reaction-Diffusion: `neumann_zero` from generator metadata/config.
+- Shallow Water: `open` from Clawpack extrapolation boundary/config.
+- Burgers: spatial periodic boundary on the BCHW time-space field; IC residual requires a known initial slice.
+- Steady Heat Conduction: `mixed` from generator metadata/config; bottom Dirichlet `u_D`, other sides zero Neumann.
+- Non-bounded Navier-Stokes: PDE/BC/IC residual disabled because strict vorticity transport guidance is not implemented.
+
+Endpoint-only temporal PDEs do not fabricate an IC residual from `q0-q0`. IC residuals are added only from `observed_initial` or `true_initial` in `pde_params`, and sparse `initial_mask` is applied so forward tasks do not leak unobserved full fields.
 
 ## Commands
 

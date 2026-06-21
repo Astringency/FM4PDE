@@ -29,6 +29,7 @@ KAPPA_RANGE = (5e-4, 5e-3)
 def advection_diffusion_metadata(config: PairH5Config) -> dict[str, object]:
     return {
         "equation": "u_t + b_x u_x + b_y u_y = kappa * Delta u on [0,1]^2",
+        "boundary_condition": "periodic",
         "parameter_ranges": {
             "b_x": format_float_range(B_RANGE),
             "b_y": format_float_range(B_RANGE),

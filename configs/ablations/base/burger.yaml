@@ -21,6 +21,16 @@ clip_mode: global_norm
 clip_threshold: 10000000000.0
 pde_residual_region: full
 residual_mode: auto
+enforce_boundary_conditions: true
+enforce_initial_conditions: true
+boundary_condition_mode: periodic
+initial_condition_mode: auto
+bc_weight: 1.0
+ic_weight: 1.0
+endpoint_bc_weight: 1.0
+boundary_residual_normalization: sqrt_grid_over_mask
+allow_unknown_boundary_conditions: false
+legacy_ignore_boundary: false
 num_obs: 500
 sensor_mode: sensor_column
 shared_mask: false

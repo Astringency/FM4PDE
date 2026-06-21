@@ -261,6 +261,7 @@ class PDEloader:
         param_chunks = {}
         param_sources = {}
         init_modes = []
+        boundary_conditions = []
         sample_seeds = []
         sample_start = 0
         for file_path in file_paths:
@@ -288,6 +289,8 @@ class PDEloader:
                             param_sources[name] = "mixed"
                     if "init_mode" in extra:
                         init_modes.append(extra["init_mode"])
+                    if "boundary_condition" in extra:
+                        boundary_conditions.append(extra["boundary_condition"])
                     if "sample_seed" in extra:
                         sample_seeds.append(extra["sample_seed"])
                     sample_count += 1
@@ -327,6 +330,9 @@ class PDEloader:
         }
         if init_modes:
             self.extra_metadata["init_mode"] = init_modes
+        if boundary_conditions:
+            self.extra_metadata["boundary_condition"] = boundary_conditions
+            self.extra_metadata["boundary_condition_kind"] = "neumann"
         if sample_seeds:
             self.extra_metadata["sample_seed"] = sample_seeds
         return data, label
@@ -485,6 +491,9 @@ class PDEloader:
         init_mode, _source = self._rd_attr_value(file, group, ("init_mode",))
         if init_mode is not None:
             extra["init_mode"] = self._decode_attr(init_mode)
+        bc_value, bc_source = self._rd_attr_value(file, group, ("boundary_condition_kind", "boundary_condition", "bc"))
+        extra["boundary_condition"] = self._decode_attr(bc_value) if bc_value is not None else "homogeneous_neumann"
+        extra["boundary_condition_source"] = bc_source or "generator_default:homogeneous_neumann"
         seed_value, seed_source = self._rd_attr_value(file, group, ("sample_seed", "seed"))
         if seed_value is None and "sample_seed" in file:
             seed_data = np.asarray(file["sample_seed"][:])
@@ -521,6 +530,7 @@ class PDEloader:
     def _shallow_water_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         sample_count = 0
+        self.extra_metadata = {"boundary_condition": "open/extrapolation", "boundary_condition_kind": "open"}
         for i in range(size):
             file_path = self._legacy_path(data_path, f"2d_swe_128_128_10_{i}.h5")
 

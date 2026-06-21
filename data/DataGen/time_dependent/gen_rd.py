@@ -94,6 +94,7 @@ def metadata_from_args(args: argparse.Namespace, *, tdim: int, init_mode: str) -
         "seed_offset": int(args.seed_offset),
         "x_range": (-1.0, 1.0),
         "y_range": (-1.0, 1.0),
+        "boundary_condition": "homogeneous_neumann",
     }
 
 

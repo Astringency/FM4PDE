@@ -61,6 +61,9 @@ VALID_RESIDUAL_MODES = {
     "disabled",
 }
 VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy", "legacy_base"}
+VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "legacy_ignore", "wall", "open"}
+VALID_INITIAL_CONDITION_MODES = {"auto", "endpoint_initial", "observed_initial", "trajectory_initial", "none", "legacy_ignore"}
+VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 
 
 _LOCAL_CHECKPOINTS = {
@@ -131,6 +134,16 @@ class AblationConfig:
     loss_type: str = "l2"
     pde_residual_status: str = "auto"
     residual_mode: str = "auto"
+    enforce_boundary_conditions: bool = True
+    enforce_initial_conditions: bool = True
+    boundary_condition_mode: str = "auto"
+    initial_condition_mode: str = "auto"
+    bc_weight: float = 1.0
+    ic_weight: float = 1.0
+    endpoint_bc_weight: float = 1.0
+    boundary_residual_normalization: str = "sqrt_grid_over_mask"
+    allow_unknown_boundary_conditions: bool = False
+    legacy_ignore_boundary: bool = False
     hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
     hermite_num_collocation: int = 0
     hermite_include_integral_residual: bool = True
@@ -172,6 +185,9 @@ class AblationConfig:
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
             ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
             ("near_endpoint_sensor_mode", self.near_endpoint_sensor_mode, VALID_SENSOR_MODES),
+            ("boundary_condition_mode", self.boundary_condition_mode, VALID_BOUNDARY_CONDITION_MODES),
+            ("initial_condition_mode", self.initial_condition_mode, VALID_INITIAL_CONDITION_MODES),
+            ("boundary_residual_normalization", self.boundary_residual_normalization, VALID_BOUNDARY_RESIDUAL_NORMALIZATION),
         ]
         for name, value, allowed in checks:
             if value not in allowed:
@@ -192,6 +208,8 @@ class AblationConfig:
             raise ValueError("hermite_num_collocation must be non-negative")
         if self.hermite_integral_weight < 0:
             raise ValueError("hermite_integral_weight must be non-negative")
+        if self.bc_weight < 0 or self.ic_weight < 0 or self.endpoint_bc_weight < 0:
+            raise ValueError("bc_weight, ic_weight and endpoint_bc_weight must be non-negative")
         for value in self.hermite_collocation_times:
             if not 0.0 < float(value) < 1.0:
                 raise ValueError("hermite_collocation_times values must lie inside (0, 1)")

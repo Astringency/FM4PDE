@@ -54,6 +54,18 @@ groups:
       sensor_mode: per_sample_random
     matrix:
       pde_residual_region: [full, observed, boundary_excluded, union_obs]
+  group5b_boundary_condition_enforcement:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sensor_mode: per_sample_random
+      enforce_boundary_conditions: true
+      enforce_initial_conditions: true
+      legacy_ignore_boundary: false
+      allow_unknown_boundary_conditions: false
+    matrix:
+      bc_weight: [0.1, 1.0, 10.0]
   group5c_time_dependent_residual_mode:
     base_configs:
       - configs/ablations/base/heat.yaml

@@ -36,6 +36,7 @@ ALPHA_RANGE = (5e-4, 5e-3)
 def heat_metadata(config: PairH5Config) -> dict[str, object]:
     return {
         "equation": "u_t = alpha * Delta u on [0,1]^2",
+        "boundary_condition": config.bc,
         "parameter_ranges": {"alpha": format_float_range(ALPHA_RANGE)},
         "alpha_mode": config.extra.get("alpha_mode", "random"),
         "alpha_random": config.extra.get("alpha_mode", "random") == "random",

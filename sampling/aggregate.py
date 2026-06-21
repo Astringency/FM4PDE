@@ -49,6 +49,16 @@ GROUP_DIMENSION_KEYS = [
     "near_endpoint_sensor_mode",
     "near_endpoint_mask_seed",
     "near_endpoint_shared_mask",
+    "enforce_boundary_conditions",
+    "enforce_initial_conditions",
+    "boundary_condition_mode",
+    "initial_condition_mode",
+    "bc_weight",
+    "ic_weight",
+    "endpoint_bc_weight",
+    "boundary_residual_normalization",
+    "allow_unknown_boundary_conditions",
+    "legacy_ignore_boundary",
 ]
 
 GROUP_KEYS = ["ablation_family", "ablation_group_key", *GROUP_DIMENSION_KEYS]
@@ -62,6 +72,9 @@ SUMMARY_METRICS = [
     "clean_L_obs_u",
     "L_pde",
     "pde_residual_norm",
+    "interior_residual_norm",
+    "boundary_residual_norm",
+    "initial_residual_norm",
     "wall_clock_time",
 ]
 
@@ -74,6 +87,9 @@ CURVE_METRICS = [
     "clean_L_obs_u",
     "L_pde",
     "pde_residual_norm",
+    "interior_residual_norm",
+    "boundary_residual_norm",
+    "initial_residual_norm",
 ]
 
 

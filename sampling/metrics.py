@@ -71,6 +71,13 @@ def step_metrics(
         "pde_residual_status": eval_losses.pde_residual_status,
         "guidance_pde_residual_status": guidance_losses.pde_residual_status,
         "pde_residual_equation": eval_losses.metadata.get("pde", {}).get("equation", ""),
+        "interior_residual_norm": eval_losses.metadata.get("pde", {}).get("component_norms", {}).get("interior", 0.0),
+        "boundary_residual_norm": eval_losses.metadata.get("pde", {}).get("component_norms", {}).get("boundary", 0.0),
+        "initial_residual_norm": eval_losses.metadata.get("pde", {}).get("component_norms", {}).get("initial", 0.0),
+        "bc_residual_status": "enabled" if eval_losses.metadata.get("pde", {}).get("bc_residual_enabled") else "disabled",
+        "ic_residual_status": "enabled" if eval_losses.metadata.get("pde", {}).get("ic_residual_enabled") else "disabled",
+        "boundary_condition_mode": eval_losses.metadata.get("pde", {}).get("boundary_condition_type", ""),
+        "initial_condition_mode": eval_losses.metadata.get("pde", {}).get("initial_condition_type", ""),
     }
     if gradient is not None:
         row.update(
