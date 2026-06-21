@@ -39,6 +39,7 @@ GROUP_DIMENSION_KEYS = [
     "clip_threshold",
     "pde_residual_region",
     "residual_mode",
+    "resolved_residual_mode",
     "gradient_target",
     "stochastic_guidance_time",
     "hermite_collocation_times",

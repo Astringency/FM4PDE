@@ -5,6 +5,7 @@ torch = pytest.importorskip("torch")
 from sampling.pde_residuals import (
     _dirichlet_residual,
     _neumann_residual,
+    _periodic_laplacian_2d,
     _periodic_residual,
     _steady_heat_residual_with_boundary,
     compute_pde_residual,
@@ -19,8 +20,13 @@ def test_zero_boundary_no_longer_used_as_bc():
         else:
             out = compute_pde_residual(pde, u, u, pde_params={"boundary_condition_mode": "periodic"}, residual_mode="hermite_bridge")
         assert out.metadata["interior_residual_enabled"] is True
-        assert out.metadata["bc_residual_enabled"] is True
-        assert out.components["boundary"] is not None
+        if pde == "poisson":
+            assert out.metadata["bc_residual_enabled"] is True
+            assert out.components["boundary"] is not None
+        else:
+            assert out.metadata["boundary_enforced"] is True
+            assert out.metadata["boundary_enforced_by_operator"] is True
+            assert out.metadata["boundary_value_residual_applicable"] is False
         assert out.metadata["legacy_boundary_ignored"] is False
 
 
@@ -42,13 +48,41 @@ def test_neumann_zero_bc():
     assert _neumann_residual(sloped, 0.0, {}, "mean").abs().sum() > 0
 
 
-def test_periodic_bc():
+def test_periodic_endpoint_false_does_not_compare_first_last():
+    n = 16
+    x = torch.arange(n, dtype=torch.float32) / n
+    u = torch.sin(2 * torch.pi * x).view(1, 1, 1, n).repeat(1, 1, n, 1)
+    assert not torch.allclose(u[..., :, 0], u[..., :, -1])
+    assert _periodic_residual(u, include_derivative_continuity=False, normalization="mean") is None
+    out = compute_pde_residual("heat", u, u, pde_params={"boundary_condition_mode": "periodic"}, residual_mode="endpoint_secant")
+    assert out.metadata["boundary_enforced"] is True
+    assert out.metadata["boundary_enforced_by_operator"] is True
+    assert out.metadata["boundary_value_residual_applicable"] is False
+    assert out.metadata["grid_convention"] == "endpoint_false_periodic"
+
+
+def test_periodic_duplicate_endpoint_can_compare_first_last():
     u = torch.randn(1, 1, 8, 8)
-    u[..., :, -1] = u[..., :, 0]
-    u[..., -1, :] = u[..., 0, :]
-    assert _periodic_residual(u, include_derivative_continuity=False, normalization="mean").abs().sum() == pytest.approx(0.0)
-    u[..., 0, 3] += 1.0
-    assert _periodic_residual(u, include_derivative_continuity=False, normalization="mean").abs().sum() > 0
+    out = _periodic_residual(
+        u,
+        include_derivative_continuity=False,
+        normalization="mean",
+        pde_params={"periodic_duplicate_endpoint": True},
+    )
+    assert out is not None
+    assert out.abs().sum() > 0
+
+
+def test_periodic_rhs_uses_roll_stencil():
+    n = 64
+    x = torch.arange(n, dtype=torch.float64) / n
+    y = torch.arange(n, dtype=torch.float64) / n
+    yy, xx = torch.meshgrid(y, x, indexing="ij")
+    u = torch.sin(2 * torch.pi * xx).view(1, 1, n, n)
+    lap = _periodic_laplacian_2d(u)
+    expected = -(2 * torch.pi) ** 2 * u
+    assert torch.mean((lap - expected).abs()).item() < 0.2
+    assert abs(lap[..., 0, 0].item()) < 1e-8
 
     q0 = torch.randn(1, 2, 8, 8)
     qT = torch.randn(1, 2, 8, 8)
@@ -78,8 +112,36 @@ def test_hermite_bridge_boundary_conditions():
             qT[:, :1] = qT[:, :1].abs() + 1.0
         out = compute_pde_residual(pde, q0, qT, pde_params={"boundary_condition_mode": mode}, residual_mode="hermite_bridge")
         assert out.components["interior"] is not None
-        assert out.components["boundary"] is not None
-        assert out.metadata["residual_channels"]["bc_channels"] >= channels
+        if mode == "periodic":
+            assert out.components["boundary"] is None
+            assert out.metadata["residual_channels"]["bc_channels"] == 0
+            assert out.metadata["boundary_enforced_by_operator"] is True
+        else:
+            assert out.components["boundary"] is not None
+            assert out.metadata["residual_channels"]["bc_channels"] >= channels
+
+
+def test_dirichlet_zero_bc_nonzero_boundary_detected():
+    u = torch.zeros(1, 1, 8, 8)
+    u[..., 0, :] = 3.0
+    out = compute_pde_residual("poisson", torch.zeros_like(u), u, pde_params={"boundary_condition_mode": "dirichlet_zero"})
+    assert out.components["boundary"].abs().sum() > 0
+
+
+def test_neumann_zero_bc_constant_field_zero():
+    const = torch.ones(1, 1, 8, 8)
+    assert torch.allclose(_neumann_residual(const, 0.0, {}, "mean"), torch.zeros_like(const))
+
+
+def test_open_boundary_uses_neumann_like_metadata():
+    q0 = torch.rand(1, 3, 8, 8)
+    qT = torch.rand(1, 3, 8, 8)
+    q0[:, :1] += 1.0
+    qT[:, :1] += 1.0
+    out = compute_pde_residual("shallow_water", q0, qT, pde_params={"boundary_condition_mode": "open"}, residual_mode="endpoint_secant")
+    assert out.metadata["boundary_condition_type"] == "open"
+    assert out.metadata["bc_residual_enabled"] is True
+    assert out.metadata["boundary_enforced_by_operator"] is False
 
 
 def test_initial_condition_masked():

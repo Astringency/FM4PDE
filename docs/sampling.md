@@ -74,7 +74,7 @@ The sampling PDE loss is assembled from differentiable residual components:
 L_pde = L_interior + lambda_bc * L_bc + lambda_ic * L_ic + lambda_endpoint * L_endpoint
 ```
 
-The old boundary handling zeroed boundary entries in the PDE residual. That excluded boundary points from the interior equation but did not enforce BCs. Formal configs now use explicit BC residual channels. The legacy behavior is available only with `legacy_ignore_boundary: true` or `boundary_condition_mode: legacy_ignore`.
+The old boundary handling zeroed boundary entries in the PDE residual. That excluded boundary points from the interior equation but did not enforce BCs. Formal configs now use explicit BC residual channels where applicable. Periodic endpoint-false grids are enforced by periodic discrete operators instead of first/last value residual channels. The legacy behavior is available only with `legacy_ignore_boundary: true` or `boundary_condition_mode: legacy_ignore`.
 
 New config fields:
 
@@ -103,7 +103,30 @@ Current formal config BC/IC sources:
 - Steady Heat Conduction: `mixed` from generator metadata/config; bottom Dirichlet `u_D`, other sides zero Neumann.
 - Non-bounded Navier-Stokes: PDE/BC/IC residual disabled because strict vorticity transport guidance is not implemented.
 
-Endpoint-only temporal PDEs do not fabricate an IC residual from `q0-q0`. IC residuals are added only from `observed_initial` or `true_initial` in `pde_params`, and sparse `initial_mask` is applied so forward tasks do not leak unobserved full fields.
+Endpoint-only temporal PDEs do not fabricate an IC residual from `q0-q0`. IC residuals are added from masked `observed_initial` only when coefficient/initial observations are active, or from explicitly supplied `true_initial` extra conditions. Inverse, `pde_only`, and unconditional runs do not inject initial observations through the PDE residual.
+
+## PDE Residual Region
+
+`pde_residual_region` now masks only the `interior` PDE residual component. Boundary, initial, and endpoint components are appended after the interior mask and are never intersected with observation masks or boundary-exclusion masks. This prevents `boundary_excluded`, `observed`, and `union_obs` from accidentally deleting explicit BC/IC/endpoint residuals.
+
+For `near_endpoint_temporal`, the interior residual is already sparse-temporal masked by `mask_0` and `mask_T`; `pde_residual_region` is skipped for that mode and metadata records:
+
+```yaml
+pde_residual_region_applied_to: interior_only
+pde_residual_region_skipped: true
+reason: near_endpoint_temporal interior is already sparse-temporal masked
+```
+
+## Artifacts
+
+`result.pt` stores PDE params after recursive CPU sanitization. For `near_endpoint_temporal`, full hidden near-endpoint frames are not saved. The artifact keeps:
+
+- `q_dt_obs = q_dt * mask_0`
+- `q_T_minus_dt_obs = q_T_minus_dt * mask_T`
+- `mask_0`, `mask_T`, `dt`
+- metadata with `full_near_endpoint_frames_saved: false`
+
+Full trajectory fields are omitted unless `residual_mode: full_trajectory_fd` and `save_intermediate: true`; metadata records the omission so large hidden trajectories are not silently persisted.
 
 ## Commands
 

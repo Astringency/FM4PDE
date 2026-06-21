@@ -63,11 +63,16 @@ def compute_guidance_losses(
     pde_meta: dict[str, Any] = {}
     if enabled["pde"]:
         pde_params = _pde_params_with_residual_options(getattr(ground_truth, "pde_params", None), config)
-        if getattr(config, "enforce_initial_conditions", True):
-            observed_initial = target_coef * masks.coef
-            pde_params.setdefault("observed_initial", observed_initial)
+        ic_mode = str(getattr(config, "initial_condition_mode", "auto"))
+        if getattr(config, "enforce_initial_conditions", True) and enabled["obs_a"]:
+            pde_params.setdefault("observed_initial", target_coef * masks.coef)
             pde_params.setdefault("initial_mask", masks.coef)
             pde_params.setdefault("initial_condition_source", "observation_loss_masked_coef")
+        elif ic_mode == "observed_initial":
+            raise ValueError(
+                "initial_condition_mode='observed_initial' requires coefficient/initial observations; "
+                "use task='forward' or 'both', or set initial_condition_mode='none/auto'."
+            )
         residual = compute_pde_residual(
             config.pde,
             phys_state.coef,
@@ -76,13 +81,10 @@ def compute_guidance_losses(
             k=getattr(config, "k", 1),
             residual_mode=getattr(config, "residual_mode", "auto"),
         )
-        pde_field = residual.residual
         status = residual.status
         pde_meta = residual.metadata
-        pde_meta["component_norms"] = _component_norms(residual.components)
-        region = residual_region_mask(config.pde_residual_region, masks.coef, masks.sol, tuple(pde_field.shape))
-        if region is not None:
-            pde_field = pde_field * region
+        pde_field, compose_meta = _compose_region_aware_pde_field(residual, config, masks)
+        pde_meta.update(compose_meta)
         L_pde = _reduce_loss(pde_field, config.loss_type)
     else:
         L_pde = zero
@@ -190,3 +192,96 @@ def _component_norms(components: dict[str, Any] | None) -> dict[str, float]:
         else:
             norms[name] = float((torch.linalg.vector_norm(value) / max(value.numel(), 1)).detach().cpu())
     return norms
+
+
+def _compose_region_aware_pde_field(residual_output: Any, config: Any, masks: PairMasks) -> tuple[Any, dict[str, Any]]:
+    import torch
+
+    pde_field = residual_output.residual
+    components = residual_output.components
+    if components is None:
+        region = residual_region_mask(config.pde_residual_region, masks.coef, masks.sol, tuple(pde_field.shape))
+        if region is not None:
+            pde_field = pde_field * region
+        return pde_field, {
+            "component_norms": _component_norms(None),
+            "pde_residual_region_applied_to": "total_legacy",
+            "pde_residual_region": config.pde_residual_region,
+        }
+
+    interior = components.get("interior")
+    if interior is None:
+        interior = pde_field
+    boundary = components.get("boundary")
+    initial = components.get("initial")
+    endpoint = components.get("endpoint")
+
+    metadata: dict[str, Any] = {
+        "pde_residual_region": config.pde_residual_region,
+        "boundary_region_masked": False,
+        "initial_region_masked": False,
+        "endpoint_region_masked": False,
+    }
+    interior_masked = interior
+    if residual_output.metadata.get("resolved_residual_mode") == "near_endpoint_temporal" or residual_output.metadata.get("mode") == "near_endpoint_temporal":
+        metadata.update(
+            {
+                "pde_residual_region_applied_to": "interior_only",
+                "pde_residual_region_skipped": True,
+                "reason": "near_endpoint_temporal interior is already sparse-temporal masked",
+            }
+        )
+    else:
+        region = residual_region_mask(config.pde_residual_region, masks.coef, masks.sol, tuple(interior.shape))
+        if region is not None:
+            interior_masked = interior * region
+        metadata.update(
+            {
+                "pde_residual_region_applied_to": "interior_only",
+                "pde_residual_region_skipped": False,
+            }
+        )
+
+    field = _append_weighted_components_for_loss(
+        interior_masked,
+        boundary,
+        initial,
+        endpoint,
+        bc_weight=float(getattr(config, "bc_weight", 1.0)),
+        ic_weight=float(getattr(config, "ic_weight", 1.0)),
+        endpoint_weight=float(getattr(config, "endpoint_bc_weight", 1.0)),
+    )
+    metadata["component_norms"] = _component_norms(
+        {"interior": interior_masked, "boundary": boundary, "initial": initial, "endpoint": endpoint}
+    )
+    channels = {
+        "interior_channels": int(interior_masked.shape[1]),
+        "bc_channels": int(boundary.shape[1]) if boundary is not None else 0,
+        "ic_channels": int(initial.shape[1]) if initial is not None else 0,
+        "endpoint_channels": int(endpoint.shape[1]) if endpoint is not None else 0,
+        "total_channels": int(field.shape[1]),
+    }
+    metadata["residual_channels"] = channels
+    return field, metadata
+
+
+def _append_weighted_components_for_loss(
+    interior: Any,
+    boundary: Any | None,
+    initial: Any | None,
+    endpoint: Any | None,
+    *,
+    bc_weight: float,
+    ic_weight: float,
+    endpoint_weight: float,
+) -> Any:
+    import torch
+
+    parts = [interior]
+    if boundary is not None and bc_weight > 0.0:
+        parts.append(torch.as_tensor(bc_weight, dtype=interior.dtype, device=interior.device).sqrt() * boundary)
+    if initial is not None and ic_weight > 0.0:
+        parts.append(torch.as_tensor(ic_weight, dtype=interior.dtype, device=interior.device).sqrt() * initial)
+    if endpoint is not None and endpoint_weight > 0.0:
+        parts.append(torch.as_tensor(endpoint_weight, dtype=interior.dtype, device=interior.device).sqrt() * endpoint)
+    return torch.cat(parts, dim=1)

@@ -69,3 +69,27 @@ def test_load_config_rejects_old_schema(tmp_path):
     )
     with pytest.raises(ValueError, match="old data/generate/model schema"):
         load_config(path)
+
+
+def test_residual_mode_changes_ablation_name():
+    hermite = AblationConfig(residual_mode="hermite_bridge").resolved_ablation_name()
+    secant = AblationConfig(residual_mode="endpoint_secant").resolved_ablation_name()
+    assert hermite != secant
+    assert "res-hermite" in hermite
+    assert "res-secant" in secant
+
+
+def test_boundary_condition_changes_ablation_name():
+    periodic = AblationConfig(boundary_condition_mode="periodic").resolved_ablation_name()
+    neumann = AblationConfig(boundary_condition_mode="neumann_zero").resolved_ablation_name()
+    assert periodic != neumann
+    assert "bc-periodic" in periodic
+    assert "bc-neumann_zero" in neumann
+
+
+def test_near_endpoint_obs_changes_ablation_name():
+    one = AblationConfig(residual_mode="near_endpoint_temporal", num_near_endpoint_obs=1).resolved_ablation_name()
+    two = AblationConfig(residual_mode="near_endpoint_temporal", num_near_endpoint_obs=2).resolved_ablation_name()
+    assert one != two
+    assert "res-near1" in one
+    assert "res-near2" in two

@@ -36,7 +36,12 @@ def test_temporal_residual_modes_all_endpoint_pdes():
         assert out.residual.shape[-2:] == (8, 8)
         assert out.metadata["residual_channels"]["interior_channels"] == 3 * channels
         assert out.metadata["residual_channels"]["endpoint_channels"] == channels
-        assert out.metadata["residual_channels"]["bc_channels"] > 0
+        if pde in {"heat", "wave", "advection_diffusion"}:
+            assert out.metadata["residual_channels"]["bc_channels"] == 0
+            assert out.metadata["boundary_enforced"] is True
+            assert out.metadata["boundary_enforced_by_operator"] is True
+        else:
+            assert out.metadata["residual_channels"]["bc_channels"] > 0
         assert out.status == "approximate"
         assert out.metadata["status"] == "approximate"
         assert out.metadata["endpoint_only"] is True
@@ -67,7 +72,11 @@ def test_temporal_endpoint_secant_all_endpoint_pdes():
         assert out.residual.shape[0] == 2
         assert out.residual.shape[-2:] == (8, 8)
         assert out.metadata["residual_channels"]["interior_channels"] == channels
-        assert out.metadata["residual_channels"]["bc_channels"] > 0
+        if pde in {"heat", "wave", "advection_diffusion"}:
+            assert out.metadata["residual_channels"]["bc_channels"] == 0
+            assert out.metadata["boundary_enforced_by_operator"] is True
+        else:
+            assert out.metadata["residual_channels"]["bc_channels"] > 0
         assert out.metadata["two_time_level_approx"] is True
         assert out.metadata["temporal_derivative_mode"] == "endpoint_secant"
         assert out.metadata["resolved_residual_mode"] == "endpoint_secant"
@@ -105,6 +114,15 @@ def test_endpoint_secant_uses_time_scale_from_params():
 
 def test_near_endpoint_temporal_all_endpoint_pdes_requires_aux():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
+        if pde == "nsnonbounded":
+            out = compute_pde_residual(
+                pde,
+                torch.zeros(1, channels, 5, 5),
+                torch.zeros(1, channels, 5, 5),
+                residual_mode="near_endpoint_temporal",
+            )
+            assert out.status == "disabled"
+            continue
         with pytest.raises(ValueError, match="near_endpoint_temporal mode requires extra near-endpoint"):
             compute_pde_residual(
                 pde,
@@ -150,6 +168,10 @@ def test_near_endpoint_temporal_all_endpoint_pdes_with_aux():
 def test_full_trajectory_fd_requires_trajectory_for_endpoint_pdes():
     for pde, _channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde, batch=1, h=5, w=5)
+        if pde == "nsnonbounded":
+            out = compute_pde_residual(pde, q0, qT, residual_mode="full_trajectory_fd")
+            assert out.status == "disabled"
+            continue
         with pytest.raises(ValueError, match="full_trajectory_fd mode requires explicit full trajectory"):
             compute_pde_residual(pde, q0, qT, residual_mode="full_trajectory_fd")
 
@@ -180,7 +202,7 @@ def test_steady_heat_is_static_not_temporal():
     assert out.metadata["temporal_derivative_mode"] == "none"
     assert out.metadata["mode"] == "static_nonlinear_boundary"
     assert out.metadata["resolved_residual_mode"] == "static_nonlinear_boundary"
-    assert out.components["boundary"][1, 0, 0, 0].item() == pytest.approx(-2.0)
+    assert out.components["boundary"][1, 0, 0, 0].item() == pytest.approx(-2.0 * (h * w / w) ** 0.5)
 
 
 def test_nsnonbounded_residual_enabled_and_backward():
@@ -191,3 +213,23 @@ def test_nsnonbounded_residual_enabled_and_backward():
     assert out.metadata["reason"].startswith("vorticity transport residual is not implemented")
     assert out.metadata["bc_residual_enabled"] is False
     assert out.metadata["ic_residual_enabled"] is False
+
+
+def test_legacy_ignore_boundary_keeps_hermite_integral_endpoint_residual():
+    q0 = torch.zeros(1, 1, 6, 6)
+    qT = torch.ones_like(q0)
+    out = compute_pde_residual(
+        "heat",
+        q0,
+        qT,
+        pde_params={
+            "legacy_ignore_boundary": True,
+            "hermite_include_integral_residual": True,
+            "hermite_integral_weight": 1.0,
+        },
+        residual_mode="hermite_bridge",
+    )
+    channels = out.metadata["residual_channels"]
+    assert out.metadata["legacy_boundary_ignored"] is True
+    assert out.metadata["endpoint_residual_enabled"] is True
+    assert channels["total_channels"] == channels["interior_channels"] + channels["endpoint_channels"]

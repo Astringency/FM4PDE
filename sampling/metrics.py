@@ -39,6 +39,8 @@ def step_metrics(
     masks: Any,
     wall_time: float,
 ) -> dict[str, Any]:
+    pde_meta = eval_losses.metadata.get("pde", {})
+    channels = pde_meta.get("residual_channels", {}) or {}
     row = {
         "step": step,
         "t": _scalar(step_output.t),
@@ -70,14 +72,28 @@ def step_metrics(
         "guidance_pde_residual_norm": pde_residual_norm(guidance_losses.pde_residual),
         "pde_residual_status": eval_losses.pde_residual_status,
         "guidance_pde_residual_status": guidance_losses.pde_residual_status,
-        "pde_residual_equation": eval_losses.metadata.get("pde", {}).get("equation", ""),
-        "interior_residual_norm": eval_losses.metadata.get("pde", {}).get("component_norms", {}).get("interior", 0.0),
-        "boundary_residual_norm": eval_losses.metadata.get("pde", {}).get("component_norms", {}).get("boundary", 0.0),
-        "initial_residual_norm": eval_losses.metadata.get("pde", {}).get("component_norms", {}).get("initial", 0.0),
-        "bc_residual_status": "enabled" if eval_losses.metadata.get("pde", {}).get("bc_residual_enabled") else "disabled",
-        "ic_residual_status": "enabled" if eval_losses.metadata.get("pde", {}).get("ic_residual_enabled") else "disabled",
-        "boundary_condition_mode": eval_losses.metadata.get("pde", {}).get("boundary_condition_type", ""),
-        "initial_condition_mode": eval_losses.metadata.get("pde", {}).get("initial_condition_type", ""),
+        "pde_residual_equation": pde_meta.get("equation", ""),
+        "interior_residual_norm": pde_meta.get("component_norms", {}).get("interior", 0.0),
+        "boundary_residual_norm": pde_meta.get("component_norms", {}).get("boundary", 0.0),
+        "initial_residual_norm": pde_meta.get("component_norms", {}).get("initial", 0.0),
+        "endpoint_residual_norm": pde_meta.get("component_norms", {}).get("endpoint", 0.0),
+        "bc_residual_status": "enabled" if pde_meta.get("bc_residual_enabled") else "disabled",
+        "ic_residual_status": "enabled" if pde_meta.get("ic_residual_enabled") else "disabled",
+        "boundary_condition_mode": pde_meta.get("boundary_condition_type", ""),
+        "initial_condition_mode": pde_meta.get("initial_condition_type", ""),
+        "pde_residual_mode": pde_meta.get("requested_residual_mode", pde_meta.get("mode", "")),
+        "resolved_residual_mode": pde_meta.get("resolved_residual_mode", ""),
+        "pde_residual_rhs": pde_meta.get("rhs", pde_meta.get("rhs_equation", "")),
+        "pde_residual_channels_total": channels.get("total_channels", 0),
+        "pde_residual_channels_interior": channels.get("interior_channels", 0),
+        "pde_residual_channels_bc": channels.get("bc_channels", 0),
+        "pde_residual_channels_ic": channels.get("ic_channels", 0),
+        "pde_residual_channels_endpoint": channels.get("endpoint_channels", 0),
+        "boundary_enforced": pde_meta.get("boundary_enforced", False),
+        "boundary_enforced_by_operator": pde_meta.get("boundary_enforced_by_operator", False),
+        "boundary_value_residual_applicable": pde_meta.get("boundary_value_residual_applicable", True),
+        "pde_residual_region_applied_to": pde_meta.get("pde_residual_region_applied_to", ""),
+        "pde_residual_region_skipped": pde_meta.get("pde_residual_region_skipped", False),
     }
     if gradient is not None:
         row.update(

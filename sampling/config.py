@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import ast
 import dataclasses
+import hashlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -227,7 +228,42 @@ class AblationConfig:
             f"{self.guidance_components}_{self.loss_state}_{phase}_"
             f"{self.guidance_schedule}_{self.clip_mode}{self.clip_threshold:g}_"
             f"{self.sensor_mode}{self.num_obs}_noise{self.noise_level:g}_"
-            f"{self.time_grid}{self.num_steps}_{self.step_method}"
+            f"{self.time_grid}{self.num_steps}_{self.step_method}_"
+            f"{self._short_residual_fragment()}_{self._short_bc_ic_fragment()}"
+        )
+
+    def _short_residual_fragment(self) -> str:
+        mode_map = {
+            "auto": "res-auto",
+            "hermite_bridge": "res-hermite",
+            "endpoint_secant": "res-secant",
+            "full_trajectory_fd": "res-fulltraj",
+            "full_time_space": "res-fulltime",
+            "disabled": "res-off",
+        }
+        if self.residual_mode == "near_endpoint_temporal":
+            return (
+                f"res-near{self.num_near_endpoint_obs}_"
+                f"{self.near_endpoint_sensor_mode}_shared{int(bool(self.near_endpoint_shared_mask))}"
+            )
+        base = mode_map.get(self.residual_mode, f"res-{self.residual_mode}")
+        if self.residual_mode in {"auto", "hermite_bridge"}:
+            k = self.hermite_num_collocation if self.hermite_num_collocation > 0 else len(self.hermite_collocation_times)
+            base = f"{base}-K{k}"
+            if self.hermite_num_collocation <= 0 and self.hermite_collocation_times != [0.25, 0.5, 0.75]:
+                digest = hashlib.sha1(",".join(f"{float(v):.8g}" for v in self.hermite_collocation_times).encode("utf-8")).hexdigest()[:6]
+                base = f"{base}h{digest}"
+            if self.hermite_include_integral_residual:
+                base = f"{base}-int1-w{self.hermite_integral_weight:g}"
+            else:
+                base = f"{base}-int0"
+        return base
+
+    def _short_bc_ic_fragment(self) -> str:
+        return (
+            f"bc-{self.boundary_condition_mode}-bcw{self.bc_weight:g}_"
+            f"ic-{self.initial_condition_mode}-icw{self.ic_weight:g}_"
+            f"epw{self.endpoint_bc_weight:g}_legacybc{int(bool(self.legacy_ignore_boundary))}"
         )
 
     def asdict(self) -> dict[str, Any]:

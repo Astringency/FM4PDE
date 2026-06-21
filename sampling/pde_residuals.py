@@ -267,7 +267,7 @@ def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
     alpha = _param_field(pde_params, "alpha", u, default=1.0)
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    interior = _interior_only((u - a) / time_scale - alpha * _laplacian(u_mid))
+    interior = _interior_only((u - a) / time_scale - _rhs_heat(u_mid, pde_params))
     return _with_constraints(
         pde="heat",
         state=u_mid,
@@ -280,9 +280,11 @@ def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
             "two_time_level_approx": True,
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("alpha", "T", "total_time", "dt")),
+            **_rhs_metadata("heat", pde_params, u_mid),
         },
         spec=spec,
         endpoint_states=[a, u, u_mid],
+        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -299,7 +301,7 @@ def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
     u_mid = 0.5 * (u0 + u_t)
     v_mid = 0.5 * (v0 + v_t)
     res_u = (u_t - u0) / time_scale - v_mid
-    res_v = (v_t - v0) / time_scale - (c**2) * _laplacian(u_mid)
+    res_v = (v_t - v0) / time_scale - (c**2) * _laplacian_for_bc(u_mid, pde_params, _operator_boundary_kind("wave", pde_params))
     interior = _interior_only(torch.cat([res_u, res_v], dim=1))
     return _with_constraints(
         pde="wave",
@@ -313,9 +315,11 @@ def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
             "two_time_level_approx": True,
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("c", "T", "total_time", "dt")),
+            **_rhs_metadata("wave", pde_params, u_mid),
         },
         spec=spec,
         endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
+        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -328,12 +332,9 @@ def _advection_diffusion_endpoint_secant(
 ) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"advection_diffusion expects 1+1 channels, got a={a.shape}, u={u.shape}")
-    bx = _param_field(pde_params, "b_x", u, default=0.0)
-    by = _param_field(pde_params, "b_y", u, default=0.0)
-    kappa = _param_field(pde_params, "kappa", u, default=1.0)
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    interior = _interior_only((u - a) / time_scale + bx * _dx(u_mid) + by * _dy(u_mid) - kappa * _laplacian(u_mid))
+    interior = _interior_only((u - a) / time_scale - _rhs_advection_diffusion(u_mid, pde_params))
     return _with_constraints(
         pde="advection_diffusion",
         state=u_mid,
@@ -346,9 +347,11 @@ def _advection_diffusion_endpoint_secant(
             "two_time_level_approx": True,
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("b_x", "b_y", "kappa", "T", "total_time", "dt")),
+            **_rhs_metadata("advection_diffusion", pde_params, u_mid),
         },
         spec=spec,
         endpoint_states=[a, u, u_mid],
+        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -371,8 +374,8 @@ def _reaction_diffusion_endpoint_secant(
     k = _param_field(pde_params, "k", u_u, default=3e-3)
     u_t = (u_u - a_u) / time_scale
     v_t = (u_v - a_v) / time_scale
-    lap_u = _neumann_laplacian(u_u, pde_params)
-    lap_v = _neumann_laplacian(u_v, pde_params)
+    lap_u = _reaction_diffusion_laplacian(u_u, pde_params)
+    lap_v = _reaction_diffusion_laplacian(u_v, pde_params)
     res_u = u_t - (d_u * lap_u + u_u - u_u**3 - k - u_v)
     res_v = v_t - (d_v * lap_v + u_u - u_v)
     interior = _interior_only(torch.cat([res_u, res_v], dim=1))
@@ -412,6 +415,7 @@ def _reaction_diffusion_endpoint_secant(
         },
         spec=spec,
         endpoint_states=[a, u],
+        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -435,13 +439,10 @@ def _shallow_water_endpoint_secant(
     g = _param_field(pde_params, "g", h, default=1.0)
     time_scale, time_meta = _time_scale_field(pde_params, h)
     h_safe = h_mid.clamp_min(eps)
-    mass = (h - h0) / time_scale + _dx(hu_mid) + _dy(hv_mid)
-    mom_x = (hu - hu0) / time_scale + _dx((hu_mid**2) / h_safe + 0.5 * g * h_mid**2) + _dy(
-        hu_mid * hv_mid / h_safe
-    )
-    mom_y = (hv - hv0) / time_scale + _dx(hu_mid * hv_mid / h_safe) + _dy(
-        (hv_mid**2) / h_safe + 0.5 * g * h_mid**2
-    )
+    rhs_mid = _rhs_shallow_water(torch.cat([h_mid, hu_mid, hv_mid], dim=1), pde_params)
+    mass = (h - h0) / time_scale - rhs_mid[:, 0:1]
+    mom_x = (hu - hu0) / time_scale - rhs_mid[:, 1:2]
+    mom_y = (hv - hv0) / time_scale - rhs_mid[:, 2:3]
     interior = _interior_only(torch.cat([mass, mom_x, mom_y], dim=1))
     return _with_constraints(
         pde="shallow_water",
@@ -456,9 +457,11 @@ def _shallow_water_endpoint_secant(
             "two_time_level_approx": True,
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("g", "eps", "T", "total_time", "dt")),
+            **_rhs_metadata("shallow_water", pde_params, h_mid),
         },
         spec=spec,
         endpoint_states=[a, u, torch.cat([h_mid, hu_mid, hv_mid], dim=1)],
+        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -545,6 +548,7 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
         },
         spec=spec,
         endpoint_states=[btchw[:, idx] for idx in range(int(btchw.shape[1]))],
+        initial_state=btchw[:, 0],
         pde_params=pde_params,
     )
 
@@ -665,15 +669,24 @@ def _resolve_initial_spec(mode: str, params: dict[str, Any]) -> InitialCondition
     if mode in {"none", "auto"}:
         if "observed_initial" in params:
             return InitialConditionSpec(kind="observed_initial", value=params["observed_initial"], source="pde_params.observed_initial")
-        if "true_initial" in params:
+        if "true_initial" in params and _as_bool(params.get("allow_true_initial_condition", False)):
             return InitialConditionSpec(kind="trajectory_initial", value=params["true_initial"], source="pde_params.true_initial")
         if mode == "none":
             return InitialConditionSpec(kind="none", source="config", strict=False)
         return InitialConditionSpec(kind="unknown", source="not_available", strict=False)
-    if mode in {"endpoint_initial", "observed_initial", "trajectory_initial"}:
-        for key in ("observed_initial", "true_initial"):
-            if key in params:
-                return InitialConditionSpec(kind=mode, value=params[key], source=f"pde_params.{key}")
+    if mode == "observed_initial":
+        if "observed_initial" in params:
+            return InitialConditionSpec(kind=mode, value=params["observed_initial"], source="pde_params.observed_initial")
+        return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
+    if mode == "trajectory_initial":
+        if "true_initial" in params:
+            return InitialConditionSpec(kind=mode, value=params["true_initial"], source="pde_params.true_initial_explicit_extra_condition")
+        return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
+    if mode == "endpoint_initial":
+        if "observed_initial" in params:
+            return InitialConditionSpec(kind=mode, value=params["observed_initial"], source="pde_params.observed_initial")
+        if "true_initial" in params:
+            return InitialConditionSpec(kind=mode, value=params["true_initial"], source="pde_params.true_initial_explicit_extra_condition")
         return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
     raise ValueError(f"initial_condition_mode={mode!r} is invalid")
 
@@ -688,6 +701,7 @@ def _with_constraints(
     *,
     bc_states: list[Any] | None = None,
     endpoint_states: list[Any] | None = None,
+    initial_state: Any | None = None,
     endpoint_component: Any | None = None,
     pde_params: dict[str, Any] | None = None,
 ) -> ResidualOutput:
@@ -695,7 +709,15 @@ def _with_constraints(
 
     pde_params = pde_params or {}
     if spec.legacy_ignore_boundary:
-        residual = interior
+        residual = _append_constraint_residuals(
+            interior,
+            None,
+            None,
+            endpoint_component,
+            bc_weight=0.0,
+            ic_weight=0.0,
+            endpoint_weight=spec.endpoint_weight,
+        )
         components = {"interior": interior, "boundary": None, "initial": None, "endpoint": endpoint_component}
         out = _out(residual, status, metadata, components=components)
         _constraint_metadata(out, spec, interior, None, None, endpoint_component, legacy_used=True, unresolved=[])
@@ -704,12 +726,21 @@ def _with_constraints(
     unresolved = []
     if spec.enforce_boundary_conditions:
         sources = bc_states if bc_states is not None else (endpoint_states if endpoint_states is not None else [state])
-        bc_parts = [_compute_boundary_residual(pde, q, spec.bc, spec.boundary_residual_normalization, pde_params) for q in sources]
+        bc_parts = [
+            part
+            for part in (_compute_boundary_residual(pde, q, spec.bc, spec.boundary_residual_normalization, pde_params) for q in sources)
+            if part is not None
+        ]
         if bc_parts:
             bc = torch.cat(bc_parts, dim=1)
     ic = None
     if spec.enforce_initial_conditions and spec.ic is not None:
-        ic = _compute_initial_residual(state if endpoint_states is None else endpoint_states[0], spec.ic, pde_params)
+        ic_source_state = initial_state
+        if ic_source_state is None and endpoint_states:
+            ic_source_state = endpoint_states[0]
+        if ic_source_state is None:
+            ic_source_state = state
+        ic = _compute_initial_residual(ic_source_state, spec.ic, pde_params)
         if ic is None and spec.ic.kind == "unknown":
             unresolved.append("initial_condition")
     residual = _append_constraint_residuals(
@@ -760,6 +791,8 @@ def _constraint_metadata(
     legacy_used: bool,
     unresolved: list[str],
 ) -> None:
+    periodic_operator = spec.bc.kind in {"periodic", "periodic_x"}
+    boundary_enforced = bc is not None or (spec.enforce_boundary_conditions and periodic_operator)
     out.metadata.update(
         {
             "interior_residual_enabled": True,
@@ -774,7 +807,10 @@ def _constraint_metadata(
             "unresolved_conditions": unresolved + (["boundary_condition"] if spec.bc.kind == "unknown" else []),
             "legacy_ignore_boundary": spec.legacy_ignore_boundary,
             "legacy_boundary_ignored": legacy_used,
-            "boundary_enforced": bc is not None,
+            "boundary_enforced": boundary_enforced,
+            "boundary_enforced_by_operator": bool(spec.enforce_boundary_conditions and periodic_operator and bc is None),
+            "boundary_value_residual_applicable": not periodic_operator,
+            "grid_convention": "endpoint_false_periodic" if periodic_operator else "closed_interval_or_metadata",
             "initial_enforced": ic is not None,
             "boundary_residual_normalization": spec.boundary_residual_normalization,
             "residual_channels": {
@@ -802,9 +838,9 @@ def _compute_boundary_residual(
     if bc.kind == "neumann":
         return _neumann_residual(q, bc.value if bc.value is not None else 0.0, bc.sides, normalization)
     if bc.kind == "periodic":
-        return _periodic_residual(q, axes=("x", "y"), include_derivative_continuity=True, normalization=normalization)
+        return _periodic_residual(q, axes=("x", "y"), include_derivative_continuity=True, normalization=normalization, pde_params=pde_params)
     if bc.kind == "periodic_x":
-        return _periodic_residual(q, axes=("x",), include_derivative_continuity=True, normalization=normalization)
+        return _periodic_residual(q, axes=("x",), include_derivative_continuity=True, normalization=normalization, pde_params=pde_params)
     if bc.kind == "mixed":
         return _mixed_boundary_residual(pde, q, bc, normalization, pde_params)
     if bc.kind == "wall":
@@ -911,6 +947,8 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
         },
         spec=spec,
         bc_states=[q0, *collocation_states, qT],
+        endpoint_states=[q0, qT],
+        initial_state=q0,
         endpoint_component=endpoint_component,
         pde_params=pde_params,
     )
@@ -969,6 +1007,8 @@ def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dic
         },
         spec=spec,
         bc_states=[q0, qT],
+        endpoint_states=[q0, qT],
+        initial_state=q0,
         pde_params=pde_params,
     )
 
@@ -991,7 +1031,7 @@ def _rhs_time_dependent(pde: str, q: Any, pde_params: dict[str, Any]) -> Any:
 
 def _rhs_heat(q: Any, pde_params: dict[str, Any]) -> Any:
     alpha = _param_field(pde_params, "alpha", q, default=1.0)
-    return alpha * _laplacian(q)
+    return alpha * _laplacian_for_bc(q, pde_params, _operator_boundary_kind("heat", pde_params))
 
 
 def _rhs_wave(q: Any, pde_params: dict[str, Any]) -> Any:
@@ -1001,14 +1041,15 @@ def _rhs_wave(q: Any, pde_params: dict[str, Any]) -> Any:
         raise ValueError(f"wave RHS expects [u,v] channels, got {q.shape}")
     c = _param_field(pde_params, "c", q[:, 0:1], default=1.0)
     u, v = q[:, 0:1], q[:, 1:2]
-    return torch.cat([v, (c**2) * _laplacian(u)], dim=1)
+    return torch.cat([v, (c**2) * _laplacian_for_bc(u, pde_params, _operator_boundary_kind("wave", pde_params))], dim=1)
 
 
 def _rhs_advection_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
     bx = _param_field(pde_params, "b_x", q, default=0.0)
     by = _param_field(pde_params, "b_y", q, default=0.0)
     kappa = _param_field(pde_params, "kappa", q, default=1.0)
-    return -bx * _dx(q) - by * _dy(q) + kappa * _laplacian(q)
+    bc_kind = _operator_boundary_kind("advection_diffusion", pde_params)
+    return -bx * _dx_for_bc(q, pde_params, bc_kind) - by * _dy_for_bc(q, pde_params, bc_kind) + kappa * _laplacian_for_bc(q, pde_params, bc_kind)
 
 
 def _rhs_reaction_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
@@ -1020,8 +1061,8 @@ def _rhs_reaction_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
     d_u = _param_field_any(pde_params, ("D_u", "Du"), u, default=2e-3)
     d_v = _param_field_any(pde_params, ("D_v", "Dv"), v, default=4e-3)
     k = _param_field(pde_params, "k", u, default=3e-3)
-    f_u = d_u * _neumann_laplacian(u, pde_params) + u - u**3 - k - v
-    f_v = d_v * _neumann_laplacian(v, pde_params) + u - v
+    f_u = d_u * _reaction_diffusion_laplacian(u, pde_params) + u - u**3 - k - v
+    f_v = d_v * _reaction_diffusion_laplacian(v, pde_params) + u - v
     return torch.cat([f_u, f_v], dim=1)
 
 
@@ -1050,7 +1091,8 @@ def _rhs_shallow_water(q: Any, pde_params: dict[str, Any]) -> Any:
         ],
         dim=1,
     )
-    return -_dx(flux_x) - _dy(flux_y)
+    bc_kind = _operator_boundary_kind("shallow_water", pde_params)
+    return -_dx_for_bc(flux_x, pde_params, bc_kind) - _dy_for_bc(flux_y, pde_params, bc_kind)
 
 
 def _rhs_nsnonbounded(q: Any, pde_params: dict[str, Any]) -> Any:
@@ -1383,16 +1425,94 @@ def _laplacian(u: Any) -> Any:
     ) / (h**2)
 
 
-def _periodic_laplacian(u: Any) -> Any:
-    hx = 1.0 / max(int(u.shape[-1]) - 1, 1)
-    hy = 1.0 / max(int(u.shape[-2]) - 1, 1)
+def _periodic_grid_spacing(reference: Any, pde_params: dict[str, Any] | None = None) -> tuple[Any, Any]:
+    import torch
+
+    pde_params = pde_params or {}
+    if "dx" in pde_params:
+        dx = _param_field(pde_params, "dx", reference, default=1.0)
+    else:
+        dx = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-1]), 1), dtype=reference.dtype, device=reference.device)
+    if "dy" in pde_params:
+        dy = _param_field(pde_params, "dy", reference, default=1.0)
+    else:
+        dy = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-2]), 1), dtype=reference.dtype, device=reference.device)
+    return dx.abs().clamp_min(1e-12), dy.abs().clamp_min(1e-12)
+
+
+def _closed_interval_grid_spacing(reference: Any, pde_params: dict[str, Any] | None = None) -> tuple[Any, Any]:
+    import torch
+
+    pde_params = pde_params or {}
+    if "dx" in pde_params:
+        dx = _param_field(pde_params, "dx", reference, default=1.0)
+    else:
+        dx = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-1]) - 1, 1), dtype=reference.dtype, device=reference.device)
+    if "dy" in pde_params:
+        dy = _param_field(pde_params, "dy", reference, default=1.0)
+    else:
+        dy = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-2]) - 1, 1), dtype=reference.dtype, device=reference.device)
+    return dx.abs().clamp_min(1e-12), dy.abs().clamp_min(1e-12)
+
+
+def _grid_spacing_for_bc(reference: Any, pde_params: dict[str, Any] | None, bc_kind: str) -> tuple[Any, Any]:
+    if bc_kind in {"periodic", "periodic_x"}:
+        return _periodic_grid_spacing(reference, pde_params)
+    return _closed_interval_grid_spacing(reference, pde_params)
+
+
+def _periodic_dx(f: Any, dx: Any | None = None) -> Any:
+    if dx is None:
+        dx, _ = _periodic_grid_spacing(f, None)
+    return (f.roll(-1, dims=3) - f.roll(1, dims=3)) / (2.0 * dx)
+
+
+def _periodic_dy(f: Any, dy: Any | None = None) -> Any:
+    if dy is None:
+        _, dy = _periodic_grid_spacing(f, None)
+    return (f.roll(-1, dims=2) - f.roll(1, dims=2)) / (2.0 * dy)
+
+
+def _periodic_laplacian_2d(f: Any, dx: Any | None = None, dy: Any | None = None) -> Any:
+    if dx is None or dy is None:
+        dx_default, dy_default = _periodic_grid_spacing(f, None)
+        dx = dx_default if dx is None else dx
+        dy = dy_default if dy is None else dy
     return (
-        (u.roll(1, dims=2) + u.roll(-1, dims=2) - 2.0 * u) / (hy**2)
-        + (u.roll(1, dims=3) + u.roll(-1, dims=3) - 2.0 * u) / (hx**2)
+        (f.roll(1, dims=2) + f.roll(-1, dims=2) - 2.0 * f) / (dy**2)
+        + (f.roll(1, dims=3) + f.roll(-1, dims=3) - 2.0 * f) / (dx**2)
     )
 
 
+def _periodic_laplacian(u: Any) -> Any:
+    return _periodic_laplacian_2d(u)
+
+
+def _dirichlet_laplacian(u: Any, pde_params: dict[str, Any] | None = None, boundary_value: float = 0.0) -> Any:
+    import torch
+
+    dx, dy = _closed_interval_grid_spacing(u, pde_params)
+    padded = torch.nn.functional.pad(u, (1, 1, 1, 1), "constant", float(boundary_value))
+    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (dy**2)
+    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (dx**2)
+    return lap_x + lap_y
+
+
 def _neumann_laplacian(u: Any, pde_params: dict[str, Any] | None = None) -> Any:
+    import torch
+
+    pde_params = pde_params or {}
+    if any(name in pde_params for name in ("x_range", "y_range", "x_left", "x_right", "y_bottom", "y_top")):
+        hx, hy = _rd_grid_spacing_fields(pde_params, u)
+    else:
+        hx, hy = _closed_interval_grid_spacing(u, pde_params)
+    padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
+    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hy**2)
+    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hx**2)
+    return lap_x + lap_y
+
+
+def _reaction_diffusion_laplacian(u: Any, pde_params: dict[str, Any] | None = None) -> Any:
     import torch
 
     pde_params = pde_params or {}
@@ -1401,6 +1521,17 @@ def _neumann_laplacian(u: Any, pde_params: dict[str, Any] | None = None) -> Any:
     lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hy**2)
     lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hx**2)
     return lap_x + lap_y
+
+
+def _laplacian_for_bc(q: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
+    if bc_kind in {"periodic", "periodic_x"}:
+        dx, dy = _periodic_grid_spacing(q, pde_params)
+        return _periodic_laplacian_2d(q, dx=dx, dy=dy)
+    if bc_kind in {"neumann", "open", "wall"}:
+        return _neumann_laplacian(q, pde_params)
+    if bc_kind == "dirichlet":
+        return _dirichlet_laplacian(q, pde_params, boundary_value=0.0)
+    return _laplacian(q)
 
 
 def _rd_grid_spacing_fields(pde_params: dict[str, Any], reference: Any) -> tuple[Any, Any]:
@@ -1454,10 +1585,26 @@ def _rd_axis_bounds(pde_params: dict[str, Any], axis: str, reference: Any) -> tu
 
 
 def _rhs_metadata(pde: str, pde_params: dict[str, Any], reference: Any) -> dict[str, Any]:
+    if pde in {"heat", "wave", "advection_diffusion"}:
+        bc_kind = _operator_boundary_kind(pde, pde_params)
+        dx, dy = _grid_spacing_for_bc(reference, pde_params, bc_kind)
+        op = "periodic_roll_stencil" if bc_kind in {"periodic", "periodic_x"} else (
+            "neumann_replicate_stencil" if bc_kind in {"neumann", "open", "wall"} else "dirichlet_zero_stencil"
+        )
+        return {
+            "rhs_boundary_condition_type": bc_kind,
+            "rhs_spatial_operator": op,
+            "grid_spacing": {"dx": _metadata_values(dx), "dy": _metadata_values(dy)},
+        }
     if pde == "reaction_diffusion":
         return _reaction_diffusion_spatial_metadata(pde_params, reference)
     if pde == "shallow_water":
-        return {"rhs": "standard_2d_conservative_shallow_water_flux_rhs"}
+        bc_kind = _operator_boundary_kind(pde, pde_params)
+        return {
+            "rhs": "standard_2d_conservative_shallow_water_flux_rhs",
+            "rhs_boundary_condition_type": bc_kind,
+            "rhs_spatial_operator": "periodic_roll_flux_divergence" if bc_kind == "periodic" else "open_replicate_flux_divergence",
+        }
     if pde == "nsnonbounded":
         nu_source = "nu" if "nu" in pde_params else ("viscosity" if "viscosity" in pde_params else "default")
         forcing_present = "forcing" in pde_params
@@ -1618,9 +1765,13 @@ def _periodic_residual(
     axes: tuple[str, ...] = ("x", "y"),
     include_derivative_continuity: bool = True,
     normalization: str = "sqrt_grid_over_mask",
+    pde_params: dict[str, Any] | None = None,
 ) -> Any:
     import torch
 
+    pde_params = pde_params or {}
+    if not _as_bool(pde_params.get("periodic_duplicate_endpoint", False)):
+        return None
     parts = []
     if "x" in axes:
         r = torch.zeros_like(u)
@@ -1741,6 +1892,73 @@ def _dy(f: Any) -> Any:
     h = 1.0 / max(int(f.shape[-2]) - 1, 1)
     return (torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")[:, :, 2:, :] -
             torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")[:, :, :-2, :]) / (2.0 * h)
+
+
+def _dirichlet_dx(f: Any, pde_params: dict[str, Any] | None = None, boundary_value: float = 0.0) -> Any:
+    import torch
+
+    dx, _ = _closed_interval_grid_spacing(f, pde_params)
+    padded = torch.nn.functional.pad(f, (1, 1, 0, 0), mode="constant", value=float(boundary_value))
+    return (padded[:, :, :, 2:] - padded[:, :, :, :-2]) / (2.0 * dx)
+
+
+def _dirichlet_dy(f: Any, pde_params: dict[str, Any] | None = None, boundary_value: float = 0.0) -> Any:
+    import torch
+
+    _, dy = _closed_interval_grid_spacing(f, pde_params)
+    padded = torch.nn.functional.pad(f, (0, 0, 1, 1), mode="constant", value=float(boundary_value))
+    return (padded[:, :, 2:, :] - padded[:, :, :-2, :]) / (2.0 * dy)
+
+
+def _dx_for_bc(f: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
+    if bc_kind in {"periodic", "periodic_x"}:
+        dx, _ = _periodic_grid_spacing(f, pde_params)
+        return _periodic_dx(f, dx=dx)
+    if bc_kind == "dirichlet":
+        return _dirichlet_dx(f, pde_params, boundary_value=0.0)
+    return _dx(f)
+
+
+def _dy_for_bc(f: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
+    if bc_kind == "periodic":
+        _, dy = _periodic_grid_spacing(f, pde_params)
+        return _periodic_dy(f, dy=dy)
+    if bc_kind == "periodic_x":
+        return _dy(f)
+    if bc_kind == "dirichlet":
+        return _dirichlet_dy(f, pde_params, boundary_value=0.0)
+    return _dy(f)
+
+
+def _operator_boundary_kind(pde: str, pde_params: dict[str, Any]) -> str:
+    if "boundary_condition_kind" in pde_params:
+        return _normalize_boundary_kind(str(pde_params["boundary_condition_kind"]), pde)
+    mode = str(pde_params.get("boundary_condition_mode", pde_params.get("boundary_condition", "auto")))
+    aliases = {
+        "dirichlet_zero": "dirichlet",
+        "neumann_zero": "neumann",
+        "periodic": "periodic_x" if pde == "burger" else "periodic",
+        "open": "open",
+        "wall": "wall",
+        "mixed": "mixed",
+        "none": "none",
+        "legacy_ignore": "none",
+    }
+    if mode != "auto":
+        return aliases.get(mode, _normalize_boundary_kind(mode, pde))
+    defaults = {
+        "heat": "periodic",
+        "wave": "periodic",
+        "advection_diffusion": "periodic",
+        "reaction_diffusion": "neumann",
+        "shallow_water": "open",
+        "burger": "periodic_x",
+        "darcy": "dirichlet",
+        "poisson": "dirichlet",
+        "helmholtz": "dirichlet",
+        "steady_heat_conduction": "mixed",
+    }
+    return defaults.get(pde, "none")
 
 
 def _param_field(params: dict[str, Any], name: str, reference: Any, default: float) -> Any:

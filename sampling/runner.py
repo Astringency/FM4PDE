@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import random
 import time
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from sampling.time_grid import affine_coefficients, make_time_grid, scheduler_co
 def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     config = finalize_ground_truth_config(config)
     config.validate()
+    _disable_unreliable_pde_guidance(config)
 
     if config.dry_run and not _torch_available():
         run_dir = make_run_dir(config)
@@ -201,12 +203,12 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "coef_ground_truth": gt.coef.detach().cpu(),
             "sol_ground_truth": gt.sol.detach().cpu(),
             "masks": {"coef": masks.coef.detach().cpu(), "sol": masks.sol.detach().cpu(), "metadata": masks.metadata},
-            "pde_params": _cpu_pde_params(gt.pde_params),
+            "pde_params": _sanitize_pde_params_for_artifact(gt.pde_params, config),
             "metrics": final,
             "intermediate": intermediates,
             "ground_truth_metadata": gt.metadata,
             "normalizer": normalizer.state_dict() if normalizer is not None else None,
-            "checkpoint_metadata": checkpoint_metadata,
+            "checkpoint_metadata": _to_cpu_recursive(checkpoint_metadata),
             "config": config.asdict(),
         },
     )
@@ -310,6 +312,31 @@ def _has_guidance(config: AblationConfig) -> bool:
     return flags["obs_a"] or flags["obs_u"] or flags["pde"]
 
 
+def _disable_unreliable_pde_guidance(config: AblationConfig) -> None:
+    if not guidance_component_flags(config.guidance_components, config.task).get("pde", False):
+        return
+    if residual_status(config.pde) != "disabled":
+        return
+    requested = config.guidance_components
+    mapping = {
+        "pde_only": "noguide",
+        "obs_pde": "obs_only",
+    }
+    effective = mapping.get(requested)
+    if effective is None:
+        config.zeta_pde = 0.0
+        return
+    warnings.warn(
+        f"PDE guidance is disabled for pde={config.pde!r}; mapping guidance_components={requested!r} to {effective!r}.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    config.extra["guidance_components_requested"] = requested
+    config.extra["guidance_components_effective"] = effective
+    config.guidance_components = effective
+    config.zeta_pde = 0.0
+
+
 def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
     requested_mode = normalize_residual_mode(config.residual_mode)
     from data.specs import get_pde_spec
@@ -373,14 +400,66 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
     return metadata
 
 
-def _cpu_pde_params(params: dict[str, Any]) -> dict[str, Any]:
-    out = {}
+def _to_cpu_recursive(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _to_cpu_recursive(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_to_cpu_recursive(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_to_cpu_recursive(item) for item in value)
+    try:
+        return value.detach().cpu()
+    except Exception:
+        return value
+
+
+def _sanitize_pde_params_for_artifact(params: dict[str, Any] | None, config: AblationConfig | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    residual_mode = normalize_residual_mode(config.residual_mode) if config is not None else "auto"
+    save_intermediate = bool(getattr(config, "save_intermediate", False)) if config is not None else False
     for key, value in (params or {}).items():
-        try:
-            out[key] = value.detach().cpu()
-        except Exception:
-            out[key] = value
+        if key == "near_endpoint_temporal" and isinstance(value, dict):
+            out[key] = _sanitize_near_endpoint_temporal(value)
+        elif key in {"trajectory", "full_trajectory"}:
+            if residual_mode == "full_trajectory_fd" and save_intermediate:
+                saved = _to_cpu_recursive(value)
+                out[key] = saved
+                out.setdefault("artifact_metadata", {})[key] = {"large_artifact": True, "full_trajectory_saved": True}
+            else:
+                out.setdefault("artifact_metadata", {})[key] = {
+                    "full_trajectory_saved": False,
+                    "large_artifact": False,
+                    "reason": "omitted unless residual_mode='full_trajectory_fd' and save_intermediate=true",
+                }
+        else:
+            out[key] = _to_cpu_recursive(value)
     return out
+
+
+def _sanitize_near_endpoint_temporal(value: dict[str, Any]) -> dict[str, Any]:
+    import torch
+
+    sanitized: dict[str, Any] = {}
+    q_dt = value.get("q_dt")
+    q_t_minus = value.get("q_T_minus_dt")
+    mask_0 = value.get("mask_0")
+    mask_t = value.get("mask_T")
+    if q_dt is not None and mask_0 is not None:
+        sanitized["q_dt_obs"] = (torch.as_tensor(q_dt).detach().cpu() * torch.as_tensor(mask_0).detach().cpu())
+    if q_t_minus is not None and mask_t is not None:
+        sanitized["q_T_minus_dt_obs"] = (torch.as_tensor(q_t_minus).detach().cpu() * torch.as_tensor(mask_t).detach().cpu())
+    for key in ("mask_0", "mask_T", "dt"):
+        if key in value:
+            sanitized[key] = _to_cpu_recursive(value[key])
+    metadata = dict(value.get("metadata", {}) if isinstance(value.get("metadata", {}), dict) else {})
+    metadata.update(
+        {
+            "full_near_endpoint_frames_saved": False,
+            "sparse_temporal_observations_saved": True,
+        }
+    )
+    sanitized["metadata"] = _to_cpu_recursive(metadata)
+    return sanitized
 
 
 def _resolve_device(device: str) -> Any:
