@@ -48,6 +48,17 @@ def test_neumann_zero_bc():
     assert _neumann_residual(sloped, 0.0, {}, "mean").abs().sum() > 0
 
 
+def test_neumann_residual_defaults_closed_interval_for_static_pdes():
+    n = 16
+    x = torch.linspace(0.0, 1.0, n)
+    field = x.view(1, 1, 1, n).repeat(1, 1, n, 1)
+
+    residual = _neumann_residual(field, 0.0, {"left": {}, "right": {}}, "mean", pde="poisson")
+
+    assert residual[..., :, 0].mean().item() == pytest.approx(1.0)
+    assert residual[..., :, -1].mean().item() == pytest.approx(1.0)
+
+
 def test_periodic_endpoint_false_does_not_compare_first_last():
     n = 16
     x = torch.arange(n, dtype=torch.float32) / n
@@ -185,6 +196,33 @@ def test_steady_heat_conduction_migrated_bc():
     assert out.components["boundary"] is not None
     assert out.residual[:, :1, 1:-1, 1:-1].shape == old[:, :, 1:-1, 1:-1].shape
     assert out.metadata["boundary_condition_type"] == "mixed"
+
+
+def test_steady_heat_conduction_mixed_bc_unchanged():
+    n = 6
+    y = torch.linspace(0.0, 1.0, n)
+    u = y.view(1, 1, n, 1).repeat(1, 1, 1, n)
+    a = torch.zeros_like(u)
+    out = compute_pde_residual(
+        "steady_heat_conduction",
+        a,
+        u,
+        pde_params={
+            "u_D": torch.tensor([0.0]),
+            "boundary_condition_mode": "mixed",
+            "boundary_residual_normalization": "mean",
+        },
+    )
+
+    boundary = out.components["boundary"]
+    assert boundary is not None
+    assert torch.allclose(boundary[:, :1], torch.zeros_like(boundary[:, :1]))
+    assert boundary[:, 1:2, -1, :].mean().item() == pytest.approx(1.0)
+    assert torch.allclose(boundary[:, 1:2, 1:-1, 0], torch.zeros_like(boundary[:, 1:2, 1:-1, 0]))
+    assert torch.allclose(boundary[:, 1:2, 1:-1, -1], torch.zeros_like(boundary[:, 1:2, 1:-1, -1]))
+    assert out.metadata["boundary_residual_spacing_source"] == "closed_interval_default"
+    assert out.metadata["boundary_residual_dx"] == pytest.approx(1.0 / (n - 1))
+    assert out.metadata["boundary_residual_dy"] == pytest.approx(1.0 / (n - 1))
 
 
 def test_ns_still_disabled():

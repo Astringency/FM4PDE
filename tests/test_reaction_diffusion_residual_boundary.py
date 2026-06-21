@@ -2,7 +2,33 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from sampling.pde_residuals import _neumann_laplacian, compute_pde_residual
+from sampling.pde_residuals import _neumann_laplacian, _neumann_residual, compute_pde_residual
+
+
+def test_reaction_diffusion_neumann_bc_uses_domain_spacing():
+    n = 16
+    x = torch.linspace(-1.0, 1.0, n)
+    field = x.view(1, 1, 1, n).repeat(1, 1, n, 1)
+    pde_params = {
+        "x_left": torch.tensor([-1.0]),
+        "x_right": torch.tensor([1.0]),
+        "y_bottom": torch.tensor([-1.0]),
+        "y_top": torch.tensor([1.0]),
+    }
+
+    residual = _neumann_residual(
+        field,
+        0.0,
+        {"left": {}, "right": {}},
+        "mean",
+        pde_params=pde_params,
+        pde="reaction_diffusion",
+    )
+
+    expected = (2.0 / (n - 1)) / (2.0 / n)
+    assert residual[..., :, 0].mean().item() == pytest.approx(expected)
+    assert residual[..., :, -1].mean().item() == pytest.approx(expected)
+    assert residual[..., :, 0].mean().item() != pytest.approx(1.0)
 
 
 def test_neumann_laplacian_constant_field_is_zero():
@@ -43,6 +69,9 @@ def test_reaction_diffusion_residual_uses_neumann_metadata_on_arbitrary_shape():
     assert out.metadata["laplacian"] == "neumann"
     assert out.metadata["domain"]["x"] == [-1.0, 1.0]
     assert out.metadata["grid_spacing"]["dx"] == pytest.approx(0.125)
+    assert out.metadata["boundary_residual_spacing_source"] == "reaction_diffusion_domain_metadata"
+    assert out.metadata["boundary_residual_dx"] == pytest.approx(0.125)
+    assert out.metadata["boundary_residual_dy"] == pytest.approx(0.125)
     assert out.metadata["pde_params_used"]["D_u"] is True
     assert out.metadata["pde_params_used"]["D_v"] is True
     assert out.metadata["pde_params_used"]["k"] is True

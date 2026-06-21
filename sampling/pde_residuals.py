@@ -720,7 +720,18 @@ def _with_constraints(
         )
         components = {"interior": interior, "boundary": None, "initial": None, "endpoint": endpoint_component}
         out = _out(residual, status, metadata, components=components)
-        _constraint_metadata(out, spec, interior, None, None, endpoint_component, legacy_used=True, unresolved=[])
+        _constraint_metadata(
+            out,
+            spec,
+            interior,
+            None,
+            None,
+            endpoint_component,
+            pde=pde,
+            pde_params=pde_params,
+            legacy_used=True,
+            unresolved=[],
+        )
         return out
     bc = None
     unresolved = []
@@ -754,7 +765,18 @@ def _with_constraints(
     )
     components = {"interior": interior, "boundary": bc, "initial": ic, "endpoint": endpoint_component}
     out = _out(residual, status, metadata, components=components)
-    _constraint_metadata(out, spec, interior, bc, ic, endpoint_component, legacy_used=False, unresolved=unresolved)
+    _constraint_metadata(
+        out,
+        spec,
+        interior,
+        bc,
+        ic,
+        endpoint_component,
+        pde=pde,
+        pde_params=pde_params,
+        legacy_used=False,
+        unresolved=unresolved,
+    )
     return out
 
 
@@ -788,6 +810,8 @@ def _constraint_metadata(
     ic: Any | None,
     endpoint: Any | None,
     *,
+    pde: str,
+    pde_params: dict[str, Any],
     legacy_used: bool,
     unresolved: list[str],
 ) -> None:
@@ -822,6 +846,15 @@ def _constraint_metadata(
             },
         }
     )
+    if bc is not None and spec.bc.kind in {"neumann", "open", "mixed", "wall"}:
+        dx, dy, spacing_source = _boundary_grid_spacing_info(interior, pde_params, pde=pde, bc_kind=spec.bc.kind)
+        out.metadata.update(
+            {
+                "boundary_residual_spacing_source": spacing_source,
+                "boundary_residual_dx": _metadata_values(dx),
+                "boundary_residual_dy": _metadata_values(dy),
+            }
+        )
 
 
 def _compute_boundary_residual(
@@ -836,7 +869,7 @@ def _compute_boundary_residual(
     if bc.kind == "dirichlet":
         return _dirichlet_residual(q, bc.value if bc.value is not None else 0.0, bc.sides, normalization)
     if bc.kind == "neumann":
-        return _neumann_residual(q, bc.value if bc.value is not None else 0.0, bc.sides, normalization)
+        return _neumann_residual(q, bc.value if bc.value is not None else 0.0, bc.sides, normalization, pde_params=pde_params, pde=pde)
     if bc.kind == "periodic":
         return _periodic_residual(q, axes=("x", "y"), include_derivative_continuity=True, normalization=normalization, pde_params=pde_params)
     if bc.kind == "periodic_x":
@@ -844,9 +877,9 @@ def _compute_boundary_residual(
     if bc.kind == "mixed":
         return _mixed_boundary_residual(pde, q, bc, normalization, pde_params)
     if bc.kind == "wall":
-        return _wall_residual(q, normalization)
+        return _wall_residual(q, normalization, pde_params=pde_params, pde=pde)
     if bc.kind == "open":
-        return _neumann_residual(q, 0.0, {}, normalization)
+        return _neumann_residual(q, 0.0, {}, normalization, pde_params=pde_params, pde=pde)
     raise ValueError(f"Unsupported boundary condition kind={bc.kind!r}")
 
 
@@ -1461,6 +1494,35 @@ def _grid_spacing_for_bc(reference: Any, pde_params: dict[str, Any] | None, bc_k
     return _closed_interval_grid_spacing(reference, pde_params)
 
 
+def _boundary_grid_spacing(
+    reference: Any,
+    pde_params: dict[str, Any] | None = None,
+    pde: str | None = None,
+    bc_kind: str = "neumann",
+) -> tuple[Any, Any]:
+    dx, dy, _ = _boundary_grid_spacing_info(reference, pde_params, pde=pde, bc_kind=bc_kind)
+    return dx, dy
+
+
+def _boundary_grid_spacing_info(
+    reference: Any,
+    pde_params: dict[str, Any] | None = None,
+    pde: str | None = None,
+    bc_kind: str = "neumann",
+) -> tuple[Any, Any, str]:
+    pde_params = pde_params or {}
+    if bc_kind in {"periodic", "periodic_x"}:
+        raise ValueError("periodic boundary residuals must use periodic spacing helpers")
+    if "dx" in pde_params or "dy" in pde_params:
+        dx, dy = _closed_interval_grid_spacing(reference, pde_params)
+        return dx, dy, "pde_params_dx_dy"
+    if pde == "reaction_diffusion":
+        dx, dy = _rd_grid_spacing_fields(pde_params, reference)
+        return dx, dy, "reaction_diffusion_domain_metadata"
+    dx, dy = _closed_interval_grid_spacing(reference, pde_params)
+    return dx, dy, "closed_interval_default"
+
+
 def _periodic_dx(f: Any, dx: Any | None = None) -> Any:
     if dx is None:
         dx, _ = _periodic_grid_spacing(f, None)
@@ -1734,6 +1796,8 @@ def _neumann_residual(
     normal_derivative_value: Any,
     sides: dict[str, Any] | None = None,
     normalization: str = "sqrt_grid_over_mask",
+    pde_params: dict[str, Any] | None = None,
+    pde: str | None = None,
 ) -> Any:
     import torch
 
@@ -1741,21 +1805,22 @@ def _neumann_residual(
     residual = torch.zeros_like(u)
     mask = torch.zeros_like(u[:, :1])
     h, w = int(u.shape[-2]), int(u.shape[-1])
-    dx = 1.0 / max(w - 1, 1)
-    dy = 1.0 / max(h - 1, 1)
+    dx, dy = _boundary_grid_spacing(u, pde_params, pde=pde, bc_kind="neumann")
+    dx_line = dx[..., 0, 0].unsqueeze(-1)
+    dy_line = dy[..., 0, 0].unsqueeze(-1)
     active = _active_sides(sides or {})
     val = value[..., 0, 0].unsqueeze(-1)
     if w > 1 and "left" in active:
-        residual[..., :, 0] = (u[..., :, 1] - u[..., :, 0]) / dx - val
+        residual[..., :, 0] = (u[..., :, 1] - u[..., :, 0]) / dx_line - val
         mask[..., :, 0] = 1.0
     if w > 1 and "right" in active:
-        residual[..., :, -1] = (u[..., :, -1] - u[..., :, -2]) / dx - val
+        residual[..., :, -1] = (u[..., :, -1] - u[..., :, -2]) / dx_line - val
         mask[..., :, -1] = 1.0
     if h > 1 and "bottom" in active:
-        residual[..., 0, :] = (u[..., 1, :] - u[..., 0, :]) / dy - val
+        residual[..., 0, :] = (u[..., 1, :] - u[..., 0, :]) / dy_line - val
         mask[..., 0, :] = 1.0
     if h > 1 and "top" in active:
-        residual[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / dy - val
+        residual[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / dy_line - val
         mask[..., -1, :] = 1.0
     return _normalize_masked_residual(residual, mask, normalization)
 
@@ -1820,7 +1885,14 @@ def _mixed_boundary_residual(
         return torch.cat(
             [
                 _dirichlet_residual(q, u_d, {"bottom": {}}, normalization),
-                _neumann_residual(q, 0.0, {"top": {}, "left": {}, "right": {}}, normalization),
+                _neumann_residual(
+                    q,
+                    0.0,
+                    {"top": {}, "left": {}, "right": {}},
+                    normalization,
+                    pde_params=pde_params,
+                    pde=pde,
+                ),
             ],
             dim=1,
         )
@@ -1831,15 +1903,24 @@ def _mixed_boundary_residual(
         if kind == "dirichlet":
             parts.append(_dirichlet_residual(q, value if value is not None else 0.0, {side: {}}, normalization))
         elif kind == "neumann":
-            parts.append(_neumann_residual(q, value if value is not None else 0.0, {side: {}}, normalization))
+            parts.append(
+                _neumann_residual(
+                    q,
+                    value if value is not None else 0.0,
+                    {side: {}},
+                    normalization,
+                    pde_params=pde_params,
+                    pde=pde,
+                )
+            )
     return torch.cat(parts, dim=1) if parts else None
 
 
-def _wall_residual(q: Any, normalization: str) -> Any:
+def _wall_residual(q: Any, normalization: str, pde_params: dict[str, Any] | None = None, pde: str | None = None) -> Any:
     import torch
 
     if q.shape[1] < 3:
-        return _neumann_residual(q, 0.0, {}, normalization)
+        return _neumann_residual(q, 0.0, {}, normalization, pde_params=pde_params, pde=pde)
     residual = torch.zeros_like(q)
     mask = torch.zeros_like(q[:, :1])
     residual[:, 1:2, :, 0] = q[:, 1:2, :, 0]
