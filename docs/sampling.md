@@ -76,17 +76,26 @@ L_{obs} = \frac{\sum_i M_i (x_i - y_i)^2}{\sum_i M_i}
 
 When a single-channel mask is broadcast over multiple state channels, the denominator counts the expanded observed entries. Empty masks are clamped to avoid NaNs.
 
-The sampling PDE loss is assembled from differentiable residual components and reduced as MSE over the residual field/collocation grid:
+The sampling PDE loss is assembled from differentiable residual components. Each component is reduced with its own MSE denominator, then the component losses are weighted and summed:
 
 ```math
-L_{PDE} = \operatorname{mean}_j |R_{PDE}(u, a)(x_j)|^2
+L_{PDE} = L_{int} + \lambda_{bc} L_{bc} + \lambda_{ic} L_{ic} + \lambda_{ep} L_{ep}
 ```
 
-Boundary, initial-condition, and endpoint residuals are appended as residual channels after multiplication by `sqrt(lambda_*)`, so their contribution keeps the existing lambda-weighted squared-residual semantics. The old `l2 = vector_norm(residual) / numel` reducer is retained only as a compatibility option through explicit legacy loss settings; it is not the default theoretical guidance loss.
-
-```text
-L_pde = L_interior + lambda_bc * L_bc + lambda_ic * L_ic + lambda_endpoint * L_endpoint
+```math
+L_{int} = \operatorname{mean}_{j \in C_{int}} |R_{int,j}|^2
 ```
+```math
+L_{bc} = \operatorname{mean}_{j \in C_{bc}} |R_{bc,j}|^2
+```
+```math
+L_{ic} = \operatorname{mean}_{j \in C_{ic}} |R_{ic,j}|^2
+```
+```math
+L_{ep} = \operatorname{mean}_{j \in C_{ep}} |R_{ep,j}|^2
+```
+
+Different components are not concatenated and globally averaged for loss computation. They are logged as a concatenated residual field for diagnostics, but separate MSE denominators avoid changing lambda semantics when components have different point counts or channel counts.
 
 The old boundary handling zeroed boundary entries in the PDE residual. That excluded boundary points from the interior equation but did not enforce BCs. Formal configs now use explicit BC residual channels where applicable. Periodic endpoint-false grids are enforced by periodic discrete operators instead of first/last value residual channels. The legacy behavior is available only with `legacy_ignore_boundary: true` or `boundary_condition_mode: legacy_ignore`.
 

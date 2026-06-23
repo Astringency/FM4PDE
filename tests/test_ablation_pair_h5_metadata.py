@@ -71,9 +71,15 @@ def test_sampling_ground_truth_reads_pair_h5_params(tmp_path):
     assert tuple(gt.coef.shape) == (2, 1, 5, 5)
     assert tuple(gt.sol.shape) == (2, 1, 5, 5)
     assert tuple(gt.pair.shape) == (2, 2, 5, 5)
-    assert set(gt.pde_params) == {"alpha"}
-    assert gt.metadata["pde_params_keys"] == ["alpha"]
-    assert gt.metadata["pde_params_sources"] == {"alpha": "dataset"}
+    assert set(gt.pde_params) == {"alpha", "boundary_condition_kind"}
+    assert gt.pde_params["boundary_condition_kind"] == "periodic"
+    assert gt.metadata["pde_params_keys"] == ["alpha", "boundary_condition_kind"]
+    assert gt.metadata["pde_params_sources"] == {
+        "alpha": "dataset",
+        "boundary_condition_kind": "loader_confirmed_default",
+    }
+    assert gt.metadata["boundary_condition"] == "periodic"
+    assert gt.metadata["boundary_condition_source"] == "loader_confirmed_default"
 
 
 def test_sampling_ground_truth_reads_pair_h5_time_scale_params(tmp_path):
@@ -100,7 +106,8 @@ def test_sampling_ground_truth_reads_pair_h5_time_scale_params(tmp_path):
 
     gt = load_ground_truth(cfg)
 
-    assert set(gt.pde_params) == {"alpha", "total_time"}
+    assert set(gt.pde_params) == {"alpha", "total_time", "boundary_condition_kind"}
+    assert gt.metadata["pde_params_keys"] == ["alpha", "boundary_condition_kind", "total_time"]
     assert torch.allclose(gt.pde_params["total_time"], torch.tensor([2.5, 2.5]))
     assert gt.metadata["pde_params_sources"]["total_time"] == "attrs:total_time"
 

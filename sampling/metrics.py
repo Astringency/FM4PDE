@@ -40,7 +40,12 @@ def step_metrics(
     wall_time: float,
 ) -> dict[str, Any]:
     pde_meta = eval_losses.metadata.get("pde", {})
+    guidance_pde_meta = guidance_losses.metadata.get("pde", {})
     channels = pde_meta.get("residual_channels", {}) or {}
+    loss_reduction = eval_losses.metadata.get("loss_reduction", {})
+    obs_counts = eval_losses.metadata.get("obs_counts", {})
+    component_losses = pde_meta.get("component_losses", {}) or {}
+    guidance_component_losses = guidance_pde_meta.get("component_losses", {}) or {}
     row = {
         "step": step,
         "t": _scalar(step_output.t),
@@ -94,6 +99,24 @@ def step_metrics(
         "boundary_value_residual_applicable": pde_meta.get("boundary_value_residual_applicable", True),
         "pde_residual_region_applied_to": pde_meta.get("pde_residual_region_applied_to", ""),
         "pde_residual_region_skipped": pde_meta.get("pde_residual_region_skipped", False),
+        "obs_loss_reduction_a": loss_reduction.get("obs_a", ""),
+        "obs_loss_reduction_u": loss_reduction.get("obs_u", ""),
+        "pde_loss_reduction": loss_reduction.get("pde", pde_meta.get("loss_reduction", "")),
+        "obs_count_coef": obs_counts.get("coef", 0.0),
+        "obs_count_sol": obs_counts.get("sol", 0.0),
+        "pde_loss_interior": component_losses.get("interior", 0.0),
+        "pde_loss_boundary": component_losses.get("boundary", 0.0),
+        "pde_loss_initial": component_losses.get("initial", 0.0),
+        "pde_loss_endpoint": component_losses.get("endpoint", 0.0),
+        "pde_loss_component_total": component_losses.get("total", 0.0),
+        "pde_loss_bc_weight": component_losses.get("bc_weight", 0.0),
+        "pde_loss_ic_weight": component_losses.get("ic_weight", 0.0),
+        "pde_loss_endpoint_weight": component_losses.get("endpoint_weight", 0.0),
+        "guidance_pde_loss_interior": guidance_component_losses.get("interior", 0.0),
+        "guidance_pde_loss_boundary": guidance_component_losses.get("boundary", 0.0),
+        "guidance_pde_loss_initial": guidance_component_losses.get("initial", 0.0),
+        "guidance_pde_loss_endpoint": guidance_component_losses.get("endpoint", 0.0),
+        "guidance_pde_loss_component_total": guidance_component_losses.get("total", 0.0),
     }
     if gradient is not None:
         row.update(

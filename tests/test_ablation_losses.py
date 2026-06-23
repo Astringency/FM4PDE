@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from sampling.config import AblationConfig
-from sampling.losses import _masked_mse, _pde_loss, compute_guidance_losses
+from sampling.losses import _componentwise_pde_mse_loss, _masked_mse, compute_guidance_losses
 from sampling.masks import PairMasks
 from sampling.state import SplitState
 
@@ -17,7 +17,7 @@ class GT:
 
 
 def test_obs_only_losses():
-    cfg = AblationConfig(task="both", guidance_components="obs_only", loss_type="mse")
+    cfg = AblationConfig(task="both", guidance_components="obs_only")
     pred = SplitState(torch.ones(1, 1, 4, 4), torch.ones(1, 1, 4, 4) * 2)
     gt = GT(torch.zeros(1, 1, 4, 4), torch.zeros(1, 1, 4, 4))
     masks = PairMasks(torch.ones(1, 1, 4, 4), torch.ones(1, 1, 4, 4), {})
@@ -26,6 +26,7 @@ def test_obs_only_losses():
     assert out.L_obs_u.item() == pytest.approx(4.0)
     assert out.L_pde.item() == pytest.approx(0.0)
     assert out.metadata["loss_reduction"]["obs_a"] == "masked_mse_over_observed_entries"
+    assert out.metadata["loss_reduction"]["pde"] == "componentwise_mse_sum"
     assert out.metadata["obs_counts"]["coef"] == pytest.approx(16.0)
 
 
@@ -56,7 +57,27 @@ def test_masked_mse_zero_mask_is_finite_zero():
     assert out.item() == pytest.approx(0.0)
 
 
-def test_pde_loss_uses_mse_not_legacy_l2_norm():
-    residual = torch.tensor([1.0, 2.0, 3.0])
+def test_pde_componentwise_mse_sums_components_with_separate_denominators():
+    interior = torch.tensor([1.0, 2.0, 3.0])
+    boundary = torch.tensor([4.0])
+    initial = None
+    endpoint = torch.tensor([2.0, 2.0])
 
-    assert _pde_loss(residual, "mse").item() == pytest.approx(14.0 / 3.0)
+    total, parts = _componentwise_pde_mse_loss(
+        {
+            "interior": interior,
+            "boundary": boundary,
+            "initial": initial,
+            "endpoint": endpoint,
+        },
+        bc_weight=0.5,
+        ic_weight=1.0,
+        endpoint_weight=2.0,
+        fallback_field=interior,
+    )
+
+    expected = (1.0 + 4.0 + 9.0) / 3.0 + 0.5 * 16.0 + 2.0 * 4.0
+    assert total.item() == pytest.approx(expected)
+    assert parts["interior"] == pytest.approx(14.0 / 3.0)
+    assert parts["boundary"] == pytest.approx(16.0)
+    assert parts["endpoint"] == pytest.approx(4.0)

@@ -28,7 +28,6 @@ def test_boundary_excluded_masks_only_interior_not_boundary():
         pde_residual_region="boundary_excluded",
         boundary_condition_mode="dirichlet_zero",
         initial_condition_mode="none",
-        loss_type="mse",
     )
     masks = PairMasks(torch.zeros_like(coef), torch.zeros_like(sol), {})
     out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol), masks, cfg)

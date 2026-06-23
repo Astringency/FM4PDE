@@ -71,6 +71,25 @@ def test_load_config_rejects_old_schema(tmp_path):
         load_config(path)
 
 
+def test_deprecated_loss_type_is_rejected(tmp_path):
+    path = tmp_path / "bad_loss.yaml"
+    path.write_text(
+        "pde: poisson\n"
+        "task: forward\n"
+        "loss_type: l2\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="loss_type"):
+        load_config(path)
+
+
+def test_deprecated_loss_type_extra_is_rejected():
+    cfg = AblationConfig()
+    cfg.extra["loss_type"] = "l2"
+    with pytest.raises(ValueError, match="loss_type"):
+        cfg.validate()
+
+
 def test_residual_mode_changes_ablation_name():
     hermite = AblationConfig(residual_mode="hermite_bridge").resolved_ablation_name()
     secant = AblationConfig(residual_mode="endpoint_secant").resolved_ablation_name()

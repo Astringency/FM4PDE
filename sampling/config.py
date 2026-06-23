@@ -50,7 +50,6 @@ VALID_PDE_REGIONS = {"full", "observed", "boundary_excluded", "union_obs"}
 VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
-VALID_LOSS_TYPES = {"l1", "l2", "mse"}
 VALID_STOCHASTIC_GUIDANCE_TIMES = {"t", "t_next"}
 VALID_RESIDUAL_MODES = {
     "auto",
@@ -65,8 +64,11 @@ VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy", "legacy_base"}
 VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "legacy_ignore", "wall", "open"}
 VALID_INITIAL_CONDITION_MODES = {"auto", "endpoint_initial", "observed_initial", "trajectory_initial", "none", "legacy_ignore"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
-VALID_OBS_LOSS_TYPES = {"masked_mse", "l1", "l2", "mse"}
-VALID_PDE_LOSS_TYPES = {"mse", "l1", "l2"}
+_TYPE_SUFFIX = "type"
+DEPRECATED_LOSS_CONFIG_FIELDS = {f"loss_{_TYPE_SUFFIX}", f"obs_loss_{_TYPE_SUFFIX}", f"pde_loss_{_TYPE_SUFFIX}"}
+DEPRECATED_LOSS_CONFIG_MESSAGE = (
+    "loss reducers are no longer configurable; observation loss is masked MSE and PDE loss is component-wise MSE."
+)
 
 
 _LOCAL_CHECKPOINTS = {
@@ -134,9 +136,6 @@ class AblationConfig:
     polynomial_power: float = 2.0
     cosine_mode: str = "decay"
     time_grid_eta: float = 0.4
-    loss_type: str = "l2"
-    obs_loss_type: str = "masked_mse"
-    pde_loss_type: str = "mse"
     pde_residual_status: str = "auto"
     residual_mode: str = "auto"
     enforce_boundary_conditions: bool = True
@@ -172,6 +171,10 @@ class AblationConfig:
 
     def validate(self) -> None:
         self.residual_mode = normalize_residual_mode(self.residual_mode)
+        deprecated = DEPRECATED_LOSS_CONFIG_FIELDS.intersection(self.extra)
+        if deprecated:
+            fields = ", ".join(sorted(deprecated))
+            raise ValueError(f"{fields}: {DEPRECATED_LOSS_CONFIG_MESSAGE}")
         checks = [
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),
@@ -185,7 +188,6 @@ class AblationConfig:
             ("sensor_mode", self.sensor_mode, VALID_SENSOR_MODES),
             ("time_grid", self.time_grid, VALID_TIME_GRIDS),
             ("step_method", self.step_method, VALID_STEP_METHODS),
-            ("loss_type", self.loss_type, VALID_LOSS_TYPES),
             ("stochastic_guidance_time", self.stochastic_guidance_time, VALID_STOCHASTIC_GUIDANCE_TIMES),
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
             ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
@@ -193,8 +195,6 @@ class AblationConfig:
             ("boundary_condition_mode", self.boundary_condition_mode, VALID_BOUNDARY_CONDITION_MODES),
             ("initial_condition_mode", self.initial_condition_mode, VALID_INITIAL_CONDITION_MODES),
             ("boundary_residual_normalization", self.boundary_residual_normalization, VALID_BOUNDARY_RESIDUAL_NORMALIZATION),
-            ("obs_loss_type", self.obs_loss_type, VALID_OBS_LOSS_TYPES),
-            ("pde_loss_type", self.pde_loss_type, VALID_PDE_LOSS_TYPES),
         ]
         for name, value, allowed in checks:
             if value not in allowed:

@@ -16,19 +16,26 @@ Sampling guidance now treats observation loss as masked MSE over observed entrie
 L_{obs} = \frac{\sum_i M_i (x_i - y_i)^2}{\sum_i M_i}
 ```
 
-The PDE loss is MSE over the residual field or collocation grid:
+The PDE loss computes MSE separately for each residual component, then applies the configured component weights:
 
 ```math
-L_{PDE} = \operatorname{mean}_j |R_{PDE}(u, a)(x_j)|^2
+L_{PDE} = L_{int} + \lambda_{bc} L_{bc} + \lambda_{ic} L_{ic} + \lambda_{ep} L_{ep}
 ```
 
-Component residuals are still assembled with the same lambda semantics:
-
-```text
-L_pde = L_interior + lambda_bc * L_bc + lambda_ic * L_ic + lambda_endpoint * L_endpoint
+```math
+L_{int} = \operatorname{mean}_{j \in C_{int}} |R_{int,j}|^2
+```
+```math
+L_{bc} = \operatorname{mean}_{j \in C_{bc}} |R_{bc,j}|^2
+```
+```math
+L_{ic} = \operatorname{mean}_{j \in C_{ic}} |R_{ic,j}|^2
+```
+```math
+L_{ep} = \operatorname{mean}_{j \in C_{ep}} |R_{ep,j}|^2
 ```
 
-Boundary, initial, and endpoint components are multiplied by `sqrt(lambda_*)` before channel concatenation, so the final MSE yields weighted squared residuals. The old `l2 = vector_norm(residual) / numel` reducer remains only for explicit compatibility settings and is not the default theoretical loss.
+Interior, boundary, initial, and endpoint components are not concatenated and globally averaged for loss computation. Separate MSE denominators prevent different component point counts or channel counts from changing the intended weights. Concatenated residual fields remain available only for logging and residual norm diagnostics.
 
 Older code often zeroed the outer grid cells of the PDE residual. That was a boundary-excluded interior residual; it did not enforce boundary conditions. The current implementation keeps the interior residual on interior points and appends explicit, differentiable boundary and optional initial-condition residual channels where those residuals are physically meaningful.
 
