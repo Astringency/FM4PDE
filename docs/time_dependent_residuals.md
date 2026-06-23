@@ -10,11 +10,25 @@ Burgers is the only current full time-space tensor residual: the BCHW tensor its
 
 The other time-dependent PDEs use the unified temporal endpoint mode system below. Endpoint-only is the default in the current endpoint-pair FM setup, not the only valid temporal residual form.
 
-Sampling guidance now treats the PDE loss as a component residual:
+Sampling guidance now treats observation loss as masked MSE over observed entries:
+
+```math
+L_{obs} = \frac{\sum_i M_i (x_i - y_i)^2}{\sum_i M_i}
+```
+
+The PDE loss is MSE over the residual field or collocation grid:
+
+```math
+L_{PDE} = \operatorname{mean}_j |R_{PDE}(u, a)(x_j)|^2
+```
+
+Component residuals are still assembled with the same lambda semantics:
 
 ```text
 L_pde = L_interior + lambda_bc * L_bc + lambda_ic * L_ic + lambda_endpoint * L_endpoint
 ```
+
+Boundary, initial, and endpoint components are multiplied by `sqrt(lambda_*)` before channel concatenation, so the final MSE yields weighted squared residuals. The old `l2 = vector_norm(residual) / numel` reducer remains only for explicit compatibility settings and is not the default theoretical loss.
 
 Older code often zeroed the outer grid cells of the PDE residual. That was a boundary-excluded interior residual; it did not enforce boundary conditions. The current implementation keeps the interior residual on interior points and appends explicit, differentiable boundary and optional initial-condition residual channels where those residuals are physically meaningful.
 

@@ -47,16 +47,22 @@ def compute_guidance_losses(
     clean_coef = observations.coef_clean if observations is not None else ground_truth.coef * masks.coef
     clean_sol = observations.sol_clean if observations is not None else ground_truth.sol * masks.sol
 
-    obs_a_residual = (phys_state.coef * masks.coef) - target_coef
-    obs_u_residual = (phys_state.sol * masks.sol) - target_sol
-    clean_obs_a_residual = (phys_state.coef * masks.coef) - clean_coef
-    clean_obs_u_residual = (phys_state.sol * masks.sol) - clean_sol
+    obs_a_residual = (phys_state.coef - target_coef) * masks.coef
+    obs_u_residual = (phys_state.sol - target_sol) * masks.sol
+    clean_obs_a_residual = (phys_state.coef - clean_coef) * masks.coef
+    clean_obs_u_residual = (phys_state.sol - clean_sol) * masks.sol
 
     zero = phys_state.coef.sum() * 0.0
-    L_obs_a = _reduce_loss(obs_a_residual, config.loss_type) if enabled["obs_a"] else zero
-    L_obs_u = _reduce_loss(obs_u_residual, config.loss_type) if enabled["obs_u"] else zero
-    clean_L_obs_a = _reduce_loss(clean_obs_a_residual, config.loss_type)
-    clean_L_obs_u = _reduce_loss(clean_obs_u_residual, config.loss_type)
+    obs_loss_type = _resolve_obs_loss_type(config)
+    pde_loss_type = _resolve_pde_loss_type(config)
+    L_obs_a = _observation_loss(phys_state.coef, target_coef, masks.coef, obs_loss_type) if enabled["obs_a"] else zero
+    L_obs_u = _observation_loss(phys_state.sol, target_sol, masks.sol, obs_loss_type) if enabled["obs_u"] else zero
+    clean_L_obs_a = _observation_loss(phys_state.coef, clean_coef, masks.coef, obs_loss_type)
+    clean_L_obs_u = _observation_loss(phys_state.sol, clean_sol, masks.sol, obs_loss_type)
+    obs_counts = {
+        "coef": _masked_count(phys_state.coef, masks.coef),
+        "sol": _masked_count(phys_state.sol, masks.sol),
+    }
 
     pde_field = None
     status = "disabled"
@@ -85,7 +91,7 @@ def compute_guidance_losses(
         pde_meta = residual.metadata
         pde_field, compose_meta = _compose_region_aware_pde_field(residual, config, masks)
         pde_meta.update(compose_meta)
-        L_pde = _reduce_loss(pde_field, config.loss_type)
+        L_pde = _pde_loss(pde_field, pde_loss_type)
     else:
         L_pde = zero
 
@@ -94,6 +100,13 @@ def compute_guidance_losses(
         "pde": pde_meta,
         "pde_params_used": sorted(getattr(ground_truth, "pde_params", {}) or {}),
         "residual_status": status,
+        "loss_reduction": {
+            "obs_a": _loss_reduction_metadata("obs_a", obs_loss_type),
+            "obs_u": _loss_reduction_metadata("obs_u", obs_loss_type),
+            "pde": _loss_reduction_metadata("pde", pde_loss_type),
+            "legacy_loss_type": getattr(config, "loss_type", None),
+        },
+        "obs_counts": obs_counts,
     }
     return GuidanceLossOutput(
         L_obs_a=L_obs_a,
@@ -155,6 +168,59 @@ def _reduce_loss(residual: Any, loss_type: str) -> Any:
     if loss_type == "mse":
         return (residual**2).mean()
     raise ValueError(f"Unknown loss_type={loss_type!r}")
+
+
+def _mse(residual: Any) -> Any:
+    return (residual**2).mean()
+
+
+def _masked_mse(pred: Any, target: Any, mask: Any, *, eps: float = 1e-12) -> Any:
+    residual2, expanded_mask = _masked_squared_residual(pred, target, mask)
+    denom = expanded_mask.sum().clamp_min(eps)
+    return residual2.sum() / denom
+
+
+def _masked_count(pred: Any, mask: Any) -> float:
+    _, expanded_mask = _masked_squared_residual(pred, pred, mask)
+    return float(expanded_mask.sum().detach().cpu())
+
+
+def _masked_squared_residual(pred: Any, target: Any, mask: Any) -> tuple[Any, Any]:
+    import torch
+
+    mask = torch.as_tensor(mask, dtype=pred.dtype, device=pred.device)
+    target = torch.as_tensor(target, dtype=pred.dtype, device=pred.device)
+    expanded_mask = mask.expand_as(pred)
+    return ((pred - target) ** 2) * expanded_mask, expanded_mask
+
+
+def _observation_loss(pred: Any, target: Any, mask: Any, loss_type: str) -> Any:
+    if loss_type == "masked_mse":
+        return _masked_mse(pred, target, mask)
+    residual = (pred - target) * mask
+    return _reduce_loss(residual, loss_type)
+
+
+def _pde_loss(residual: Any, loss_type: str) -> Any:
+    if loss_type == "mse":
+        return _mse(residual)
+    return _reduce_loss(residual, loss_type)
+
+
+def _resolve_obs_loss_type(config: Any) -> str:
+    return str(getattr(config, "obs_loss_type", getattr(config, "loss_type", "masked_mse")))
+
+
+def _resolve_pde_loss_type(config: Any) -> str:
+    return str(getattr(config, "pde_loss_type", getattr(config, "loss_type", "mse")))
+
+
+def _loss_reduction_metadata(component: str, loss_type: str) -> str:
+    if component.startswith("obs") and loss_type == "masked_mse":
+        return "masked_mse_over_observed_entries"
+    if component == "pde" and loss_type == "mse":
+        return "mse_over_residual_field"
+    return f"legacy_{loss_type}"
 
 
 def _pde_params_with_residual_options(pde_params: dict[str, Any] | None, config: Any) -> dict[str, Any]:

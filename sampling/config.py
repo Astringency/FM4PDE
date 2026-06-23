@@ -65,6 +65,8 @@ VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy", "legacy_base"}
 VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "legacy_ignore", "wall", "open"}
 VALID_INITIAL_CONDITION_MODES = {"auto", "endpoint_initial", "observed_initial", "trajectory_initial", "none", "legacy_ignore"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
+VALID_OBS_LOSS_TYPES = {"masked_mse", "l1", "l2", "mse"}
+VALID_PDE_LOSS_TYPES = {"mse", "l1", "l2"}
 
 
 _LOCAL_CHECKPOINTS = {
@@ -133,6 +135,8 @@ class AblationConfig:
     cosine_mode: str = "decay"
     time_grid_eta: float = 0.4
     loss_type: str = "l2"
+    obs_loss_type: str = "masked_mse"
+    pde_loss_type: str = "mse"
     pde_residual_status: str = "auto"
     residual_mode: str = "auto"
     enforce_boundary_conditions: bool = True
@@ -189,6 +193,8 @@ class AblationConfig:
             ("boundary_condition_mode", self.boundary_condition_mode, VALID_BOUNDARY_CONDITION_MODES),
             ("initial_condition_mode", self.initial_condition_mode, VALID_INITIAL_CONDITION_MODES),
             ("boundary_residual_normalization", self.boundary_residual_normalization, VALID_BOUNDARY_RESIDUAL_NORMALIZATION),
+            ("obs_loss_type", self.obs_loss_type, VALID_OBS_LOSS_TYPES),
+            ("pde_loss_type", self.pde_loss_type, VALID_PDE_LOSS_TYPES),
         ]
         for name, value, allowed in checks:
             if value not in allowed:

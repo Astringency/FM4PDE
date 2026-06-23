@@ -68,7 +68,21 @@ Every PDE residual writes:
 
 Status is not the same as family. Static PDEs and Burgers are `reliable`; endpoint temporal residuals are `approximate` because the default endpoint/sparse temporal guidance approximates time dynamics.
 
-The sampling PDE loss is assembled from differentiable residual components:
+The sampling observation loss is now a masked MSE over actual observation entries:
+
+```math
+L_{obs} = \frac{\sum_i M_i (x_i - y_i)^2}{\sum_i M_i}
+```
+
+When a single-channel mask is broadcast over multiple state channels, the denominator counts the expanded observed entries. Empty masks are clamped to avoid NaNs.
+
+The sampling PDE loss is assembled from differentiable residual components and reduced as MSE over the residual field/collocation grid:
+
+```math
+L_{PDE} = \operatorname{mean}_j |R_{PDE}(u, a)(x_j)|^2
+```
+
+Boundary, initial-condition, and endpoint residuals are appended as residual channels after multiplication by `sqrt(lambda_*)`, so their contribution keeps the existing lambda-weighted squared-residual semantics. The old `l2 = vector_norm(residual) / numel` reducer is retained only as a compatibility option through explicit legacy loss settings; it is not the default theoretical guidance loss.
 
 ```text
 L_pde = L_interior + lambda_bc * L_bc + lambda_ic * L_ic + lambda_endpoint * L_endpoint
