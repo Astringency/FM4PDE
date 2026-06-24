@@ -29,16 +29,22 @@ def test_obs_only_is_task_gated_and_both_obs_is_explicit_both_task():
         guidance_component_flags("both_obs", "forward")
 
 
-def test_ns_pde_guidance_is_mapped_to_non_pde_guidance():
+def test_ns_pde_guidance_is_not_mapped_to_non_pde_guidance():
     cfg = AblationConfig(pde="nsnonbounded", task="both", guidance_components="pde_only")
-    with pytest.warns(RuntimeWarning):
-        _disable_unreliable_pde_guidance(cfg)
-    assert cfg.guidance_components == "noguide"
-    assert cfg.zeta_pde == 0.0
-    assert cfg.extra["guidance_components_requested"] == "pde_only"
-    assert cfg.extra["guidance_components_effective"] == "noguide"
+    _disable_unreliable_pde_guidance(cfg)
+    assert cfg.guidance_components == "pde_only"
+    assert cfg.zeta_pde != 0.0
+    assert "guidance_components_requested" not in cfg.extra
 
     cfg = AblationConfig(pde="nsnonbounded", task="both", guidance_components="obs_pde")
+    _disable_unreliable_pde_guidance(cfg)
+    assert cfg.guidance_components == "obs_pde"
+    assert cfg.zeta_pde != 0.0
+    assert "guidance_components_requested" not in cfg.extra
+
+
+def test_disabled_pde_guidance_is_still_mapped_to_non_pde_guidance():
+    cfg = AblationConfig(pde="unsupported_disabled_pde", task="both", guidance_components="obs_pde")
     with pytest.warns(RuntimeWarning):
         _disable_unreliable_pde_guidance(cfg)
     assert cfg.guidance_components == "obs_only"

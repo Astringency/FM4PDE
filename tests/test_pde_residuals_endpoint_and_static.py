@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from sampling.pde_residuals import compute_pde_residual
+from sampling.pde_residuals import compute_pde_residual, residual_status
 
 
 TEMPORAL_ENDPOINT_CASES = [
@@ -29,14 +29,11 @@ def test_temporal_residual_modes_all_endpoint_pdes():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
         out = compute_pde_residual(pde, q0, qT, residual_mode="hermite_bridge")
-        if pde == "nsnonbounded":
-            assert out.status == "disabled"
-            continue
         assert out.residual.shape[0] == 2
         assert out.residual.shape[-2:] == (8, 8)
         assert out.metadata["residual_channels"]["interior_channels"] == 3 * channels
         assert out.metadata["residual_channels"]["endpoint_channels"] == channels
-        if pde in {"heat", "wave", "advection_diffusion"}:
+        if pde in {"heat", "wave", "advection_diffusion", "nsnonbounded"}:
             assert out.metadata["residual_channels"]["bc_channels"] == 0
             assert out.metadata["boundary_enforced"] is True
             assert out.metadata["boundary_enforced_by_operator"] is True
@@ -55,9 +52,6 @@ def test_auto_uses_hermite_for_endpoint_time_dependent():
     for pde, _channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
         out = compute_pde_residual(pde, q0, qT, residual_mode="auto")
-        if pde == "nsnonbounded":
-            assert out.status == "disabled"
-            continue
         assert out.metadata["resolved_residual_mode"] == "hermite_bridge"
         assert out.metadata["mode"] == "hermite_bridge"
 
@@ -66,13 +60,10 @@ def test_temporal_endpoint_secant_all_endpoint_pdes():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
         out = compute_pde_residual(pde, q0, qT, residual_mode="endpoint_secant")
-        if pde == "nsnonbounded":
-            assert out.status == "disabled"
-            continue
         assert out.residual.shape[0] == 2
         assert out.residual.shape[-2:] == (8, 8)
         assert out.metadata["residual_channels"]["interior_channels"] == channels
-        if pde in {"heat", "wave", "advection_diffusion"}:
+        if pde in {"heat", "wave", "advection_diffusion", "nsnonbounded"}:
             assert out.metadata["residual_channels"]["bc_channels"] == 0
             assert out.metadata["boundary_enforced_by_operator"] is True
         else:
@@ -114,15 +105,6 @@ def test_endpoint_secant_uses_time_scale_from_params():
 
 def test_near_endpoint_temporal_all_endpoint_pdes_requires_aux():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
-        if pde == "nsnonbounded":
-            out = compute_pde_residual(
-                pde,
-                torch.zeros(1, channels, 5, 5),
-                torch.zeros(1, channels, 5, 5),
-                residual_mode="near_endpoint_temporal",
-            )
-            assert out.status == "disabled"
-            continue
         with pytest.raises(ValueError, match="near_endpoint_temporal mode requires extra near-endpoint"):
             compute_pde_residual(
                 pde,
@@ -154,9 +136,6 @@ def test_near_endpoint_temporal_all_endpoint_pdes_with_aux():
             },
             residual_mode="near_endpoint_temporal",
         )
-        if pde == "nsnonbounded":
-            assert out.status == "disabled"
-            continue
         assert out.residual.shape[0] == 1
         assert out.residual.shape[-2:] == (5, 5)
         assert out.metadata["temporal_derivative_mode"] == "near_endpoint_sparse_fd"
@@ -168,10 +147,6 @@ def test_near_endpoint_temporal_all_endpoint_pdes_with_aux():
 def test_full_trajectory_fd_requires_trajectory_for_endpoint_pdes():
     for pde, _channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde, batch=1, h=5, w=5)
-        if pde == "nsnonbounded":
-            out = compute_pde_residual(pde, q0, qT, residual_mode="full_trajectory_fd")
-            assert out.status == "disabled"
-            continue
         with pytest.raises(ValueError, match="full_trajectory_fd mode requires explicit full trajectory"):
             compute_pde_residual(pde, q0, qT, residual_mode="full_trajectory_fd")
 
@@ -209,10 +184,36 @@ def test_nsnonbounded_residual_enabled_and_backward():
     q0 = torch.randn(1, 1, 8, 8, requires_grad=True)
     qT = torch.randn(1, 1, 8, 8, requires_grad=True)
     out = compute_pde_residual("nsnonbounded", q0, qT, residual_mode="hermite_bridge")
-    assert out.status == "disabled"
-    assert out.metadata["reason"].startswith("vorticity transport residual is not implemented")
-    assert out.metadata["bc_residual_enabled"] is False
-    assert out.metadata["ic_residual_enabled"] is False
+    assert out.status == "approximate"
+    assert out.metadata["rhs_equation"] == "2D vorticity Navier-Stokes"
+    assert out.metadata["resolved_residual_mode"] == "hermite_bridge"
+    assert out.metadata["forcing_defaulted"] is True
+    out.residual.square().mean().backward()
+    assert q0.grad is not None
+    assert qT.grad is not None
+
+
+def test_nsnonbounded_residual_status_is_approximate():
+    assert residual_status("nsnonbounded") == "approximate"
+
+
+def test_nsnonbounded_endpoint_secant_uses_default_fixed_forcing():
+    q0 = torch.zeros(1, 1, 8, 8)
+    qT = torch.zeros_like(q0)
+    out = compute_pde_residual(
+        "nsnonbounded",
+        q0,
+        qT,
+        pde_params={"T": torch.tensor([1.0]), "nu": torch.tensor([1e-3])},
+        residual_mode="endpoint_secant",
+    )
+    assert out.status == "approximate"
+    assert out.metadata["resolved_residual_mode"] == "endpoint_secant"
+    assert out.metadata["rhs_equation"] == "2D vorticity Navier-Stokes"
+    assert out.metadata["forcing_defaulted"] is True
+    assert out.metadata["forcing_source"] == "default_fixed_ns_forcing"
+    assert out.residual.abs().sum() > 0
+    assert out.residual[0, 0, 0, 0].item() == pytest.approx(-0.1)
 
 
 def test_legacy_ignore_boundary_keeps_hermite_integral_endpoint_residual():

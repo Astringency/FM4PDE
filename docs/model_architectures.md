@@ -74,7 +74,7 @@ architecture_family = full_time_space
 axis_semantics = BCHW_as_time_space_H_time_W_space
 ```
 
-For `nsnonbounded`, coordinate Fourier is disabled by default to avoid
+For `nsnonbounded`, coordinate Fourier is off by default to avoid
 introducing absolute position channels that can break the intended periodic
 translation-equivariance of the vorticity data. Value Fourier remains enabled as
 a vorticity value lift. Coordinate Fourier can be tested later as an ablation

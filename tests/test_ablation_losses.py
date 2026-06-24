@@ -81,3 +81,26 @@ def test_pde_componentwise_mse_sums_components_with_separate_denominators():
     assert parts["interior"] == pytest.approx(14.0 / 3.0)
     assert parts["boundary"] == pytest.approx(16.0)
     assert parts["endpoint"] == pytest.approx(4.0)
+
+
+def test_nsnonbounded_pde_only_guidance_loss_is_nonzero_from_default_forcing():
+    cfg = AblationConfig(
+        pde="nsnonbounded",
+        task="both",
+        guidance_components="pde_only",
+        residual_mode="endpoint_secant",
+        boundary_condition_mode="periodic",
+        initial_condition_mode="none",
+    )
+    w0 = torch.zeros(1, 1, 8, 8)
+    wT = torch.zeros_like(w0)
+    gt = GT(w0, wT)
+    gt.pde_params = {"T": torch.tensor([1.0]), "nu": torch.tensor([1e-3])}
+    masks = PairMasks(torch.zeros_like(w0), torch.zeros_like(wT), {})
+
+    out = compute_guidance_losses(SplitState(w0, wT), gt, masks, cfg)
+
+    assert out.pde_residual_status == "approximate"
+    assert out.L_pde.item() > 0.0
+    assert out.metadata["pde"]["loss_reduction"] == "componentwise_mse_sum"
+    assert out.metadata["pde"]["rhs_equation"] == "2D vorticity Navier-Stokes"

@@ -62,19 +62,6 @@ def compute_pde_residual(
     pde_params = pde_params or {}
     constraint_spec = _constraint_spec_from_params(pde, pde_params)
     normalized_mode = _normalize_residual_mode(residual_mode)
-    if pde == "nsnonbounded":
-        out = _disabled_residual(coef, sol, pde, residual_mode)
-        out.metadata.update(
-            {
-                "reason": "vorticity transport residual is not implemented for strict sampling guidance",
-                "bc_residual_enabled": False,
-                "ic_residual_enabled": False,
-                "boundary_condition_type": "none",
-                "initial_condition_type": "none",
-                "legacy_ignore_boundary": False,
-            }
-        )
-        return out
     if pde in TEMPORAL_ENDPOINT_PDES:
         return _endpoint_time_dependent_residual(
             pde,
@@ -114,8 +101,6 @@ def residual_status(pde: str) -> str:
     if pde in STATIC_PDES or pde in FULL_TIME_SPACE_PDES:
         return "reliable"
     if pde in TEMPORAL_ENDPOINT_PDES:
-        if pde == "nsnonbounded":
-            return "disabled"
         return "approximate"
     return "disabled"
 
@@ -257,7 +242,7 @@ def _endpoint_secant_residual(
     if pde == "shallow_water":
         return _shallow_water_endpoint_secant(a, u, pde_params, spec)
     if pde == "nsnonbounded":
-        return _generic_endpoint_secant(pde, a, u, pde_params)
+        return _generic_endpoint_secant(pde, a, u, pde_params, spec)
     raise ValueError(f"endpoint_secant residual is not implemented for {pde!r}")
 
 
@@ -466,16 +451,24 @@ def _shallow_water_endpoint_secant(
     )
 
 
-def _generic_endpoint_secant(pde: str, a: Any, u: Any, pde_params: dict[str, Any]) -> ResidualOutput:
+def _generic_endpoint_secant(
+    pde: str,
+    a: Any,
+    u: Any,
+    pde_params: dict[str, Any],
+    spec: PDEConstraintSpec,
+) -> ResidualOutput:
     _validate_time_dependent_state(pde, a, u)
     time_scale, time_meta = _time_scale_field(pde_params, u, default=_default_total_time(pde))
     q_mid = 0.5 * (a + u)
     residual = (u - a) / time_scale - _rhs_time_dependent(pde, q_mid, pde_params)
     residual = _apply_endpoint_residual_boundary(pde, residual)
-    return _out(
-        residual,
-        "approximate",
-        {
+    return _with_constraints(
+        pde=pde,
+        state=q_mid,
+        interior=residual,
+        status="approximate",
+        metadata={
             "equation": f"{pde} endpoint secant residual",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
@@ -484,6 +477,10 @@ def _generic_endpoint_secant(pde: str, a: Any, u: Any, pde_params: dict[str, Any
             "pde_params_used": _rhs_param_usage(pde, pde_params),
             **_rhs_metadata(pde, pde_params, q_mid),
         },
+        spec=spec,
+        endpoint_states=[a, u, q_mid],
+        initial_state=a,
+        pde_params=pde_params,
     )
 
 
@@ -630,7 +627,7 @@ def _resolve_boundary_spec(
         "shallow_water": ("open", 0.0, "clawpack_extrap_boundary"),
         "burger": ("periodic_x", None, "burgers_dataset_convention"),
         "steady_heat_conduction": ("mixed", None, "steady_heat_conduction_generator"),
-        "nsnonbounded": ("none", None, "residual_disabled"),
+        "nsnonbounded": ("periodic", None, "default_periodic_torus"),
     }
     if pde in defaults:
         kind, value, source = defaults[pde]
@@ -1143,7 +1140,7 @@ def _rhs_nsnonbounded(q: Any, pde_params: dict[str, Any]) -> Any:
     w_y = torch.fft.ifft2(1j * ky * w_hat, dim=(-2, -1)).real
     lap_w = torch.fft.ifft2(-k2 * w_hat, dim=(-2, -1)).real
     nu = _param_field_any(pde_params, ("nu", "viscosity"), w, default=1e-3)
-    forcing = _forcing_field(pde_params, w)
+    forcing = _forcing_field(pde_params, w) if "forcing" in pde_params else _ns_default_forcing(w)
     return -u_vel * w_x - v_vel * w_y + nu * lap_w + forcing
 
 
@@ -1182,6 +1179,16 @@ def _forcing_field(params: dict[str, Any], reference: Any) -> Any:
     if forcing.shape[1] != 1 or forcing.shape[0] != reference.shape[0] or forcing.shape[-2:] != reference.shape[-2:]:
         raise ValueError(f"forcing must match vorticity batch/spatial shape, got {tuple(forcing.shape)} vs {tuple(reference.shape)}")
     return forcing
+
+
+def _ns_default_forcing(reference: Any) -> Any:
+    import torch
+
+    h, width = int(reference.shape[-2]), int(reference.shape[-1])
+    y = torch.arange(h, dtype=reference.dtype, device=reference.device).view(1, 1, h, 1) / max(h, 1)
+    x = torch.arange(width, dtype=reference.dtype, device=reference.device).view(1, 1, 1, width) / max(width, 1)
+    forcing = 0.1 * (torch.sin(2.0 * torch.pi * (x + y)) + torch.cos(2.0 * torch.pi * (x + y)))
+    return forcing.expand(reference.shape[0], 1, h, width)
 
 
 def _validate_time_dependent_state(pde: str, q0: Any, qT: Any) -> None:
@@ -1674,13 +1681,17 @@ def _rhs_metadata(pde: str, pde_params: dict[str, Any], reference: Any) -> dict[
             "rhs_equation": "2D vorticity Navier-Stokes",
             "velocity_reconstruction": "periodic_fft_streamfunction",
             "boundary_assumption": "periodic",
+            "domain": "periodic_torus_[0,1)^2",
+            "grid_convention": "endpoint_false_periodic",
             "mean_vorticity_handling": "zero_mean_projection",
             "assumptions": ["periodic_boundary", "zero_mean_vorticity_for_poisson_solve"],
             "nu_source": nu_source,
             "nu_defaulted": nu_source == "default",
-            "forcing": "provided" if forcing_present else "zero",
-            "forcing_source": "forcing" if forcing_present else None,
+            "forcing": "provided" if forcing_present else "fixed_ns_forcing",
+            "forcing_source": "provided" if forcing_present else "default_fixed_ns_forcing",
             "forcing_defaulted": not forcing_present,
+            "forcing_grid": "endpoint_false",
+            "forcing_formula": "0.1 * (sin(2*pi*(x+y)) + cos(2*pi*(x+y)))",
         }
     return {}
 

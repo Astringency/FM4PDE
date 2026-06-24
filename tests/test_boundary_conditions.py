@@ -225,7 +225,10 @@ def test_steady_heat_conduction_mixed_bc_unchanged():
     assert out.metadata["boundary_residual_dy"] == pytest.approx(1.0 / (n - 1))
 
 
-def test_ns_still_disabled():
+def test_ns_uses_periodic_endpoint_false_boundary_metadata():
     out = compute_pde_residual("nsnonbounded", torch.zeros(1, 1, 4, 4), torch.zeros(1, 1, 4, 4), residual_mode="hermite_bridge")
-    assert out.status == "disabled"
+    assert out.status == "approximate"
     assert out.metadata["bc_residual_enabled"] is False
+    assert out.metadata["boundary_condition_type"] == "periodic"
+    assert out.metadata["boundary_enforced_by_operator"] is True
+    assert out.metadata["grid_convention"] == "endpoint_false_periodic"

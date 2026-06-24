@@ -124,7 +124,15 @@ Current formal config BC/IC sources:
 - Shallow Water: `open` from Clawpack extrapolation boundary/config.
 - Burgers: spatial periodic boundary on the BCHW time-space field; IC residual requires a known initial slice.
 - Steady Heat Conduction: `mixed` from generator metadata/config; bottom Dirichlet `u_D`, other sides zero Neumann.
-- Non-bounded Navier-Stokes: PDE/BC/IC residual disabled because strict vorticity transport guidance is not implemented.
+- Non-bounded Navier-Stokes: scalar-vorticity PDE residual is enabled for sampling guidance on the periodic torus `Omega=[0,1)^2`. Velocity is reconstructed from vorticity with the periodic FFT stream-function solve `-Delta psi=omega`, `v=(partial_y psi, -partial_x psi)`. The default fixed forcing is `f_NS(x,y)=0.1(sin(2*pi*(x+y))+cos(2*pi*(x+y)))` on endpoint-false grid points `x_i=i/W`, `y_j=j/H`; explicit `forcing` overrides it.
+
+For Non-bounded Navier-Stokes, guidance uses:
+
+```math
+r = \partial_\tau \omega + v \cdot \nabla \omega - \nu \Delta \omega - f_{NS}.
+```
+
+Endpoint-only modes such as `hermite_bridge` and `endpoint_secant` are approximate. `full_trajectory_fd` uses finite differences when an explicit full trajectory is available.
 
 Endpoint-only temporal PDEs do not fabricate an IC residual from `q0-q0`. IC residuals are added from masked `observed_initial` only when coefficient/initial observations are active, or from explicitly supplied `true_initial` extra conditions. Inverse, `pde_only`, and unconditional runs do not inject initial observations through the PDE residual.
 
