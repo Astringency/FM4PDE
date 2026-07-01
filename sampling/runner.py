@@ -92,12 +92,19 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             model_profile=config.model_profile,
         )
     checkpoint_metadata = _checkpoint_metadata(checkpoint_payload)
+    model_extra, scalar_conditioning_metadata = _scalar_conditioning_for_sampling(
+        checkpoint_payload=checkpoint_payload,
+        gt=gt,
+        config=config,
+        device=device,
+    )
     write_run_metadata(
         config,
         run_dir,
         ground_truth_metadata=gt.metadata,
         residual_metadata=_residual_metadata_for_config(config),
         checkpoint_metadata=checkpoint_metadata,
+        scalar_conditioning_metadata=scalar_conditioning_metadata,
     )
     _check_sampling_channels(gt, normalizer, checkpoint_payload)
 
@@ -131,6 +138,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             step_method=config.step_method,
             loss_state=config.loss_state,
             device=device,
+            model_extra=model_extra,
         )
         phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
         losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
@@ -209,6 +217,16 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "ground_truth_metadata": gt.metadata,
             "normalizer": normalizer.state_dict() if normalizer is not None else None,
             "checkpoint_metadata": _to_cpu_recursive(checkpoint_metadata),
+            "scalar_conditioning": _to_cpu_recursive(
+                {
+                    "metadata": scalar_conditioning_metadata,
+                    "standardized": (
+                        model_extra["scalar_conditioning"].detach().cpu()
+                        if model_extra and "scalar_conditioning" in model_extra
+                        else None
+                    ),
+                }
+            ),
             "config": config.asdict(),
         },
     )
@@ -287,6 +305,44 @@ def _checkpoint_metadata(payload: dict[str, Any]) -> dict[str, Any]:
         "selected_model_config_metadata": payload.get("selected_model_config_metadata"),
         "selected_architecture_family": payload.get("selected_architecture_family"),
         "data_metadata": payload.get("data_metadata"),
+    }
+
+
+def _scalar_conditioning_for_sampling(
+    *,
+    checkpoint_payload: dict[str, Any],
+    gt: Any,
+    config: AblationConfig,
+    device: Any,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    from data.scalar_conditioning import (
+        scalar_conditioning_metadata_from_checkpoint_payload,
+        standardize_scalar_conditioning,
+    )
+
+    metadata = scalar_conditioning_metadata_from_checkpoint_payload(checkpoint_payload)
+    if not bool(metadata.get("enabled", False)):
+        return None, {
+            **metadata,
+            "source": None,
+            "standardization": metadata.get("normalization"),
+        }
+
+    scalar = standardize_scalar_conditioning(
+        pde_params=gt.pde_params,
+        metadata=metadata,
+        expected_sample_count=int(config.batch_size),
+        source_name="data_aligned_ground_truth pde_params",
+        device=device,
+        dtype=gt.pair.dtype,
+    )
+    return {"scalar_conditioning": scalar}, {
+        **metadata,
+        "source": "data_aligned_ground_truth",
+        "standardization": metadata.get("normalization"),
+        "batch_size": int(config.batch_size),
+        "offset": int(config.offset),
+        "standardized_shape": [int(dim) for dim in scalar.shape],
     }
 
 

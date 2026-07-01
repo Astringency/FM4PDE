@@ -10,6 +10,15 @@ class AffineVelocity:
         return x + t
 
 
+class ExtraCapturingVelocity:
+    def __init__(self):
+        self.extras = []
+
+    def __call__(self, x, t, extra=None):
+        self.extras.append(extra)
+        return torch.ones_like(x)
+
+
 def test_choose_loss_state_selects_expected_tensor():
     x_cur = torch.ones(1, 1, 2, 2)
     x_next = x_cur + 1
@@ -40,3 +49,25 @@ def test_midpoint_endpoint_uses_midpoint_state_and_time():
     assert torch.allclose(out.x_loss_state, expected_endpoint)
     assert out.loss_state == "endpoint"
     assert out.wall_time >= 0.0
+
+
+@pytest.mark.parametrize("phase", ["deterministic", "stochastic"])
+@pytest.mark.parametrize("step_method, expected_calls", [("euler", 1), ("midpoint", 2)])
+def test_sampler_step_passes_model_extra_to_velocity_calls(phase, step_method, expected_calls):
+    net = ExtraCapturingVelocity()
+    x_cur = torch.zeros(1, 1, 2, 2)
+    model_extra = {"scalar_conditioning": torch.tensor([[1.5]])}
+
+    sampler_step(
+        net=net,
+        x_cur=x_cur,
+        t=torch.tensor(0.2),
+        t_next=torch.tensor(0.4),
+        phase=phase,
+        step_method=step_method,
+        loss_state="endpoint",
+        model_extra=model_extra,
+    )
+
+    assert len(net.extras) == expected_calls
+    assert all(extra is model_extra for extra in net.extras)

@@ -41,15 +41,16 @@ def sampler_step(
     step_method: str,
     loss_state: str,
     device: str | Any = "cpu",
+    model_extra: dict[str, Any] | None = None,
 ) -> SamplerStepOutput:
     import torch
 
     start = time.time()
     step_size = t_next - t
     if phase == "deterministic":
-        x_endpoint, x_next = _deterministic_step(net, x_cur, t, step_size, step_method)
+        x_endpoint, x_next = _deterministic_step(net, x_cur, t, step_size, step_method, model_extra)
     elif phase == "stochastic":
-        x_endpoint, x_next = _stochastic_step(net, x_cur, t, t_next, step_size, step_method, device)
+        x_endpoint, x_next = _stochastic_step(net, x_cur, t, t_next, step_size, step_method, device, model_extra)
     else:
         raise ValueError(f"Unknown phase={phase!r}")
 
@@ -83,16 +84,23 @@ def _normalize_loss_state(loss_state: str) -> str:
     return loss_state
 
 
-def _deterministic_step(net: Any, x_cur: Any, t: Any, step_size: Any, method: str) -> tuple[Any, Any]:
+def _deterministic_step(
+    net: Any,
+    x_cur: Any,
+    t: Any,
+    step_size: Any,
+    method: str,
+    model_extra: dict[str, Any] | None,
+) -> tuple[Any, Any]:
     if method == "euler":
-        v = net(x_cur, t)
+        v = _call_velocity_model(net, x_cur, t, model_extra)
         x_endpoint = endpoint_from_velocity(x_cur, v, t)
         return x_endpoint, x_cur + v * step_size
     if method == "midpoint":
-        v = net(x_cur, t)
+        v = _call_velocity_model(net, x_cur, t, model_extra)
         t_mid = t + 0.5 * step_size
         x_mid = x_cur + 0.5 * step_size * v
-        v_mid = net(x_mid, t_mid)
+        v_mid = _call_velocity_model(net, x_mid, t_mid, model_extra)
         x_endpoint = endpoint_from_velocity(x_mid, v_mid, t_mid)
         return x_endpoint, x_cur + step_size * v_mid
     raise ValueError(f"Unsupported step_method={method!r}")
@@ -106,17 +114,22 @@ def _stochastic_step(
     step_size: Any,
     method: str,
     device: str | Any,
+    model_extra: dict[str, Any] | None,
 ) -> tuple[Any, Any]:
     import torch
 
     if method == "euler":
-        v = net(x_cur, t)
+        v = _call_velocity_model(net, x_cur, t, model_extra)
         x_endpoint = endpoint_from_velocity(x_cur, v, t)
     elif method == "midpoint":
-        v = net(x_cur, t)
+        v = _call_velocity_model(net, x_cur, t, model_extra)
         t_mid = t + 0.5 * (1.0 - t)
         x_mid = x_cur + 0.5 * (1.0 - t) * v
-        x_endpoint = endpoint_from_velocity(x_mid, net(x_mid, t_mid), t_mid)
+        x_endpoint = endpoint_from_velocity(
+            x_mid,
+            _call_velocity_model(net, x_mid, t_mid, model_extra),
+            t_mid,
+        )
     else:
         raise ValueError(f"Unsupported step_method={method!r}")
     target = torch.device(device if isinstance(device, str) else device)
@@ -125,3 +138,9 @@ def _stochastic_step(
     x0 = torch.randn_like(x_cur, device=target)
     x_next = (1.0 - t_next) * x0 + t_next * x_endpoint
     return x_endpoint, x_next
+
+
+def _call_velocity_model(net: Any, x: Any, t: Any, model_extra: dict[str, Any] | None) -> Any:
+    if model_extra is None:
+        return net(x, t)
+    return net(x, t, extra=model_extra)

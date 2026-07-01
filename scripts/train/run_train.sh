@@ -14,6 +14,7 @@ set -euo pipefail
 # Examples:
 #   bash scripts/train/run_train.sh
 #   PDE=heat bash scripts/train/run_train.sh
+#   PDE=heat SCALAR_CONDITIONING_PARAMS="alpha T" bash scripts/train/run_train.sh
 #   PDE_LIST="heat wave nsnonbounded" NPROC_PER_NODE=2 bash scripts/train/run_train.sh
 #   EPOCHS=300 TARGET_EFFECTIVE_BATCH=64 OUTPUT_DIR=outputs/pretrained/formal bash scripts/train/run_train.sh
 #   MAX_TRAIN_SAMPLES=1024 DATA_SIZE=1 bash scripts/train/run_train.sh
@@ -39,6 +40,7 @@ LR_SCHEDULER="${LR_SCHEDULER:-warmup_cosine}"
 MIN_LR="${MIN_LR:-0.000001}"
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-5}"
 EVAL_FREQUENCY="${EVAL_FREQUENCY:-50}"
+SCALAR_CONDITIONING_PARAMS="${SCALAR_CONDITIONING_PARAMS:-}"
 RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
 USE_EMA="${USE_EMA:-0}"
@@ -172,6 +174,7 @@ echo "lr_scheduler: ${LR_SCHEDULER}"
 echo "min_lr: ${MIN_LR}"
 echo "warmup_epochs: ${WARMUP_EPOCHS}"
 echo "eval_frequency: ${EVAL_FREQUENCY}"
+echo "scalar_conditioning_params: ${SCALAR_CONDITIONING_PARAMS:-<disabled>}"
 echo "default_nproc_per_node: ${NPROC_DEFAULT}"
 echo "target_effective_batch: ${TARGET_EFFECTIVE_BATCH}"
 
@@ -187,6 +190,9 @@ run_train() {
   local pde_output_dir
   local device
   local log_path
+  local eval_frequency
+  local scalar_params
+  local scalar_param_array
   local extra_args=()
 
   nproc="$(value_for_pde NPROC "${pde}" "${NPROC_DEFAULT}")"
@@ -204,9 +210,15 @@ run_train() {
   pde_output_dir="${OUTPUT_DIR}/${pde}/"
   device="$(device_for_nproc "${nproc}")"
   log_path="${LOG_DIR}/train_${pde}.log"
+  eval_frequency="${EVAL_FREQUENCY}"
+  scalar_params="$(value_for_pde SCALAR_CONDITIONING_PARAMS "${pde}" "${SCALAR_CONDITIONING_PARAMS}")"
 
   if [[ "${pde}" == "reaction_diffusion" ]]; then
     extra_args+=(--rd_init_mode_filter "${RD_INIT_MODE_FILTER}")
+  fi
+  if [[ -n "${scalar_params}" ]]; then
+    read -r -a scalar_param_array <<< "${scalar_params}"
+    extra_args+=(--scalar_conditioning_params "${scalar_param_array[@]}")
   fi
   if [[ -n "${MAX_TRAIN_SAMPLES}" ]]; then
     extra_args+=(--max_train_samples "${MAX_TRAIN_SAMPLES}")
@@ -231,6 +243,7 @@ run_train() {
   echo "batch_size_per_gpu: ${batch_size}"
   echo "accum_iter: ${accum_iter}"
   echo "effective_batch: ${effective_batch}"
+  echo "scalar_conditioning_params: ${scalar_params:-<disabled>}"
   echo "output_dir: ${pde_output_dir}<timestamp>/"
   echo "log: ${log_path}"
   echo "============================================================"
@@ -257,7 +270,7 @@ run_train() {
       --model_profile="${MODEL_PROFILE}" \
       --lr_scheduler="${LR_SCHEDULER}" \
       --warmup_epochs="${WARMUP_EPOCHS}" \
-      --eval_frequency="${EVAL_FREQUENCY}" \
+      --eval_frequency="${eval_frequency}" \
       "${extra_args[@]}" 2>&1 | tee "${log_path}"
   else
     python -u train.py \
@@ -277,7 +290,7 @@ run_train() {
       --model_profile="${MODEL_PROFILE}" \
       --lr_scheduler="${LR_SCHEDULER}" \
       --warmup_epochs="${WARMUP_EPOCHS}" \
-      --eval_frequency="${EVAL_FREQUENCY}" \
+      --eval_frequency="${eval_frequency}" \
       "${extra_args[@]}" 2>&1 | tee "${log_path}"
   fi
 }

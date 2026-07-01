@@ -29,6 +29,7 @@ def write_run_metadata(
     ground_truth_metadata: dict[str, Any] | None = None,
     residual_metadata: dict[str, Any] | None = None,
     checkpoint_metadata: dict[str, Any] | None = None,
+    scalar_conditioning_metadata: dict[str, Any] | None = None,
 ) -> None:
     run_dir = Path(run_dir)
     save_resolved_config(config, run_dir)
@@ -91,6 +92,13 @@ def write_run_metadata(
             "noise_level_sol": config.noise_level_sol,
         },
         "residual": residual_metadata or {},
+        "scalar_conditioning": scalar_conditioning_metadata or {
+            "enabled": False,
+            "params": [],
+            "dim": 0,
+            "source": None,
+            "standardization": None,
+        },
         "checkpoint": checkpoint_metadata or {},
         "legacy_checkpoint_boundary_metadata_missing": not bool((checkpoint_metadata or {}).get("boundary_condition") or (checkpoint_metadata or {}).get("boundary_condition_mode")),
         "model": {

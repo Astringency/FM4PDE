@@ -24,6 +24,14 @@ import torch.backends.cudnn as cudnn
 
 from data.load import PDEloader, TensorDataset
 from data.metadata import detach_pde_params, summarize_pde_params
+from data.scalar_conditioning import (
+    fit_scalar_conditioning,
+    normalize_scalar_conditioning_params,
+    scalar_conditioning_metadata_disabled,
+    scalar_conditioning_params_from_config,
+    scalar_conditioning_tensor_from_metadata,
+    standardize_scalar_conditioning,
+)
 from data.specs import get_pde_spec
 from data.transform import PDEStandardizer
 from models.model_configs import (
@@ -222,12 +230,6 @@ def main(args):
         val_sample_count=int(data_val.shape[0]),
         eps=args.normalization_eps,
     )
-    if scalar_conditioning_metadata.get("enabled") and int(getattr(args, "eval_frequency", -1)) > 0:
-        raise ValueError(
-            "Periodic generated-sample eval does not yet support scalar conditioning. "
-            "Pass --eval_frequency -1 for scalar-conditioned training, or add a scalar "
-            "conditioning source to the sampling/eval path."
-        )
     data_metadata = _build_data_metadata(
         args=args,
         pde_names=pde_names,
@@ -387,6 +389,7 @@ def main(args):
                 resolution=int(data_val.shape[-1]),
                 device=device,
                 val_loader_metadata=val_loader_metadata,
+                scalar_conditioning_metadata=scalar_conditioning_metadata,
             )
             log_stats.update(eval_stats)
 
@@ -576,22 +579,7 @@ def _validate_checkpoint_model_config_channels(
 
 
 def _normalize_scalar_conditioning_params(params: Any) -> tuple[str, ...]:
-    if params is None:
-        return ()
-    if isinstance(params, str):
-        values = (params,)
-    else:
-        values = tuple(params)
-    normalized = tuple(str(value) for value in values)
-    if any(not value for value in normalized):
-        raise ValueError("--scalar_conditioning_params cannot contain empty parameter names")
-    duplicates = sorted({value for value in normalized if normalized.count(value) > 1})
-    if duplicates:
-        raise ValueError(
-            "--scalar_conditioning_params contains duplicate parameter names: "
-            f"{duplicates}"
-        )
-    return normalized
+    return normalize_scalar_conditioning_params(params)
 
 
 def _apply_scalar_conditioning_to_model_config(
@@ -668,11 +656,7 @@ def _scalar_conditioning_params_from_config(
     model_config: dict[str, Any],
     model_config_metadata: dict[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    metadata = model_config_metadata or {}
-    params = model_config.get("scalar_conditioning_params")
-    if params is None or params == ():
-        params = metadata.get("scalar_conditioning_params", ())
-    return _normalize_scalar_conditioning_params(params)
+    return scalar_conditioning_params_from_config(model_config, model_config_metadata)
 
 
 def _prepare_scalar_conditioning(
@@ -685,62 +669,19 @@ def _prepare_scalar_conditioning(
     val_sample_count: int,
     eps: float,
 ) -> tuple[torch.Tensor | None, torch.Tensor | None, dict[str, Any]]:
-    enabled = bool(model_config.get("scalar_conditioning", False))
-    params = _scalar_conditioning_params_from_config(model_config)
-    if not enabled:
-        return None, None, _scalar_conditioning_metadata_disabled()
-    if not params:
-        raise ValueError("scalar_conditioning=True requires scalar_conditioning_params")
-    expected_dim = int(model_config.get("scalar_conditioning_dim") or len(params))
-    if expected_dim != len(params):
-        raise ValueError(
-            "scalar_conditioning_dim must match scalar_conditioning_params; "
-            f"got dim={expected_dim}, params={list(params)}"
-        )
-
-    train_raw = _scalar_conditioning_tensor_from_metadata(
+    return fit_scalar_conditioning(
+        model_config=model_config,
         pde_names=pde_names,
-        loader_metadata=train_loader_metadata,
-        params=params,
-        expected_sample_count=train_sample_count,
-        split_name="training",
+        train_loader_metadata=train_loader_metadata,
+        val_loader_metadata=val_loader_metadata,
+        train_sample_count=train_sample_count,
+        val_sample_count=val_sample_count,
+        eps=eps,
     )
-    val_raw = _scalar_conditioning_tensor_from_metadata(
-        pde_names=pde_names,
-        loader_metadata=val_loader_metadata,
-        params=params,
-        expected_sample_count=val_sample_count,
-        split_name="validation",
-    )
-    mean = train_raw.mean(dim=0, keepdim=True)
-    raw_std = train_raw.std(dim=0, keepdim=True, unbiased=False)
-    std = torch.where(raw_std < float(eps), torch.ones_like(raw_std), raw_std)
-    train_standardized = (train_raw - mean) / std
-    val_standardized = (val_raw - mean) / std
-    metadata = {
-        "enabled": True,
-        "params": list(params),
-        "dim": len(params),
-        "mean": [float(value) for value in mean.view(-1).tolist()],
-        "std": [float(value) for value in std.view(-1).tolist()],
-        "raw_std": [float(value) for value in raw_std.view(-1).tolist()],
-        "std_was_clamped": [bool(value) for value in (raw_std < float(eps)).view(-1).tolist()],
-        "normalization": "train_mean_std",
-    }
-    return train_standardized.contiguous(), val_standardized.contiguous(), metadata
 
 
 def _scalar_conditioning_metadata_disabled() -> dict[str, Any]:
-    return {
-        "enabled": False,
-        "params": [],
-        "dim": 0,
-        "mean": [],
-        "std": [],
-        "raw_std": [],
-        "std_was_clamped": [],
-        "normalization": None,
-    }
+    return scalar_conditioning_metadata_disabled()
 
 
 def _scalar_conditioning_tensor_from_metadata(
@@ -751,54 +692,13 @@ def _scalar_conditioning_tensor_from_metadata(
     expected_sample_count: int,
     split_name: str,
 ) -> torch.Tensor:
-    parts: list[torch.Tensor] = []
-    missing_pdes = []
-    for pde_name in pde_names:
-        entry = loader_metadata.get(pde_name, {}) if isinstance(loader_metadata, dict) else {}
-        pde_params = entry.get("pde_params") if isinstance(entry, dict) else None
-        if not isinstance(pde_params, dict):
-            pde_params = {}
-        if not pde_params:
-            missing_pdes.append(pde_name)
-            continue
-        columns = []
-        for param in params:
-            if param not in pde_params:
-                raise ValueError(
-                    f"Requested scalar conditioning parameter {param!r} is missing from "
-                    f"{split_name} loader metadata for PDE {pde_name!r}; available={sorted(pde_params)}"
-                )
-            tensor = torch.as_tensor(pde_params[param], dtype=torch.float32).detach().cpu()
-            if tensor.ndim == 0:
-                tensor = tensor.reshape(1)
-            if tensor.ndim != 1:
-                raise ValueError(
-                    f"Scalar conditioning parameter {param!r} for PDE {pde_name!r} "
-                    f"must be sample-aligned [N], got shape={tuple(tensor.shape)}"
-                )
-            columns.append(tensor)
-        lengths = {int(column.shape[0]) for column in columns}
-        if len(lengths) != 1:
-            raise ValueError(
-                f"Scalar conditioning parameters for PDE {pde_name!r} in {split_name} "
-                f"have inconsistent sample counts: {sorted(lengths)}"
-            )
-        parts.append(torch.stack(columns, dim=1))
-
-    if missing_pdes:
-        raise ValueError(
-            f"Scalar conditioning was requested, but {split_name} loader metadata has no "
-            f"pde_params for PDE(s): {missing_pdes}"
-        )
-    if not parts:
-        raise ValueError(f"Scalar conditioning was requested, but no {split_name} scalar tensors were built")
-    tensor = torch.cat(parts, dim=0).to(torch.float32)
-    if int(tensor.shape[0]) != int(expected_sample_count):
-        raise ValueError(
-            f"Built {split_name} scalar conditioning tensor with {int(tensor.shape[0])} samples, "
-            f"but data has {int(expected_sample_count)} samples"
-        )
-    return tensor
+    return scalar_conditioning_tensor_from_metadata(
+        pde_names=pde_names,
+        loader_metadata=loader_metadata,
+        params=params,
+        expected_sample_count=expected_sample_count,
+        split_name=split_name,
+    )
 
 
 def _build_data_metadata(
@@ -1203,6 +1103,7 @@ def _run_periodic_flow_eval(
     resolution: int,
     device: torch.device,
     val_loader_metadata: dict[str, Any],
+    scalar_conditioning_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     eval_epoch = int(epoch) + 1
     batch_size = int(getattr(args, "eval_num_samples", 1))
@@ -1212,6 +1113,28 @@ def _run_periodic_flow_eval(
     if num_steps < 1:
         raise ValueError("--eval_num_steps must be positive")
 
+    dtype = torch.float32
+    pde_params = _pde_params_for_eval(
+        val_loader_metadata,
+        pde_name=pde_name,
+        batch_size=batch_size,
+        device=device,
+        dtype=dtype,
+    )
+    model_extra = None
+    scalar_meta = scalar_conditioning_metadata or _scalar_conditioning_metadata_disabled()
+    if bool(scalar_meta.get("enabled", False)):
+        model_extra = {
+            "scalar_conditioning": standardize_scalar_conditioning(
+                pde_params=pde_params,
+                metadata=scalar_meta,
+                expected_sample_count=batch_size,
+                source_name=f"validation pde_params for PDE {pde_name!r}",
+                device=device,
+                dtype=dtype,
+            )
+        }
+
     sample_standardized = _euler_flow_sample(
         model=model,
         pde_name=pde_name,
@@ -1220,18 +1143,12 @@ def _run_periodic_flow_eval(
         resolution=resolution,
         num_steps=num_steps,
         device=device,
-        dtype=torch.float32,
+        dtype=dtype,
         seed=int(args.seed) + 1_000_003 + eval_epoch,
+        model_extra=model_extra,
     )
     sample_physical = normalizer.inverse_transform(sample_standardized)
     split = split_pair_state(sample_physical, pde_name)
-    pde_params = _pde_params_for_eval(
-        val_loader_metadata,
-        pde_name=pde_name,
-        batch_size=batch_size,
-        device=device,
-        dtype=sample_physical.dtype,
-    )
     residual = compute_pde_residual(
         pde_name,
         split.coef,
@@ -1280,6 +1197,7 @@ def _euler_flow_sample(
     device: torch.device,
     dtype: torch.dtype,
     seed: int,
+    model_extra: dict[str, Any] | None = None,
 ) -> torch.Tensor:
     was_training = model.training
     model.eval()
@@ -1302,6 +1220,8 @@ def _euler_flow_sample(
             dtype=torch.long,
         )
         extra = _eval_conditioning_for_model(model, label)
+        if model_extra:
+            extra = {**extra, **model_extra}
         grid = torch.linspace(0.0, 1.0, num_steps + 1, device=device, dtype=dtype)
         for step in range(num_steps):
             t = torch.full((batch_size,), float(grid[step].item()), device=device, dtype=dtype)
@@ -1337,7 +1257,11 @@ def _pde_params_for_eval(
         return {}
     out: dict[str, Any] = {}
     for name, value in params.items():
-        tensor = torch.as_tensor(value, device=device)
+        try:
+            tensor = torch.as_tensor(value, device=device)
+        except (TypeError, ValueError):
+            out[name] = value
+            continue
         if torch.is_floating_point(tensor):
             tensor = tensor.to(dtype=dtype)
         if tensor.ndim == 0:

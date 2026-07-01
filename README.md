@@ -157,7 +157,7 @@ python train.py \
   --scalar_conditioning_params alpha T
 ```
 
-The selected scalar names and train-set mean/std are written to `data_metadata.json` and checkpoint `data_metadata`. Generated-sample periodic eval is still unconditional, so scalar-conditioned training should use `--eval_frequency -1` until a scalar-conditioned sampling/eval entry point is added.
+The selected scalar names and train-set mean/std are written to `data_metadata.json` and checkpoint `data_metadata`. Periodic eval and sampling derive runtime scalar values from the current validation/test ground-truth `pde_params`, standardize them with the checkpoint/train statistics, and pass them through `extra["scalar_conditioning"]`.
 
 ## Data Generation
 
