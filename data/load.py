@@ -15,15 +15,34 @@ DEFAULT_TRAIN_SHARDS = 5
 
 
 class TensorDataset(Dataset):
-    def __init__(self, data, labels):
+    def __init__(self, data, labels, scalar_conditioning=None):
         self.data = data
         self.labels = labels.to(torch.long)
+        self.scalar_conditioning = None
+        if scalar_conditioning is not None:
+            scalar_conditioning = torch.as_tensor(scalar_conditioning, dtype=torch.float32)
+            if scalar_conditioning.ndim != 2:
+                raise ValueError(
+                    "scalar_conditioning must have shape [N,K], "
+                    f"got {tuple(scalar_conditioning.shape)}"
+                )
+            if int(scalar_conditioning.shape[0]) != int(data.shape[0]):
+                raise ValueError(
+                    "scalar_conditioning sample count must match data; "
+                    f"got {int(scalar_conditioning.shape[0])} vs {int(data.shape[0])}"
+                )
+            self.scalar_conditioning = scalar_conditioning
         self.max_size = data.shape[0]
         self.num_channels = self.data.shape[1]
         self.resolution = self.data.shape[2]
         self.label_dim = 1
+        self.scalar_conditioning_dim = (
+            0 if self.scalar_conditioning is None else int(self.scalar_conditioning.shape[1])
+        )
 
     def __getitem__(self, index):
+        if self.scalar_conditioning is not None:
+            return self.data[index], self.labels[index], self.scalar_conditioning[index]
         return self.data[index], self.labels[index]
 
     def __len__(self):

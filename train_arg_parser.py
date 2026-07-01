@@ -193,6 +193,16 @@ def get_args_parser():
         help="Autocast dtype used during training on CUDA.",
     )
     parser.add_argument(
+        "--scalar_conditioning_params",
+        nargs="*",
+        default=[],
+        metavar="PARAM",
+        help=(
+            "Sample-level scalar PDE parameters to condition the UNet on via the time embedding, "
+            "for example: --scalar_conditioning_params alpha T. Disabled by default."
+        ),
+    )
+    parser.add_argument(
         "--model_profile",
         default="auto",
         choices=TRAIN_MODEL_PROFILE_CHOICES,

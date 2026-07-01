@@ -4,7 +4,7 @@ np = pytest.importorskip("numpy")
 h5py = pytest.importorskip("h5py")
 torch = pytest.importorskip("torch")
 
-from data.load import PDEloader
+from data.load import PDEloader, TensorDataset
 
 
 def _write_pair_h5(path, n_samples=2, input_channels=1, output_channels=1):
@@ -80,3 +80,20 @@ def test_pair_h5_reads_optional_time_scale_dataset(tmp_path):
     assert tuple(data.shape) == (2, 4, 4, 4)
     assert torch.allclose(loader.pde_params["dt"], torch.tensor([0.25, 0.5]))
     assert loader.pde_param_sources["dt"] == "dataset"
+
+
+def test_tensor_dataset_optional_scalar_conditioning():
+    data = torch.randn(3, 2, 4, 4)
+    labels = torch.zeros(3, dtype=torch.long)
+
+    plain = TensorDataset(data, labels)
+    assert len(plain[0]) == 2
+
+    scalar = torch.randn(3, 2)
+    conditioned = TensorDataset(data, labels, scalar)
+    sample, label, scalar_row = conditioned[1]
+
+    assert sample.shape == (2, 4, 4)
+    assert label.shape == ()
+    assert scalar_row.shape == (2,)
+    assert conditioned.scalar_conditioning_dim == 2

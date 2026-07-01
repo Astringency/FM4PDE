@@ -68,7 +68,8 @@ def train_one_epoch(
     accum_iter = args.accum_iter
     path = CondOTProbPath()
 
-    for data_iter_step, (samples, labels) in enumerate(data_loader):
+    for data_iter_step, batch in enumerate(data_loader):
+        samples, labels, scalar_conditioning = _unpack_batch(batch)
         if data_iter_step % accum_iter == 0:
             optimizer.zero_grad()
             batch_loss.reset()
@@ -77,10 +78,13 @@ def train_one_epoch(
 
         samples = samples.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True).long()
+        if scalar_conditioning is not None:
+            scalar_conditioning = scalar_conditioning.to(device, non_blocking=True).float()
         loss = _flow_matching_loss(
             model=model,
             samples=samples,
             labels=labels,
+            scalar_conditioning=scalar_conditioning,
             path=path,
             device=device,
             class_drop_prob=args.class_drop_prob,
@@ -137,13 +141,17 @@ def validate_one_epoch(
     path = CondOTProbPath()
 
     try:
-        for data_iter_step, (samples, labels) in enumerate(data_loader):
+        for data_iter_step, batch in enumerate(data_loader):
+            samples, labels, scalar_conditioning = _unpack_batch(batch)
             samples = samples.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True).long()
+            if scalar_conditioning is not None:
+                scalar_conditioning = scalar_conditioning.to(device, non_blocking=True).float()
             loss = _flow_matching_loss(
                 model=model,
                 samples=samples,
                 labels=labels,
+                scalar_conditioning=scalar_conditioning,
                 path=path,
                 device=device,
                 class_drop_prob=0.0,
@@ -168,6 +176,7 @@ def _flow_matching_loss(
     model: torch.nn.Module,
     samples: torch.Tensor,
     labels: torch.Tensor,
+    scalar_conditioning: torch.Tensor | None,
     path: CondOTProbPath,
     device: torch.device,
     class_drop_prob: float,
@@ -178,6 +187,19 @@ def _flow_matching_loss(
         raise ValueError(f"Flow matching expects samples [N,C,H,W], got {tuple(samples.shape)}")
 
     conditioning = _conditioning_for_model(model, labels, class_drop_prob)
+    if scalar_conditioning is not None:
+        if scalar_conditioning.ndim != 2:
+            raise ValueError(
+                "scalar_conditioning batch tensor must have shape [N,K], "
+                f"got {tuple(scalar_conditioning.shape)}"
+            )
+        if int(scalar_conditioning.shape[0]) != int(samples.shape[0]):
+            raise ValueError(
+                "scalar_conditioning batch size must match samples; "
+                f"got {int(scalar_conditioning.shape[0])} vs {int(samples.shape[0])}"
+            )
+        conditioning = dict(conditioning)
+        conditioning["scalar_conditioning"] = scalar_conditioning
 
     noise = torch.randn_like(samples)
     if skewed_timesteps:
@@ -194,6 +216,18 @@ def _flow_matching_loss(
         if model_out.shape != u_t.shape:
             raise ValueError(f"Model output shape {tuple(model_out.shape)} does not match target {tuple(u_t.shape)}")
         return torch.pow(model_out - u_t, 2).mean()
+
+
+def _unpack_batch(batch) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    if not isinstance(batch, (tuple, list)):
+        raise ValueError(f"Expected data loader batch tuple/list, got {type(batch).__name__}")
+    if len(batch) == 2:
+        samples, labels = batch
+        return samples, labels, None
+    if len(batch) == 3:
+        samples, labels, scalar_conditioning = batch
+        return samples, labels, scalar_conditioning
+    raise ValueError(f"Expected data loader batch of length 2 or 3, got {len(batch)}")
 
 
 def _conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor, class_drop_prob: float) -> dict[str, torch.Tensor]:

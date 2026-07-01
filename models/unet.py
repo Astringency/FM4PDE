@@ -487,6 +487,8 @@ class UNetModel(nn.Module):
     coordinate_fourier_coord_range: str = "unit"
     ignore_time: bool = False
     input_projection: bool = True
+    scalar_conditioning: bool = False
+    scalar_conditioning_dim: int = 0
 
     image_size: int = -1  # not used...
     _target_: str = "lib.models.gd_unet.UNetModel"
@@ -500,6 +502,8 @@ class UNetModel(nn.Module):
         )
         self.with_fourier_features = self.with_value_fourier_features
         self.with_coordinate_fourier_features = bool(self.with_coordinate_fourier_features)
+        self.scalar_conditioning = bool(self.scalar_conditioning)
+        self.scalar_conditioning_dim = int(self.scalar_conditioning_dim or 0)
 
         self.value_fourier_feature_channels = 0
         if self.with_value_fourier_features:
@@ -534,6 +538,18 @@ class UNetModel(nn.Module):
         else:
             self.time_embed = nn.Sequential(
                 linear(self.model_channels, self.time_embed_dim),
+                nn.SiLU(),
+                linear(self.time_embed_dim, self.time_embed_dim),
+            )
+
+        self.scalar_embed = None
+        if self.scalar_conditioning:
+            if self.scalar_conditioning_dim <= 0:
+                raise ValueError(
+                    "scalar_conditioning=True requires scalar_conditioning_dim > 0"
+                )
+            self.scalar_embed = nn.Sequential(
+                linear(self.scalar_conditioning_dim, self.time_embed_dim),
                 nn.SiLU(),
                 linear(self.time_embed_dim, self.time_embed_dim),
             )
@@ -747,6 +763,34 @@ class UNetModel(nn.Module):
 
         if self.ignore_time:
             emb = emb * 0.0
+
+        if self.scalar_conditioning:
+            if "scalar_conditioning" not in extra:
+                raise ValueError(
+                    "UNetModel scalar_conditioning=True requires "
+                    "extra['scalar_conditioning'] with shape [B,K]"
+                )
+            scalar = extra["scalar_conditioning"]
+            if not torch.is_tensor(scalar):
+                scalar = torch.as_tensor(scalar, device=x.device)
+            scalar = scalar.to(device=x.device, dtype=emb.dtype)
+            if scalar.ndim != 2:
+                raise ValueError(
+                    "extra['scalar_conditioning'] must have shape [B,K], "
+                    f"got {tuple(scalar.shape)}"
+                )
+            if int(scalar.shape[0]) != int(x.shape[0]):
+                raise ValueError(
+                    "extra['scalar_conditioning'] batch size must match input; "
+                    f"got {int(scalar.shape[0])} vs {int(x.shape[0])}"
+                )
+            if int(scalar.shape[1]) != int(self.scalar_conditioning_dim):
+                raise ValueError(
+                    "extra['scalar_conditioning'] feature dimension must match "
+                    f"scalar_conditioning_dim={self.scalar_conditioning_dim}; "
+                    f"got {int(scalar.shape[1])}"
+                )
+            emb = emb + self.scalar_embed(scalar)
 
         if self.num_classes and "label" not in extra:
             # Hack to deal with ddp find_unused_parameters not working with activation checkpointing...

@@ -108,3 +108,32 @@ def test_concat_conditioning_without_config_raises_clear_error():
 
     with pytest.raises(ValueError, match="concat_conditioning requires explicit concat_conditioning_channels"):
         model(x, t, extra={"concat_conditioning": torch.randn(1, 1, 8, 8)})
+
+
+def test_unet_scalar_conditioning_forward_shape():
+    model = _tiny_unet(2, scalar_conditioning=True, scalar_conditioning_dim=2)
+    x = torch.randn(3, 2, 8, 8)
+    t = torch.tensor([0.25, 0.5, 0.75])
+    scalar = torch.randn(3, 2)
+
+    out = model(x, t, extra={"scalar_conditioning": scalar})
+
+    assert out.shape == x.shape
+
+
+def test_unet_scalar_conditioning_requires_extra():
+    model = _tiny_unet(1, scalar_conditioning=True, scalar_conditioning_dim=1)
+    x = torch.randn(1, 1, 8, 8)
+    t = torch.tensor([0.5])
+
+    with pytest.raises(ValueError, match="requires extra\\['scalar_conditioning'\\]"):
+        model(x, t)
+
+
+def test_unet_scalar_conditioning_dim_mismatch_raises():
+    model = _tiny_unet(1, scalar_conditioning=True, scalar_conditioning_dim=2)
+    x = torch.randn(1, 1, 8, 8)
+    t = torch.tensor([0.5])
+
+    with pytest.raises(ValueError, match="feature dimension must match"):
+        model(x, t, extra={"scalar_conditioning": torch.randn(1, 1)})

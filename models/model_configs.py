@@ -25,6 +25,7 @@ MODEL_METADATA_KEYS = {
     "architecture_profile",
     "axis_semantics",
     "scalar_conditioning",
+    "scalar_conditioning_dim",
     "scalar_conditioning_params",
     "fourier_feature_type",
     "fourier_feature_notes",
@@ -70,6 +71,8 @@ MODEL_PARAMETER_KEYS = {
     "coordinate_fourier_coord_range",
     "ignore_time",
     "input_projection",
+    "scalar_conditioning",
+    "scalar_conditioning_dim",
     "image_size",
 }
 
@@ -161,6 +164,7 @@ def _base_config(
         "axis_semantics": axis_semantics,
         "architecture_profile": architecture_profile,
         "scalar_conditioning": False,
+        "scalar_conditioning_dim": 0,
         "scalar_conditioning_params": (),
         "fourier_feature_type": _fourier_feature_type(
             value_fourier_enabled, coordinate_fourier_enabled
@@ -476,6 +480,7 @@ def _with_scalar_metadata(pde: str, cfg: dict[str, Any]) -> dict[str, Any]:
     spec = get_pde_spec(pde)
     out = deepcopy(cfg)
     out["scalar_conditioning"] = False
+    out["scalar_conditioning_dim"] = 0
     out["scalar_conditioning_params"] = tuple(spec.scalar_param_names)
     return out
 
@@ -605,8 +610,10 @@ def get_model_config(
         cfg["out_channels"] = int(cfg["in_channels"])
     cfg["architecture_profile"] = profile
     _normalize_fourier_aliases(cfg)
+    _normalize_scalar_conditioning(cfg)
     if architecture in PDE_DATA_SPECS:
-        cfg["scalar_conditioning_params"] = tuple(get_pde_spec(architecture).scalar_param_names)
+        if not cfg.get("scalar_conditioning", False):
+            cfg["scalar_conditioning_params"] = tuple(get_pde_spec(architecture).scalar_param_names)
     return cfg
 
 
@@ -633,6 +640,7 @@ def get_model_config_metadata(
 def model_config_metadata_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
     cfg = deepcopy(dict(config))
     _normalize_fourier_aliases(cfg)
+    _normalize_scalar_conditioning(cfg)
     _add_derived_fourier_metadata(cfg)
     return _jsonable_model_config(cfg)
 
@@ -660,6 +668,24 @@ def _normalize_fourier_aliases(cfg: dict[str, Any]) -> None:
         "with_fourier_features is a backward-compatible alias for value Fourier features; "
         "coordinate Fourier features are controlled separately.",
     )
+
+
+def _normalize_scalar_conditioning(cfg: dict[str, Any]) -> None:
+    enabled = bool(cfg.get("scalar_conditioning", False))
+    cfg["scalar_conditioning"] = enabled
+    params = cfg.get("scalar_conditioning_params", ())
+    if params is None:
+        params = ()
+    if isinstance(params, str):
+        params = (params,)
+    else:
+        params = tuple(params)
+    cfg["scalar_conditioning_params"] = params
+    if enabled:
+        dim = int(cfg.get("scalar_conditioning_dim") or len(params))
+        cfg["scalar_conditioning_dim"] = dim
+    else:
+        cfg["scalar_conditioning_dim"] = int(cfg.get("scalar_conditioning_dim") or 0)
 
 
 def _add_derived_fourier_metadata(cfg: dict[str, Any]) -> None:
@@ -739,6 +765,7 @@ def instantiate_model(
         if out_channels is not None:
             cfg["out_channels"] = int(out_channels)
         _normalize_fourier_aliases(cfg)
+        _normalize_scalar_conditioning(cfg)
     else:
         cfg = get_model_config(
             architechture,

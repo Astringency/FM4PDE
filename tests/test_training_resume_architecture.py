@@ -26,6 +26,7 @@ def _write_checkpoint(
     include_model_config: bool = True,
     in_channels: int = 2,
     out_channels: int = 2,
+    scalar_params: tuple[str, ...] = (),
 ):
     checkpoint = {
         "num_channels": in_channels,
@@ -41,6 +42,10 @@ def _write_checkpoint(
             in_channels=in_channels,
             out_channels=out_channels,
         )
+        if scalar_params:
+            cfg["scalar_conditioning"] = True
+            cfg["scalar_conditioning_dim"] = len(scalar_params)
+            cfg["scalar_conditioning_params"] = scalar_params
         if model_profile is None:
             cfg.pop("architecture_profile", None)
         checkpoint["model_config"] = cfg
@@ -131,3 +136,36 @@ def test_resume_checkpoint_model_config_channel_mismatch_raises(tmp_path):
             resume_arch_meta=metadata,
             num_channels=2,
         )
+
+
+def test_resume_scalar_conditioning_params_mismatch_raises(tmp_path):
+    path = _write_checkpoint(tmp_path, model_profile="heavy", scalar_params=("alpha", "T"))
+    resolved, metadata = resolve_training_model_profile(_args(str(path), model_profile="auto"))
+
+    with pytest.raises(ValueError, match="scalar conditioning parameters do not match"):
+        _resolve_training_model_config(
+            model_arch="heat",
+            pde_names=["heat"],
+            resolved_model_profile=resolved,
+            resume_arch_meta=metadata,
+            num_channels=2,
+            scalar_conditioning_params=("alpha",),
+        )
+
+
+def test_resume_scalar_conditioning_params_inherited_when_cli_omits(tmp_path):
+    path = _write_checkpoint(tmp_path, model_profile="heavy", scalar_params=("alpha", "T"))
+    resolved, metadata = resolve_training_model_profile(_args(str(path), model_profile="auto"))
+
+    cfg, cfg_metadata = _resolve_training_model_config(
+        model_arch="heat",
+        pde_names=["heat"],
+        resolved_model_profile=resolved,
+        resume_arch_meta=metadata,
+        num_channels=2,
+    )
+
+    assert cfg["scalar_conditioning"] is True
+    assert cfg["scalar_conditioning_dim"] == 2
+    assert tuple(cfg["scalar_conditioning_params"]) == ("alpha", "T")
+    assert cfg_metadata["scalar_conditioning"] is True

@@ -111,6 +111,69 @@ def test_train_data_metadata_keeps_loader_metadata():
     assert rd_meta["extra_metadata"]["init_mode"] == ["grf", "grf"]
 
 
+def test_scalar_conditioning_metadata_records_train_stats():
+    from train import _build_data_metadata, _prepare_scalar_conditioning
+
+    args = argparse.Namespace(
+        dataset="heat",
+        data_path="/tmp/PDEdata",
+        data_size=1,
+        max_train_samples=2,
+        normalization_eps=1e-6,
+        model_profile="recommended",
+    )
+    train_metadata = {
+        "heat": {
+            "pde_params": {
+                "alpha": torch.tensor([1.0, 3.0]),
+                "T": torch.tensor([2.0, 2.0]),
+            }
+        }
+    }
+    val_metadata = {
+        "heat": {
+            "pde_params": {
+                "alpha": torch.tensor([5.0]),
+                "T": torch.tensor([2.0]),
+            }
+        }
+    }
+    model_config = {
+        "scalar_conditioning": True,
+        "scalar_conditioning_dim": 2,
+        "scalar_conditioning_params": ["alpha", "T"],
+    }
+
+    train_scalar, val_scalar, scalar_meta = _prepare_scalar_conditioning(
+        model_config=model_config,
+        pde_names=["heat"],
+        train_loader_metadata=train_metadata,
+        val_loader_metadata=val_metadata,
+        train_sample_count=2,
+        val_sample_count=1,
+        eps=1e-6,
+    )
+    metadata = _build_data_metadata(
+        args=args,
+        pde_names=["heat"],
+        data=torch.zeros(2, 2, 4, 4),
+        label=torch.full((2,), 7, dtype=torch.long),
+        loader_metadata=train_metadata,
+        model_config_metadata=model_config,
+        scalar_conditioning_metadata=scalar_meta,
+    )
+
+    assert train_scalar.shape == (2, 2)
+    assert val_scalar.shape == (1, 2)
+    assert torch.allclose(train_scalar[:, 0], torch.tensor([-1.0, 1.0]))
+    assert torch.allclose(train_scalar[:, 1], torch.zeros(2))
+    assert metadata["scalar_conditioning_enabled"] is True
+    assert metadata["scalar_conditioning_params"] == ["alpha", "T"]
+    assert metadata["scalar_conditioning_mean"] == pytest.approx([2.0, 2.0])
+    assert metadata["scalar_conditioning_std"] == pytest.approx([1.0, 1.0])
+    assert metadata["scalar_conditioning_std_was_clamped"] == [False, True]
+
+
 def test_fallback_train_validation_split_is_9_to_1():
     from train import _train_val_split_indices
 

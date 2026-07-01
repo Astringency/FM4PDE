@@ -24,7 +24,7 @@ input_data
 output_data
 ```
 
-Those dataset names are part of the file format. Scalar PDE parameters such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, `u_D`, `T`, and `dt` are sample-level metadata. They are stored in `PDEloader.pde_params`, training `data_metadata.json`, checkpoint `data_metadata`, and sampling `PDEGroundTruth.pde_params`; they are not Flow Matching input channels.
+Those dataset names are part of the file format. Scalar PDE parameters such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, `u_D`, `T`, and `dt` are sample-level metadata. They are stored in `PDEloader.pde_params`, training `data_metadata.json`, checkpoint `data_metadata`, and sampling `PDEGroundTruth.pde_params`; they are not expanded into spatial Flow Matching input channels. Training can opt in to selected scalar metadata with `--scalar_conditioning_params`, which standardizes those values from training-set statistics and injects them through a UNet time-embedding MLP.
 
 `pair_h5` is a file-format/loadby name, not a directory name. Formal data paths use one PDE-named directory directly under the data root, for example `PDEdata/heat/heat_test_1000-128-128.h5`.
 
@@ -94,9 +94,10 @@ cost on 128x128 data while preserving coarse global structure.
 
 Burgers records `axis_semantics=BCHW_as_time_space_H_time_W_space` because `H`
 is time and `W` is space. Sample-level scalar PDE parameters are loaded and used
-by residuals; network FiLM scalar conditioning is currently metadata/TODO only
-(`scalar_conditioning=false`) and scalar parameters are not added as constant
-input channels.
+by residuals. Network scalar conditioning is disabled by default
+(`scalar_conditioning=false`); when explicitly enabled with
+`--scalar_conditioning_params`, the selected parameters are added to the UNet
+time embedding and are still not added as constant input channels.
 
 Training checkpoints save `model_profile`, `model_config`,
 `model_config_metadata`, `data_metadata`, `num_channels`, and
@@ -145,6 +146,18 @@ python train.py \
 ```
 
 Checkpoints include model weights, normalizer, data shape, channel names, scalar PDE parameter keys, data specs, and residual families. Sampling requires a checkpoint normalizer; dry-run is the only path that creates an explicit identity normalizer.
+
+Scalar conditioning is opt-in:
+
+```bash
+python train.py \
+  --dataset heat \
+  --data_path /large_storage/zhangxf/PDEdata/ \
+  --eval_frequency -1 \
+  --scalar_conditioning_params alpha T
+```
+
+The selected scalar names and train-set mean/std are written to `data_metadata.json` and checkpoint `data_metadata`. Generated-sample periodic eval is still unconditional, so scalar-conditioned training should use `--eval_frequency -1` until a scalar-conditioned sampling/eval entry point is added.
 
 ## Data Generation
 

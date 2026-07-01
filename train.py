@@ -191,6 +191,9 @@ def main(args):
         seed=args.seed,
     )
     num_channels = int(data.shape[1])
+    requested_scalar_conditioning_params = _normalize_scalar_conditioning_params(
+        getattr(args, "scalar_conditioning_params", [])
+    )
     logger.info(
         f"Loaded train data shape={tuple(data.shape)}, validation data shape={tuple(data_val.shape)}, "
         f"labels dtype={label.dtype}"
@@ -204,7 +207,27 @@ def main(args):
         resolved_model_profile=resolved_model_profile,
         resume_arch_meta=resume_arch_meta,
         num_channels=num_channels,
+        scalar_conditioning_params=requested_scalar_conditioning_params,
     )
+    (
+        scalar_conditioning_train,
+        scalar_conditioning_val,
+        scalar_conditioning_metadata,
+    ) = _prepare_scalar_conditioning(
+        model_config=model_config,
+        pde_names=pde_names,
+        train_loader_metadata=loader_metadata,
+        val_loader_metadata=val_loader_metadata,
+        train_sample_count=int(data.shape[0]),
+        val_sample_count=int(data_val.shape[0]),
+        eps=args.normalization_eps,
+    )
+    if scalar_conditioning_metadata.get("enabled") and int(getattr(args, "eval_frequency", -1)) > 0:
+        raise ValueError(
+            "Periodic generated-sample eval does not yet support scalar conditioning. "
+            "Pass --eval_frequency -1 for scalar-conditioned training, or add a scalar "
+            "conditioning source to the sampling/eval path."
+        )
     data_metadata = _build_data_metadata(
         args=args,
         pde_names=pde_names,
@@ -219,6 +242,7 @@ def main(args):
         checkpoint_model_profile=resume_arch_meta.get("checkpoint_model_profile"),
         checkpoint_model_config_metadata=resume_arch_meta.get("checkpoint_model_config_metadata"),
         validation_metadata=validation_metadata,
+        scalar_conditioning_metadata=scalar_conditioning_metadata,
     )
     if distributed_mode.is_main_process() and args.output_dir:
         output_dir = Path(args.output_dir)
@@ -285,8 +309,8 @@ def main(args):
 
     data_train = normalizer.transform(data)
     data_validation = normalizer.transform(data_val)
-    dataset_train = TensorDataset(data_train, label)
-    dataset_val = TensorDataset(data_validation, label_val)
+    dataset_train = TensorDataset(data_train, label, scalar_conditioning_train)
+    dataset_val = TensorDataset(data_validation, label_val, scalar_conditioning_val)
 
     logger.info(dataset_train)
     logger.info(dataset_val)
@@ -489,13 +513,22 @@ def _resolve_training_model_config(
     resolved_model_profile: str,
     resume_arch_meta: dict[str, Any],
     num_channels: int,
+    scalar_conditioning_params: tuple[str, ...] | list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    requested_scalar_params = _normalize_scalar_conditioning_params(scalar_conditioning_params or ())
     checkpoint_model_config = resume_arch_meta.get("checkpoint_model_config")
     if checkpoint_model_config and not resume_arch_meta.get("override", False):
         model_config = deepcopy(dict(checkpoint_model_config))
         _validate_checkpoint_model_config_channels(
             model_config,
             num_channels=num_channels,
+            checkpoint_path=resume_arch_meta.get("checkpoint_path"),
+        )
+        checkpoint_metadata = resume_arch_meta.get("checkpoint_model_config_metadata")
+        _validate_checkpoint_scalar_conditioning_request(
+            model_config=model_config,
+            model_config_metadata=checkpoint_metadata if isinstance(checkpoint_metadata, dict) else {},
+            requested_scalar_params=requested_scalar_params,
             checkpoint_path=resume_arch_meta.get("checkpoint_path"),
         )
         checkpoint_metadata = resume_arch_meta.get("checkpoint_model_config_metadata")
@@ -514,12 +547,11 @@ def _resolve_training_model_config(
         in_channels=num_channels,
         out_channels=num_channels,
     )
-    model_config_metadata = _build_model_config_metadata(
-        model_arch=model_arch,
-        pde_names=pde_names,
-        profile=resolved_model_profile,
-        num_channels=num_channels,
-    )
+    _apply_scalar_conditioning_to_model_config(model_config, requested_scalar_params)
+    model_config_metadata = model_config_metadata_from_config(model_config)
+    model_config_metadata["model_arch"] = model_arch
+    model_config_metadata["model_profile"] = resolved_model_profile
+    _add_joint_model_metadata(model_config_metadata, pde_names)
     return model_config, model_config_metadata
 
 
@@ -543,6 +575,232 @@ def _validate_checkpoint_model_config_channels(
         )
 
 
+def _normalize_scalar_conditioning_params(params: Any) -> tuple[str, ...]:
+    if params is None:
+        return ()
+    if isinstance(params, str):
+        values = (params,)
+    else:
+        values = tuple(params)
+    normalized = tuple(str(value) for value in values)
+    if any(not value for value in normalized):
+        raise ValueError("--scalar_conditioning_params cannot contain empty parameter names")
+    duplicates = sorted({value for value in normalized if normalized.count(value) > 1})
+    if duplicates:
+        raise ValueError(
+            "--scalar_conditioning_params contains duplicate parameter names: "
+            f"{duplicates}"
+        )
+    return normalized
+
+
+def _apply_scalar_conditioning_to_model_config(
+    model_config: dict[str, Any],
+    params: tuple[str, ...],
+) -> None:
+    if not params:
+        model_config["scalar_conditioning"] = False
+        model_config["scalar_conditioning_dim"] = 0
+        return
+    model_config["scalar_conditioning"] = True
+    model_config["scalar_conditioning_dim"] = len(params)
+    model_config["scalar_conditioning_params"] = tuple(params)
+
+
+def _validate_checkpoint_scalar_conditioning_request(
+    *,
+    model_config: dict[str, Any],
+    model_config_metadata: dict[str, Any],
+    requested_scalar_params: tuple[str, ...],
+    checkpoint_path: str | None,
+) -> None:
+    enabled = bool(
+        model_config.get("scalar_conditioning", False)
+        or model_config_metadata.get("scalar_conditioning", False)
+    )
+    if not enabled:
+        if requested_scalar_params:
+            raise ValueError(
+                "resume checkpoint was not trained with scalar conditioning, but "
+                f"--scalar_conditioning_params={list(requested_scalar_params)} was requested; "
+                f"checkpoint_path={checkpoint_path}. Retrain instead, or use the existing "
+                "model profile override flow with a compatible checkpoint."
+            )
+        model_config["scalar_conditioning"] = False
+        model_config["scalar_conditioning_dim"] = 0
+        return
+
+    checkpoint_params = _scalar_conditioning_params_from_config(
+        model_config,
+        model_config_metadata,
+    )
+    if not checkpoint_params:
+        raise ValueError(
+            "resume checkpoint has scalar_conditioning=True but does not record "
+            f"scalar_conditioning_params; checkpoint_path={checkpoint_path}."
+        )
+    checkpoint_dim = int(
+        model_config.get("scalar_conditioning_dim")
+        or model_config_metadata.get("scalar_conditioning_dim")
+        or len(checkpoint_params)
+    )
+    if checkpoint_dim != len(checkpoint_params):
+        raise ValueError(
+            "resume checkpoint scalar conditioning metadata is inconsistent; "
+            f"scalar_conditioning_dim={checkpoint_dim}, "
+            f"scalar_conditioning_params={list(checkpoint_params)}, "
+            f"checkpoint_path={checkpoint_path}."
+        )
+    if requested_scalar_params and requested_scalar_params != checkpoint_params:
+        raise ValueError(
+            "resume checkpoint scalar conditioning parameters do not match the new command; "
+            f"checkpoint_scalar_conditioning_params={list(checkpoint_params)}, "
+            f"requested_scalar_conditioning_params={list(requested_scalar_params)}, "
+            f"checkpoint_path={checkpoint_path}. Retrain instead, or use the existing "
+            "model profile override flow with a compatible checkpoint."
+        )
+    model_config["scalar_conditioning"] = True
+    model_config["scalar_conditioning_dim"] = checkpoint_dim
+    model_config["scalar_conditioning_params"] = tuple(checkpoint_params)
+
+
+def _scalar_conditioning_params_from_config(
+    model_config: dict[str, Any],
+    model_config_metadata: dict[str, Any] | None = None,
+) -> tuple[str, ...]:
+    metadata = model_config_metadata or {}
+    params = model_config.get("scalar_conditioning_params")
+    if params is None or params == ():
+        params = metadata.get("scalar_conditioning_params", ())
+    return _normalize_scalar_conditioning_params(params)
+
+
+def _prepare_scalar_conditioning(
+    *,
+    model_config: dict[str, Any],
+    pde_names: list[str],
+    train_loader_metadata: dict[str, Any],
+    val_loader_metadata: dict[str, Any],
+    train_sample_count: int,
+    val_sample_count: int,
+    eps: float,
+) -> tuple[torch.Tensor | None, torch.Tensor | None, dict[str, Any]]:
+    enabled = bool(model_config.get("scalar_conditioning", False))
+    params = _scalar_conditioning_params_from_config(model_config)
+    if not enabled:
+        return None, None, _scalar_conditioning_metadata_disabled()
+    if not params:
+        raise ValueError("scalar_conditioning=True requires scalar_conditioning_params")
+    expected_dim = int(model_config.get("scalar_conditioning_dim") or len(params))
+    if expected_dim != len(params):
+        raise ValueError(
+            "scalar_conditioning_dim must match scalar_conditioning_params; "
+            f"got dim={expected_dim}, params={list(params)}"
+        )
+
+    train_raw = _scalar_conditioning_tensor_from_metadata(
+        pde_names=pde_names,
+        loader_metadata=train_loader_metadata,
+        params=params,
+        expected_sample_count=train_sample_count,
+        split_name="training",
+    )
+    val_raw = _scalar_conditioning_tensor_from_metadata(
+        pde_names=pde_names,
+        loader_metadata=val_loader_metadata,
+        params=params,
+        expected_sample_count=val_sample_count,
+        split_name="validation",
+    )
+    mean = train_raw.mean(dim=0, keepdim=True)
+    raw_std = train_raw.std(dim=0, keepdim=True, unbiased=False)
+    std = torch.where(raw_std < float(eps), torch.ones_like(raw_std), raw_std)
+    train_standardized = (train_raw - mean) / std
+    val_standardized = (val_raw - mean) / std
+    metadata = {
+        "enabled": True,
+        "params": list(params),
+        "dim": len(params),
+        "mean": [float(value) for value in mean.view(-1).tolist()],
+        "std": [float(value) for value in std.view(-1).tolist()],
+        "raw_std": [float(value) for value in raw_std.view(-1).tolist()],
+        "std_was_clamped": [bool(value) for value in (raw_std < float(eps)).view(-1).tolist()],
+        "normalization": "train_mean_std",
+    }
+    return train_standardized.contiguous(), val_standardized.contiguous(), metadata
+
+
+def _scalar_conditioning_metadata_disabled() -> dict[str, Any]:
+    return {
+        "enabled": False,
+        "params": [],
+        "dim": 0,
+        "mean": [],
+        "std": [],
+        "raw_std": [],
+        "std_was_clamped": [],
+        "normalization": None,
+    }
+
+
+def _scalar_conditioning_tensor_from_metadata(
+    *,
+    pde_names: list[str],
+    loader_metadata: dict[str, Any],
+    params: tuple[str, ...],
+    expected_sample_count: int,
+    split_name: str,
+) -> torch.Tensor:
+    parts: list[torch.Tensor] = []
+    missing_pdes = []
+    for pde_name in pde_names:
+        entry = loader_metadata.get(pde_name, {}) if isinstance(loader_metadata, dict) else {}
+        pde_params = entry.get("pde_params") if isinstance(entry, dict) else None
+        if not isinstance(pde_params, dict):
+            pde_params = {}
+        if not pde_params:
+            missing_pdes.append(pde_name)
+            continue
+        columns = []
+        for param in params:
+            if param not in pde_params:
+                raise ValueError(
+                    f"Requested scalar conditioning parameter {param!r} is missing from "
+                    f"{split_name} loader metadata for PDE {pde_name!r}; available={sorted(pde_params)}"
+                )
+            tensor = torch.as_tensor(pde_params[param], dtype=torch.float32).detach().cpu()
+            if tensor.ndim == 0:
+                tensor = tensor.reshape(1)
+            if tensor.ndim != 1:
+                raise ValueError(
+                    f"Scalar conditioning parameter {param!r} for PDE {pde_name!r} "
+                    f"must be sample-aligned [N], got shape={tuple(tensor.shape)}"
+                )
+            columns.append(tensor)
+        lengths = {int(column.shape[0]) for column in columns}
+        if len(lengths) != 1:
+            raise ValueError(
+                f"Scalar conditioning parameters for PDE {pde_name!r} in {split_name} "
+                f"have inconsistent sample counts: {sorted(lengths)}"
+            )
+        parts.append(torch.stack(columns, dim=1))
+
+    if missing_pdes:
+        raise ValueError(
+            f"Scalar conditioning was requested, but {split_name} loader metadata has no "
+            f"pde_params for PDE(s): {missing_pdes}"
+        )
+    if not parts:
+        raise ValueError(f"Scalar conditioning was requested, but no {split_name} scalar tensors were built")
+    tensor = torch.cat(parts, dim=0).to(torch.float32)
+    if int(tensor.shape[0]) != int(expected_sample_count):
+        raise ValueError(
+            f"Built {split_name} scalar conditioning tensor with {int(tensor.shape[0])} samples, "
+            f"but data has {int(expected_sample_count)} samples"
+        )
+    return tensor
+
+
 def _build_data_metadata(
     args,
     pde_names: list[str],
@@ -557,9 +815,17 @@ def _build_data_metadata(
     checkpoint_model_profile: str | None = None,
     checkpoint_model_config_metadata: dict[str, Any] | None = None,
     validation_metadata: dict[str, Any] | None = None,
+    scalar_conditioning_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     specs = {pde: get_pde_spec(pde).to_metadata() for pde in pde_names}
     channel_names = _training_channel_names(pde_names, loader_metadata, int(data.shape[1]))
+    scalar_meta = scalar_conditioning_metadata or _scalar_conditioning_metadata_disabled()
+    scalar_enabled = bool(scalar_meta.get("enabled", False))
+    scalar_params = (
+        list(scalar_meta.get("params", []))
+        if scalar_enabled
+        else (model_config_metadata or {}).get("scalar_conditioning_params", [])
+    )
     return {
         "dataset": args.dataset,
         "pde_names": list(pde_names),
@@ -597,8 +863,15 @@ def _build_data_metadata(
         "value_fourier_feature_channels": (model_config_metadata or {}).get("value_fourier_feature_channels"),
         "coordinate_fourier_feature_channels": (model_config_metadata or {}).get("coordinate_fourier_feature_channels"),
         "axis_semantics": (model_config_metadata or {}).get("axis_semantics"),
-        "scalar_conditioning": (model_config_metadata or {}).get("scalar_conditioning", False),
-        "scalar_conditioning_params": (model_config_metadata or {}).get("scalar_conditioning_params", []),
+        "scalar_conditioning": (model_config_metadata or {}).get("scalar_conditioning", scalar_enabled),
+        "scalar_conditioning_enabled": scalar_enabled,
+        "scalar_conditioning_dim": int(scalar_meta.get("dim", 0) or (model_config_metadata or {}).get("scalar_conditioning_dim", 0) or 0),
+        "scalar_conditioning_params": scalar_params,
+        "scalar_conditioning_mean": _jsonable(scalar_meta.get("mean", [])),
+        "scalar_conditioning_std": _jsonable(scalar_meta.get("std", [])),
+        "scalar_conditioning_raw_std": _jsonable(scalar_meta.get("raw_std", [])),
+        "scalar_conditioning_std_was_clamped": _jsonable(scalar_meta.get("std_was_clamped", [])),
+        "scalar_conditioning_normalization": scalar_meta.get("normalization"),
         "num_samples": int(data.shape[0]),
         "label_values": sorted(int(value) for value in torch.unique(label).detach().cpu().tolist()),
         "validation": _jsonable(validation_metadata or {}),
