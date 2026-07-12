@@ -548,27 +548,138 @@ class PDEloader:
 
     def _shallow_water_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
-        sample_count = 0
+        remaining = None if max_samples is None else int(max_samples)
+        self.pde_params = {}
+        self.pde_param_sources = {}
+        self.pde_param_slices = []
         self.extra_metadata = {"boundary_condition": "open/extrapolation", "boundary_condition_kind": "open"}
+        param_chunks = {}
+        param_sources = {}
+        selected_files = []
+        sample_start = 0
+        sample_count = 0
+
         for i in range(size):
             file_path = self._legacy_path(data_path, f"2d_swe_128_128_10_{i}.h5")
+            file_param_names = set()
 
             with h5py.File(file_path, "r") as f:
-                for k in list(f.keys()):
-                    if max_samples is not None and sample_count >= max_samples:
+                selected_files.append(str(file_path))
+                sample_keys = [k for k in f.keys() if isinstance(f[k], h5py.Group)]
+                for k in sample_keys:
+                    if remaining is not None and remaining <= 0:
                         break
-                    h0 = np.expand_dims(f[k]['data']['h'][0, :, :, 0], axis = 0) # type: ignore
-                    h = np.expand_dims(f[k]['data']['h'][-1, :, :, 0], axis = 0) # type: ignore
-                    hu0 = np.expand_dims(f[k]['data']['hu'][0, :, :, 0], axis = 0) # type: ignore
-                    hu = np.expand_dims(f[k]['data']['hu'][-1, :, :, 0], axis = 0) # type: ignore
-                    hv0 = np.expand_dims(f[k]['data']['hv'][0, :, :, 0], axis = 0) # type: ignore
-                    hv = np.expand_dims(f[k]['data']['hv'][-1, :, :, 0], axis = 0) # type: ignore
+                    group = f[k]
+                    h0 = np.expand_dims(group['data']['h'][0, :, :, 0], axis=0)  # type: ignore
+                    h = np.expand_dims(group['data']['h'][-1, :, :, 0], axis=0)  # type: ignore
+                    hu0 = np.expand_dims(group['data']['hu'][0, :, :, 0], axis=0)  # type: ignore
+                    hu = np.expand_dims(group['data']['hu'][-1, :, :, 0], axis=0)  # type: ignore
+                    hv0 = np.expand_dims(group['data']['hv'][0, :, :, 0], axis=0)  # type: ignore
+                    hv = np.expand_dims(group['data']['hv'][-1, :, :, 0], axis=0)  # type: ignore
                     dataset.append(np.stack([h0, hu0, hv0, h, hu, hv], axis=1))
+                    params, sources, _extra = self._shallow_water_sample_metadata(f, group)
+                    for name, value in params.items():
+                        param_chunks.setdefault(name, []).append(float(value))
+                        file_param_names.add(name)
+                        if name not in param_sources:
+                            param_sources[name] = sources.get(name, "unknown")
+                        elif param_sources[name] != sources.get(name, "unknown"):
+                            param_sources[name] = "mixed"
                     sample_count += 1
-            if max_samples is not None and sample_count >= max_samples:
+                    if remaining is not None:
+                        remaining -= 1
+
+            file_sample_count = sample_count - sample_start
+            if file_sample_count > 0:
+                sample_stop = sample_start + file_sample_count
+                self.pde_param_slices.append(
+                    {
+                        "file_path": str(file_path),
+                        "start": sample_start,
+                        "stop": sample_stop,
+                        "params": tuple(sorted(file_param_names)),
+                    }
+                )
+                sample_start = sample_stop
+            if remaining is not None and remaining <= 0:
                 break
 
-        return self._finalize(np.concatenate(dataset, axis=0))
+        if not dataset:
+            raise ValueError(
+                f"No shallow_water samples were loaded from data_path={data_path!r} with size={size}"
+            )
+
+        data, label = self._finalize(np.concatenate(dataset, axis=0))
+        for name, values in param_chunks.items():
+            tensor = np.asarray(values, dtype=np.float32)
+            if tensor.shape[0] != len(data):
+                raise ValueError(f"Scalar parameter {name!r} was present for only part of the loaded samples")
+            self.pde_params[name] = torch.tensor(tensor, dtype=torch.float32)
+        self.pde_param_sources = param_sources
+        self.extra_metadata.update(
+            {
+                "selected_file_format": "swe",
+                "selected_files": selected_files,
+                "file_paths": selected_files,
+                "num_loaded_samples": int(len(data)),
+                "residual_family": self.spec.residual_family,
+                "channel_names": list(self.spec.channel_names),
+            }
+        )
+        return data, label
+
+    @staticmethod
+    def _as_scalar_float(value):
+        values = np.asarray(value, dtype=np.float32).reshape(-1)
+        if values.size != 1:
+            raise ValueError(f"Expected scalar value for SWE metadata, got shape {values.shape}")
+        return float(values[0])
+
+    def _shallow_water_sample_metadata(self, file, group):
+        params = {}
+        sources = {}
+        extra = {}
+
+        t_value, t_source = self._rd_attr_value(file, group, ("T", "total_time"))
+        if t_value is not None:
+            t_float = self._as_scalar_float(t_value)
+            params["T"] = t_float
+            params["total_time"] = t_float
+            sources["T"] = t_source
+            sources["total_time"] = t_source
+
+        g_value, g_source = self._rd_attr_value(file, group, ("grav", "g"))
+        if g_value is not None:
+            params["g"] = self._as_scalar_float(g_value)
+            sources["g"] = g_source
+
+        dt_value = None
+        dt_source = ""
+        if "grid" in group and "t" in group["grid"]:
+            t_grid = np.asarray(group["grid"]["t"], dtype=np.float32).reshape(-1)
+            if t_grid.size >= 2:
+                dt_value = float(t_grid[1] - t_grid[0])
+                dt_source = "group_dataset:grid/t"
+        if dt_value is None and "tsteps" in file.attrs and "T" in params:
+            tsteps = int(np.asarray(file.attrs["tsteps"]).reshape(-1)[0])
+            if tsteps > 0:
+                dt_value = params["T"] / float(tsteps)
+                dt_source = "root_attr:tsteps"
+        if dt_value is None and "n_time" in file.attrs and "T" in params:
+            n_time = int(np.asarray(file.attrs["n_time"]).reshape(-1)[0])
+            if n_time > 1:
+                dt_value = params["T"] / float(n_time - 1)
+                dt_source = "root_attr:n_time"
+
+        if dt_value is not None:
+            params["dt"] = dt_value
+            sources["dt"] = dt_source
+
+        sample_seed = group.attrs.get("seed", None)
+        if sample_seed is not None:
+            extra["sample_seed"] = int(self._as_scalar_float(sample_seed))
+
+        return params, sources, extra
 
     def _heat_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, split="train", max_samples=None):
         return self._pair_h5_load(data_path, size=size, split=split, max_samples=max_samples)
