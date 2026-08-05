@@ -89,14 +89,11 @@ run_single() {
     local task="$2"
     local batch_size="$3"
     local offset="$4"
-    local output_subdir="$5"
 
     local guidance="obs_pde"
     if [[ "${task}" == "unconditional" ]]; then
         guidance="noguide"
     fi
-
-    local task_output_dir="${output_subdir}/${task}"
 
     echo "  [$(date '+%H:%M:%S')] pde=${pde} task=${task} batch=${batch_size} offset=${offset}"
 
@@ -106,7 +103,7 @@ run_single() {
     OFFSET="${offset}" \
     CHECKPOINT_ROOT="${CHECKPOINT_ROOT}" \
     DATA_ROOT="${DATA_ROOT}" \
-    OUTPUT_DIR="${task_output_dir}" \
+    OUTPUT_DIR="${OUTPUT_DIR}" \
     DEVICE="${DEVICE}" \
     NUM_STEPS="${NUM_STEPS}" \
     NUM_OBS="${NUM_OBS}" \
@@ -133,7 +130,7 @@ for pde in "${PDES[@]}"; do
         chunk_index=0
         while IFS=' ' read -r chunk_size chunk_offset; do
             [[ -z "${chunk_size}" ]] && continue
-            run_single "${pde}" "${task}" "${chunk_size}" "${chunk_offset}" "${OUTPUT_DIR}/${pde}"
+            run_single "${pde}" "${task}" "${chunk_size}" "${chunk_offset}"
             chunk_index=$(( chunk_index + 1 ))
         done < <(compute_chunks "${NUM_SAMPLES}" "${MAX_BATCH_SIZE}")
     done
