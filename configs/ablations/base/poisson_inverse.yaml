@@ -1,12 +1,16 @@
+# Poisson equation: Δu = f
+# task-specific zeta values (sampling scripts auto-select based on task):
+#   forward:  za=6e5, zu=4e9   inverse:  za=3e6, zu=1e10   both:  za=6e5, zu=2e9
 pde: poisson
-task: both
-data_config_path: configs/poisson.yaml
-data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_1000-128-128.mat
+task: inverse
+data_config_path: configs/main/poisson.yaml
+data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
 loadby: scipy
 coef_name: f_data
 solution_name: phi_data
-checkpoint_path: outputs/pretrained/fm4poisson.pth
-output_dir: outputs/ablations
+checkpoint_path: outputs/pretrained/formal/poisson/260621-104344-poisson-batch4-epoch300-accum8-float32/fm4poisson.pth
+model_profile: recommended
+output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
@@ -16,7 +20,7 @@ gradient_target: current_state_chain_rule
 sampler_phase: stochastic
 switch_ratio: 0.5
 guidance_schedule: constant
-clip_mode: global_norm
+clip_mode: per_sample_norm
 clip_threshold: 10000000000.0
 pde_residual_region: full
 residual_mode: auto
@@ -37,12 +41,16 @@ mask_seed: 0
 noise_level: 0.0
 noise_seed: 0
 time_grid: uniform
-num_steps: 100
+num_steps: 1000
 step_method: euler
 batch_size: 1
-sample_seed: 0
-device: cpu
+sample_seed: 42
+device: cuda
 dtype: float32
-zeta_obs_a: 60000
-zeta_obs_u: 5000000
-zeta_pde: 1
+stochastic_guidance_coeff: 0.1
+stochastic_guidance_time: t
+zeta_obs_a: 3000000
+zeta_obs_u: 10000000000.0
+zeta_pde: 1.0
+extra:
+  det_guidance_stoch_scale: true

@@ -1,4 +1,4 @@
-base_config: configs/ablations/smoke.yaml
+base_config: configs/ablations/base/poisson.yaml
 groups:
   group1_guidance_components:
     fixed:

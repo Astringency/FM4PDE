@@ -90,6 +90,8 @@ def compute_guidance_gradient(
     clip_scale = 1.0
     if config.clip_mode == "global_norm":
         total, clip_scale = _clip_single(total, config.clip_threshold, True)
+    elif config.clip_mode == "per_sample_norm":
+        total, clip_scale = _clip_per_sample(total, config.clip_threshold)
     elif config.clip_mode == "none":
         clip_scale = 1.0
     elif config.clip_mode != "per_component_norm":
@@ -121,7 +123,10 @@ def apply_guidance_update(x_next: Any, gradient: GuidanceGradient, step_output: 
 
 
 def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
-    if config.guidance_schedule == "bt" or phase == "deterministic":
+    # Allow deterministic phase to use stochastic-like guidance scale via config flag.
+    # This avoids the bt=(1-t)/t singularity at t→0 in CondOT velocity parameterization.
+    det_use_stoch = bool(getattr(config, "extra", {}).get("det_guidance_stoch_scale", False))
+    if (config.guidance_schedule == "bt" or phase == "deterministic") and not det_use_stoch:
         return bt * step_size
     time_name = getattr(config, "stochastic_guidance_time", "t")
     if time_name == "t":
@@ -150,6 +155,20 @@ def _clip_single(grad: Any, threshold: float, active: bool) -> tuple[Any, float]
     norm = torch.linalg.vector_norm(grad)
     scale = torch.minimum(torch.ones((), dtype=grad.dtype, device=grad.device), torch.as_tensor(threshold, dtype=grad.dtype, device=grad.device) / (norm + 1e-12))
     return grad * scale, float(scale.detach().cpu())
+
+
+def _clip_per_sample(grad: Any, threshold: float) -> tuple[Any, float]:
+    """Clip each sample in the batch independently.  grad shape: [B, C, H, W]."""
+    import torch
+
+    B = int(grad.shape[0])
+    if B <= 1:
+        return _clip_single(grad, threshold, True)
+    flat = grad.reshape(B, -1)
+    norms = torch.linalg.vector_norm(flat, dim=1)  # [B]
+    scales = torch.clamp(threshold / (norms + 1e-12), max=1.0)  # [B]
+    clipped = grad * scales.reshape(B, *([1] * (grad.ndim - 1)))
+    return clipped, float(scales.mean().detach().cpu())
 
 
 def _norm(grad: Any) -> float:

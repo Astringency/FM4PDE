@@ -8,3 +8,5 @@ outputs/pretrained/*
 outputs/datacheck/*
 outputs/ablations/*
 outputs/checkrun/*
+outputs/samples/*
+outputs/zeta_tuning/*

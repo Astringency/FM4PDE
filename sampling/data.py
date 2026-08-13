@@ -451,6 +451,34 @@ def _extract_near_endpoint_single(
                 "dt_source": dt_source,
             },
         )
+    if config.loadby == "h5py":
+        file = raw["__h5__"]
+        sol_dataset = file[config.solution_name]  # [N, H, W, T] or [H, W, N, T]
+        import numpy as np
+        sol = np.array(sol_dataset)
+        # Handle [H, W, N, T] format (darcy-like) vs [N, H, W, T]
+        if sol.ndim == 4 and sol.shape[0] == sol.shape[1]:
+            # [H, W, N, T] -> [N, H, W, T]
+            sol = sol.transpose(2, 0, 1, 3)
+        n_time = sol.shape[-1]
+        if n_time < 3:
+            raise ValueError("near_endpoint_temporal mode requires at least three time frames in h5py trajectory")
+        q_dt_np = sol[offset, :, :, 1]
+        q_T_minus_dt_np = sol[offset, :, :, n_time - 2]
+        dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, n_time - 1)
+        return (
+            q_dt_np,
+            q_T_minus_dt_np,
+            dt_value,
+            {
+                "sample_offset": int(offset),
+                "q_dt_frame": 1,
+                "q_T_minus_dt_frame": n_time - 2,
+                "final_frame": n_time - 1,
+                "dt_source": dt_source,
+                "auto_constructed": True,
+            },
+        )
     raise ValueError(
         "near_endpoint_temporal mode requires extra near-endpoint sparse temporal observations and masks; "
         f"loadby={config.loadby!r} is not supported"

@@ -65,18 +65,20 @@ def compute_guidance_losses(
     pde_field = None
     status = "disabled"
     pde_meta: dict[str, Any] = {}
-    if enabled["pde"]:
-        pde_params = _pde_params_with_residual_options(getattr(ground_truth, "pde_params", None), config)
-        ic_mode = str(getattr(config, "initial_condition_mode", "auto"))
-        if getattr(config, "enforce_initial_conditions", True) and enabled["obs_a"]:
-            pde_params.setdefault("observed_initial", target_coef * masks.coef)
-            pde_params.setdefault("initial_mask", masks.coef)
-            pde_params.setdefault("initial_condition_source", "observation_loss_masked_coef")
-        elif ic_mode == "observed_initial":
-            raise ValueError(
-                "initial_condition_mode='observed_initial' requires coefficient/initial observations; "
-                "use task='forward' or 'both', or set initial_condition_mode='none/auto'."
-            )
+    # Always compute PDE residual for evaluation metrics, even when guidance
+    # does not use the PDE component.  Only skip L_pde when disabled.
+    pde_params = _pde_params_with_residual_options(getattr(ground_truth, "pde_params", None), config)
+    ic_mode = str(getattr(config, "initial_condition_mode", "auto"))
+    if getattr(config, "enforce_initial_conditions", True) and enabled["obs_a"]:
+        pde_params.setdefault("observed_initial", target_coef * masks.coef)
+        pde_params.setdefault("initial_mask", masks.coef)
+        pde_params.setdefault("initial_condition_source", "observation_loss_masked_coef")
+    elif ic_mode == "observed_initial" and enabled["pde"]:
+        raise ValueError(
+            "initial_condition_mode='observed_initial' requires coefficient/initial observations; "
+            "use task='forward' or 'both', or set initial_condition_mode='none/auto'."
+        )
+    try:
         residual = compute_pde_residual(
             config.pde,
             phys_state.coef,
@@ -89,6 +91,10 @@ def compute_guidance_losses(
         pde_meta = residual.metadata
         pde_field, compose_meta, loss_components = _compose_region_aware_pde_field(residual, config, masks)
         pde_meta.update(compose_meta)
+    except Exception:
+        pde_field = None
+        status = "error"
+    if enabled["pde"] and pde_field is not None:
         L_pde, pde_component_losses = _componentwise_pde_mse_loss(
             loss_components,
             bc_weight=float(getattr(config, "bc_weight", 1.0)),

@@ -45,7 +45,7 @@ VALID_GUIDANCE_SCHEDULES = {
     "polynomial",
     "obs_decay",
 }
-VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm"}
+VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm", "per_sample_norm"}
 VALID_PDE_REGIONS = {"full", "observed", "boundary_excluded", "union_obs"}
 VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
@@ -90,7 +90,7 @@ _LOCAL_CHECKPOINTS = {
 class AblationConfig:
     pde: str = "poisson"
     task: str = "forward"
-    data_config_path: str = "configs/poisson.yaml"
+    data_config_path: str = "configs/main/poisson.yaml"
     checkpoint_path: str = "outputs/pretrained/fm4poisson.pth"
     output_dir: str = "outputs/ablations"
     model_profile: str = "recommended"

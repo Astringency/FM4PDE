@@ -1141,7 +1141,11 @@ def _rhs_nsnonbounded(q: Any, pde_params: dict[str, Any]) -> Any:
     lap_w = torch.fft.ifft2(-k2 * w_hat, dim=(-2, -1)).real
     nu = _param_field_any(pde_params, ("nu", "viscosity"), w, default=1e-3)
     forcing = _forcing_field(pde_params, w) if "forcing" in pde_params else _ns_default_forcing(w)
-    return -u_vel * w_x - v_vel * w_y + nu * lap_w + forcing
+    result = -u_vel * w_x - v_vel * w_y + nu * lap_w + forcing
+    # Numerical protection: clamp to prevent NaN/Inf propagation in Hermite bridge
+    result = torch.nan_to_num(result, nan=0.0, posinf=1e6, neginf=-1e6)
+    result = torch.clamp(result, -1e6, 1e6)
+    return result
 
 
 def _periodic_stream_function_fft(w: Any) -> tuple[Any, Any, Any, Any]:

@@ -1,0 +1,56 @@
+# Burgers equation: u_t + u·u_x = ν u_xx   (full time-space field)
+# Single channel: coef == sol == time-space output
+# task-specific zeta: all za=0, zu=128000, zpde=10
+pde: burger
+task: both
+data_config_path: configs/main/burger.yaml
+data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128.mat
+loadby: scipy
+coef_name: output
+solution_name: output
+checkpoint_path: outputs/pretrained/formal/burger/260625-150439-burger-batch4-epoch300-accum8-float32/fm4burger.pth
+model_profile: recommended
+output_dir: outputs/samples
+img_channels: 1
+img_resolution: 128
+allow_synthetic_data: false
+guidance_components: obs_pde
+loss_state: endpoint
+gradient_target: current_state_chain_rule
+sampler_phase: stochastic
+switch_ratio: 0.5
+guidance_schedule: constant
+clip_mode: per_sample_norm
+clip_threshold: 10000000000.0
+pde_residual_region: full
+residual_mode: auto
+enforce_boundary_conditions: true
+enforce_initial_conditions: true
+boundary_condition_mode: periodic
+initial_condition_mode: auto
+bc_weight: 1.0
+ic_weight: 1.0
+endpoint_bc_weight: 1.0
+boundary_residual_normalization: sqrt_grid_over_mask
+allow_unknown_boundary_conditions: false
+legacy_ignore_boundary: false
+num_obs: 500
+sensor_mode: sensor_column
+shared_mask: false
+mask_seed: 0
+noise_level: 0.0
+noise_seed: 0
+time_grid: uniform
+num_steps: 1000
+step_method: euler
+batch_size: 1
+sample_seed: 42
+device: cuda
+dtype: float32
+stochastic_guidance_coeff: 0.1
+stochastic_guidance_time: t
+zeta_obs_a: 0
+zeta_obs_u: 128000
+zeta_pde: 10.0
+extra:
+  det_guidance_stoch_scale: true

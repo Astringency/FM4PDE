@@ -10,6 +10,8 @@ from typing import Any
 from sampling.config import AblationConfig, load_config, normalize_residual_mode, parse_cli_overrides
 from sampling.data import finalize_ground_truth_config, load_ground_truth
 from sampling.guidance import apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
+from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
+
 from sampling.logging import make_run_dir, save_torch, write_run_metadata
 from sampling.losses import ObservationTargets, compute_guidance_losses, guidance_component_flags
 from sampling.masks import make_pair_masks
@@ -118,74 +120,112 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         dtype=gt.pair.dtype,
     )
 
+    pde_start_step = int(config.extra.get("pde_guidance_start_step", 0))
+    saved_guidance_components = config.guidance_components
+
     rows: list[dict[str, Any]] = []
     intermediates = []
     start = time.time()
-    for step in range(config.num_steps):
-        step_start = time.time()
-        phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps)
-        x_cur = x_next.detach().clone()
-        if _has_guidance(config):
-            x_cur.requires_grad_(True)
-        t = grid[step]
-        t_next = grid[step + 1]
-        step_out = sampler_step(
-            net=net,
-            x_cur=x_cur,
-            t=t,
-            t_next=t_next,
-            phase=phase,
-            step_method=config.step_method,
-            loss_state=config.loss_state,
-            device=device,
-            model_extra=model_extra,
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        TextColumn("rel₂(u)={task.fields[rel_u]}"),
+        TextColumn("rel₂(a)={task.fields[rel_a]}"),
+        TextColumn("L_pde={task.fields[pde_loss]}"),
+        TextColumn("[{task.fields[phase]}]"),
+        transient=True,
+        expand=False,
+    ) as progress:
+        task_id = progress.add_task(
+            "sampling",
+            total=config.num_steps,
+            rel_u="---",
+            rel_a="---",
+            pde_loss="---",
+            phase="init",
         )
-        phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
-        losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
-        coeffs = scheduler_coefficients(t, scheduler="CondOT")
-        affine = affine_coefficients(coeffs, training="velocity")
-        schedule = make_zeta_schedule(config, t, t_next, affine.b_t)
+        for step in range(config.num_steps):
+            # Early-step PDE suppression: use obs_only for steps < pde_start_step
+            if step < pde_start_step and saved_guidance_components == "obs_pde":
+                config.guidance_components = "obs_only"
+            else:
+                config.guidance_components = saved_guidance_components
 
-        gradient = None
-        guided_next = step_out.x_raw_next
-        if _has_guidance(config):
-            gradient_input = _gradient_target_tensor(config, x_cur, step_out)
-            gradient = compute_guidance_gradient(losses, gradient_input, schedule, config)
-            guided_next = apply_guidance_update(step_out.x_raw_next, gradient, step_out, schedule, config)
-        x_next = guided_next.detach()
-        if config.empty_cache_each_step and device.type == "cuda":
-            torch.cuda.empty_cache()
+            step_start = time.time()
+            phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps)
+            x_cur = x_next.detach().clone()
+            if _has_guidance(config):
+                x_cur.requires_grad_(True)
+            t = grid[step]
+            t_next = grid[step + 1]
+            step_out = sampler_step(
+                net=net,
+                x_cur=x_cur,
+                t=t,
+                t_next=t_next,
+                phase=phase,
+                step_method=config.step_method,
+                loss_state=config.loss_state,
+                device=device,
+                model_extra=model_extra,
+            )
+            phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
+            losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
+            coeffs = scheduler_coefficients(t, scheduler="CondOT")
+            affine = affine_coefficients(coeffs, training="velocity")
+            schedule = make_zeta_schedule(config, t, t_next, affine.b_t)
 
-        with torch.no_grad():
-            phys_eval = _physical_from_model_state(x_next, config, normalizer)
-            eval_losses = compute_guidance_losses(phys_eval, gt, masks, config, observations)
-        row = step_metrics(step, step_out, losses, eval_losses, gradient, phys_eval, gt, masks, time.time() - step_start)
-        row.update(
-            {
-                "zeta_obs_a_t": _scalar(schedule.zeta_obs_a_t),
-                "zeta_obs_u_t": _scalar(schedule.zeta_obs_u_t),
-                "zeta_pde_t": _scalar(schedule.zeta_pde_t),
-                "guidance_schedule_factor": _scalar(schedule.metadata.get("factor", 1.0)),
-                "bt": _scalar(schedule.bt),
-            }
-        )
-        rows.append(row)
-        append_jsonl(run_dir / "metrics_step.jsonl", row)
-        if config.save_intermediate:
-            intermediates.append(
+            gradient = None
+            guided_next = step_out.x_raw_next
+            if _has_guidance(config):
+                gradient_input = _gradient_target_tensor(config, x_cur, step_out)
+                gradient = compute_guidance_gradient(losses, gradient_input, schedule, config)
+                guided_next = apply_guidance_update(step_out.x_raw_next, gradient, step_out, schedule, config)
+            x_next = guided_next.detach()
+            if config.empty_cache_each_step and device.type == "cuda":
+                torch.cuda.empty_cache()
+
+            with torch.no_grad():
+                phys_eval = _physical_from_model_state(x_next, config, normalizer)
+                eval_losses = compute_guidance_losses(phys_eval, gt, masks, config, observations)
+            row = step_metrics(step, step_out, losses, eval_losses, gradient, phys_eval, gt, masks, time.time() - step_start)
+            row.update(
                 {
-                    "x_raw_current": step_out.x_raw_current.detach().cpu(),
-                    "x_raw_next": step_out.x_raw_next.detach().cpu(),
-                    "x_endpoint": step_out.x_endpoint.detach().cpu(),
-                    "x_loss_state": step_out.x_loss_state.detach().cpu(),
-                    "phase": step_out.phase,
-                    "loss_state": step_out.loss_state,
-                    "t": _scalar(step_out.t),
-                    "t_next": _scalar(step_out.t_next),
-                    "step_size": _scalar(step_out.step_size),
-                    "wall_time": step_out.wall_time,
+                    "zeta_obs_a_t": _scalar(schedule.zeta_obs_a_t),
+                    "zeta_obs_u_t": _scalar(schedule.zeta_obs_u_t),
+                    "zeta_pde_t": _scalar(schedule.zeta_pde_t),
+                    "guidance_schedule_factor": _scalar(schedule.metadata.get("factor", 1.0)),
+                    "bt": _scalar(schedule.bt),
                 }
             )
+            rows.append(row)
+            append_jsonl(run_dir / "metrics_step.jsonl", row)
+            progress.update(
+                task_id,
+                advance=1,
+                rel_u=f"{row["rel_l2_u"]:.4g}",
+                rel_a=f"{row["rel_l2_a"]:.4g}",
+                pde_loss=f"{row["L_pde"]:.2e}",
+                phase=phase,
+            )
+            if config.save_intermediate:
+                intermediates.append(
+                    {
+                        "x_raw_current": step_out.x_raw_current.detach().cpu(),
+                        "x_raw_next": step_out.x_raw_next.detach().cpu(),
+                        "x_endpoint": step_out.x_endpoint.detach().cpu(),
+                        "x_loss_state": step_out.x_loss_state.detach().cpu(),
+                        "phase": step_out.phase,
+                        "loss_state": step_out.loss_state,
+                        "t": _scalar(step_out.t),
+                        "t_next": _scalar(step_out.t_next),
+                        "step_size": _scalar(step_out.step_size),
+                        "wall_time": step_out.wall_time,
+                    }
+                )
 
     final_phys = _physical_from_model_state(x_next, config, normalizer)
     final = final_metrics(rows)
@@ -230,6 +270,10 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             "config": config.asdict(),
         },
     )
+
+    if getattr(config, "save_plots", False):
+        _save_visualization(run_dir, config.pde)
+
     return final
 
 
@@ -243,6 +287,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", required=True, help="Flat AblationConfig YAML.")
     parser.add_argument("--override", action="append", default=[], help="Override key=value. Can be repeated.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and run without loading the checkpoint.")
+    parser.add_argument("--vis", action="store_true", help="Plot ground truth vs prediction after sampling.")
     return parser
 
 
@@ -252,6 +297,8 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     overrides = parse_cli_overrides(args.override)
     if args.dry_run:
         overrides["dry_run"] = True
+    if args.vis:
+        overrides["save_plots"] = True
     result = run_from_config_path(args.config, overrides=overrides)
     print(result)
     return result
@@ -561,6 +608,20 @@ def _scalar(value: Any) -> float:
 class _ZeroVelocityModel:
     def __call__(self, x: Any, t: Any, **extras: Any) -> Any:
         return x * 0.0
+
+
+def _save_visualization(run_dir: Path, pde: str) -> None:
+    """Plot ground truth vs prediction from result.pt into run_dir/figures/."""
+    from plot.plot import plot_from_result_pt
+
+    result_pt = run_dir / "result.pt"
+    if not result_pt.exists():
+        return
+    output_path = run_dir / "figures" / f"{pde}_prediction.png"
+    try:
+        plot_from_result_pt(str(result_pt), str(output_path))
+    except Exception as ex:
+        print(f"[vis] Failed to plot: {ex}")
 
 
 if __name__ == "__main__":
