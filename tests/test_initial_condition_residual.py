@@ -26,7 +26,7 @@ def test_hermite_initial_residual_uses_q0_not_qT():
         "heat",
         q0,
         qT,
-        pde_params={"observed_initial": q0, "initial_mask": mask, "boundary_condition_mode": "periodic"},
+        pde_params={"alpha": 1e-3, "observed_initial": q0, "initial_mask": mask, "boundary_condition_mode": "periodic"},
         residual_mode="hermite_bridge",
     )
     assert torch.allclose(out.components["initial"], torch.zeros_like(q0))
@@ -34,7 +34,7 @@ def test_hermite_initial_residual_uses_q0_not_qT():
         "heat",
         q0,
         qT,
-        pde_params={"observed_initial": qT, "initial_mask": mask, "boundary_condition_mode": "periodic"},
+        pde_params={"alpha": 1e-3, "observed_initial": qT, "initial_mask": mask, "boundary_condition_mode": "periodic"},
         residual_mode="hermite_bridge",
     )
     assert out_bad.components["initial"].abs().sum() > 0
@@ -55,7 +55,7 @@ def test_near_endpoint_initial_residual_uses_q0_not_qT():
         "heat",
         q0,
         qT,
-        pde_params={"near_endpoint_temporal": near, "observed_initial": q0, "initial_mask": mask, "boundary_condition_mode": "periodic"},
+        pde_params={"alpha": 1e-3, "near_endpoint_temporal": near, "observed_initial": q0, "initial_mask": mask, "boundary_condition_mode": "periodic"},
         residual_mode="near_endpoint_temporal",
     )
     assert torch.allclose(out.components["initial"], torch.zeros_like(q0))
@@ -63,7 +63,7 @@ def test_near_endpoint_initial_residual_uses_q0_not_qT():
         "heat",
         q0,
         qT,
-        pde_params={"near_endpoint_temporal": near, "observed_initial": qT, "initial_mask": mask, "boundary_condition_mode": "periodic"},
+        pde_params={"alpha": 1e-3, "near_endpoint_temporal": near, "observed_initial": qT, "initial_mask": mask, "boundary_condition_mode": "periodic"},
         residual_mode="near_endpoint_temporal",
     )
     assert out_bad.components["initial"].abs().sum() > 0
@@ -81,7 +81,7 @@ def test_inverse_does_not_inject_initial_observation():
         boundary_condition_mode="periodic",
     )
     masks = PairMasks(torch.ones_like(coef), torch.ones_like(sol), {})
-    out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol), masks, cfg)
+    out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol, {"alpha": 1e-3}), masks, cfg)
     assert out.metadata["pde"]["ic_residual_enabled"] is False
     assert out.metadata["pde"]["initial_condition_source"] == "not_available"
 
@@ -98,9 +98,33 @@ def test_pde_only_does_not_inject_initial_observation():
         boundary_condition_mode="periodic",
     )
     masks = PairMasks(torch.ones_like(coef), torch.ones_like(sol), {})
-    out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol), masks, cfg)
+    out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol, {"alpha": 1e-3}), masks, cfg)
     assert out.metadata["pde"]["ic_residual_enabled"] is False
     assert out.metadata["pde"]["initial_condition_source"] == "not_available"
+
+
+def test_full_trajectory_ground_truth_cannot_be_used_as_endpoint_guidance():
+    coef = torch.zeros(1, 1, 4, 4)
+    sol = torch.ones_like(coef)
+    cfg = AblationConfig(
+        pde="heat",
+        task="both",
+        guidance_components="pde_only",
+        residual_mode="full_trajectory_fd",
+        boundary_condition_mode="periodic",
+    )
+    gt = GT(
+        coef,
+        sol,
+        {
+            "alpha": 1e-3,
+            "trajectory": torch.zeros(1, 3, 1, 4, 4),
+            "trajectory_is_observed_ground_truth": True,
+        },
+    )
+    masks = PairMasks(torch.zeros_like(coef), torch.zeros_like(sol), {})
+    with pytest.raises(ValueError, match="evaluation-only"):
+        compute_guidance_losses(SplitState(coef, sol), gt, masks, cfg)
 
 
 def test_observed_initial_mode_requires_obs_a():

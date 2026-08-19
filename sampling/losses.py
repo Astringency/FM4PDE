@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from sampling.config import normalize_residual_mode
 from sampling.masks import PairMasks, residual_region_mask
 from sampling.pde_residuals import compute_pde_residual
 from sampling.state import SplitState
@@ -68,6 +69,15 @@ def compute_guidance_losses(
     # Always compute PDE residual for evaluation metrics, even when guidance
     # does not use the PDE component.  Only skip L_pde when disabled.
     pde_params = _pde_params_with_residual_options(getattr(ground_truth, "pde_params", None), config)
+    if (
+        enabled["pde"]
+        and normalize_residual_mode(getattr(config, "residual_mode", "auto")) == "full_trajectory_fd"
+        and pde_params.get("trajectory_is_observed_ground_truth", False)
+    ):
+        raise ValueError(
+            "full_trajectory_fd PDE guidance requires a predicted full trajectory; "
+            "the loaded ground-truth trajectory is evaluation-only and cannot define a gradient for endpoint predictions"
+        )
     ic_mode = str(getattr(config, "initial_condition_mode", "auto"))
     if getattr(config, "enforce_initial_conditions", True) and enabled["obs_a"]:
         pde_params.setdefault("observed_initial", target_coef * masks.coef)

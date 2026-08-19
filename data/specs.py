@@ -97,8 +97,9 @@ PDE_DATA_SPECS: dict[str, PDEDataSpec] = {
         sol_channels=1,
         coef_channel_names=("w0",),
         sol_channel_names=("wT",),
-        scalar_param_names=("nu", "viscosity", "T", "total_time", "dt"),
-        optional_scalar_param_names=frozenset({"nu", "viscosity", "T", "total_time", "dt"}),
+        scalar_param_names=("nu", "T", "solver_dt"),
+        optional_scalar_param_names=frozenset({"nu", "T", "solver_dt"}),
+        param_aliases={"nu": ("nu", "viscosity"), "T": ("T", "total_time"), "solver_dt": ("solver_dt", "dt")},
         residual_family="temporal_endpoint",
         default_loadby="h5py",
     ),
@@ -162,8 +163,9 @@ PDE_DATA_SPECS: dict[str, PDEDataSpec] = {
         sol_channels=3,
         coef_channel_names=("h0", "hu0", "hv0"),
         sol_channel_names=("hT", "huT", "hvT"),
-        scalar_param_names=("g", "T", "total_time", "dt"),
-        optional_scalar_param_names=frozenset({"g", "T", "total_time", "dt"}),
+        scalar_param_names=("g", "T", "x_left", "x_right", "y_bottom", "y_top", "dx", "dy"),
+        optional_scalar_param_names=frozenset({"g", "T", "x_left", "x_right", "y_bottom", "y_top", "dx", "dy"}),
+        param_aliases={"g": ("g", "grav"), "T": ("T", "total_time")},
         residual_family="temporal_endpoint",
         default_loadby="swe",
     ),
@@ -231,4 +233,3 @@ def get_pde_spec(pde: str) -> PDEDataSpec:
         return PDE_DATA_SPECS[key]
     except KeyError as exc:
         raise ValueError(f"Unsupported PDE {pde!r}; expected one of {sorted(PDE_DATA_SPECS)}") from exc
-

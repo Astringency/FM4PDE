@@ -7,7 +7,18 @@ torch = pytest.importorskip("torch")
 from data.load import PDEloader
 from data.specs import get_pde_spec
 from sampling.config import AblationConfig
-from sampling.data import load_ground_truth
+from sampling.data import _attach_boundary_metadata_params, load_ground_truth
+from sampling.data import finalize_ground_truth_config
+
+
+def test_boundary_metadata_detects_mixed_before_neumann():
+    class File:
+        attrs = {"boundary_condition": "bottom Dirichlet; top/left/right zero Neumann"}
+
+    params = {}
+    sources = {}
+    _attach_boundary_metadata_params(AblationConfig(pde="steady_heat_conduction"), File(), params, sources)
+    assert params["boundary_condition_kind"] == "mixed"
 
 
 def _write_heat_h5(path):
@@ -21,10 +32,11 @@ def _write_ns_h5(path):
     w = np.zeros((2, 6, 6, 4), dtype=np.float32)
     for sample_idx in range(2):
         for time_idx in range(4):
-            w[sample_idx, :, :, time_idx] = sample_idx + time_idx
+            w[sample_idx, :, :, time_idx] = sample_idx + time_idx + 1
     with h5py.File(path, "w") as file:
-        file.create_dataset("w0", data=w[:, :, :, 0])
+        file.create_dataset("w0", data=np.stack([np.full((6, 6), i, dtype=np.float32) for i in range(2)]))
         file.create_dataset("w", data=w)
+        file.create_dataset("t", data=np.linspace(0.5, 2.0, 4, dtype=np.float32))
         file.attrs["nu"] = 0.002
         file.create_dataset("viscosity", data=np.array([0.003, 0.004], dtype=np.float32))
         file.attrs["T"] = 2.0
@@ -211,16 +223,13 @@ def test_nsnonbounded_h5py_reads_scalar_params(tmp_path):
 
     assert tuple(gt.coef.shape) == (2, 1, 6, 6)
     assert tuple(gt.sol.shape) == (2, 1, 6, 6)
-    assert set(gt.pde_params) == {"nu", "viscosity", "T", "total_time", "dt"}
+    assert set(gt.pde_params) == {"nu", "T", "solver_dt"}
     assert torch.allclose(gt.pde_params["nu"], torch.tensor([0.002, 0.002]))
-    assert torch.allclose(gt.pde_params["viscosity"], torch.tensor([0.003, 0.004]))
     assert torch.allclose(gt.pde_params["T"], torch.tensor([2.0, 2.0]))
-    assert torch.allclose(gt.pde_params["total_time"], torch.tensor([2.5, 3.5]))
-    assert torch.allclose(gt.pde_params["dt"], torch.tensor([0.25, 0.5]))
+    assert torch.allclose(gt.pde_params["solver_dt"], torch.tensor([0.25, 0.5]))
     assert gt.metadata["pde_params_sources"]["nu"] == "attrs:nu"
-    assert gt.metadata["pde_params_sources"]["viscosity"] == "dataset:viscosity"
     assert gt.metadata["pde_params_sources"]["T"] == "attrs:T"
-    assert gt.metadata["pde_params_sources"]["dt"] == "dataset:dt"
+    assert gt.metadata["pde_params_sources"]["solver_dt"] == "dataset:dt"
 
 
 def test_nsnonbounded_h5py_full_trajectory_fd_reads_w(tmp_path):
@@ -247,8 +256,14 @@ def test_nsnonbounded_h5py_full_trajectory_fd_reads_w(tmp_path):
     gt = load_ground_truth(cfg)
 
     trajectory = gt.pde_params["trajectory"]
-    assert tuple(trajectory.shape) == (1, 4, 1, 6, 6)
+    assert tuple(trajectory.shape) == (1, 5, 1, 6, 6)
     assert torch.allclose(trajectory[:, 0], gt.coef)
     assert torch.allclose(trajectory[:, -1], gt.sol)
+    assert np.allclose(gt.pde_params["trajectory_time_values"], np.linspace(0.0, 2.0, 5))
     assert gt.metadata["full_trajectory_fd"]["source"] == "h5py"
     assert gt.metadata["full_trajectory_fd"]["frame_metadata"][0]["trajectory_dataset"] == "w"
+
+
+def test_helmholtz_k_is_inferred_from_generator_filename():
+    cfg = AblationConfig(pde="helmholtz", data_path="/data/helmholtz_test_1000-128-128-k10.mat", k=1)
+    assert finalize_ground_truth_config(cfg).k == 10

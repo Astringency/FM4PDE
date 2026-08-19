@@ -18,7 +18,8 @@ def test_zero_boundary_no_longer_used_as_bc():
         if pde == "poisson":
             out = compute_pde_residual(pde, torch.zeros_like(u), u, pde_params={"boundary_condition_mode": "dirichlet_zero"})
         else:
-            out = compute_pde_residual(pde, u, u, pde_params={"boundary_condition_mode": "periodic"}, residual_mode="hermite_bridge")
+            physical = {"alpha": 1e-3} if pde == "heat" else {"b_x": 0.0, "b_y": 0.0, "kappa": 1e-3}
+            out = compute_pde_residual(pde, u, u, pde_params={"boundary_condition_mode": "periodic", **physical}, residual_mode="hermite_bridge")
         assert out.metadata["interior_residual_enabled"] is True
         if pde == "poisson":
             assert out.metadata["bc_residual_enabled"] is True
@@ -65,7 +66,7 @@ def test_periodic_endpoint_false_does_not_compare_first_last():
     u = torch.sin(2 * torch.pi * x).view(1, 1, 1, n).repeat(1, 1, n, 1)
     assert not torch.allclose(u[..., :, 0], u[..., :, -1])
     assert _periodic_residual(u, include_derivative_continuity=False, normalization="mean") is None
-    out = compute_pde_residual("heat", u, u, pde_params={"boundary_condition_mode": "periodic"}, residual_mode="endpoint_secant")
+    out = compute_pde_residual("heat", u, u, pde_params={"boundary_condition_mode": "periodic", "alpha": 1e-3}, residual_mode="endpoint_secant")
     assert out.metadata["boundary_enforced"] is True
     assert out.metadata["boundary_enforced_by_operator"] is True
     assert out.metadata["boundary_value_residual_applicable"] is False
@@ -105,7 +106,8 @@ def test_periodic_rhs_uses_roll_stencil():
         residual_mode="endpoint_secant",
     )
     assert out.metadata["boundary_condition_type"] == "neumann"
-    assert out.metadata["bc_residual_enabled"] is True
+    assert out.metadata["bc_residual_enabled"] is False
+    assert out.metadata["boundary_enforced_by_operator"] is True
 
 
 def test_hermite_bridge_boundary_conditions():
@@ -121,15 +123,17 @@ def test_hermite_bridge_boundary_conditions():
         if pde == "shallow_water":
             q0[:, :1] = q0[:, :1].abs() + 1.0
             qT[:, :1] = qT[:, :1].abs() + 1.0
-        out = compute_pde_residual(pde, q0, qT, pde_params={"boundary_condition_mode": mode}, residual_mode="hermite_bridge")
+        physical = {"alpha": 1e-3} if pde == "heat" else ({"b_x": 0.0, "b_y": 0.0, "kappa": 1e-3} if pde == "advection_diffusion" else {})
+        out = compute_pde_residual(pde, q0, qT, pde_params={"boundary_condition_mode": mode, **physical}, residual_mode="hermite_bridge")
         assert out.components["interior"] is not None
         if mode == "periodic":
             assert out.components["boundary"] is None
             assert out.metadata["residual_channels"]["bc_channels"] == 0
             assert out.metadata["boundary_enforced_by_operator"] is True
         else:
-            assert out.components["boundary"] is not None
-            assert out.metadata["residual_channels"]["bc_channels"] >= channels
+            assert out.components["boundary"] is None
+            assert out.metadata["residual_channels"]["bc_channels"] == 0
+            assert out.metadata["boundary_enforced_by_operator"] is True
 
 
 def test_dirichlet_zero_bc_nonzero_boundary_detected():
@@ -151,8 +155,8 @@ def test_open_boundary_uses_neumann_like_metadata():
     qT[:, :1] += 1.0
     out = compute_pde_residual("shallow_water", q0, qT, pde_params={"boundary_condition_mode": "open"}, residual_mode="endpoint_secant")
     assert out.metadata["boundary_condition_type"] == "open"
-    assert out.metadata["bc_residual_enabled"] is True
-    assert out.metadata["boundary_enforced_by_operator"] is False
+    assert out.metadata["bc_residual_enabled"] is False
+    assert out.metadata["boundary_enforced_by_operator"] is True
 
 
 def test_initial_condition_masked():
@@ -167,6 +171,7 @@ def test_initial_condition_masked():
         qT,
         pde_params={
             "boundary_condition_mode": "periodic",
+            "alpha": 1e-3,
             "observed_initial": target * mask,
             "initial_mask": mask,
         },
@@ -198,7 +203,7 @@ def test_steady_heat_conduction_migrated_bc():
     assert out.metadata["boundary_condition_type"] == "mixed"
 
 
-def test_steady_heat_conduction_mixed_bc_unchanged():
+def test_steady_heat_conduction_boundary_rows_match_generator_precedence():
     n = 6
     y = torch.linspace(0.0, 1.0, n)
     u = y.view(1, 1, n, 1).repeat(1, 1, 1, n)
@@ -216,8 +221,13 @@ def test_steady_heat_conduction_mixed_bc_unchanged():
 
     boundary = out.components["boundary"]
     assert boundary is not None
-    assert torch.allclose(boundary[:, :1], torch.zeros_like(boundary[:, :1]))
-    assert boundary[:, 1:2, -1, :].mean().item() == pytest.approx(1.0)
+    assert boundary.shape[1] == 1
+    assert torch.allclose(boundary[..., 0, :], torch.zeros_like(boundary[..., 0, :]))
+    assert torch.allclose(boundary[..., 1:, 0], torch.zeros_like(boundary[..., 1:, 0]))
+    assert torch.allclose(boundary[..., 1:, -1], torch.zeros_like(boundary[..., 1:, -1]))
+    assert torch.allclose(boundary[..., -1, 1:-1], torch.full_like(boundary[..., -1, 1:-1], 0.2))
+    assert boundary[..., -1, 0].item() == pytest.approx(0.0)
+    assert boundary[..., -1, -1].item() == pytest.approx(0.0)
     assert torch.allclose(boundary[:, 1:2, 1:-1, 0], torch.zeros_like(boundary[:, 1:2, 1:-1, 0]))
     assert torch.allclose(boundary[:, 1:2, 1:-1, -1], torch.zeros_like(boundary[:, 1:2, 1:-1, -1]))
     assert out.metadata["boundary_residual_spacing_source"] == "closed_interval_default"

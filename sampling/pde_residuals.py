@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from typing import Any, Callable
 
 from data.specs import FULL_TIME_SPACE_PDES, STATIC_PDES, TEMPORAL_ENDPOINT_PDES, get_pde_spec
@@ -108,21 +109,39 @@ def residual_status(pde: str) -> str:
 def _darcy(a: Any, u: Any, spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
-    deriv_x, deriv_y = _central_kernels(u)
-    ux = torch.nn.functional.conv2d(u, deriv_x, padding=(0, 1))
-    uy = torch.nn.functional.conv2d(u, deriv_y, padding=(1, 0))
-    div = torch.nn.functional.conv2d(a * ux, deriv_x, padding=(0, 1)) + torch.nn.functional.conv2d(
-        a * uy, deriv_y, padding=(1, 0)
-    )
-    interior = _interior_only(div + 1.0)
-    return _with_constraints(
+    if a.shape[-2:] != u.shape[-2:] or a.shape[-2] != a.shape[-1]:
+        raise ValueError(f"Darcy generator-aligned residual expects matching square fields, got a={a.shape}, u={u.shape}")
+    cell_to_nodal, nodal_to_cell_inverse = _darcy_spline_matrices(int(u.shape[-1]), u.dtype, u.device)
+    coefficient = cell_to_nodal @ a @ cell_to_nodal.T
+    solution = nodal_to_cell_inverse @ u @ nodal_to_cell_inverse.T
+    h = 1.0 / max(int(u.shape[-1]) - 1, 1)
+    center_u = solution[..., 1:-1, 1:-1]
+    center_a = coefficient[..., 1:-1, 1:-1]
+    operator = torch.zeros_like(center_u)
+    for neighbor_u, neighbor_a in (
+        (solution[..., :-2, 1:-1], coefficient[..., :-2, 1:-1]),
+        (solution[..., 2:, 1:-1], coefficient[..., 2:, 1:-1]),
+        (solution[..., 1:-1, :-2], coefficient[..., 1:-1, :-2]),
+        (solution[..., 1:-1, 2:], coefficient[..., 1:-1, 2:]),
+    ):
+        operator = operator + 0.5 * (center_a + neighbor_a) * (center_u - neighbor_u) / (h**2)
+    interior = torch.zeros_like(solution)
+    interior[..., 1:-1, 1:-1] = operator - 1.0
+    out = _with_constraints(
         pde="darcy",
-        state=u,
+        state=solution,
         interior=interior,
         status="reliable",
-        metadata={"equation": "div(a grad u) + 1", "mode": "static"},
+        metadata={
+            "equation": "-div(a grad u) - 1",
+            "mode": "static",
+            "discretization": "matlab_spline_nodal_conservative",
+            "stored_grid": "cell_centered",
+            "operator_grid": "nodal_endpoint_included",
+        },
         spec=spec,
     )
+    return out
 
 
 def _poisson(a: Any, u: Any, spec: PDEConstraintSpec) -> ResidualOutput:
@@ -138,14 +157,43 @@ def _poisson(a: Any, u: Any, spec: PDEConstraintSpec) -> ResidualOutput:
 
 
 def _helmholtz(a: Any, u: Any, spec: PDEConstraintSpec, k: int = 1) -> ResidualOutput:
-    interior = _interior_only(_laplacian(u) + float(k**2) * u - a)
+    import torch
+
+    n = int(u.shape[-1])
+    if u.shape[-2] != n:
+        raise ValueError(f"Helmholtz generator-aligned residual expects square fields, got {u.shape}")
+    h = 1.0 / max(n - 1, 1)
+    one_d = torch.diag(torch.full((n,), -2.0, dtype=u.dtype, device=u.device))
+    if n > 1:
+        off = torch.ones(n - 1, dtype=u.dtype, device=u.device)
+        one_d = one_d + torch.diag(off, diagonal=1) + torch.diag(off, diagonal=-1)
+    one_d = one_d / (h**2)
+    one_d[0] = 0.0
+    one_d[0, 0] = 1.0
+    one_d[-1] = 0.0
+    one_d[-1, -1] = 1.0
+    rhs = a.clone()
+    rhs[..., 0, :] = 0.0
+    rhs[..., -1, :] = 0.0
+    rhs[..., :, 0] = 0.0
+    rhs[..., :, -1] = 0.0
+    interior = one_d @ u + u @ one_d.T + float(k**2) * u - rhs
+    # The current MATLAB generator does not replace the complete 2-D boundary
+    # rows. Its Kronecker system above is the authoritative boundary equation.
+    generator_spec = replace(spec, enforce_boundary_conditions=False)
     return _with_constraints(
         pde="helmholtz",
         state=u,
         interior=interior,
         status="reliable",
-        metadata={"equation": "laplace(u) + k^2 u - f", "k": k, "mode": "static"},
-        spec=spec,
+        metadata={
+            "equation": "(I kron L + L kron I + k^2 I)u - f_zero_boundary",
+            "k": k,
+            "mode": "static",
+            "discretization": "matlab_kronecker_generator",
+            "generator_boundary_note": "1-D boundary rows are modified before the Kronecker sum; this is not strict 2-D zero Dirichlet",
+        },
+        spec=generator_spec,
     )
 
 
@@ -158,12 +206,17 @@ def _burger(
 ) -> ResidualOutput:
     import torch
 
-    deriv_t = torch.tensor([[-1.0], [0.0], [1.0]], dtype=u.dtype, device=u.device).view(1, 1, 3, 1) / 2.0
-    deriv_x = torch.tensor([[-1.0, 0.0, 1.0]], dtype=u.dtype, device=u.device).view(1, 1, 1, 3) / 2.0
-    ut = torch.nn.functional.conv2d(u, deriv_t, padding=(1, 0))
-    ux = torch.nn.functional.conv2d(u, deriv_x, padding=(0, 1))
-    uxx = torch.nn.functional.conv2d(ux, deriv_x, padding=(0, 1))
-    interior = _interior_time_space(ut + u * ux - 0.01 * uxx)
+    if u.ndim != 4 or u.shape[1] != 1 or u.shape[-2] < 3:
+        raise ValueError(f"Burgers full trajectory must be [B,1,T,X] with T>=3, got {u.shape}")
+    final_time = _float_param(pde_params, "T", _float_param(pde_params, "total_time", 1.0))
+    dt = _float_param(pde_params, "trajectory_dt", final_time / max(int(u.shape[-2]) - 1, 1))
+    domain_length = _float_param(pde_params, "domain_length", 1.0)
+    dx = domain_length / max(int(u.shape[-1]), 1)
+    nu = _float_param(pde_params, "nu", _float_param(pde_params, "viscosity", 0.01))
+    state = u[:, :, 1:-1]
+    ut = (u[:, :, 2:] - u[:, :, :-2]) / (2.0 * dt)
+    ux, uxx = _periodic_trajectory_x_derivatives(state, domain_length=domain_length)
+    interior = ut + state * ux - nu * uxx
     return _with_constraints(
         pde="burger",
         state=u,
@@ -171,11 +224,13 @@ def _burger(
         status="reliable",
         metadata={
             "equation": "u_t + u u_x - nu u_xx",
-            "nu": 0.01,
+            "nu": nu,
+            "dt": dt,
+            "dx": dx,
             "axis": "BCHW-as-time-space",
-            "mode": "full_time_space",
+            "mode": "full_trajectory_fd",
             "requested_residual_mode": residual_mode,
-            "resolved_residual_mode": "full_time_space",
+            "resolved_residual_mode": "full_trajectory_fd",
             "full_trajectory_required": True,
             "residual_family": "full_time_space",
             "temporal_derivative_mode": "full_fd",
@@ -249,10 +304,10 @@ def _endpoint_secant_residual(
 def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"heat expects 1+1 channels, got a={a.shape}, u={u.shape}")
-    alpha = _param_field(pde_params, "alpha", u, default=1.0)
+    _required_param_field(pde_params, "alpha", u)
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    interior = _interior_only((u - a) / time_scale - _rhs_heat(u_mid, pde_params))
+    interior = (u - a) / time_scale - _rhs_heat(u_mid, pde_params)
     return _with_constraints(
         pde="heat",
         state=u_mid,
@@ -287,7 +342,7 @@ def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
     v_mid = 0.5 * (v0 + v_t)
     res_u = (u_t - u0) / time_scale - v_mid
     res_v = (v_t - v0) / time_scale - (c**2) * _laplacian_for_bc(u_mid, pde_params, _operator_boundary_kind("wave", pde_params))
-    interior = _interior_only(torch.cat([res_u, res_v], dim=1))
+    interior = torch.cat([res_u, res_v], dim=1)
     return _with_constraints(
         pde="wave",
         state=torch.cat([u_mid, v_mid], dim=1),
@@ -319,7 +374,7 @@ def _advection_diffusion_endpoint_secant(
         raise ValueError(f"advection_diffusion expects 1+1 channels, got a={a.shape}, u={u.shape}")
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    interior = _interior_only((u - a) / time_scale - _rhs_advection_diffusion(u_mid, pde_params))
+    interior = (u - a) / time_scale - _rhs_advection_diffusion(u_mid, pde_params)
     return _with_constraints(
         pde="advection_diffusion",
         state=u_mid,
@@ -354,19 +409,22 @@ def _reaction_diffusion_endpoint_secant(
     a_u, a_v = a[:, 0:1], a[:, 1:2]
     u_u, u_v = u[:, 0:1], u[:, 1:2]
     time_scale, time_meta = _time_scale_field(pde_params, u_u, default=_default_total_time("reaction_diffusion"))
-    d_u = _param_field_any(pde_params, ("D_u", "Du"), u_u, default=2e-3)
-    d_v = _param_field_any(pde_params, ("D_v", "Dv"), u_v, default=4e-3)
-    k = _param_field(pde_params, "k", u_u, default=3e-3)
+    u_mid = 0.5 * (a_u + u_u)
+    v_mid = 0.5 * (a_v + u_v)
+    defaults = _reaction_diffusion_defaults(pde_params)
+    d_u = _param_field_any(pde_params, ("D_u", "Du"), u_mid, default=defaults["D_u"])
+    d_v = _param_field_any(pde_params, ("D_v", "Dv"), v_mid, default=defaults["D_v"])
+    k = _param_field(pde_params, "k", u_mid, default=defaults["k"])
     u_t = (u_u - a_u) / time_scale
     v_t = (u_v - a_v) / time_scale
-    lap_u = _reaction_diffusion_laplacian(u_u, pde_params)
-    lap_v = _reaction_diffusion_laplacian(u_v, pde_params)
-    res_u = u_t - (d_u * lap_u + u_u - u_u**3 - k - u_v)
-    res_v = v_t - (d_v * lap_v + u_u - u_v)
-    interior = _interior_only(torch.cat([res_u, res_v], dim=1))
+    lap_u = _reaction_diffusion_laplacian(u_mid, pde_params)
+    lap_v = _reaction_diffusion_laplacian(v_mid, pde_params)
+    res_u = u_t - (d_u * lap_u + u_mid - u_mid**3 - k - v_mid)
+    res_v = v_t - (d_v * lap_v + u_mid - v_mid)
+    interior = torch.cat([res_u, res_v], dim=1)
     return _with_constraints(
         pde="reaction_diffusion",
-        state=u,
+        state=torch.cat([u_mid, v_mid], dim=1),
         interior=interior,
         status="approximate",
         metadata={
@@ -396,10 +454,10 @@ def _reaction_diffusion_endpoint_secant(
                     "dy",
                 ),
             ),
-            **_reaction_diffusion_spatial_metadata(pde_params, u_u),
+            **_reaction_diffusion_spatial_metadata(pde_params, u_mid),
         },
         spec=spec,
-        endpoint_states=[a, u],
+        endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
         initial_state=a,
         pde_params=pde_params,
     )
@@ -428,7 +486,7 @@ def _shallow_water_endpoint_secant(
     mass = (h - h0) / time_scale - rhs_mid[:, 0:1]
     mom_x = (hu - hu0) / time_scale - rhs_mid[:, 1:2]
     mom_y = (hv - hv0) / time_scale - rhs_mid[:, 2:3]
-    interior = _interior_only(torch.cat([mass, mom_x, mom_y], dim=1))
+    interior = torch.cat([mass, mom_x, mom_y], dim=1)
     return _with_constraints(
         pde="shallow_water",
         state=torch.cat([h_mid, hu_mid, hv_mid], dim=1),
@@ -463,7 +521,7 @@ def _generic_endpoint_secant(
     q_mid = 0.5 * (a + u)
     residual = (u - a) / time_scale - _rhs_time_dependent(pde, q_mid, pde_params)
     residual = _apply_endpoint_residual_boundary(pde, residual)
-    return _with_constraints(
+    out = _with_constraints(
         pde=pde,
         state=q_mid,
         interior=residual,
@@ -482,6 +540,7 @@ def _generic_endpoint_secant(
         initial_state=a,
         pde_params=pde_params,
     )
+    return out
 
 
 def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
@@ -496,7 +555,7 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
             "full_trajectory_fd mode requires trajectory with layout [B,T,C,H,W] or [B,C,T,H,W], "
             f"got shape {tuple(trajectory.shape)}"
         )
-    expected_channels = get_pde_spec(pde).coef_channels
+    expected_channels = 1 if pde == "wave" and (trajectory.shape[1] == 1 or trajectory.shape[2] == 1) else get_pde_spec(pde).coef_channels
     if trajectory.shape[2] == expected_channels:
         btchw = trajectory
     elif trajectory.shape[1] == expected_channels:
@@ -510,26 +569,39 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
         raise ValueError("full_trajectory_fd mode requires at least three trajectory time points")
     if btchw.shape[0] == 1 and q0.shape[0] > 1:
         btchw = btchw.repeat(q0.shape[0], 1, 1, 1, 1)
-    if btchw.shape[0] != q0.shape[0] or btchw.shape[2:] != q0.shape[1:]:
+    endpoint_shape = q0.shape[1:]
+    expected_endpoint_shape = endpoint_shape if not (pde == "wave" and expected_channels == 1) else (1, *endpoint_shape[1:])
+    if btchw.shape[0] != q0.shape[0] or btchw.shape[2:] != expected_endpoint_shape:
         raise ValueError(
             "full_trajectory_fd trajectory batch/channel/spatial shape must match endpoints; "
             f"trajectory={tuple(btchw.shape)}, q0={tuple(q0.shape)}"
         )
     dt, dt_meta = _trajectory_dt_field(pde_params, q0, int(btchw.shape[1]))
-    residuals = []
-    for idx in range(int(btchw.shape[1])):
-        q = btchw[:, idx]
-        if idx == 0:
-            q_t = (btchw[:, 1] - btchw[:, 0]) / dt
-        elif idx == int(btchw.shape[1]) - 1:
-            q_t = (btchw[:, -1] - btchw[:, -2]) / dt
-        else:
-            q_t = (btchw[:, idx + 1] - btchw[:, idx - 1]) / (2.0 * dt)
-        residuals.append(_interior_only(q_t - _rhs_time_dependent(pde, q, pde_params)))
-    interior = torch.cat(residuals, dim=1)
-    return _with_constraints(
+    if pde == "wave" and expected_channels == 1:
+        state = btchw[:, 1:-1, 0:1]
+        u_tt = (btchw[:, 2:, 0:1] - 2.0 * state + btchw[:, :-2, 0:1]) / (dt[:, None] ** 2)
+        c = _param_field(pde_params, "c", q0[:, :1], default=1.0)
+        flat = state.reshape(-1, 1, *state.shape[-2:])
+        lap = _laplacian_for_bc(flat, pde_params, _operator_boundary_kind("wave", pde_params)).reshape_as(state)
+        interior_btchw = u_tt - c[:, None] ** 2 * lap
+        interior = interior_btchw.permute(0, 2, 1, 3, 4).reshape(q0.shape[0], -1, *q0.shape[-2:])
+        state_for_constraints = state.mean(dim=1)
+        endpoint_states = [btchw[:, 0], btchw[:, -1]]
+        wave_state_form = "displacement_only_second_order"
+    else:
+        state = btchw[:, 1:-1]
+        q_t = (btchw[:, 2:] - btchw[:, :-2]) / (2.0 * dt[:, None])
+        flat_state = state.reshape(-1, *state.shape[2:])
+        flat_rhs = _rhs_time_dependent(pde, flat_state, _repeat_batch_params(pde_params, int(state.shape[1])))
+        rhs = flat_rhs.reshape_as(state)
+        interior_btchw = q_t - rhs
+        interior = interior_btchw.permute(0, 2, 1, 3, 4).reshape(q0.shape[0], -1, *q0.shape[-2:])
+        state_for_constraints = state.mean(dim=1)
+        endpoint_states = [btchw[:, idx] for idx in range(int(btchw.shape[1]))]
+        wave_state_form = "first_order_state" if pde == "wave" else None
+    out = _with_constraints(
         pde=pde,
-        state=btchw.reshape(-1, *btchw.shape[2:]).mean(dim=0, keepdim=True).repeat(q0.shape[0], 1, 1, 1),
+        state=state_for_constraints,
         interior=interior,
         status="reliable",
         metadata={
@@ -538,16 +610,22 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
             "resolved_residual_mode": "full_trajectory_fd",
             "trajectory_layout": "BTCHW",
             "trajectory_time_points": int(btchw.shape[1]),
+            "trajectory_residual_time_points": int(btchw.shape[1]) - 2,
             "time_delta": dt_meta,
+            "wave_state_form": wave_state_form,
             "rhs": _rhs_name(pde),
             "pde_params_used": _rhs_param_usage(pde, pde_params),
             **_rhs_metadata(pde, pde_params, btchw[:, 0]),
         },
         spec=spec,
-        endpoint_states=[btchw[:, idx] for idx in range(int(btchw.shape[1]))],
+        endpoint_states=endpoint_states,
         initial_state=btchw[:, 0],
         pde_params=pde_params,
     )
+    observed = bool(pde_params.get("trajectory_is_observed_ground_truth", False))
+    out.metadata["trajectory_role"] = "observed_ground_truth" if observed else "predicted_or_explicit_input"
+    out.metadata["guidance_compatible"] = not observed
+    return out
 
 
 def _extract_full_trajectory(params: dict[str, Any]) -> Any:
@@ -813,7 +891,9 @@ def _constraint_metadata(
     unresolved: list[str],
 ) -> None:
     periodic_operator = spec.bc.kind in {"periodic", "periodic_x"}
-    boundary_enforced = bc is not None or (spec.enforce_boundary_conditions and periodic_operator)
+    ghost_cell_operator = pde in {"reaction_diffusion", "shallow_water"} and spec.bc.kind in {"neumann", "open"}
+    operator_encoded_boundary = periodic_operator or ghost_cell_operator
+    boundary_enforced = bc is not None or (spec.enforce_boundary_conditions and operator_encoded_boundary)
     out.metadata.update(
         {
             "interior_residual_enabled": True,
@@ -829,9 +909,9 @@ def _constraint_metadata(
             "legacy_ignore_boundary": spec.legacy_ignore_boundary,
             "legacy_boundary_ignored": legacy_used,
             "boundary_enforced": boundary_enforced,
-            "boundary_enforced_by_operator": bool(spec.enforce_boundary_conditions and periodic_operator and bc is None),
-            "boundary_value_residual_applicable": not periodic_operator,
-            "grid_convention": "endpoint_false_periodic" if periodic_operator else "closed_interval_or_metadata",
+            "boundary_enforced_by_operator": bool(spec.enforce_boundary_conditions and operator_encoded_boundary and bc is None),
+            "boundary_value_residual_applicable": not operator_encoded_boundary,
+            "grid_convention": "endpoint_false_periodic" if periodic_operator else ("cell_centered_ghost_cells" if ghost_cell_operator else "closed_interval_or_metadata"),
             "initial_enforced": ic is not None,
             "boundary_residual_normalization": spec.boundary_residual_normalization,
             "residual_channels": {
@@ -861,6 +941,11 @@ def _compute_boundary_residual(
     normalization: str,
     pde_params: dict[str, Any],
 ) -> Any | None:
+    # RD and SWE store finite-volume cell centres. Their Neumann/extrapolation
+    # conditions define ghost cells used by the spatial operator; equality of
+    # adjacent physical cells is not a boundary condition.
+    if pde in {"reaction_diffusion", "shallow_water"} and bc.kind in {"neumann", "open"}:
+        return None
     if bc.kind in {"none", "unknown"}:
         return None
     if bc.kind == "dirichlet":
@@ -898,14 +983,24 @@ def _trajectory_dt_field(params: dict[str, Any], reference: Any, n_time: int) ->
     if "trajectory_dt" in params:
         dt = _param_field(params, "trajectory_dt", reference, default=1.0)
         return dt, {"source": "trajectory_dt", "defaulted": False, "values": _metadata_values(dt)}
-    if "dt" in params:
-        dt = _param_field(params, "dt", reference, default=1.0)
-        return dt, {"source": "dt", "defaulted": False, "values": _metadata_values(dt)}
+    if "trajectory_time_values" in params:
+        values = torch.as_tensor(params["trajectory_time_values"], dtype=reference.dtype, device=reference.device)
+        if values.ndim != 1 or values.numel() != n_time:
+            raise ValueError(f"trajectory_time_values must contain {n_time} entries, got shape {tuple(values.shape)}")
+        deltas = values[1:] - values[:-1]
+        if not torch.allclose(deltas, deltas[:1].expand_as(deltas), rtol=1e-5, atol=1e-8):
+            raise ValueError("full_trajectory_fd currently requires uniformly spaced trajectory_time_values")
+        dt = torch.full((reference.shape[0], 1, 1, 1), float(deltas[0]), dtype=reference.dtype, device=reference.device)
+        return dt, {"source": "trajectory_time_values", "defaulted": False, "values": _metadata_values(dt)}
     for name in ("T", "total_time"):
         if name in params:
             total = _param_field(params, name, reference, default=1.0)
             dt = total / float(max(n_time - 1, 1))
             return dt, {"source": f"{name}/(n_time-1)", "defaulted": False, "values": _metadata_values(dt)}
+    for name in ("saved_dt", "dt"):
+        if name in params:
+            dt = _param_field(params, name, reference, default=1.0)
+            return dt, {"source": name, "defaulted": False, "values": _metadata_values(dt)}
     dt = torch.full((reference.shape[0], 1, 1, 1), 1.0 / float(max(n_time - 1, 1)), dtype=reference.dtype, device=reference.device)
     return dt, {"source": "default_unit_interval/(n_time-1)", "defaulted": True, "value": _metadata_values(dt)}
 
@@ -937,7 +1032,7 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
             + (3.0 * s2 - 2.0 * s) * time_scale * fT
         )
         collocation_states.append(h)
-        residuals.append(_interior_only(dh_ds / time_scale - _rhs_time_dependent(pde, h, pde_params)))
+        residuals.append(dh_ds / time_scale - _rhs_time_dependent(pde, h, pde_params))
 
     include_integral = _hermite_include_integral(pde_params)
     integral_weight = _hermite_integral_weight(pde_params)
@@ -945,7 +1040,7 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
     if include_integral:
         weight = torch.as_tensor(integral_weight, dtype=q0.dtype, device=q0.device).sqrt()
         integral_residual = qT - q0 - 0.5 * time_scale * (f0 + fT)
-        endpoint_component = _interior_only(weight * integral_residual)
+        endpoint_component = weight * integral_residual
     interior = torch.cat(residuals, dim=1)
     equation = (
         "2D vorticity Navier-Stokes endpoint Hermite bridge residual"
@@ -997,8 +1092,8 @@ def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dic
 
     td0 = (q_dt - q0) / dt
     tdT = (qT - q_T_minus_dt) / dt
-    r0 = _interior_only(td0 - _rhs_time_dependent(pde, q0, pde_params))
-    rT = _interior_only(tdT - _rhs_time_dependent(pde, qT, pde_params))
+    r0 = td0 - _rhs_time_dependent(pde, q0, pde_params)
+    rT = tdT - _rhs_time_dependent(pde, qT, pde_params)
     scale0, count0 = _mask_normalization(mask_0, r0)
     scaleT, countT = _mask_normalization(mask_T, rT)
     r0_masked = r0 * mask_0 * scale0
@@ -1059,8 +1154,23 @@ def _rhs_time_dependent(pde: str, q: Any, pde_params: dict[str, Any]) -> Any:
     raise ValueError(f"No time-dependent RHS is implemented for {pde!r}")
 
 
+def _repeat_batch_params(params: dict[str, Any], repeats: int) -> dict[str, Any]:
+    """Repeat sample-wise parameters to match flattened trajectory states."""
+    import torch
+
+    repeated: dict[str, Any] = {}
+    for name, value in params.items():
+        if name in {"trajectory", "full_trajectory", "trajectory_time_values"}:
+            continue
+        if isinstance(value, torch.Tensor) and value.ndim >= 1 and value.shape[0] > 1:
+            repeated[name] = value.repeat_interleave(repeats, dim=0)
+        else:
+            repeated[name] = value
+    return repeated
+
+
 def _rhs_heat(q: Any, pde_params: dict[str, Any]) -> Any:
-    alpha = _param_field(pde_params, "alpha", q, default=1.0)
+    alpha = _required_param_field(pde_params, "alpha", q)
     return alpha * _laplacian_for_bc(q, pde_params, _operator_boundary_kind("heat", pde_params))
 
 
@@ -1075,9 +1185,9 @@ def _rhs_wave(q: Any, pde_params: dict[str, Any]) -> Any:
 
 
 def _rhs_advection_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
-    bx = _param_field(pde_params, "b_x", q, default=0.0)
-    by = _param_field(pde_params, "b_y", q, default=0.0)
-    kappa = _param_field(pde_params, "kappa", q, default=1.0)
+    bx = _required_param_field(pde_params, "b_x", q)
+    by = _required_param_field(pde_params, "b_y", q)
+    kappa = _required_param_field(pde_params, "kappa", q)
     bc_kind = _operator_boundary_kind("advection_diffusion", pde_params)
     return -bx * _dx_for_bc(q, pde_params, bc_kind) - by * _dy_for_bc(q, pde_params, bc_kind) + kappa * _laplacian_for_bc(q, pde_params, bc_kind)
 
@@ -1088,9 +1198,10 @@ def _rhs_reaction_diffusion(q: Any, pde_params: dict[str, Any]) -> Any:
     if q.shape[1] != 2:
         raise ValueError(f"reaction_diffusion RHS expects [u,v] channels, got {q.shape}")
     u, v = q[:, 0:1], q[:, 1:2]
-    d_u = _param_field_any(pde_params, ("D_u", "Du"), u, default=2e-3)
-    d_v = _param_field_any(pde_params, ("D_v", "Dv"), v, default=4e-3)
-    k = _param_field(pde_params, "k", u, default=3e-3)
+    defaults = _reaction_diffusion_defaults(pde_params)
+    d_u = _param_field_any(pde_params, ("D_u", "Du"), u, default=defaults["D_u"])
+    d_v = _param_field_any(pde_params, ("D_v", "Dv"), v, default=defaults["D_v"])
+    k = _param_field(pde_params, "k", u, default=defaults["k"])
     f_u = d_u * _reaction_diffusion_laplacian(u, pde_params) + u - u**3 - k - v
     f_v = d_v * _reaction_diffusion_laplacian(v, pde_params) + u - v
     return torch.cat([f_u, f_v], dim=1)
@@ -1152,10 +1263,11 @@ def _periodic_stream_function_fft(w: Any) -> tuple[Any, Any, Any, Any]:
     import torch
 
     h, width = int(w.shape[-2]), int(w.shape[-1])
-    ky_1d = 2.0 * torch.pi * torch.fft.fftfreq(h, d=1.0 / max(h, 1), device=w.device, dtype=w.dtype)
-    kx_1d = 2.0 * torch.pi * torch.fft.fftfreq(width, d=1.0 / max(width, 1), device=w.device, dtype=w.dtype)
-    ky = ky_1d.view(1, 1, h, 1)
-    kx = kx_1d.view(1, 1, 1, width)
+    # Generator arrays are [x,y]: the first stored spatial axis is x.
+    kx_1d = 2.0 * torch.pi * torch.fft.fftfreq(h, d=1.0 / max(h, 1), device=w.device, dtype=w.dtype)
+    ky_1d = 2.0 * torch.pi * torch.fft.fftfreq(width, d=1.0 / max(width, 1), device=w.device, dtype=w.dtype)
+    kx = kx_1d.view(1, 1, h, 1)
+    ky = ky_1d.view(1, 1, 1, width)
     k2 = kx**2 + ky**2
     w_hat = torch.fft.fft2(w, dim=(-2, -1))
     psi_hat = torch.zeros_like(w_hat)
@@ -1189,8 +1301,8 @@ def _ns_default_forcing(reference: Any) -> Any:
     import torch
 
     h, width = int(reference.shape[-2]), int(reference.shape[-1])
-    y = torch.arange(h, dtype=reference.dtype, device=reference.device).view(1, 1, h, 1) / max(h, 1)
-    x = torch.arange(width, dtype=reference.dtype, device=reference.device).view(1, 1, 1, width) / max(width, 1)
+    x = torch.arange(h, dtype=reference.dtype, device=reference.device).view(1, 1, h, 1) / max(h, 1)
+    y = torch.arange(width, dtype=reference.dtype, device=reference.device).view(1, 1, 1, width) / max(width, 1)
     forcing = 0.1 * (torch.sin(2.0 * torch.pi * (x + y)) + torch.cos(2.0 * torch.pi * (x + y)))
     return forcing.expand(reference.shape[0], 1, h, width)
 
@@ -1211,8 +1323,7 @@ def _validate_time_dependent_state(pde: str, q0: Any, qT: Any) -> None:
 
 
 def _apply_endpoint_residual_boundary(pde: str, residual: Any) -> Any:
-    if pde in {"heat", "wave", "advection_diffusion"}:
-        return _interior_only(residual)
+    del pde
     return residual
 
 
@@ -1414,7 +1525,7 @@ def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any], spec: PD
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"steady_heat_conduction expects 1+1 channels, got a={a.shape}, u={u.shape}")
     conductivity = (1.0 + 0.05 * (u - 298.0)).clamp_min(0.1)
-    u_d = _param_field(pde_params, "u_D", u, default=298.0)
+    u_d = _required_param_field(pde_params, "u_D", u)
     interior = _interior_only(_nonlinear_heat_conduction_residual(u, conductivity, a[:, :1]))
     return _with_constraints(
         pde="steady_heat_conduction",
@@ -1434,15 +1545,51 @@ def _steady_heat_conduction(a: Any, u: Any, pde_params: dict[str, Any], spec: PD
             "boundary_residual": {
                 "included_in_field": True,
                 "bottom": "u[..., 0, :] - u_D",
-                "top": "(u[..., -1, :] - u[..., -2, :]) / dy",
-                "left": "(u[..., 1:-1, 0] - u[..., 1:-1, 1]) / dx",
-                "right": "(u[..., 1:-1, -1] - u[..., 1:-1, -2]) / dx",
+                "top_interior": "u[..., -1, 1:-1] - u[..., -2, 1:-1]",
+                "left_after_bottom": "u[..., 1:, 0] - u[..., 1:, 1]",
+                "right_after_bottom": "u[..., 1:, -1] - u[..., 1:, -2]",
+                "row_precedence": "bottom, sides, top interior",
             },
             "pde_params_used": _used_params(pde_params, ("u_D",)),
         },
         spec=spec,
         pde_params=pde_params,
     )
+
+
+@lru_cache(maxsize=16)
+def _darcy_spline_matrices_numpy(resolution: int) -> tuple[Any, Any]:
+    import numpy as np
+    from scipy.interpolate import CubicSpline
+
+    cell = (np.arange(resolution, dtype=np.float64) + 0.5) / resolution
+    nodal = np.linspace(0.0, 1.0, resolution, dtype=np.float64)
+    identity = np.eye(resolution, dtype=np.float64)
+    cell_to_nodal = CubicSpline(cell, identity, axis=0)(nodal)
+    nodal_to_cell = CubicSpline(nodal, identity, axis=0)(cell)
+    return cell_to_nodal, np.linalg.inv(nodal_to_cell)
+
+
+def _darcy_spline_matrices(resolution: int, dtype: Any, device: Any) -> tuple[Any, Any]:
+    import torch
+
+    cell_to_nodal, nodal_to_cell_inverse = _darcy_spline_matrices_numpy(resolution)
+    return (
+        torch.as_tensor(cell_to_nodal, dtype=dtype, device=device),
+        torch.as_tensor(nodal_to_cell_inverse, dtype=dtype, device=device),
+    )
+
+
+def _periodic_trajectory_x_derivatives(state: Any, domain_length: float) -> tuple[Any, Any]:
+    import torch
+
+    n = int(state.shape[-1])
+    modes = torch.fft.fftfreq(n, d=domain_length / max(n, 1), device=state.device, dtype=state.dtype)
+    wave_number = 2.0 * torch.pi * modes.view(1, 1, 1, n)
+    state_hat = torch.fft.fft(state, dim=-1)
+    first = torch.fft.ifft(1j * wave_number * state_hat, dim=-1).real
+    second = torch.fft.ifft(-(wave_number**2) * state_hat, dim=-1).real
+    return first, second
 
 
 def _central_kernels(reference: Any) -> tuple[Any, Any]:
@@ -1476,11 +1623,13 @@ def _periodic_grid_spacing(reference: Any, pde_params: dict[str, Any] | None = N
     if "dx" in pde_params:
         dx = _param_field(pde_params, "dx", reference, default=1.0)
     else:
-        dx = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-1]), 1), dtype=reference.dtype, device=reference.device)
+        domain_x = _float_param(pde_params, "domain_length_x", _float_param(pde_params, "domain_length", 1.0))
+        dx = torch.full((reference.shape[0], 1, 1, 1), domain_x / max(int(reference.shape[-2]), 1), dtype=reference.dtype, device=reference.device)
     if "dy" in pde_params:
         dy = _param_field(pde_params, "dy", reference, default=1.0)
     else:
-        dy = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-2]), 1), dtype=reference.dtype, device=reference.device)
+        domain_y = _float_param(pde_params, "domain_length_y", _float_param(pde_params, "domain_length", 1.0))
+        dy = torch.full((reference.shape[0], 1, 1, 1), domain_y / max(int(reference.shape[-1]), 1), dtype=reference.dtype, device=reference.device)
     return dx.abs().clamp_min(1e-12), dy.abs().clamp_min(1e-12)
 
 
@@ -1491,11 +1640,11 @@ def _closed_interval_grid_spacing(reference: Any, pde_params: dict[str, Any] | N
     if "dx" in pde_params:
         dx = _param_field(pde_params, "dx", reference, default=1.0)
     else:
-        dx = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-1]) - 1, 1), dtype=reference.dtype, device=reference.device)
+        dx = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-2]) - 1, 1), dtype=reference.dtype, device=reference.device)
     if "dy" in pde_params:
         dy = _param_field(pde_params, "dy", reference, default=1.0)
     else:
-        dy = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-2]) - 1, 1), dtype=reference.dtype, device=reference.device)
+        dy = torch.full((reference.shape[0], 1, 1, 1), 1.0 / max(int(reference.shape[-1]) - 1, 1), dtype=reference.dtype, device=reference.device)
     return dx.abs().clamp_min(1e-12), dy.abs().clamp_min(1e-12)
 
 
@@ -1535,26 +1684,40 @@ def _boundary_grid_spacing_info(
 
 
 def _periodic_dx(f: Any, dx: Any | None = None) -> Any:
+    import torch
+
     if dx is None:
         dx, _ = _periodic_grid_spacing(f, None)
-    return (f.roll(-1, dims=3) - f.roll(1, dims=3)) / (2.0 * dx)
+    n = int(f.shape[-2])
+    modes = torch.fft.fftfreq(n, d=1.0 / max(n, 1), device=f.device, dtype=f.dtype).view(1, 1, n, 1)
+    wave_number = 2.0 * torch.pi * modes / (dx * n)
+    return torch.fft.ifft2(1j * wave_number * torch.fft.fft2(f, dim=(-2, -1)), dim=(-2, -1)).real
 
 
 def _periodic_dy(f: Any, dy: Any | None = None) -> Any:
+    import torch
+
     if dy is None:
         _, dy = _periodic_grid_spacing(f, None)
-    return (f.roll(-1, dims=2) - f.roll(1, dims=2)) / (2.0 * dy)
+    n = int(f.shape[-1])
+    modes = torch.fft.fftfreq(n, d=1.0 / max(n, 1), device=f.device, dtype=f.dtype).view(1, 1, 1, n)
+    wave_number = 2.0 * torch.pi * modes / (dy * n)
+    return torch.fft.ifft2(1j * wave_number * torch.fft.fft2(f, dim=(-2, -1)), dim=(-2, -1)).real
 
 
 def _periodic_laplacian_2d(f: Any, dx: Any | None = None, dy: Any | None = None) -> Any:
+    import torch
+
     if dx is None or dy is None:
         dx_default, dy_default = _periodic_grid_spacing(f, None)
         dx = dx_default if dx is None else dx
         dy = dy_default if dy is None else dy
-    return (
-        (f.roll(1, dims=2) + f.roll(-1, dims=2) - 2.0 * f) / (dy**2)
-        + (f.roll(1, dims=3) + f.roll(-1, dims=3) - 2.0 * f) / (dx**2)
-    )
+    nx, ny = int(f.shape[-2]), int(f.shape[-1])
+    mode_x = torch.fft.fftfreq(nx, d=1.0 / max(nx, 1), device=f.device, dtype=f.dtype).view(1, 1, nx, 1)
+    mode_y = torch.fft.fftfreq(ny, d=1.0 / max(ny, 1), device=f.device, dtype=f.dtype).view(1, 1, 1, ny)
+    kx = 2.0 * torch.pi * mode_x / (dx * nx)
+    ky = 2.0 * torch.pi * mode_y / (dy * ny)
+    return torch.fft.ifft2(-(kx**2 + ky**2) * torch.fft.fft2(f, dim=(-2, -1)), dim=(-2, -1)).real
 
 
 def _periodic_laplacian(u: Any) -> Any:
@@ -1566,8 +1729,8 @@ def _dirichlet_laplacian(u: Any, pde_params: dict[str, Any] | None = None, bound
 
     dx, dy = _closed_interval_grid_spacing(u, pde_params)
     padded = torch.nn.functional.pad(u, (1, 1, 1, 1), "constant", float(boundary_value))
-    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (dy**2)
-    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (dx**2)
+    lap_x = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (dx**2)
+    lap_y = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (dy**2)
     return lap_x + lap_y
 
 
@@ -1580,8 +1743,8 @@ def _neumann_laplacian(u: Any, pde_params: dict[str, Any] | None = None) -> Any:
     else:
         hx, hy = _closed_interval_grid_spacing(u, pde_params)
     padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
-    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hy**2)
-    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hx**2)
+    lap_x = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hx**2)
+    lap_y = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hy**2)
     return lap_x + lap_y
 
 
@@ -1591,8 +1754,8 @@ def _reaction_diffusion_laplacian(u: Any, pde_params: dict[str, Any] | None = No
     pde_params = pde_params or {}
     hx, hy = _rd_grid_spacing_fields(pde_params, u)
     padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
-    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hy**2)
-    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hx**2)
+    lap_x = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hx**2)
+    lap_y = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hy**2)
     return lap_x + lap_y
 
 
@@ -1613,9 +1776,9 @@ def _rd_grid_spacing_fields(pde_params: dict[str, Any], reference: Any) -> tuple
     x_left, x_right, _ = _rd_axis_bounds(pde_params, "x", reference)
     y_bottom, y_top, _ = _rd_axis_bounds(pde_params, "y", reference)
     if hx is None:
-        hx = (x_right - x_left) / max(int(reference.shape[-1]), 1)
+        hx = (x_right - x_left) / max(int(reference.shape[-2]), 1)
     if hy is None:
-        hy = (y_top - y_bottom) / max(int(reference.shape[-2]), 1)
+        hy = (y_top - y_bottom) / max(int(reference.shape[-1]), 1)
     return hx.abs().clamp_min(1e-12), hy.abs().clamp_min(1e-12)
 
 
@@ -1896,21 +2059,17 @@ def _mixed_boundary_residual(
     import torch
 
     if pde == "steady_heat_conduction":
-        u_d = _param_field(pde_params, "u_D", q, default=298.0)
-        return torch.cat(
-            [
-                _dirichlet_residual(q, u_d, {"bottom": {}}, normalization),
-                _neumann_residual(
-                    q,
-                    0.0,
-                    {"top": {}, "left": {}, "right": {}},
-                    normalization,
-                    pde_params=pde_params,
-                    pde=pde,
-                ),
-            ],
-            dim=1,
-        )
+        u_d = _required_param_field(pde_params, "u_D", q)
+        # Match build_linear_system(): bottom rows take precedence over
+        # sides, and side rows take precedence over top at the corners.
+        residual = torch.zeros_like(q)
+        residual[..., 0, :] = q[..., 0, :] - u_d[..., 0, :]
+        if q.shape[-2] > 1 and q.shape[-1] > 1:
+            residual[..., 1:, 0] = q[..., 1:, 0] - q[..., 1:, 1]
+            residual[..., 1:, -1] = q[..., 1:, -1] - q[..., 1:, -2]
+        if q.shape[-2] > 1 and q.shape[-1] > 2:
+            residual[..., -1, 1:-1] = q[..., -1, 1:-1] - q[..., -2, 1:-1]
+        return residual
     parts = []
     for side, side_spec in (spec.sides or {}).items():
         kind = side_spec.get("kind") if isinstance(side_spec, dict) else None
@@ -1977,33 +2136,33 @@ def _active_sides(sides: dict[str, Any]) -> set[str]:
 def _dx(f: Any) -> Any:
     import torch
 
-    h = 1.0 / max(int(f.shape[-1]) - 1, 1)
-    return (torch.nn.functional.pad(f, (1, 1, 0, 0), mode="replicate")[:, :, :, 2:] -
-            torch.nn.functional.pad(f, (1, 1, 0, 0), mode="replicate")[:, :, :, :-2]) / (2.0 * h)
+    h = 1.0 / max(int(f.shape[-2]) - 1, 1)
+    padded = torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")
+    return (padded[:, :, 2:, :] - padded[:, :, :-2, :]) / (2.0 * h)
 
 
 def _dy(f: Any) -> Any:
     import torch
 
-    h = 1.0 / max(int(f.shape[-2]) - 1, 1)
-    return (torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")[:, :, 2:, :] -
-            torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")[:, :, :-2, :]) / (2.0 * h)
+    h = 1.0 / max(int(f.shape[-1]) - 1, 1)
+    padded = torch.nn.functional.pad(f, (1, 1, 0, 0), mode="replicate")
+    return (padded[:, :, :, 2:] - padded[:, :, :, :-2]) / (2.0 * h)
 
 
 def _dirichlet_dx(f: Any, pde_params: dict[str, Any] | None = None, boundary_value: float = 0.0) -> Any:
     import torch
 
     dx, _ = _closed_interval_grid_spacing(f, pde_params)
-    padded = torch.nn.functional.pad(f, (1, 1, 0, 0), mode="constant", value=float(boundary_value))
-    return (padded[:, :, :, 2:] - padded[:, :, :, :-2]) / (2.0 * dx)
+    padded = torch.nn.functional.pad(f, (0, 0, 1, 1), mode="constant", value=float(boundary_value))
+    return (padded[:, :, 2:, :] - padded[:, :, :-2, :]) / (2.0 * dx)
 
 
 def _dirichlet_dy(f: Any, pde_params: dict[str, Any] | None = None, boundary_value: float = 0.0) -> Any:
     import torch
 
     _, dy = _closed_interval_grid_spacing(f, pde_params)
-    padded = torch.nn.functional.pad(f, (0, 0, 1, 1), mode="constant", value=float(boundary_value))
-    return (padded[:, :, 2:, :] - padded[:, :, :-2, :]) / (2.0 * dy)
+    padded = torch.nn.functional.pad(f, (1, 1, 0, 0), mode="constant", value=float(boundary_value))
+    return (padded[:, :, :, 2:] - padded[:, :, :, :-2]) / (2.0 * dy)
 
 
 def _dx_for_bc(f: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
@@ -2012,7 +2171,8 @@ def _dx_for_bc(f: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
         return _periodic_dx(f, dx=dx)
     if bc_kind == "dirichlet":
         return _dirichlet_dx(f, pde_params, boundary_value=0.0)
-    return _dx(f)
+    dx, _ = _nonperiodic_operator_spacing(f, pde_params)
+    return _replicate_dx(f, dx)
 
 
 def _dy_for_bc(f: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
@@ -2020,10 +2180,32 @@ def _dy_for_bc(f: Any, pde_params: dict[str, Any], bc_kind: str) -> Any:
         _, dy = _periodic_grid_spacing(f, pde_params)
         return _periodic_dy(f, dy=dy)
     if bc_kind == "periodic_x":
-        return _dy(f)
+        _, dy = _nonperiodic_operator_spacing(f, pde_params)
+        return _replicate_dy(f, dy)
     if bc_kind == "dirichlet":
         return _dirichlet_dy(f, pde_params, boundary_value=0.0)
-    return _dy(f)
+    _, dy = _nonperiodic_operator_spacing(f, pde_params)
+    return _replicate_dy(f, dy)
+
+
+def _nonperiodic_operator_spacing(f: Any, pde_params: dict[str, Any]) -> tuple[Any, Any]:
+    if any(name in pde_params for name in ("x_range", "y_range", "x_left", "x_right", "y_bottom", "y_top")):
+        return _rd_grid_spacing_fields(pde_params, f)
+    return _closed_interval_grid_spacing(f, pde_params)
+
+
+def _replicate_dx(f: Any, dx: Any) -> Any:
+    import torch
+
+    padded = torch.nn.functional.pad(f, (0, 0, 1, 1), mode="replicate")
+    return (padded[:, :, 2:, :] - padded[:, :, :-2, :]) / (2.0 * dx)
+
+
+def _replicate_dy(f: Any, dy: Any) -> Any:
+    import torch
+
+    padded = torch.nn.functional.pad(f, (1, 1, 0, 0), mode="replicate")
+    return (padded[:, :, :, 2:] - padded[:, :, :, :-2]) / (2.0 * dy)
 
 
 def _operator_boundary_kind(pde: str, pde_params: dict[str, Any]) -> str:
@@ -2068,6 +2250,19 @@ def _param_field(params: dict[str, Any], name: str, reference: Any, default: flo
     if value.numel() != reference.shape[0]:
         raise ValueError(f"PDE parameter {name!r} must have batch length {reference.shape[0]}, got {tuple(value.shape)}")
     return value.view(reference.shape[0], 1, 1, 1)
+
+
+def _required_param_field(params: dict[str, Any], name: str, reference: Any) -> Any:
+    if name not in params or params[name] is None:
+        raise ValueError(f"Missing required sample-level PDE parameter {name!r}; load it from the data file")
+    return _param_field(params, name, reference, default=0.0)
+
+
+def _reaction_diffusion_defaults(params: dict[str, Any]) -> dict[str, float]:
+    profile = str(params.get("generator_profile", "current")).lower()
+    if profile in {"legacy", "pdebench_legacy", "reaction_diffusion_old"}:
+        return {"D_u": 1e-3, "D_v": 5e-3, "k": 5e-3}
+    return {"D_u": 2e-3, "D_v": 4e-3, "k": 3e-3}
 
 
 def _param_field_any(params: dict[str, Any], names: tuple[str, ...], reference: Any, default: float) -> Any:

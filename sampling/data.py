@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from data.specs import get_pde_spec
@@ -32,6 +33,13 @@ def finalize_ground_truth_config(config: AblationConfig) -> AblationConfig:
         config.img_channels = 1
     else:
         config.img_channels = spec.coef_channels + spec.sol_channels
+    if config.pde == "helmholtz" and config.data_path:
+        match = re.search(r"(?:_|-)k(\d+)(?:\.[^.]+)?$", Path(config.data_path).name)
+        if match:
+            file_k = int(match.group(1))
+            if config.k not in {1, file_k}:
+                raise ValueError(f"Helmholtz filename encodes k={file_k}, but config sets k={config.k}")
+            config.k = file_k
     return config
 
 
@@ -78,6 +86,11 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         pde_params, pde_param_sources = _h5py_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
     elif config.loadby == "rd":
         pde_params, pde_param_sources = _rd_params_for_offsets(raw["__h5__"], offsets, pair.device)
+        profile = _reaction_diffusion_generator_profile(raw["__h5__"], config.data_path)
+        pde_params["generator_profile"] = profile
+        pde_param_sources["generator_profile"] = "generator_signature"
+    elif config.loadby == "swe":
+        pde_params, pde_param_sources = _swe_params_for_offsets(raw["__h5__"], offsets, pair.device)
     _attach_boundary_metadata_params(config, raw.get("__h5__") if isinstance(raw, dict) else None, pde_params, pde_param_sources)
     near_metadata: dict[str, Any] | None = None
     if normalize_residual_mode(config.residual_mode) == "near_endpoint_temporal":
@@ -89,6 +102,12 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         trajectory, trajectory_metadata = _full_trajectory_for_offsets(config, raw, offsets, coef_t, pde_params)
         pde_params["trajectory"] = trajectory
         pde_param_sources["trajectory"] = "full_trajectory_observations"
+        pde_params["trajectory_is_observed_ground_truth"] = True
+        pde_param_sources["trajectory_is_observed_ground_truth"] = "loader_semantics"
+        time_values = _full_trajectory_time_values(config, raw, offsets)
+        if time_values is not None:
+            pde_params["trajectory_time_values"] = time_values
+            pde_param_sources["trajectory_time_values"] = "saved_snapshot_times"
     spec = get_pde_spec(config.pde)
     channel_names_coef = _channel_names(spec.coef_channel_names, int(coef_t.shape[1]), "coef")
     channel_names_sol = _channel_names(spec.sol_channel_names, int(sol_t.shape[1]), "sol")
@@ -260,16 +279,16 @@ def _extract_single_sample(config: AblationConfig, raw: dict[str, Any], offset: 
 
     if config.loadby == "h5py":
         file = raw["__h5__"]
-        coef_raw = file[config.coef_name][:]
-        sol_raw = file[config.solution_name][:]
+        if pde == "darcy":
+            return file[config.coef_name][:, :, offset], file[config.solution_name][:, :, offset]
+        if pde == "nsnonbounded":
+            return file[config.coef_name][offset, :, :], file[config.solution_name][offset, :, :, -1]
+        coef_raw = file[config.coef_name]
+        sol_raw = file[config.solution_name]
     else:
         coef_raw = raw[config.coef_name]
         sol_raw = raw[config.solution_name]
 
-    if pde == "darcy":
-        return coef_raw[:, :, offset], sol_raw[:, :, offset]
-    if pde == "nsnonbounded":
-        return coef_raw[offset, :, :], sol_raw[offset, :, :, -1]
     if pde == "burger":
         field = coef_raw[offset, :, :]
         return field, field
@@ -486,6 +505,9 @@ def _extract_near_endpoint_single(
 
 
 def _sample_group_key(file: Any, offset: int) -> str:
+    for candidate in (f"{offset:06d}", f"{offset:05d}", f"{offset:04d}", str(offset)):
+        if candidate in file and hasattr(file[candidate], "keys") and "data" in file[candidate]:
+            return candidate
     keys = sorted(
         key
         for key in file.keys()
@@ -524,10 +546,10 @@ def _attach_boundary_metadata_params(config: AblationConfig, file: Any, params: 
     lowered = text.lower()
     if "periodic" in lowered:
         kind = "periodic"
-    elif "neumann" in lowered or "extrap" in lowered or "open" in lowered:
-        kind = "open" if "extrap" in lowered or "open" in lowered else "neumann"
     elif "dirichlet" in lowered and "neumann" in lowered:
         kind = "mixed"
+    elif "neumann" in lowered or "extrap" in lowered or "open" in lowered:
+        kind = "open" if "extrap" in lowered or "open" in lowered else "neumann"
     elif "dirichlet" in lowered:
         kind = "dirichlet"
     elif lowered in {"periodic", "neumann", "dirichlet", "mixed", "open", "wall"}:
@@ -617,6 +639,70 @@ def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[
         if right_values and right_name not in params:
             params[right_name] = torch.stack(right_values)
             sources[right_name] = source or "attr"
+    return params, sources
+
+
+def _reaction_diffusion_generator_profile(file: Any, data_path: str) -> str:
+    """Distinguish the current generator from the incompatible legacy dataset."""
+    filename = Path(data_path).name.lower()
+    current_named = "_grf_" in filename or "_iid_" in filename
+    has_current_signature = any(name in file.attrs for name in ("n_save_steps", "tdim", "init_mode"))
+    return "current" if current_named or has_current_signature else "legacy"
+
+
+def _swe_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[dict[str, Any], dict[str, str]]:
+    import torch
+
+    keys = [_sample_group_key(file, offset) for offset in offsets]
+    params: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+    for canonical, aliases in {"g": ("grav", "g"), "T": ("T", "total_time")}.items():
+        values = []
+        source = None
+        for key in keys:
+            group = file[key]
+            value = None
+            for alias in aliases:
+                if alias in group.attrs:
+                    value = group.attrs[alias]
+                    source = f"group_attr:{alias}"
+                    break
+                if alias in file.attrs:
+                    value = file.attrs[alias]
+                    source = f"root_attr:{alias}"
+                    break
+            if value is None:
+                values = []
+                break
+            values.append(float(value))
+        if values:
+            params[canonical] = torch.as_tensor(values, dtype=torch.float32, device=device)
+            sources[canonical] = source or "attr"
+    for range_name, left_name, right_name in (
+        ("x_range", "x_left", "x_right"),
+        ("y_range", "y_bottom", "y_top"),
+    ):
+        ranges = []
+        source = None
+        for key in keys:
+            group = file[key]
+            value = group.attrs.get(range_name, file.attrs.get(range_name))
+            if value is None:
+                ranges = []
+                break
+            ranges.append(torch.as_tensor(value, dtype=torch.float32, device=device).reshape(-1))
+            source = f"group_attr:{range_name}" if range_name in group.attrs else f"root_attr:{range_name}"
+        if ranges and all(value.numel() >= 2 for value in ranges):
+            params[left_name] = torch.stack([value[0] for value in ranges])
+            params[right_name] = torch.stack([value[1] for value in ranges])
+            sources[left_name] = source or "attr"
+            sources[right_name] = source or "attr"
+    if "x_left" in params and "x_right" in params:
+        params["dx"] = (params["x_right"] - params["x_left"]) / float(file[keys[0]]["data"]["h"].shape[1])
+        sources["dx"] = "x_range/num_cells"
+    if "y_bottom" in params and "y_top" in params:
+        params["dy"] = (params["y_top"] - params["y_bottom"]) / float(file[keys[0]]["data"]["h"].shape[2])
+        sources["dy"] = "y_range/num_cells"
     return params, sources
 
 
@@ -746,7 +832,7 @@ def _full_trajectory_for_offsets(
 
     trajectories = []
     frame_metadata = []
-    expected_channels = int(coef_t.shape[1])
+    expected_channels = 1 if config.pde == "wave" else int(coef_t.shape[1])
     for batch_idx, offset in enumerate(offsets):
         trajectory_np, sample_meta = _extract_full_trajectory_single(config, raw, offset, batch_idx, pde_params)
         trajectory = _trajectory_to_btchw(trajectory_np, expected_channels, config.device, config.dtype)
@@ -761,6 +847,25 @@ def _full_trajectory_for_offsets(
         "endpoint_only": False,
     }
     return trajectory_t, metadata
+
+
+def _full_trajectory_time_values(config: AblationConfig, raw: dict[str, Any], offsets: list[int]) -> Any | None:
+    import numpy as np
+
+    file = raw.get("__h5__")
+    if file is None:
+        return None
+    if config.loadby in {"pair_h5", "h5py"} and "t" in file:
+        values = np.asarray(file["t"][:], dtype=np.float32)
+        if config.pde == "nsnonbounded" and (values.size == 0 or abs(float(values[0])) > 1e-7):
+            values = np.concatenate([np.zeros(1, dtype=np.float32), values])
+        return values
+    if config.loadby in {"rd", "swe"}:
+        key = _sample_group_key(file, offsets[0])
+        group = file[key]
+        if "grid" in group and "t" in group["grid"]:
+            return np.asarray(group["grid"]["t"][:], dtype=np.float32)
+    return None
 
 
 def _extract_full_trajectory_single(
@@ -808,6 +913,11 @@ def _extract_full_trajectory_single(
                 f"nsnonbounded h5py data is missing solution dataset {config.solution_name!r}"
             )
         trajectory = _ns_h5py_trajectory_sample(file[config.solution_name], offset, config.solution_name)
+        initial = file[config.coef_name][offset]
+        import numpy as np
+
+        initial = np.asarray(initial, dtype=np.float32)[None, None, :, :]
+        trajectory = np.concatenate([initial, trajectory], axis=0)
         return trajectory, {"sample_offset": int(offset), "trajectory_dataset": config.solution_name}
     raise ValueError(
         "full_trajectory_fd mode requires explicit full trajectory observations; "
@@ -878,8 +988,8 @@ def _first_existing_dataset(file: Any, names: tuple[str, ...]) -> str | None:
 def _pair_h5_endpoint_sample(dataset: Any, offset: int) -> Any:
     import numpy as np
 
-    values = np.asarray(dataset)
-    if values.ndim == 4 and values.shape[0] > offset:
+    shape = tuple(dataset.shape) if hasattr(dataset, "shape") else np.asarray(dataset).shape
+    if len(shape) == 4 and shape[0] > offset:
         return np.asarray(dataset[offset], dtype=np.float32)
     return np.asarray(dataset, dtype=np.float32)
 
@@ -887,8 +997,8 @@ def _pair_h5_endpoint_sample(dataset: Any, offset: int) -> Any:
 def _pair_h5_trajectory_sample(dataset: Any, offset: int) -> Any:
     import numpy as np
 
-    values = np.asarray(dataset)
-    if values.ndim == 5 and values.shape[0] > offset:
+    shape = tuple(dataset.shape) if hasattr(dataset, "shape") else np.asarray(dataset).shape
+    if len(shape) == 5 and shape[0] > offset:
         return np.asarray(dataset[offset], dtype=np.float32)
     return np.asarray(dataset, dtype=np.float32)
 
@@ -1123,12 +1233,20 @@ def _read_pair_h5_value(file: Any, name: str, offset: int) -> Any:
 
     if name in file:
         dataset = file[name]
-        values = np.asarray(dataset[()] if dataset.shape == () else dataset[:], dtype=np.float32)
+        if dataset.shape == ():
+            values = np.asarray(dataset[()], dtype=np.float32)
+        elif dataset.shape[0] == 1:
+            values = np.asarray(dataset[0], dtype=np.float32)
+        elif offset < dataset.shape[0]:
+            selected = np.asarray(dataset[offset], dtype=np.float32)
+            return float(selected) if selected.ndim == 0 else selected
+        else:
+            raise IndexError(f"pair_h5 dataset {name!r} has shape {tuple(dataset.shape)}, cannot read offset {offset}")
         if values.ndim == 0:
             return float(values)
         if values.shape[0] == 1:
             return values[0]
-        return values[offset]
+        return values
     if name in file.attrs:
         values = np.asarray(file.attrs[name], dtype=np.float32)
         flat = values.reshape(-1)
@@ -1146,11 +1264,11 @@ def _synthetic_pde_params(config: AblationConfig, device: Any, dtype: Any) -> di
     b = int(config.batch_size)
     ones = lambda value: torch.full((b,), float(value), dtype=dtype, device=device)
     if config.pde == "heat":
-        return {"alpha": ones(1.0), "T": ones(1.0)}
+        return {"alpha": ones(1e-3), "T": ones(1.0)}
     if config.pde == "wave":
         return {"c": ones(1.0), "T": ones(1.0)}
     if config.pde == "advection_diffusion":
-        return {"b_x": ones(0.0), "b_y": ones(0.0), "kappa": ones(1.0), "T": ones(1.0)}
+        return {"b_x": ones(0.0), "b_y": ones(0.0), "kappa": ones(1e-3), "T": ones(1.0)}
     if config.pde == "steady_heat_conduction":
         return {"u_D": ones(298.0)}
     return {}

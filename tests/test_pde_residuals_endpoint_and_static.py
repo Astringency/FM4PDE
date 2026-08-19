@@ -25,20 +25,26 @@ def _state(pde, batch=2, h=8, w=8):
     return q0, qT
 
 
+def _params(pde):
+    if pde == "heat":
+        return {"alpha": 1e-3}
+    if pde == "advection_diffusion":
+        return {"b_x": 0.25, "b_y": -0.5, "kappa": 1e-3}
+    return {}
+
+
 def test_temporal_residual_modes_all_endpoint_pdes():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
-        out = compute_pde_residual(pde, q0, qT, residual_mode="hermite_bridge")
+        out = compute_pde_residual(pde, q0, qT, pde_params=_params(pde), residual_mode="hermite_bridge")
         assert out.residual.shape[0] == 2
         assert out.residual.shape[-2:] == (8, 8)
         assert out.metadata["residual_channels"]["interior_channels"] == 3 * channels
         assert out.metadata["residual_channels"]["endpoint_channels"] == channels
-        if pde in {"heat", "wave", "advection_diffusion", "nsnonbounded"}:
+        if pde in {"heat", "wave", "advection_diffusion", "reaction_diffusion", "shallow_water", "nsnonbounded"}:
             assert out.metadata["residual_channels"]["bc_channels"] == 0
             assert out.metadata["boundary_enforced"] is True
             assert out.metadata["boundary_enforced_by_operator"] is True
-        else:
-            assert out.metadata["residual_channels"]["bc_channels"] > 0
         assert out.status == "approximate"
         assert out.metadata["status"] == "approximate"
         assert out.metadata["endpoint_only"] is True
@@ -51,7 +57,7 @@ def test_temporal_residual_modes_all_endpoint_pdes():
 def test_auto_uses_hermite_for_endpoint_time_dependent():
     for pde, _channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
-        out = compute_pde_residual(pde, q0, qT, residual_mode="auto")
+        out = compute_pde_residual(pde, q0, qT, pde_params=_params(pde), residual_mode="auto")
         assert out.metadata["resolved_residual_mode"] == "hermite_bridge"
         assert out.metadata["mode"] == "hermite_bridge"
 
@@ -59,15 +65,13 @@ def test_auto_uses_hermite_for_endpoint_time_dependent():
 def test_temporal_endpoint_secant_all_endpoint_pdes():
     for pde, channels in TEMPORAL_ENDPOINT_CASES:
         q0, qT = _state(pde)
-        out = compute_pde_residual(pde, q0, qT, residual_mode="endpoint_secant")
+        out = compute_pde_residual(pde, q0, qT, pde_params=_params(pde), residual_mode="endpoint_secant")
         assert out.residual.shape[0] == 2
         assert out.residual.shape[-2:] == (8, 8)
         assert out.metadata["residual_channels"]["interior_channels"] == channels
-        if pde in {"heat", "wave", "advection_diffusion", "nsnonbounded"}:
+        if pde in {"heat", "wave", "advection_diffusion", "reaction_diffusion", "shallow_water", "nsnonbounded"}:
             assert out.metadata["residual_channels"]["bc_channels"] == 0
             assert out.metadata["boundary_enforced_by_operator"] is True
-        else:
-            assert out.metadata["residual_channels"]["bc_channels"] > 0
         assert out.metadata["two_time_level_approx"] is True
         assert out.metadata["temporal_derivative_mode"] == "endpoint_secant"
         assert out.metadata["resolved_residual_mode"] == "endpoint_secant"
@@ -126,6 +130,7 @@ def test_near_endpoint_temporal_all_endpoint_pdes_with_aux():
             q0,
             qT,
             pde_params={
+                **_params(pde),
                 "near_endpoint_temporal": {
                     "q_dt": q0 + 0.1,
                     "q_T_minus_dt": qT - 0.1,
@@ -158,8 +163,8 @@ def test_burger_is_full_time_space():
     assert out.metadata["residual_family"] == "full_time_space"
     assert out.metadata["temporal_derivative_mode"] == "full_fd"
     assert out.metadata["endpoint_only"] is False
-    assert out.metadata["mode"] == "full_time_space"
-    assert out.metadata["resolved_residual_mode"] == "full_time_space"
+    assert out.metadata["mode"] == "full_trajectory_fd"
+    assert out.metadata["resolved_residual_mode"] == "full_trajectory_fd"
 
 
 def test_steady_heat_is_static_not_temporal():
@@ -177,7 +182,7 @@ def test_steady_heat_is_static_not_temporal():
     assert out.metadata["temporal_derivative_mode"] == "none"
     assert out.metadata["mode"] == "static_nonlinear_boundary"
     assert out.metadata["resolved_residual_mode"] == "static_nonlinear_boundary"
-    assert out.components["boundary"][1, 0, 0, 0].item() == pytest.approx(-2.0 * (h * w / w) ** 0.5)
+    assert out.components["boundary"][1, 0, 0, 0].item() == pytest.approx(-2.0)
 
 
 def test_nsnonbounded_residual_enabled_and_backward():
@@ -224,6 +229,7 @@ def test_legacy_ignore_boundary_keeps_hermite_integral_endpoint_residual():
         q0,
         qT,
         pde_params={
+            "alpha": 1e-3,
             "legacy_ignore_boundary": True,
             "hermite_include_integral_residual": True,
             "hermite_integral_weight": 1.0,

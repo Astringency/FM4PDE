@@ -58,6 +58,7 @@ def test_near_endpoint_temporal_skips_second_region_mask():
         q0,
         qT,
         {
+            "alpha": 1e-3,
             "near_endpoint_temporal": {
                 "q_dt": q0 + 0.1,
                 "q_T_minus_dt": qT - 0.1,
