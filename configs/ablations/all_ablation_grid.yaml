@@ -1,4 +1,4 @@
-base_config: configs/ablations/base/poisson.yaml
+base_config: configs/ablations/base/poisson_both.yaml
 groups:
   group1_guidance_components:
     fixed:
@@ -73,7 +73,7 @@ groups:
       - configs/ablations/base/advection_diffusion.yaml
       - configs/ablations/base/reaction_diffusion.yaml
       - configs/ablations/base/shallow_water.yaml
-      - configs/ablations/base/nsnonbounded.yaml
+      - configs/ablations/base/nsnonbounded_both.yaml
     fixed:
       task: both
       guidance_components: obs_pde

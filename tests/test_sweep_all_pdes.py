@@ -21,14 +21,14 @@ def test_all_internal_grid_lists_and_uses_group_base_configs():
         text=True,
         stdout=subprocess.PIPE,
     )
-    assert "configs/ablations/base/darcy.yaml" in result.stdout
+    assert "configs/ablations/base/darcy_both.yaml" in result.stdout
 
     jobs = expand_grid("configs/ablations/all_internal_ablation_grid.yaml")
     paths = {path for path, _ in jobs}
     assert "configs/ablations/base/heat.yaml" in paths
-    assert "configs/ablations/base/nsnonbounded.yaml" in paths
+    assert "configs/ablations/base/nsnonbounded_both.yaml" in paths
     assert any(
-        path.endswith("nsnonbounded.yaml") and params["ablation_group"] == "time_dependent_residual_mode"
+        path.endswith("nsnonbounded_both.yaml") and params["ablation_group"] == "time_dependent_residual_mode"
         for path, params in jobs
     )
     main_groups = {
@@ -45,7 +45,7 @@ def test_all_internal_grid_lists_and_uses_group_base_configs():
     ns_main_groups = {
         params["ablation_group"]
         for path, params in jobs
-        if path.endswith("nsnonbounded.yaml") and params.get("ablation_group") in main_groups
+        if path.endswith("nsnonbounded_both.yaml") and params.get("ablation_group") in main_groups
     }
     assert main_groups <= ns_main_groups
     assert any(params["ablation_group"] == "architecture_profile" for _, params in jobs)

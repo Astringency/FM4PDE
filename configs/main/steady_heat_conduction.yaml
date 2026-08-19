@@ -1,6 +1,6 @@
 pde: steady_heat_conduction
 task: both
-data_config_path: configs/steady_heat_conduction.yaml
+data_config_path: configs/main/steady_heat_conduction.yaml
 data_path: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_1000-128-128.h5
 loadby: pair_h5
 coef_name: input_data
