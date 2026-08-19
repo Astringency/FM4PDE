@@ -10,5 +10,6 @@ outputs/ablations/*
 outputs/checkrun/*
 outputs/samples/*
 outputs/zeta_tuning/*
+outputs/MAIN1000/*
 
 reports
