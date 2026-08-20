@@ -189,7 +189,9 @@ AGGREGATE=false \
 OUTPUT_DIR=outputs/MAIN1000 \
 NUM_SAMPLES=1000 \
 SAMPLER_LIST="stochastic" \
-SENSOR_MODE_LIST="random sensor_column" \
+BURGER_SENSOR_MODE_LIST="random sensor_column" \
+PARALLEL=true \
+MAX_PARALLEL_TASKS=2 \
 DEVICE_LIST="cuda:0 cuda:1" \
 RESUME=true \
 AGGREGATE=true \
@@ -210,14 +212,16 @@ python -m sampling.runner \
   --vis
 ```
 
-`run_sample_sweep.sh` 以 PDE × task 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
+`run_sample_sweep.sh` 以 PDE × task × sensor mode 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
 `PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。
-同一 PDE × task 内的 sensor mode、sampler 和 offset 分片保持串行。`SENSOR_MODE_LIST` 未设置时，
-每个 PDE 使用自身 YAML 中的 `sensor_mode`；设置多个空格分隔值时，每个值形成独立实验和恢复记录。
+不同 sensor mode 可以并行；同一 PDE × task × sensor mode 内的 sampler 和 offset 分片保持串行。
+`SENSOR_MODE_LIST` 设置多个空格分隔值时，每个值形成独立实验、并行任务和恢复记录。
 终端会实时显示当前 sensor mode、sampler、已完成样本数、offset/batch、采样 step、相对误差和总体进度。
 `run_sample_sweep_burger.sh` 固定运行 `burger / both`，默认
-`SENSOR_MODE_LIST="random sensor_column"`。其中 `sensor_column` 使用
-`configs/main/burger.yaml` 的 `num_sensor_columns`。
+`BURGER_SENSOR_MODE_LIST="random sensor_column"`，并强制覆盖调用环境中可能残留的通用
+`SENSOR_MODE_LIST`。其中 `sensor_column` 使用 `configs/main/burger.yaml` 的 `num_sensor_columns`。
+在两张 GPU 上设置 `PARALLEL=true MAX_PARALLEL_TASKS=2 DEVICE_LIST="cuda:0 cuda:1"` 时，
+两个 Burgers sensor mode 会各占一个 worker 并行执行。
 
 通常应令 `MAX_PARALLEL_TASKS` 不大于 `DEVICE_LIST` 中的独立设备数。若并发槽位多于设备数，
 多个任务会共享同一设备，脚本会给出警告，并可能因显存不足失败。

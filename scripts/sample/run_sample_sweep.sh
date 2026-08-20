@@ -3,9 +3,9 @@ set -euo pipefail
 # ============================================================================
 # FM4PDE resumable sampling sweep
 #
-# Each PDE × task pair is an independent scheduling unit. Sensor modes,
-# samplers, and sample chunks within that unit remain ordered so offsets are
-# easy to audit/resume.
+# Each PDE × task × sensor-mode combination is an independent scheduling unit.
+# Samplers and sample chunks within that unit remain ordered so offsets are easy
+# to audit/resume.
 #
 # Examples:
 #   bash scripts/sample/run_sample_sweep.sh
@@ -22,18 +22,18 @@ set -euo pipefail
 #   MAX_BATCH_SIZE       Maximum samples in one runner process (default: 50)
 #   PDE_LIST             Space-separated PDEs (default: four non-Burgers main PDEs)
 #   TASK_LIST            Space-separated tasks (default: forward inverse both)
-#   SAMPLER_LIST         Space-separated samplers (default: three samplers)
-#   SENSOR_MODE_LIST     Space-separated modes (default: mode from each PDE config)
+#   SAMPLER_LIST         Space-separated samplers (default: stochastic)
+#   SENSOR_MODE_LIST     Space-separated modes (default: random)
 #   NUM_STEPS            Sampling steps (default: 100)
 #   NUM_OBS              Sparse observations (default: 500)
-#   OUTPUT_DIR           Artifact root (default: outputs/samples)
+#   OUTPUT_DIR           Artifact root (default: outputs/MAIN1000_100)
 #   CONFIG_DIR           Main config directory (default: configs/main)
 #   DEVICE               Device used when DEVICE_LIST is unset (default: cuda)
-#   DEVICE_LIST          Devices assigned round-robin to PDE × task jobs
-#   PARALLEL             Run PDE × task jobs concurrently (default: false)
-#   MAX_PARALLEL_TASKS   Maximum concurrent PDE × task jobs (default: 2)
+#   DEVICE_LIST          Devices assigned round-robin to PDE × task × sensor jobs
+#   PARALLEL             Run PDE × task × sensor jobs concurrently (default: true)
+#   MAX_PARALLEL_TASKS   Maximum concurrent PDE × task × sensor jobs (default: 2)
 #   RESUME               Skip samples with matching successful artifacts (default: true)
-#   VIS                  Save one plot per completed batch (default: false)
+#   VIS                  Save one plot per completed batch (default: true)
 #   PROGRESS_INTERVAL    Live table refresh interval in seconds (default: 1)
 #   PLAN_ONLY            Print the resumable plan without sampling (default: false)
 #   AGGREGATE            Aggregate successful results after completion (default: true)

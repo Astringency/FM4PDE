@@ -36,7 +36,7 @@ def test_discover_completed_artifacts_accepts_only_matching_successful_runs(tmp_
     assert completed[columns.key] == {2}
 
 
-def test_sweep_runs_pde_task_groups_and_resumes_only_complete_artifacts(tmp_path):
+def test_sweep_runs_sensor_groups_in_parallel_and_resumes_complete_artifacts(tmp_path):
     sample_script = tmp_path / "fake_sample.sh"
     sample_script.write_text(
         """#!/usr/bin/env bash
@@ -104,10 +104,10 @@ PY
         encoding="utf-8",
     )
     experiments = [
-        _experiment("poisson", "forward"),
-        _experiment("darcy", "inverse"),
+        _experiment("poisson", "forward", "random"),
+        _experiment("poisson", "forward", "sensor_column"),
     ]
-    groups = [(item.pde, item.task) for item in experiments]
+    groups = [(item.pde, item.task, item.sensor_mode) for item in experiments]
     options = SweepOptions(
         num_samples=4,
         max_batch_size=2,
@@ -154,7 +154,7 @@ PY
     assert len(list((options.output_dir / "calls").iterdir())) == 5
 
 
-def test_build_experiments_expands_sensor_modes_and_keeps_one_pde_task_group(tmp_path):
+def test_build_experiments_expands_sensor_modes_into_parallel_groups(tmp_path):
     (tmp_path / "burger.yaml").write_text(
         "pde: burger\nsensor_mode: random\nnum_sensor_columns: 5\n",
         encoding="utf-8",
@@ -177,7 +177,10 @@ def test_build_experiments_expands_sensor_modes_and_keeps_one_pde_task_group(tmp
 
     experiments, groups = build_experiments(args)
 
-    assert groups == [("burger", "both")]
+    assert groups == [
+        ("burger", "both", "random"),
+        ("burger", "both", "sensor_column"),
+    ]
     assert [experiment.sensor_mode for experiment in experiments] == [
         "random",
         "sensor_column",

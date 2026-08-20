@@ -32,6 +32,8 @@ _SIGNATURE_IGNORED_FIELDS = {
     "save_plots",
 }
 
+GroupKey = tuple[str, str, str]
+
 
 @dataclass(frozen=True)
 class Experiment:
@@ -116,7 +118,7 @@ class SweepRunner:
         self,
         options: SweepOptions,
         experiments: list[Experiment],
-        groups: list[tuple[str, str]],
+        groups: list[GroupKey],
     ) -> None:
         self.options = options
         self.experiments = experiments
@@ -134,7 +136,7 @@ class SweepRunner:
         self.event_log = self.state_dir / "sweep.log"
         self.experiments_by_key = {experiment.key: experiment for experiment in experiments}
         self.completed: dict[str, set[int]] = {experiment.key: set() for experiment in experiments}
-        self.states: dict[tuple[str, str], TaskState] = {}
+        self.states: dict[GroupKey, TaskState] = {}
         self.device_slots: queue.Queue[str] = queue.Queue()
         slot_count = max(self.worker_count, len(self.options.devices))
         for index in range(slot_count):
@@ -178,21 +180,24 @@ class SweepRunner:
             self._load_completed_markers()
             self._recover_completed_progress_files()
             self._load_or_scan_artifacts()
-        for group_index, (pde, task) in enumerate(self.groups):
+        for group_index, (pde, task, sensor_mode) in enumerate(self.groups):
             matching = [
                 experiment
                 for experiment in self.experiments
-                if experiment.pde == pde and experiment.task == task
+                if experiment.pde == pde
+                and experiment.task == task
+                and experiment.sensor_mode == sensor_mode
             ]
             total = self.options.num_samples * len(matching)
             done = sum(len(self.completed[experiment.key]) for experiment in matching)
-            self.states[(pde, task)] = TaskState(
+            self.states[(pde, task, sensor_mode)] = TaskState(
                 pde=pde,
                 task=task,
                 device=self.options.devices[group_index % len(self.options.devices)],
                 total_samples=total,
                 completed_samples=done,
                 status="complete" if done >= total else ("resuming" if done else "queued"),
+                sensor_mode=sensor_mode,
             )
 
     def print_header(self) -> None:
@@ -225,7 +230,9 @@ class SweepRunner:
                 self.options.max_batch_size,
                 self.completed[experiment.key],
             )
-            state = self.states[(experiment.pde, experiment.task)]
+            state = self.states[
+                (experiment.pde, experiment.task, experiment.sensor_mode)
+            ]
             table.add_row(
                 f"{experiment.pde} / {experiment.task}",
                 experiment.sampler,
@@ -248,7 +255,7 @@ class SweepRunner:
 
         self._log_event("sweep started")
         executor = ThreadPoolExecutor(max_workers=self.worker_count, thread_name_prefix="sample-sweep")
-        futures: dict[Future[bool], tuple[str, str]] = {}
+        futures: dict[Future[bool], GroupKey] = {}
         try:
             for group in self.groups:
                 futures[executor.submit(self._run_group_guarded, *group)] = group
@@ -278,27 +285,29 @@ class SweepRunner:
         if failed:
             self._log_event(f"sweep failed groups={failed}")
             names = ", ".join("/".join(item) for item in failed)
-            self.console.print(f"[red]Failed PDE/task groups: {names}[/red]")
+            self.console.print(f"[red]Failed PDE/task/sensor groups: {names}[/red]")
             self.console.print(f"Logs: {self.logs_dir}")
             return 1
         self._log_event("sweep completed")
         self.console.print("[green]All sampling tasks completed successfully.[/green]")
         return self._aggregate() if self.options.aggregate else 0
 
-    def _run_group_guarded(self, pde: str, task: str) -> bool:
+    def _run_group_guarded(self, pde: str, task: str, sensor_mode: str) -> bool:
         try:
-            return self._run_group(pde, task)
+            return self._run_group(pde, task, sensor_mode)
         except Exception as exc:
-            state = self.states[(pde, task)]
+            state = self.states[(pde, task, sensor_mode)]
             with state.lock:
                 state.status = "failed"
                 state.error = f"{type(exc).__name__}: {exc}"
                 state.finished_at = time.time()
-            self._log_event(f"failed {pde}/{task}: {type(exc).__name__}: {exc}")
+            self._log_event(
+                f"failed {pde}/{task}/{sensor_mode}: {type(exc).__name__}: {exc}"
+            )
             return False
 
-    def _run_group(self, pde: str, task: str) -> bool:
-        state = self.states[(pde, task)]
+    def _run_group(self, pde: str, task: str, sensor_mode: str) -> bool:
+        state = self.states[(pde, task, sensor_mode)]
         with state.lock:
             if state.status == "complete":
                 return True
@@ -308,15 +317,23 @@ class SweepRunner:
         with state.lock:
             state.device = device
         try:
-            return self._run_group_on_device(pde, task, state)
+            return self._run_group_on_device(pde, task, sensor_mode, state)
         finally:
             self.device_slots.put(device)
 
-    def _run_group_on_device(self, pde: str, task: str, state: TaskState) -> bool:
+    def _run_group_on_device(
+        self,
+        pde: str,
+        task: str,
+        sensor_mode: str,
+        state: TaskState,
+    ) -> bool:
         group_experiments = [
             experiment
             for experiment in self.experiments
-            if experiment.pde == pde and experiment.task == task
+            if experiment.pde == pde
+            and experiment.task == task
+            and experiment.sensor_mode == sensor_mode
         ]
         for experiment in group_experiments:
             chunks = compute_missing_chunks(
@@ -332,7 +349,6 @@ class SweepRunner:
         with state.lock:
             state.status = "complete"
             state.sampler = "-"
-            state.sensor_mode = "-"
             state.offset = None
             state.batch_size = 0
             state.step = state.num_steps
@@ -725,16 +741,16 @@ def discover_completed_artifacts(
     return completed
 
 
-def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[tuple[str, str]]]:
+def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[GroupKey]]:
     experiments: list[Experiment] = []
-    groups: list[tuple[str, str]] = []
+    groups: list[GroupKey] = []
+    seen_groups: set[GroupKey] = set()
     requested_sensor_modes: list[str | None] = args.sensor_modes or [None]
     for pde in args.pdes:
         config_path = Path(args.config_dir) / f"{pde}.yaml"
         if not config_path.is_file():
             raise FileNotFoundError(f"Configuration file does not exist: {config_path}")
         for task in args.tasks:
-            groups.append((pde, task))
             for sampler in args.samplers:
                 for requested_sensor_mode in requested_sensor_modes:
                     overrides: dict[str, Any] = {
@@ -759,6 +775,10 @@ def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[
                     )
                     config.validate()
                     config_dict = config.asdict()
+                    group = (pde, task, config.sensor_mode)
+                    if group not in seen_groups:
+                        groups.append(group)
+                        seen_groups.add(group)
                     experiments.append(
                         Experiment(
                             pde=pde,
@@ -845,7 +865,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sample-seed", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--plan-only", action="store_true")
-    add_bool_arg(parser, "parallel", False, "run PDE/task groups concurrently")
+    add_bool_arg(parser, "parallel", False, "run PDE/task/sensor groups concurrently")
     add_bool_arg(parser, "resume", True, "reuse matching successful sample artifacts")
     add_bool_arg(parser, "vis", False, "save a plot for each completed batch")
     add_bool_arg(parser, "aggregate", True, "aggregate metrics after successful completion")

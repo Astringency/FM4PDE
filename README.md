@@ -173,7 +173,9 @@ modes:
 OUTPUT_DIR=outputs/MAIN1000 \
 NUM_SAMPLES=1000 \
 SAMPLER_LIST="stochastic" \
-SENSOR_MODE_LIST="random sensor_column" \
+BURGER_SENSOR_MODE_LIST="random sensor_column" \
+PARALLEL=true \
+MAX_PARALLEL_TASKS=2 \
 DEVICE_LIST="cuda:0 cuda:1" \
 RESUME=true \
 AGGREGATE=true \
@@ -182,9 +184,8 @@ AGGREGATE=true \
 
 Together, these stochastic-only commands create 12 non-Burgers PDE/task
 experiments plus two Burgers sensor-mode experiments, or 14,000 sample results.
-The default `SAMPLER_LIST` is
-`"stochastic deterministic hybrid_s2d"`; omitting the stochastic-only setting
-would produce 36,000 results in the first sweep and 6,000 in the Burgers sweep.
+The current default `SAMPLER_LIST` is `stochastic`, so these are also the
+default experiment counts.
 
 Important sweep controls are:
 
@@ -194,13 +195,15 @@ Important sweep controls are:
 | `MAX_BATCH_SIZE` | `50` | Maximum samples handled by one runner process; reduce this if GPU memory is insufficient |
 | `PDE_LIST` | four non-Burgers PDEs | PDEs handled by the main sweep script |
 | `TASK_LIST` | `forward inverse both` | Tasks applied to every PDE in `PDE_LIST` |
-| `SENSOR_MODE_LIST` | config value | Space-separated sensor modes; an empty value preserves each PDE YAML setting |
-| `PARALLEL` | `false` | Enable concurrent PDE/task groups |
-| `MAX_PARALLEL_TASKS` | `2` | Maximum number of concurrent PDE/task runner processes |
+| `SENSOR_MODE_LIST` | `random` | Space-separated sensor modes for the main sweep |
+| `BURGER_SENSOR_MODE_LIST` | `random sensor_column` | Modes forced by the Burgers wrapper, independent of an inherited `SENSOR_MODE_LIST` |
+| `PARALLEL` | `true` | Enable concurrent PDE/task/sensor-mode groups |
+| `MAX_PARALLEL_TASKS` | `2` | Maximum concurrent PDE/task/sensor-mode runner processes |
 | `DEVICE_LIST` | value of `DEVICE` | Space-separated devices assigned round-robin |
+| `OUTPUT_DIR` | `outputs/MAIN1000_100` | Artifact and recovery-state root |
 | `RESUME` | `true` | Reuse matching successful chunks and run only missing offsets |
 | `PROGRESS_INTERVAL` | `1` | Live progress refresh interval in seconds |
-| `VIS` | `false` | Save one comparison figure for each completed batch |
+| `VIS` | `true` | Save one comparison figure for each completed batch |
 | `PLAN_ONLY` | `false` | Print completed samples and pending chunks without sampling |
 | `AGGREGATE` | `true` | Aggregate successful metrics after the sweep |
 
@@ -212,14 +215,14 @@ independent processes on each GPU. Their model and batch memory are additive;
 with two workers, then increase concurrency or `MAX_BATCH_SIZE` while monitoring
 GPU memory.
 
-The terminal displays one live row per PDE/task group. For example, the
+The terminal displays one live row per PDE/task/sensor-mode group. For example, the
 `poisson / forward` row reports its current sampler, sensor mode,
 completed/total samples, `offset`, batch size, sampling step, state, and current
 coefficient/solution relative L2 values. An `OVERALL` row combines progress
 across all groups. Child runner output is retained in per-chunk log files
-instead of overwriting the live table. Sensor modes remain ordered within their
-PDE/task group, so the Burgers-only sweep uses one worker even when two devices
-are listed.
+instead of overwriting the live table. With `PARALLEL=true`, two Burgers sensor
+modes, `MAX_PARALLEL_TASKS=2`, and two devices, `random` runs on `cuda:0` while
+`sensor_column` runs concurrently on `cuda:1`.
 
 Preview the exact work plan and any samples recognized for recovery without
 starting a model:
