@@ -172,20 +172,35 @@ PDE=poisson TASK=both bash scripts/sample/run_sample.sh
 PDE=helmholtz TASK=inverse NUM_STEPS=1000 NUM_OBS=500 NOISE_LEVEL=0.05 \
   bash scripts/sample/run_sample.sh
 
-# 五个主方程，每个 PDE × task 采样 1000 个样本，PDE/task 任务并行
+# Poisson/Helmholtz/Darcy/NS：三种 task，每个实验采样 1000 个样本
 OUTPUT_DIR=outputs/MAIN1000 \
 NUM_SAMPLES=1000 \
+PDE_LIST="poisson helmholtz darcy nsnonbounded" \
 TASK_LIST="forward inverse both" \
 SAMPLER_LIST="stochastic" \
 PARALLEL=true \
 MAX_PARALLEL_TASKS=2 \
 DEVICE_LIST="cuda:0 cuda:1" \
 RESUME=true \
+AGGREGATE=false \
   bash scripts/sample/run_sample_sweep.sh
+
+# Burgers：仅 both，分别运行 random 和 sensor_column 两种观测模式
+OUTPUT_DIR=outputs/MAIN1000 \
+NUM_SAMPLES=1000 \
+SAMPLER_LIST="stochastic" \
+SENSOR_MODE_LIST="random sensor_column" \
+DEVICE_LIST="cuda:0 cuda:1" \
+RESUME=true \
+AGGREGATE=true \
+  bash scripts/sample/run_sample_sweep_burger.sh
 
 # 只查看计划、已有样本和待运行分片，不启动采样
 OUTPUT_DIR=outputs/MAIN1000 PLAN_ONLY=true \
   bash scripts/sample/run_sample_sweep.sh
+
+OUTPUT_DIR=outputs/MAIN1000 PLAN_ONLY=true \
+  bash scripts/sample/run_sample_sweep_burger.sh
 
 # 直接调用 Python 模块
 python -m sampling.runner \
@@ -197,8 +212,12 @@ python -m sampling.runner \
 
 `run_sample_sweep.sh` 以 PDE × task 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
 `PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。
-同一 PDE × task 内的 sampler 和 offset 分片保持串行。终端会实时显示每个任务的已完成样本数、
-当前 offset/batch、采样 step、相对误差和总体进度。
+同一 PDE × task 内的 sensor mode、sampler 和 offset 分片保持串行。`SENSOR_MODE_LIST` 未设置时，
+每个 PDE 使用自身 YAML 中的 `sensor_mode`；设置多个空格分隔值时，每个值形成独立实验和恢复记录。
+终端会实时显示当前 sensor mode、sampler、已完成样本数、offset/batch、采样 step、相对误差和总体进度。
+`run_sample_sweep_burger.sh` 固定运行 `burger / both`，默认
+`SENSOR_MODE_LIST="random sensor_column"`。其中 `sensor_column` 使用
+`configs/main/burger.yaml` 的 `num_sensor_columns`。
 
 通常应令 `MAX_PARALLEL_TASKS` 不大于 `DEVICE_LIST` 中的独立设备数。若并发槽位多于设备数，
 多个任务会共享同一设备，脚本会给出警告，并可能因显存不足失败。
@@ -207,8 +226,8 @@ python -m sampling.runner \
 `resolved_config.yaml`、成功的 `metrics_final.json` 和 `result.pt` 的样本范围；中断中的 batch
 不会被标记为完成。状态和独立 batch 日志保存在
 `<output_dir>/.sample_sweeps/<configuration-fingerprint>/`。相同命令重新启动会组合历史成功产物
-与完成标记，仅对缺失 offset 重新分片。改变模型、数据路径、采样器或引导配置会产生新的配置指纹，
-不会错误复用旧结果。
+与完成标记，仅对缺失 offset 重新分片。改变模型、数据路径、采样器、`sensor_mode` 或引导配置会产生
+新的配置指纹，不会错误复用旧结果。
 
 ### 输出目录结构
 
@@ -228,7 +247,7 @@ python -m sampling.runner \
 ├── manifest.json          # 本次 sweep 的配置与实验清单
 ├── completed/             # 成功 batch 的原子完成标记
 ├── progress/              # 正在运行的 step 进度文件
-├── logs/                  # 按 PDE/task/sampler/offset 保存的独立日志
+├── logs/                  # 按 PDE/task/sensor_mode/sampler/offset 保存的独立日志
 └── sweep.log              # 调度、恢复和失败事件日志
 ```
 

@@ -778,6 +778,7 @@ def _write_sweep_progress(
         "pde": config.pde,
         "task": config.task,
         "sampler": config.sampler_phase,
+        "sensor_mode": config.sensor_mode,
         "offset": int(config.offset),
         "batch_size": int(config.batch_size),
         "step": int(step),

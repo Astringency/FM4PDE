@@ -38,17 +38,18 @@ class Experiment:
     pde: str
     task: str
     sampler: str
+    sensor_mode: str
     config_path: Path
     config: dict[str, Any]
     signature: str
 
     @property
     def key(self) -> str:
-        return f"{self.pde}/{self.task}/{self.sampler}"
+        return f"{self.pde}/{self.task}/{self.sampler}/{self.sensor_mode}"
 
     @property
     def safe_key(self) -> str:
-        return f"{self.pde}__{self.task}__{self.sampler}"
+        return f"{self.pde}__{self.task}__{self.sampler}__{self.sensor_mode}"
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ class TaskState:
     completed_samples: int
     status: str = "queued"
     sampler: str = "-"
+    sensor_mode: str = "-"
     offset: int | None = None
     batch_size: int = 0
     step: int = 0
@@ -164,6 +166,7 @@ class SweepRunner:
                             "pde": item.pde,
                             "task": item.task,
                             "sampler": item.sampler,
+                            "sensor_mode": item.sensor_mode,
                             "signature": item.signature,
                             "config_path": str(item.config_path),
                         }
@@ -212,6 +215,7 @@ class SweepRunner:
         table = Table(title="Sampling plan")
         table.add_column("PDE / task")
         table.add_column("Sampler")
+        table.add_column("Sensor")
         table.add_column("Completed", justify="right")
         table.add_column("Remaining chunks", justify="right")
         table.add_column("Device")
@@ -225,6 +229,7 @@ class SweepRunner:
             table.add_row(
                 f"{experiment.pde} / {experiment.task}",
                 experiment.sampler,
+                experiment.sensor_mode,
                 f"{len(self.completed[experiment.key])}/{self.options.num_samples}",
                 str(len(chunks)),
                 state.device,
@@ -327,6 +332,7 @@ class SweepRunner:
         with state.lock:
             state.status = "complete"
             state.sampler = "-"
+            state.sensor_mode = "-"
             state.offset = None
             state.batch_size = 0
             state.step = state.num_steps
@@ -336,7 +342,13 @@ class SweepRunner:
 
     def _run_chunk(self, experiment: Experiment, chunk: Chunk, state: TaskState) -> bool:
         progress_file = self.progress_dir / f"{experiment.safe_key}.json"
-        log_dir = self.logs_dir / experiment.pde / experiment.task / experiment.sampler
+        log_dir = (
+            self.logs_dir
+            / experiment.pde
+            / experiment.task
+            / experiment.sensor_mode
+            / experiment.sampler
+        )
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = _unique_log_path(
             log_dir / f"offset_{chunk.offset:06d}_batch_{chunk.batch_size}.log"
@@ -344,6 +356,7 @@ class SweepRunner:
         with state.lock:
             state.status = "running"
             state.sampler = experiment.sampler
+            state.sensor_mode = experiment.sensor_mode
             state.offset = chunk.offset
             state.batch_size = chunk.batch_size
             state.step = 0
@@ -357,6 +370,7 @@ class SweepRunner:
                 "PDE": experiment.pde,
                 "TASK": experiment.task,
                 "SAMPLER_PHASE": experiment.sampler,
+                "SENSOR_MODE": experiment.sensor_mode,
                 "BATCH_SIZE": str(chunk.batch_size),
                 "OFFSET": str(chunk.offset),
                 "NUM_STEPS": str(self.options.num_steps),
@@ -441,6 +455,7 @@ class SweepRunner:
         table = Table(title="FM4PDE sampling progress")
         table.add_column("PDE / task", no_wrap=True)
         table.add_column("Sampler", no_wrap=True)
+        table.add_column("Sensor", no_wrap=True)
         table.add_column("Samples", justify="right")
         table.add_column("Current", no_wrap=True)
         table.add_column("Progress", no_wrap=True)
@@ -469,6 +484,7 @@ class SweepRunner:
                 table.add_row(
                     f"{state.pde} / {state.task}",
                     state.sampler,
+                    state.sensor_mode,
                     f"{state.completed_samples}/{state.total_samples}",
                     current,
                     _bar(fraction),
@@ -483,6 +499,7 @@ class SweepRunner:
         table.add_section()
         table.add_row(
             "OVERALL",
+            "-",
             "-",
             f"{int(weighted)}/{total}",
             "-",
@@ -554,7 +571,8 @@ class SweepRunner:
             except (OSError, json.JSONDecodeError):
                 continue
             key = "/".join(
-                str(payload.get(name, "")) for name in ("pde", "task", "sampler")
+                str(payload.get(name, ""))
+                for name in ("pde", "task", "sampler", "sensor_mode")
             )
             experiment = self.experiments_by_key.get(key)
             if experiment is None:
@@ -570,7 +588,14 @@ class SweepRunner:
                 _bounded_offsets(chunk.offset, chunk.batch_size, self.options.num_samples)
             )
             if not self.options.plan_only:
-                log_path = self.logs_dir / experiment.pde / experiment.task / experiment.sampler / "recovered.log"
+                log_path = (
+                    self.logs_dir
+                    / experiment.pde
+                    / experiment.task
+                    / experiment.sensor_mode
+                    / experiment.sampler
+                    / "recovered.log"
+                )
                 self._write_completed_marker(experiment, chunk, log_path, run_dir)
                 progress_file.unlink(missing_ok=True)
 
@@ -661,10 +686,12 @@ def discover_completed_artifacts(
     num_samples: int,
 ) -> dict[str, set[int]]:
     completed = {experiment.key: set() for experiment in experiments}
-    by_group: dict[tuple[str, str], dict[str, Experiment]] = {}
+    by_group: dict[tuple[str, str], dict[tuple[str, str], Experiment]] = {}
     for experiment in experiments:
-        by_group.setdefault((experiment.pde, experiment.task), {})[experiment.sampler] = experiment
-    for (pde, task), samplers in by_group.items():
+        by_group.setdefault((experiment.pde, experiment.task), {})[
+            (experiment.sampler, experiment.sensor_mode)
+        ] = experiment
+    for (pde, task), variants in by_group.items():
         group_root = output_dir / pde / task
         if not group_root.exists():
             continue
@@ -678,7 +705,8 @@ def discover_completed_artifacts(
             except (OSError, ValueError):
                 continue
             sampler = str(stored.get("sampler_phase", ""))
-            experiment = samplers.get(sampler)
+            sensor_mode = str(stored.get("sensor_mode", ""))
+            experiment = variants.get((sampler, sensor_mode))
             if experiment is None:
                 continue
             offset = int(stored.get("offset", -1))
@@ -700,6 +728,7 @@ def discover_completed_artifacts(
 def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[tuple[str, str]]]:
     experiments: list[Experiment] = []
     groups: list[tuple[str, str]] = []
+    requested_sensor_modes: list[str | None] = args.sensor_modes or [None]
     for pde in args.pdes:
         config_path = Path(args.config_dir) / f"{pde}.yaml"
         if not config_path.is_file():
@@ -707,34 +736,40 @@ def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[
         for task in args.tasks:
             groups.append((pde, task))
             for sampler in args.samplers:
-                overrides: dict[str, Any] = {
-                    "pde": pde,
-                    "task": task,
-                    "sampler_phase": sampler,
-                    "batch_size": 1,
-                    "offset": 0,
-                    "num_steps": args.num_steps,
-                    "num_obs": args.num_obs,
-                    "output_dir": args.output_dir,
-                    "device": args.devices[0],
-                    "save_plots": args.vis,
-                    "dry_run": args.dry_run,
-                }
-                if args.sample_seed is not None:
-                    overrides["sample_seed"] = args.sample_seed
-                config = finalize_ground_truth_config(load_config(config_path, overrides=overrides))
-                config.validate()
-                config_dict = config.asdict()
-                experiments.append(
-                    Experiment(
-                        pde=pde,
-                        task=task,
-                        sampler=sampler,
-                        config_path=config_path,
-                        config=config_dict,
-                        signature=_config_signature(config_dict),
+                for requested_sensor_mode in requested_sensor_modes:
+                    overrides: dict[str, Any] = {
+                        "pde": pde,
+                        "task": task,
+                        "sampler_phase": sampler,
+                        "batch_size": 1,
+                        "offset": 0,
+                        "num_steps": args.num_steps,
+                        "num_obs": args.num_obs,
+                        "output_dir": args.output_dir,
+                        "device": args.devices[0],
+                        "save_plots": args.vis,
+                        "dry_run": args.dry_run,
+                    }
+                    if requested_sensor_mode is not None:
+                        overrides["sensor_mode"] = requested_sensor_mode
+                    if args.sample_seed is not None:
+                        overrides["sample_seed"] = args.sample_seed
+                    config = finalize_ground_truth_config(
+                        load_config(config_path, overrides=overrides)
                     )
-                )
+                    config.validate()
+                    config_dict = config.asdict()
+                    experiments.append(
+                        Experiment(
+                            pde=pde,
+                            task=task,
+                            sampler=sampler,
+                            sensor_mode=config.sensor_mode,
+                            config_path=config_path,
+                            config=config_dict,
+                            signature=_config_signature(config_dict),
+                        )
+                    )
     return experiments, groups
 
 
@@ -793,6 +828,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pdes", nargs="+", required=True)
     parser.add_argument("--tasks", nargs="+", required=True)
     parser.add_argument("--samplers", nargs="+", required=True)
+    parser.add_argument(
+        "--sensor-modes",
+        nargs="+",
+        default=None,
+        help="sensor modes to sweep; omit to use each PDE config's sensor_mode",
+    )
     parser.add_argument("--num-steps", type=int, default=100)
     parser.add_argument("--num-obs", type=int, default=500)
     parser.add_argument("--output-dir", default="outputs/samples")

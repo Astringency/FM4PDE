@@ -12,6 +12,7 @@ set -euo pipefail
 #   PDE              方程名 (必选，如 poisson, helmholtz, darcy, nsnonbounded, burger)
 #   TASK             任务: forward / inverse / both (默认 both)
 #   SAMPLER_PHASE    采样器: stochastic / deterministic / hybrid_s2d (默认 stochastic)
+#   SENSOR_MODE      观测模式；未设置时使用配置文件值
 #   BATCH_SIZE       批量大小 (默认 1)
 #   OFFSET           样本偏移 (默认 0)
 #   NUM_STEPS        采样步数 (默认从配置读取)
@@ -56,6 +57,7 @@ OVERRIDES=(
 # 仅在显式设置时覆盖 (否则用配置文件的值)
 [[ -n "${NUM_STEPS:-}" ]]   && OVERRIDES+=(--override "num_steps=${NUM_STEPS}")
 [[ -n "${NUM_OBS:-}" ]]     && OVERRIDES+=(--override "num_obs=${NUM_OBS}")
+[[ -n "${SENSOR_MODE:-}" ]] && OVERRIDES+=(--override "sensor_mode=${SENSOR_MODE}")
 [[ -n "${SAMPLE_SEED:-}" ]] && OVERRIDES+=(--override "sample_seed=${SAMPLE_SEED}")
 [[ -n "${OUTPUT_DIR:-}" ]]  && OVERRIDES+=(--override "output_dir=${OUTPUT_DIR}")
 
@@ -69,6 +71,7 @@ echo "  config:   ${CONFIG}"
 echo "  pde:      ${PDE}"
 echo "  task:     ${TASK}"
 echo "  sampler:  ${SAMPLER_PHASE}"
+echo "  sensor:   ${SENSOR_MODE:-config default}"
 echo "  device:   ${DEVICE}"
 echo "  batch:    ${BATCH_SIZE}"
 

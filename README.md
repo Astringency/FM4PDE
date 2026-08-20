@@ -8,6 +8,7 @@ FM4PDE is a Flow Matching codebase for generating, completing, and inverting PDE
 python train.py
 python -m sampling.runner --config configs/ablations/base/heat.yaml
 PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep.sh
+PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep_burger.sh
 python -m sampling.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
 python -m sampling.aggregate outputs/ablations --output-dir outputs/ablations
 ```
@@ -146,34 +147,54 @@ completed batch.
 
 ### Resumable 1000-sample sweep
 
-The following command samples 1000 examples for every combination of the five
-main PDEs and the `forward`, `inverse`, and `both` tasks. PDE/task groups run in
-parallel, while sampler and offset chunks within one group remain ordered:
+Use two sweeps when the four elliptic/NS PDEs need all three tasks but Burgers
+needs only `both`. The main script defaults to `poisson`, `helmholtz`, `darcy`,
+and `nsnonbounded` with `forward`, `inverse`, and `both`:
 
 ```bash
 OUTPUT_DIR=outputs/MAIN1000 \
 NUM_SAMPLES=1000 \
-PDE_LIST="poisson helmholtz darcy nsnonbounded burger" \
+PDE_LIST="poisson helmholtz darcy nsnonbounded" \
 TASK_LIST="forward inverse both" \
 SAMPLER_LIST="stochastic" \
 PARALLEL=true \
 MAX_PARALLEL_TASKS=2 \
 DEVICE_LIST="cuda:0 cuda:1" \
 RESUME=true \
+AGGREGATE=false \
   bash scripts/sample/run_sample_sweep.sh
 ```
 
-This command creates 15 PDE/task experiments and 15,000 sample results. The
-default `SAMPLER_LIST` is
-`"stochastic deterministic hybrid_s2d"`; omitting the explicit stochastic-only
-setting therefore runs 45 experiments and 45,000 samples.
+Run the dedicated Burgers wrapper afterward. It fixes the selection to
+`burger / both` and defaults to both `random` and `sensor_column` observation
+modes:
+
+```bash
+OUTPUT_DIR=outputs/MAIN1000 \
+NUM_SAMPLES=1000 \
+SAMPLER_LIST="stochastic" \
+SENSOR_MODE_LIST="random sensor_column" \
+DEVICE_LIST="cuda:0 cuda:1" \
+RESUME=true \
+AGGREGATE=true \
+  bash scripts/sample/run_sample_sweep_burger.sh
+```
+
+Together, these stochastic-only commands create 12 non-Burgers PDE/task
+experiments plus two Burgers sensor-mode experiments, or 14,000 sample results.
+The default `SAMPLER_LIST` is
+`"stochastic deterministic hybrid_s2d"`; omitting the stochastic-only setting
+would produce 36,000 results in the first sweep and 6,000 in the Burgers sweep.
 
 Important sweep controls are:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `NUM_SAMPLES` | `1000` | Samples per PDE × task × sampler experiment |
+| `NUM_SAMPLES` | `1000` | Samples per PDE × task × sampler × sensor-mode experiment |
 | `MAX_BATCH_SIZE` | `50` | Maximum samples handled by one runner process; reduce this if GPU memory is insufficient |
+| `PDE_LIST` | four non-Burgers PDEs | PDEs handled by the main sweep script |
+| `TASK_LIST` | `forward inverse both` | Tasks applied to every PDE in `PDE_LIST` |
+| `SENSOR_MODE_LIST` | config value | Space-separated sensor modes; an empty value preserves each PDE YAML setting |
 | `PARALLEL` | `false` | Enable concurrent PDE/task groups |
 | `MAX_PARALLEL_TASKS` | `2` | Maximum number of concurrent PDE/task runner processes |
 | `DEVICE_LIST` | value of `DEVICE` | Space-separated devices assigned round-robin |
@@ -192,11 +213,13 @@ with two workers, then increase concurrency or `MAX_BATCH_SIZE` while monitoring
 GPU memory.
 
 The terminal displays one live row per PDE/task group. For example, the
-`poisson / forward` row reports its current sampler, completed/total samples,
-`offset`, batch size, sampling step, state, and current coefficient/solution
-relative L2 values. An `OVERALL` row combines progress across all groups. Child
-runner output is retained in per-chunk log files instead of overwriting the
-live table.
+`poisson / forward` row reports its current sampler, sensor mode,
+completed/total samples, `offset`, batch size, sampling step, state, and current
+coefficient/solution relative L2 values. An `OVERALL` row combines progress
+across all groups. Child runner output is retained in per-chunk log files
+instead of overwriting the live table. Sensor modes remain ordered within their
+PDE/task group, so the Burgers-only sweep uses one worker even when two devices
+are listed.
 
 Preview the exact work plan and any samples recognized for recovery without
 starting a model:
@@ -206,14 +229,20 @@ OUTPUT_DIR=outputs/MAIN1000 \
 NUM_SAMPLES=1000 \
 PLAN_ONLY=true \
   bash scripts/sample/run_sample_sweep.sh
+
+OUTPUT_DIR=outputs/MAIN1000 \
+NUM_SAMPLES=1000 \
+PLAN_ONLY=true \
+  bash scripts/sample/run_sample_sweep_burger.sh
 ```
 
 `RESUME=true` is enabled by default. A chunk is skipped only when its full
 configuration matches and `resolved_config.yaml`, a successful
 `metrics_final.json`, and `result.pt` are all present. If a run is interrupted,
 rerun the same command: completed chunks are retained and the interrupted or
-missing offsets are scheduled again. Configuration changes produce a different
-fingerprint and do not silently reuse incompatible results.
+missing offsets are scheduled again. Configuration changes, including
+`sensor_mode`, produce a different fingerprint and do not silently reuse
+incompatible results.
 
 Artifacts preserve the existing MAIN1000-style layout:
 

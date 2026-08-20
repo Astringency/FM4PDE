@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from sampling.config import dump_yaml
 from sampling.sample_sweep import (
     Chunk,
     Experiment,
     SweepOptions,
     SweepRunner,
     _config_signature,
+    build_arg_parser,
+    build_experiments,
     compute_missing_chunks,
     discover_completed_artifacts,
 )
@@ -21,13 +24,16 @@ def test_compute_missing_chunks_skips_completed_offsets_and_preserves_gaps():
 
 
 def test_discover_completed_artifacts_accepts_only_matching_successful_runs(tmp_path):
-    experiment = _experiment("poisson", "forward")
-    _write_artifact(tmp_path, experiment, offset=0, batch_size=2, status="ok")
-    _write_artifact(tmp_path, experiment, offset=2, batch_size=1, status="failed")
+    random = _experiment("poisson", "forward", "random")
+    columns = _experiment("poisson", "forward", "sensor_column")
+    _write_artifact(tmp_path, random, offset=0, batch_size=2, status="ok")
+    _write_artifact(tmp_path, random, offset=2, batch_size=1, status="failed")
+    _write_artifact(tmp_path, columns, offset=2, batch_size=1, status="ok")
 
-    completed = discover_completed_artifacts(tmp_path, [experiment], num_samples=4)
+    completed = discover_completed_artifacts(tmp_path, [random, columns], num_samples=4)
 
-    assert completed[experiment.key] == {0, 1}
+    assert completed[random.key] == {0, 1}
+    assert completed[columns.key] == {2}
 
 
 def test_sweep_runs_pde_task_groups_and_resumes_only_complete_artifacts(tmp_path):
@@ -46,26 +52,31 @@ output = Path(os.environ["OUTPUT_DIR"])
 pde = os.environ["PDE"]
 task = os.environ["TASK"]
 sampler = os.environ["SAMPLER_PHASE"]
+sensor_mode = os.environ["SENSOR_MODE"]
 device = os.environ["DEVICE"].replace(":", "_")
 offset = int(os.environ["OFFSET"])
 batch = int(os.environ["BATCH_SIZE"])
 steps = int(os.environ["NUM_STEPS"])
 obs = int(os.environ["NUM_OBS"])
-run_dir = output / pde / task / "fake" / f"{sampler}-{offset}-{batch}"
+run_dir = output / pde / task / "fake" / f"{sampler}-{sensor_mode}-{offset}-{batch}"
 run_dir.mkdir(parents=True, exist_ok=True)
 calls = output / "calls"
 calls.mkdir(parents=True, exist_ok=True)
-(calls / f"{pde}-{task}-{sampler}-{device}-{offset}-{time.time_ns()}").touch()
+(calls / f"{pde}-{task}-{sampler}-{sensor_mode}-{device}-{offset}-{time.time_ns()}").touch()
 config = {
     "pde": pde,
     "task": task,
     "sampler_phase": sampler,
+    "sensor_mode": sensor_mode,
     "num_steps": steps,
     "num_obs": obs,
     "offset": offset,
     "batch_size": batch,
 }
-(run_dir / "resolved_config.yaml").write_text(json.dumps(config), encoding="utf-8")
+(run_dir / "resolved_config.yaml").write_text(
+    "\\n".join(f"{key}: {value}" for key, value in config.items()) + "\\n",
+    encoding="utf-8",
+)
 (run_dir / "metrics_final.json").write_text(
     json.dumps({"status": "ok", "num_samples": batch}), encoding="utf-8"
 )
@@ -129,18 +140,57 @@ PY
     assert resumed.run() == 0
     assert len(list((options.output_dir / "calls").iterdir())) == 4
 
-    missing_result = options.output_dir / "poisson" / "forward" / "fake" / "stochastic-0-2" / "result.pt"
+    missing_result = (
+        options.output_dir
+        / "poisson"
+        / "forward"
+        / "fake"
+        / "stochastic-random-0-2"
+        / "result.pt"
+    )
     missing_result.unlink()
     repaired = SweepRunner(options, experiments, groups)
     assert repaired.run() == 0
     assert len(list((options.output_dir / "calls").iterdir())) == 5
 
 
-def _experiment(pde: str, task: str) -> Experiment:
+def test_build_experiments_expands_sensor_modes_and_keeps_one_pde_task_group(tmp_path):
+    (tmp_path / "burger.yaml").write_text(
+        "pde: burger\nsensor_mode: random\nnum_sensor_columns: 5\n",
+        encoding="utf-8",
+    )
+    args = build_arg_parser().parse_args(
+        [
+            "--pdes",
+            "burger",
+            "--tasks",
+            "both",
+            "--samplers",
+            "stochastic",
+            "--sensor-modes",
+            "random",
+            "sensor_column",
+            "--config-dir",
+            str(tmp_path),
+        ]
+    )
+
+    experiments, groups = build_experiments(args)
+
+    assert groups == [("burger", "both")]
+    assert [experiment.sensor_mode for experiment in experiments] == [
+        "random",
+        "sensor_column",
+    ]
+    assert len({experiment.key for experiment in experiments}) == 2
+
+
+def _experiment(pde: str, task: str, sensor_mode: str = "random") -> Experiment:
     config = {
         "pde": pde,
         "task": task,
         "sampler_phase": "stochastic",
+        "sensor_mode": sensor_mode,
         "num_steps": 3,
         "num_obs": 5,
     }
@@ -148,6 +198,7 @@ def _experiment(pde: str, task: str) -> Experiment:
         pde=pde,
         task=task,
         sampler="stochastic",
+        sensor_mode=sensor_mode,
         config_path=Path(f"{pde}.yaml"),
         config=config,
         signature=_config_signature(config),
@@ -162,10 +213,16 @@ def _write_artifact(
     batch_size: int,
     status: str,
 ) -> None:
-    run_dir = root / experiment.pde / experiment.task / "fake" / f"run-{offset}"
+    run_dir = (
+        root
+        / experiment.pde
+        / experiment.task
+        / "fake"
+        / f"{experiment.sensor_mode}-run-{offset}"
+    )
     run_dir.mkdir(parents=True)
     config = {**experiment.config, "offset": offset, "batch_size": batch_size}
-    (run_dir / "resolved_config.yaml").write_text(json.dumps(config), encoding="utf-8")
+    (run_dir / "resolved_config.yaml").write_text(dump_yaml(config), encoding="utf-8")
     (run_dir / "metrics_final.json").write_text(
         json.dumps({"status": status, "num_samples": batch_size}), encoding="utf-8"
     )

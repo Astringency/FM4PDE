@@ -3,8 +3,9 @@ set -euo pipefail
 # ============================================================================
 # FM4PDE resumable sampling sweep
 #
-# Each PDE × task pair is an independent scheduling unit. Samplers and sample
-# chunks within that unit remain ordered so offsets are easy to audit/resume.
+# Each PDE × task pair is an independent scheduling unit. Sensor modes,
+# samplers, and sample chunks within that unit remain ordered so offsets are
+# easy to audit/resume.
 #
 # Examples:
 #   bash scripts/sample/run_sample_sweep.sh
@@ -12,14 +13,17 @@ set -euo pipefail
 #     TASK_LIST="forward inverse both" bash scripts/sample/run_sample_sweep.sh
 #   PARALLEL=true MAX_PARALLEL_TASKS=2 DEVICE_LIST="cuda:0 cuda:1" \
 #     bash scripts/sample/run_sample_sweep.sh
+#   PDE_LIST="burger" TASK_LIST="both" \
+#     SENSOR_MODE_LIST="random sensor_column" bash scripts/sample/run_sample_sweep.sh
 #   RESUME=true bash scripts/sample/run_sample_sweep.sh
 #
 # Environment variables:
-#   NUM_SAMPLES          Samples per PDE × task × sampler (default: 1000)
+#   NUM_SAMPLES          Samples per PDE × task × sampler × sensor mode (default: 1000)
 #   MAX_BATCH_SIZE       Maximum samples in one runner process (default: 50)
-#   PDE_LIST             Space-separated PDEs (default: all five main PDEs)
+#   PDE_LIST             Space-separated PDEs (default: four non-Burgers main PDEs)
 #   TASK_LIST            Space-separated tasks (default: forward inverse both)
 #   SAMPLER_LIST         Space-separated samplers (default: three samplers)
+#   SENSOR_MODE_LIST     Space-separated modes (default: mode from each PDE config)
 #   NUM_STEPS            Sampling steps (default: 100)
 #   NUM_OBS              Sparse observations (default: 500)
 #   OUTPUT_DIR           Artifact root (default: outputs/samples)
@@ -40,9 +44,10 @@ cd "${ROOT_DIR}"
 
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 MAX_BATCH_SIZE="${MAX_BATCH_SIZE:-50}"
-PDE_LIST="${PDE_LIST:-poisson helmholtz darcy nsnonbounded burger}"
+PDE_LIST="${PDE_LIST:-poisson helmholtz darcy nsnonbounded}"
 TASK_LIST="${TASK_LIST:-forward inverse both}"
 SAMPLER_LIST="${SAMPLER_LIST:-stochastic deterministic hybrid_s2d}"
+SENSOR_MODE_LIST="${SENSOR_MODE_LIST:-}"
 NUM_STEPS="${NUM_STEPS:-100}"
 NUM_OBS="${NUM_OBS:-500}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/samples}"
@@ -61,6 +66,10 @@ read -r -a PDES <<< "${PDE_LIST}"
 read -r -a TASKS <<< "${TASK_LIST}"
 read -r -a SAMPLERS <<< "${SAMPLER_LIST}"
 read -r -a DEVICES <<< "${DEVICE_LIST}"
+SENSOR_MODES=()
+if [[ -n "${SENSOR_MODE_LIST}" ]]; then
+    read -r -a SENSOR_MODES <<< "${SENSOR_MODE_LIST}"
+fi
 
 ARGS=(
     --num-samples "${NUM_SAMPLES}"
@@ -77,6 +86,10 @@ ARGS=(
     --samplers "${SAMPLERS[@]}"
     --devices "${DEVICES[@]}"
 )
+
+if (( ${#SENSOR_MODES[@]} > 0 )); then
+    ARGS+=(--sensor-modes "${SENSOR_MODES[@]}")
+fi
 
 is_true() {
     case "${1,,}" in
