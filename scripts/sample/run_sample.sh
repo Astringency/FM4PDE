@@ -64,7 +64,7 @@ OVERRIDES=(
 # ── 运行 ──────────────────────────────────────────────────────────────────────
 FLAGS=(--config "${CONFIG}" "${OVERRIDES[@]}")
 [[ "${DRY_RUN:-false}" == "true" ]] && FLAGS+=(--dry-run)
-[[ "${VIS:-false}" == "true" ]]    && FLAGS+=(--vis)
+[[ "${VIS:-true}" == "true" ]]    && FLAGS+=(--vis)
 
 echo "== FM4PDE sampling =="
 echo "  config:   ${CONFIG}"

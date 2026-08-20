@@ -418,6 +418,8 @@ def _pde_params_with_residual_options(pde_params: dict[str, Any] | None, config:
         "allow_unknown_boundary_conditions",
         "legacy_ignore_boundary",
         "ns_operator_mode",
+        "coef_positive_mode",
+        "coef_positive_floor",
     )
     for name in option_names:
         if hasattr(config, name):

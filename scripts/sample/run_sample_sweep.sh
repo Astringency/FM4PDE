@@ -43,8 +43,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
-MAX_BATCH_SIZE="${MAX_BATCH_SIZE:-50}"
-PDE_LIST="${PDE_LIST:-poisson helmholtz darcy nsnonbounded}"
+MAX_BATCH_SIZE="${MAX_BATCH_SIZE:-20}"
+PDE_LIST="${PDE_LIST:-poisson helmholtz nsnonbounded}" # darcy
 TASK_LIST="${TASK_LIST:-forward inverse both}"
 SAMPLER_LIST="${SAMPLER_LIST:-stochastic}" # deterministic hybrid_s2d
 SENSOR_MODE_LIST="${SENSOR_MODE_LIST:-random}"

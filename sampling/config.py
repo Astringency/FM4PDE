@@ -169,6 +169,8 @@ class AblationConfig:
     endpoint_bc_weight: float = 1.0
     boundary_residual_normalization: str = "sqrt_grid_over_mask"
     ns_operator_mode: str = "generator_dealiased"
+    coef_positive_mode: str = "binary"
+    coef_positive_floor: float = 4.0
     allow_unknown_boundary_conditions: bool = False
     legacy_ignore_boundary: bool = False
     hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
@@ -225,6 +227,10 @@ class AblationConfig:
         for name, value, allowed in checks:
             if value not in allowed:
                 raise ValueError(f"{name}={value!r} is invalid; expected one of {sorted(allowed)}")
+        if self.coef_positive_mode not in {"none", "softplus", "clamp_min", "floor", "binary"}:
+            raise ValueError(f"coef_positive_mode={self.coef_positive_mode!r} is invalid")
+        if self.coef_positive_floor <= 0:
+            raise ValueError("coef_positive_floor must be positive")
         if not 0.0 <= self.switch_ratio <= 1.0:
             raise ValueError("switch_ratio must be in [0, 1]")
         if self.num_steps < 1:

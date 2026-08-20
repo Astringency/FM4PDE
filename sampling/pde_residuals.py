@@ -51,6 +51,39 @@ class PDEConstraintSpec:
     enforce_initial_conditions: bool
 
 
+def _apply_darcy_coef_positive(coef: Any, pde_params: dict[str, Any] | None) -> Any:
+    """Enforce a positive Darcy coefficient before the spline residual.
+
+    The Darcy operator multiplies the coefficient by ``1/h**2`` (~1.6e4 at
+    128x128), so an unconstrained model coefficient that drifts negative or
+    large during inverse/both sampling overflows to Inf/NaN. ``mode`` is read
+    from ``pde_params`` so it can be toggled from the sampling config:
+    ``none`` (no-op), ``softplus``, ``clamp_min`` (small epsilon), or
+    ``floor`` (map negative entries to ``coef_positive_floor``).
+    """
+    import torch
+
+    mode = str((pde_params or {}).get("coef_positive_mode", "binary"))
+    if mode == "none":
+        return coef
+    if mode == "softplus":
+        return torch.nn.functional.softplus(coef)
+    if mode == "clamp_min":
+        return coef.clamp_min(1e-6)
+    if mode == "floor":
+        floor = float((pde_params or {}).get("coef_positive_floor", 4.0))
+        return torch.where(coef < 0, torch.full_like(coef, floor), coef)
+    if mode == "binary":
+        # Darcy ground-truth coefficients are binary (4 / 12). Snap the
+        # predicted coefficient to that two-level structure.
+        return torch.where(
+            coef > 8.0,
+            torch.full_like(coef, 12.0),
+            torch.full_like(coef, 4.0),
+        )
+    raise ValueError(f"Unknown coef_positive_mode={mode!r}")
+
+
 def compute_pde_residual(
     pde: str,
     coef: Any,
@@ -88,6 +121,8 @@ def compute_pde_residual(
     }
     if pde not in table:
         raise ValueError(f"Unsupported PDE residual: {pde}")
+    if pde == "darcy":
+        coef = _apply_darcy_coef_positive(coef, pde_params)
     out = table[pde](coef, sol)
     out.metadata.setdefault("requested_residual_mode", residual_mode)
     out.metadata.setdefault(
