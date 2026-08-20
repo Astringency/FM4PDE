@@ -19,7 +19,7 @@ set -euo pipefail
 #   DEVICE           设备 (默认 cuda)
 #   OUTPUT_DIR       输出目录 (默认从配置读取)
 #   SAMPLE_SEED      随机种子 (默认 42)
-#   CONFIG_DIR       配置目录 (默认 configs/ablations/base)
+#   CONFIG_DIR       配置目录 (默认 configs/main)
 #   DRY_RUN          仅校验不运行 (默认 false)
 #   VIS              采样后绘图 (默认 false)
 # ============================================================================
@@ -62,7 +62,7 @@ OVERRIDES=(
 # ── 运行 ──────────────────────────────────────────────────────────────────────
 FLAGS=(--config "${CONFIG}" "${OVERRIDES[@]}")
 [[ "${DRY_RUN:-false}" == "true" ]] && FLAGS+=(--dry-run)
-[[ "${VIS:-true}" == "true" ]]     && FLAGS+=(--vis)
+[[ "${VIS:-false}" == "true" ]]    && FLAGS+=(--vis)
 
 echo "== FM4PDE sampling =="
 echo "  config:   ${CONFIG}"

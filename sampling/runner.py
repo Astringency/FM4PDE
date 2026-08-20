@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import random
 import time
 import warnings
@@ -28,6 +30,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     config = finalize_ground_truth_config(config)
     config.validate()
     _disable_unreliable_pde_guidance(config)
+    _write_sweep_progress(config, status="initializing", step=0, force=True)
 
     if config.dry_run and not _torch_available():
         run_dir = make_run_dir(config)
@@ -40,6 +43,14 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         }
         write_json(run_dir / "metrics_final.json", result)
         write_csv(run_dir / "summary.csv", [result])
+        _write_sweep_progress(
+            config,
+            status="complete",
+            step=0,
+            run_dir=run_dir,
+            metrics=result,
+            force=True,
+        )
         return result
 
     import torch
@@ -62,6 +73,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     )
     gt = attach_near_endpoint_observations(config, gt, masks)
     run_dir = make_run_dir(config)
+    _write_sweep_progress(config, status="initializing", step=0, run_dir=run_dir, force=True)
     write_run_metadata(config, run_dir, ground_truth_metadata=gt.metadata, residual_metadata=_residual_metadata_for_config(config))
     noise_a = add_observation_noise(
         gt.coef,
@@ -229,6 +241,13 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             row = {key: value for key, value in row.items() if not key.endswith("_per_sample")}
             rows.append(row)
             append_jsonl(run_dir / "metrics_step.jsonl", row)
+            _write_sweep_progress(
+                config,
+                status="running",
+                step=step + 1,
+                run_dir=run_dir,
+                metrics=row,
+            )
             progress.update(
                 task_id,
                 advance=1,
@@ -318,6 +337,15 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
 
     if getattr(config, "save_plots", False):
         _save_visualization(run_dir, config.pde)
+
+    _write_sweep_progress(
+        config,
+        status="complete",
+        step=config.num_steps,
+        run_dir=run_dir,
+        metrics=final,
+        force=True,
+    )
 
     return final
 
@@ -723,6 +751,47 @@ def _scalar(value: Any) -> float:
         return float(value.detach().cpu())
     except Exception:
         return float(value)
+
+
+_SWEEP_PROGRESS_LAST_WRITE: dict[str, float] = {}
+
+
+def _write_sweep_progress(
+    config: AblationConfig,
+    *,
+    status: str,
+    step: int,
+    run_dir: Path | None = None,
+    metrics: dict[str, Any] | None = None,
+    force: bool = False,
+) -> None:
+    """Publish throttled, atomic runner progress for the sweep dashboard."""
+    raw_path = os.environ.get("FM4PDE_SWEEP_PROGRESS_FILE")
+    if not raw_path:
+        return
+    now = time.monotonic()
+    if not force and now - _SWEEP_PROGRESS_LAST_WRITE.get(raw_path, 0.0) < 0.5:
+        return
+    path = Path(raw_path)
+    payload = {
+        "status": status,
+        "pde": config.pde,
+        "task": config.task,
+        "sampler": config.sampler_phase,
+        "offset": int(config.offset),
+        "batch_size": int(config.batch_size),
+        "step": int(step),
+        "num_steps": int(config.num_steps),
+        "run_dir": str(run_dir) if run_dir is not None else None,
+        "rel_l2_a": (metrics or {}).get("rel_l2_a"),
+        "rel_l2_u": (metrics or {}).get("rel_l2_u"),
+        "L_pde": (metrics or {}).get("L_pde"),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    os.replace(temporary, path)
+    _SWEEP_PROGRESS_LAST_WRITE[raw_path] = now
 
 
 class _ZeroVelocityModel:

@@ -172,6 +172,21 @@ PDE=poisson TASK=both bash scripts/sample/run_sample.sh
 PDE=helmholtz TASK=inverse NUM_STEPS=1000 NUM_OBS=500 NOISE_LEVEL=0.05 \
   bash scripts/sample/run_sample.sh
 
+# 五个主方程，每个 PDE × task 采样 1000 个样本，PDE/task 任务并行
+OUTPUT_DIR=outputs/MAIN1000 \
+NUM_SAMPLES=1000 \
+TASK_LIST="forward inverse both" \
+SAMPLER_LIST="stochastic" \
+PARALLEL=true \
+MAX_PARALLEL_TASKS=2 \
+DEVICE_LIST="cuda:0 cuda:1" \
+RESUME=true \
+  bash scripts/sample/run_sample_sweep.sh
+
+# 只查看计划、已有样本和待运行分片，不启动采样
+OUTPUT_DIR=outputs/MAIN1000 PLAN_ONLY=true \
+  bash scripts/sample/run_sample_sweep.sh
+
 # 直接调用 Python 模块
 python -m sampling.runner \
   --config configs/ablations/base/poisson_both.yaml \
@@ -179,6 +194,21 @@ python -m sampling.runner \
   --override noise_level=0.01 \
   --vis
 ```
+
+`run_sample_sweep.sh` 以 PDE × task 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
+`PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。
+同一 PDE × task 内的 sampler 和 offset 分片保持串行。终端会实时显示每个任务的已完成样本数、
+当前 offset/batch、采样 step、相对误差和总体进度。
+
+通常应令 `MAX_PARALLEL_TASKS` 不大于 `DEVICE_LIST` 中的独立设备数。若并发槽位多于设备数，
+多个任务会共享同一设备，脚本会给出警告，并可能因显存不足失败。
+
+`RESUME=true` 默认开启。恢复只接受与当前完整采样配置匹配、且同时具有
+`resolved_config.yaml`、成功的 `metrics_final.json` 和 `result.pt` 的样本范围；中断中的 batch
+不会被标记为完成。状态和独立 batch 日志保存在
+`<output_dir>/.sample_sweeps/<configuration-fingerprint>/`。相同命令重新启动会组合历史成功产物
+与完成标记，仅对缺失 offset 重新分片。改变模型、数据路径、采样器或引导配置会产生新的配置指纹，
+不会错误复用旧结果。
 
 ### 输出目录结构
 
@@ -193,6 +223,13 @@ python -m sampling.runner \
 ├── summary.csv            # 最终汇总单行
 ├── result.pt              # 最终结果（coef/sol 预测值、ground truth、配置等）
 └── figures/               # --vis 时的可视化对比图
+
+<output_dir>/.sample_sweeps/<configuration-fingerprint>/
+├── manifest.json          # 本次 sweep 的配置与实验清单
+├── completed/             # 成功 batch 的原子完成标记
+├── progress/              # 正在运行的 step 进度文件
+├── logs/                  # 按 PDE/task/sampler/offset 保存的独立日志
+└── sweep.log              # 调度、恢复和失败事件日志
 ```
 
 当 `batch_size > 1` 时，`rel_l2_a`、`rel_l2_u` 及观测区域相对误差均为“逐样本计算相对 L2，再对样本取算术平均”。每个样本的原始值同时保存在对应的 `*_per_sample` 字段中。`pde_residual_norm` 同样是逐样本 RMS 的平均；没有可归属于生成结果的 PDE residual 时记录为空值，而不是伪造为 0。PDE 参数也逐样本广播（包括 Burgers 的 `nu`、`T/trajectory_dt` 和 `domain_length`），不会从 batch 第一个样本复制到其他样本。

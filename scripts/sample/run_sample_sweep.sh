@@ -1,26 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# FM4PDE 批量采样扫描脚本
+# FM4PDE resumable sampling sweep
 #
-# 对多个 PDE × task × sampler × N 样本自动分片调用 run_sample.sh。
-# 跑完后自动聚合结果。
+# Each PDE × task pair is an independent scheduling unit. Samplers and sample
+# chunks within that unit remain ordered so offsets are easy to audit/resume.
 #
-# 用法:
+# Examples:
 #   bash scripts/sample/run_sample_sweep.sh
-#   NUM_SAMPLES=1000 bash scripts/sample/run_sample_sweep.sh
-#   PDE_LIST="poisson darcy" TASK_LIST="forward both" bash scripts/sample/run_sample_sweep.sh
+#   OUTPUT_DIR=outputs/MAIN1000 NUM_SAMPLES=1000 \
+#     TASK_LIST="forward inverse both" bash scripts/sample/run_sample_sweep.sh
+#   PARALLEL=true MAX_PARALLEL_TASKS=2 DEVICE_LIST="cuda:0 cuda:1" \
+#     bash scripts/sample/run_sample_sweep.sh
+#   RESUME=true bash scripts/sample/run_sample_sweep.sh
 #
-# 环境变量:
-#   NUM_SAMPLES      每 PDE×task×sampler 样本数 (默认 1000)
-#   MAX_BATCH_SIZE   单次 GPU 最大 batch (默认 50)
-#   PDE_LIST         方程名, 空格分隔 (默认全部 5 个)
-#   TASK_LIST        任务, 空格分隔 (默认 forward inverse both)
-#   SAMPLER_LIST     采样器, 空格分隔 (默认 stochastic deterministic hybrid_s2d)
-#   NUM_STEPS        采样步数 (默认 100)
-#   NUM_OBS          观测点数 (默认 500)
-#   OUTPUT_DIR       输出根目录 (默认 outputs/samples)
-#   DEVICE           设备 (默认 cuda)
+# Environment variables:
+#   NUM_SAMPLES          Samples per PDE × task × sampler (default: 1000)
+#   MAX_BATCH_SIZE       Maximum samples in one runner process (default: 50)
+#   PDE_LIST             Space-separated PDEs (default: all five main PDEs)
+#   TASK_LIST            Space-separated tasks (default: forward inverse both)
+#   SAMPLER_LIST         Space-separated samplers (default: three samplers)
+#   NUM_STEPS            Sampling steps (default: 100)
+#   NUM_OBS              Sparse observations (default: 500)
+#   OUTPUT_DIR           Artifact root (default: outputs/samples)
+#   CONFIG_DIR           Main config directory (default: configs/main)
+#   DEVICE               Device used when DEVICE_LIST is unset (default: cuda)
+#   DEVICE_LIST          Devices assigned round-robin to PDE × task jobs
+#   PARALLEL             Run PDE × task jobs concurrently (default: false)
+#   MAX_PARALLEL_TASKS   Maximum concurrent PDE × task jobs (default: 2)
+#   RESUME               Skip samples with matching successful artifacts (default: true)
+#   VIS                  Save one plot per completed batch (default: false)
+#   PROGRESS_INTERVAL    Live table refresh interval in seconds (default: 1)
+#   PLAN_ONLY            Print the resumable plan without sampling (default: false)
+#   AGGREGATE            Aggregate successful results after completion (default: true)
 # ============================================================================
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -28,115 +40,58 @@ cd "${ROOT_DIR}"
 
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 MAX_BATCH_SIZE="${MAX_BATCH_SIZE:-50}"
-
-DEFAULT_PDES="poisson helmholtz darcy nsnonbounded burger"
-PDE_LIST="${PDE_LIST:-${DEFAULT_PDES}}"
-read -r -a PDES <<< "${PDE_LIST}"
-
-DEFAULT_TASKS="forward inverse both"
-TASK_LIST="${TASK_LIST:-${DEFAULT_TASKS}}"
-read -r -a TASKS <<< "${TASK_LIST}"
-
-DEFAULT_SAMPLERS="stochastic deterministic hybrid_s2d"
-SAMPLER_LIST="${SAMPLER_LIST:-${DEFAULT_SAMPLERS}}"
-read -r -a SAMPLERS <<< "${SAMPLER_LIST}"
-
+PDE_LIST="${PDE_LIST:-poisson helmholtz darcy nsnonbounded burger}"
+TASK_LIST="${TASK_LIST:-forward inverse both}"
+SAMPLER_LIST="${SAMPLER_LIST:-stochastic deterministic hybrid_s2d}"
 NUM_STEPS="${NUM_STEPS:-100}"
 NUM_OBS="${NUM_OBS:-500}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/samples}"
+CONFIG_DIR="${CONFIG_DIR:-configs/main}"
 DEVICE="${DEVICE:-cuda}"
+DEVICE_LIST="${DEVICE_LIST:-${DEVICE}}"
+PARALLEL="${PARALLEL:-false}"
+MAX_PARALLEL_TASKS="${MAX_PARALLEL_TASKS:-2}"
+RESUME="${RESUME:-true}"
+VIS="${VIS:-false}"
+PROGRESS_INTERVAL="${PROGRESS_INTERVAL:-1}"
+PLAN_ONLY="${PLAN_ONLY:-false}"
+AGGREGATE="${AGGREGATE:-true}"
 
-SAMPLE_SCRIPT="scripts/sample/run_sample.sh"
+read -r -a PDES <<< "${PDE_LIST}"
+read -r -a TASKS <<< "${TASK_LIST}"
+read -r -a SAMPLERS <<< "${SAMPLER_LIST}"
+read -r -a DEVICES <<< "${DEVICE_LIST}"
 
-echo "============================================================"
-echo " FM4PDE Sampling Sweep"
-echo "============================================================"
-echo " PDEs:       ${PDES[*]}"
-echo " Tasks:      ${TASKS[*]}"
-echo " Samplers:   ${SAMPLERS[*]}"
-echo " Samples:    ${NUM_SAMPLES} per config"
-echo " Max batch:  ${MAX_BATCH_SIZE}"
-echo " Steps:      ${NUM_STEPS}"
-echo " Obs:        ${NUM_OBS}"
-echo " Output:     ${OUTPUT_DIR}"
-echo " Device:     ${DEVICE}"
-echo "============================================================"
+ARGS=(
+    --num-samples "${NUM_SAMPLES}"
+    --max-batch-size "${MAX_BATCH_SIZE}"
+    --num-steps "${NUM_STEPS}"
+    --num-obs "${NUM_OBS}"
+    --output-dir "${OUTPUT_DIR}"
+    --config-dir "${CONFIG_DIR}"
+    --max-parallel-tasks "${MAX_PARALLEL_TASKS}"
+    --progress-interval "${PROGRESS_INTERVAL}"
+    --sample-script "scripts/sample/run_sample.sh"
+    --pdes "${PDES[@]}"
+    --tasks "${TASKS[@]}"
+    --samplers "${SAMPLERS[@]}"
+    --devices "${DEVICES[@]}"
+)
 
-# ── 计算分片 ──────────────────────────────────────────────────────────────────
-compute_chunks() {
-    local total="$1"
-    local max_batch="$2"
-    local remaining="$total"
-    local offset=0
-    while (( remaining > 0 )); do
-        local chunk=$(( remaining > max_batch ? max_batch : remaining ))
-        echo "${chunk} ${offset}"
-        offset=$(( offset + chunk ))
-        remaining=$(( remaining - chunk ))
-    done
+is_true() {
+    case "${1,,}" in
+        true|1|yes|on) return 0 ;;
+        false|0|no|off) return 1 ;;
+        *) echo "Invalid boolean value: $1" >&2; exit 2 ;;
+    esac
 }
 
-# ── 单个采样任务 ──────────────────────────────────────────────────────────────
-run_one() {
-    local pde="$1" task="$2" sampler="$3" batch_size="$4" offset="$5"
-    echo "  [$(date '+%H:%M:%S')] pde=${pde} task=${task} sampler=${sampler} batch=${batch_size} offset=${offset}"
+is_true "${PARALLEL}" && ARGS+=(--parallel) || ARGS+=(--no-parallel)
+is_true "${RESUME}" && ARGS+=(--resume) || ARGS+=(--no-resume)
+is_true "${VIS}" && ARGS+=(--vis) || ARGS+=(--no-vis)
+is_true "${PLAN_ONLY}" && ARGS+=(--plan-only)
+is_true "${AGGREGATE}" && ARGS+=(--aggregate) || ARGS+=(--no-aggregate)
+[[ "${DRY_RUN:-false}" == "true" ]] && ARGS+=(--dry-run)
+[[ -n "${SAMPLE_SEED:-}" ]] && ARGS+=(--sample-seed "${SAMPLE_SEED}")
 
-    PDE="${pde}" \
-    TASK="${task}" \
-    SAMPLER_PHASE="${sampler}" \
-    BATCH_SIZE="${batch_size}" \
-    OFFSET="${offset}" \
-    NUM_STEPS="${NUM_STEPS}" \
-    NUM_OBS="${NUM_OBS}" \
-    OUTPUT_DIR="${OUTPUT_DIR}" \
-    DEVICE="${DEVICE}" \
-    bash "${SAMPLE_SCRIPT}" 2>&1 | grep -E "rel_l2|status|Error|Step" | tail -1 || true
-}
-
-# ── 主循环 ────────────────────────────────────────────────────────────────────
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-LOG_DIR="${OUTPUT_DIR}/logs"
-mkdir -p "${LOG_DIR}"
-
-MAIN_LOG="${LOG_DIR}/sweep_${TIMESTAMP}.log"
-exec > >(tee -a "${MAIN_LOG}") 2>&1
-
-START_TIME=$(date +%s)
-
-TOTAL_CONFIGS=$((${#PDES[@]} * ${#TASKS[@]} * ${#SAMPLERS[@]}))
-CURRENT=0
-
-for pde in "${PDES[@]}"; do
-    for task in "${TASKS[@]}"; do
-        for sampler in "${SAMPLERS[@]}"; do
-            CURRENT=$((CURRENT + 1))
-            echo ""
-            echo "--- [${CURRENT}/${TOTAL_CONFIGS}] ${pde}/${task}/${sampler} ---"
-
-            while IFS=' ' read -r chunk_size chunk_offset; do
-                [[ -z "${chunk_size}" ]] && continue
-                run_one "${pde}" "${task}" "${sampler}" "${chunk_size}" "${chunk_offset}"
-            done < <(compute_chunks "${NUM_SAMPLES}" "${MAX_BATCH_SIZE}")
-        done
-    done
-done
-
-END_TIME=$(date +%s)
-ELAPSED=$(( END_TIME - START_TIME ))
-
-echo ""
-echo "============================================================"
-echo " Sweep complete"
-echo " Elapsed:   ${ELAPSED}s ($(( ELAPSED / 60 )) min)"
-echo " Output:    ${OUTPUT_DIR}"
-echo "============================================================"
-
-# ── 聚合 ──────────────────────────────────────────────────────────────────────
-echo ""
-echo "== Aggregating metrics =="
-python -u -m sampling.aggregate "${OUTPUT_DIR}" --output-dir "${OUTPUT_DIR}" \
-    2>&1 | tee -a "${LOG_DIR}/aggregate_${TIMESTAMP}.log"
-
-echo ""
-echo "== Done =="
-echo "summary: ${OUTPUT_DIR}/summary_all_raw.csv"
+exec python -u -m sampling.sample_sweep "${ARGS[@]}"

@@ -7,6 +7,7 @@ FM4PDE is a Flow Matching codebase for generating, completing, and inverting PDE
 ```bash
 python train.py
 python -m sampling.runner --config configs/ablations/base/heat.yaml
+PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep.sh
 python -m sampling.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
 python -m sampling.aggregate outputs/ablations --output-dir outputs/ablations
 ```
@@ -111,7 +112,27 @@ See `docs/model_architectures.md` for details.
 
 Configs use flat `AblationConfig` YAML. Old `data/generate/model` YAML structures are rejected with a clear conversion error.
 
-Single run:
+### Single run
+
+The five main sampling configs are `poisson`, `helmholtz`, `darcy`,
+`nsnonbounded`, and `burger` under `configs/main/`. Each config selects its
+active training or test `data_path`; switch the active path in that YAML before
+starting a sweep if a different split is required.
+
+Run one PDE/task/batch through the shell entrypoint:
+
+```bash
+PDE=poisson \
+TASK=forward \
+SAMPLER_PHASE=stochastic \
+BATCH_SIZE=10 \
+OFFSET=0 \
+DEVICE=cuda:0 \
+OUTPUT_DIR=outputs/MAIN1000 \
+  bash scripts/sample/run_sample.sh
+```
+
+Or call the Python runner directly:
 
 ```bash
 python -m sampling.runner \
@@ -119,7 +140,106 @@ python -m sampling.runner \
   --override residual_mode=hermite_bridge
 ```
 
-Sweep:
+`sample.py` delegates to the same runner. Set `VIS=true` for the shell
+entrypoint, or pass `--vis` to the Python runner, to save a figure for the
+completed batch.
+
+### Resumable 1000-sample sweep
+
+The following command samples 1000 examples for every combination of the five
+main PDEs and the `forward`, `inverse`, and `both` tasks. PDE/task groups run in
+parallel, while sampler and offset chunks within one group remain ordered:
+
+```bash
+OUTPUT_DIR=outputs/MAIN1000 \
+NUM_SAMPLES=1000 \
+PDE_LIST="poisson helmholtz darcy nsnonbounded burger" \
+TASK_LIST="forward inverse both" \
+SAMPLER_LIST="stochastic" \
+PARALLEL=true \
+MAX_PARALLEL_TASKS=2 \
+DEVICE_LIST="cuda:0 cuda:1" \
+RESUME=true \
+  bash scripts/sample/run_sample_sweep.sh
+```
+
+This command creates 15 PDE/task experiments and 15,000 sample results. The
+default `SAMPLER_LIST` is
+`"stochastic deterministic hybrid_s2d"`; omitting the explicit stochastic-only
+setting therefore runs 45 experiments and 45,000 samples.
+
+Important sweep controls are:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `NUM_SAMPLES` | `1000` | Samples per PDE × task × sampler experiment |
+| `MAX_BATCH_SIZE` | `50` | Maximum samples handled by one runner process; reduce this if GPU memory is insufficient |
+| `PARALLEL` | `false` | Enable concurrent PDE/task groups |
+| `MAX_PARALLEL_TASKS` | `2` | Maximum number of concurrent PDE/task runner processes |
+| `DEVICE_LIST` | value of `DEVICE` | Space-separated devices assigned round-robin |
+| `RESUME` | `true` | Reuse matching successful chunks and run only missing offsets |
+| `PROGRESS_INTERVAL` | `1` | Live progress refresh interval in seconds |
+| `VIS` | `false` | Save one comparison figure for each completed batch |
+| `PLAN_ONLY` | `false` | Print completed samples and pending chunks without sampling |
+| `AGGREGATE` | `true` | Aggregate successful metrics after the sweep |
+
+For two GPUs, the example above runs at most one task per GPU. Setting
+`MAX_PARALLEL_TASKS=8` with `DEVICE_LIST="cuda:0 cuda:1"` creates eight device
+slots in round-robin order, so a fully occupied sweep runs at most four
+independent processes on each GPU. Their model and batch memory are additive;
+80 GB per A100 does not by itself guarantee that four processes will fit. Start
+with two workers, then increase concurrency or `MAX_BATCH_SIZE` while monitoring
+GPU memory.
+
+The terminal displays one live row per PDE/task group. For example, the
+`poisson / forward` row reports its current sampler, completed/total samples,
+`offset`, batch size, sampling step, state, and current coefficient/solution
+relative L2 values. An `OVERALL` row combines progress across all groups. Child
+runner output is retained in per-chunk log files instead of overwriting the
+live table.
+
+Preview the exact work plan and any samples recognized for recovery without
+starting a model:
+
+```bash
+OUTPUT_DIR=outputs/MAIN1000 \
+NUM_SAMPLES=1000 \
+PLAN_ONLY=true \
+  bash scripts/sample/run_sample_sweep.sh
+```
+
+`RESUME=true` is enabled by default. A chunk is skipped only when its full
+configuration matches and `resolved_config.yaml`, a successful
+`metrics_final.json`, and `result.pt` are all present. If a run is interrupted,
+rerun the same command: completed chunks are retained and the interrupted or
+missing offsets are scheduled again. Configuration changes produce a different
+fingerprint and do not silently reuse incompatible results.
+
+Artifacts preserve the existing MAIN1000-style layout:
+
+```text
+outputs/MAIN1000/<pde>/<task>/<ablation_name>/<timestamp>/
+├── resolved_config.yaml
+├── metrics_final.json
+├── metrics_per_sample.csv
+├── result.pt
+└── figures/                         # present when VIS=true
+
+outputs/MAIN1000/.sample_sweeps/<configuration-fingerprint>/
+├── manifest.json
+├── completed/                       # validated chunk completion markers
+├── progress/                        # live runner progress files
+├── logs/                            # per-chunk stdout/stderr
+└── sweep.log
+```
+
+After a successful sweep, aggregation writes files such as
+`summary_all_raw.csv`, `summary_all_grouped.csv`,
+`metrics_per_sample_all.csv`, and `curves_grouped.csv` under `OUTPUT_DIR`.
+
+### Ablation sweep
+
+The configuration-grid ablation entrypoint remains available separately:
 
 ```bash
 python -m sampling.sweep \
@@ -130,6 +250,33 @@ python -m sampling.sweep \
 `configs/ablations/all_internal_ablation_grid.yaml` includes `nsnonbounded` in the top-level `base_configs`, so NS participates in the same guidance, sensor, noise, zeta, time-grid, clipping, residual-region, and statistics ablations as the other PDEs. The time-dependent residual-mode group also includes NS with the other temporal endpoint PDEs.
 
 Formal base configs set `allow_synthetic_data: false`; dry-run smoke configs may use synthetic data.
+
+### Result visualization
+
+Sampling visualization now uses four columns:
+
+```text
+Ground Truth | Sparse Observations | Prediction | Difference
+```
+
+Unobserved locations in the sparse-observation column have a white background;
+observed locations use the same color limits as ground truth and prediction.
+Coefficient and solution are shown as separate rows, except for single-field
+PDEs such as Burgers. For a batched `result.pt`, the plotting function accepts
+`sample_index` (default `0`):
+
+```python
+from plot.plot import plot_from_result_pt
+
+plot_from_result_pt(
+    "outputs/MAIN1000/poisson/forward/example/result.pt",
+    "outputs/MAIN1000/poisson/forward/example/figures/sample_7.png",
+    sample_index=7,
+)
+```
+
+See `docs/config_reference.md` for the full sampling variable and output-file
+reference.
 
 ## Training
 
