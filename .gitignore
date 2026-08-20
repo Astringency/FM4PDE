@@ -11,5 +11,6 @@ outputs/checkrun/*
 outputs/samples/*
 outputs/zeta_tuning/*
 outputs/MAIN1000/*
+outputs/MAIN1000_100/*
 
 reports
