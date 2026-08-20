@@ -38,6 +38,7 @@ hermite_collocation_times: [0.25, 0.5, 0.75]
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0
 num_obs: 500
+num_sensor_columns: 5
 sensor_mode: random
 shared_mask: false
 mask_seed: 0

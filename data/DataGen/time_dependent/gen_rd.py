@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 
 DEFAULT_SAVE_PATH = Path("/large_storage/zhangxf/PDEdata/reaction_diffusion/")
+DEFAULT_SPLIT_SEED_OFFSETS = {"train": 0, "test": 10_000_000}
 
 
 def canonical_init_mode(init_mode: str) -> str:
@@ -48,7 +49,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--Du", type=float, default=2e-3)
     parser.add_argument("--Dv", type=float, default=4e-3)
     parser.add_argument("--k", type=float, default=3e-3)
-    parser.add_argument("--seed-offset", type=int, default=0)
+    parser.add_argument(
+        "--seed-offset",
+        type=int,
+        default=None,
+        help="First RNG seed. Defaults to 0 for train and 10,000,000 for test.",
+    )
     parser.add_argument("--split", choices=["train", "test"], default="train")
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
@@ -71,6 +77,12 @@ def output_file_name(
     return f"{stem}.h5"
 
 
+def resolve_seed_offset(split: str, seed_offset: int | None) -> int:
+    if split not in DEFAULT_SPLIT_SEED_OFFSETS:
+        raise ValueError(f"Unknown split={split!r}; expected one of {sorted(DEFAULT_SPLIT_SEED_OFFSETS)}")
+    return DEFAULT_SPLIT_SEED_OFFSETS[split] if seed_offset is None else int(seed_offset)
+
+
 def metadata_from_args(args: argparse.Namespace, *, tdim: int, init_mode: str) -> dict[str, object]:
     return {
         "pde_name": "reaction_diffusion",
@@ -91,7 +103,7 @@ def metadata_from_args(args: argparse.Namespace, *, tdim: int, init_mode: str) -
         "grf_length_scale": float(args.grf_length_scale),
         "grf_spectral_power": float(args.grf_spectral_power),
         "grf_normalize": bool(not args.no_grf_normalize),
-        "seed_offset": int(args.seed_offset),
+        "seed_offset": resolve_seed_offset(args.split, args.seed_offset),
         "x_range": (-1.0, 1.0),
         "y_range": (-1.0, 1.0),
         "boundary_condition": "homogeneous_neumann",
@@ -122,7 +134,8 @@ def generate_file(
             raise FileExistsError(f"{file_path} already exists; pass --overwrite to replace it")
 
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    seeds = args.seed_offset + np.arange(sample_start, sample_start + sample_count, dtype=np.int64)
+    seed_offset = resolve_seed_offset(args.split, args.seed_offset)
+    seeds = seed_offset + np.arange(sample_start, sample_start + sample_count, dtype=np.int64)
 
     with h5py.File(file_path, "w") as h5:
         write_attrs(h5, metadata)

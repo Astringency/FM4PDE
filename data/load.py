@@ -127,6 +127,18 @@ class PDEloader:
             return path
         return self._pde_dir(data_path) / file_name
 
+    @staticmethod
+    def _legacy_shard_indices(data_path, size, *, start):
+        """Return one index for an explicit file, or all requested directory shards.
+
+        Historically an explicit file path was returned once for every requested
+        shard, duplicating every sample before the train/validation split.
+        """
+        if int(size) < 1:
+            raise ValueError("size must be positive")
+        count = 1 if Path(data_path).expanduser().is_file() else int(size)
+        return range(int(start), int(start) + count)
+
     def _finalize(self, data):
         data = torch.as_tensor(data, dtype=torch.float32).contiguous()
         self._assert_bchw(data, context=self.pde)
@@ -147,7 +159,7 @@ class PDEloader:
     def _darcy_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(range(1, size + 1)):
+        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
             file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             with h5py.File(file_path, 'r') as file:
                 total = file["thresh_a_data"].shape[-1]
@@ -167,7 +179,7 @@ class PDEloader:
     def _poisson_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(range(1, size + 1)):
+        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
             file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             loaded = scipy.io.loadmat(file_path, variable_names=["f_data", "phi_data"])
             take = loaded["f_data"].shape[0] if remaining is None else min(int(remaining), loaded["f_data"].shape[0])
@@ -184,7 +196,7 @@ class PDEloader:
     def _helmholtz_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(range(1, size + 1)):
+        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
             file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             loaded = scipy.io.loadmat(file_path, variable_names=["f_data", "psi_data"])
             take = loaded["f_data"].shape[0] if remaining is None else min(int(remaining), loaded["f_data"].shape[0])
@@ -201,7 +213,7 @@ class PDEloader:
     def _nsnonbounded_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(range(1, size + 1)):
+        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
             file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128-10_{i}_new.mat")
             with h5py.File(file_path, 'r') as file:
                 total = file["w0"].shape[0]
@@ -222,7 +234,7 @@ class PDEloader:
     def _burger_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(range(1, size + 1)):
+        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
             file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             output = scipy.io.loadmat(file_path, variable_names=["output"])["output"]
             take = output.shape[0] if remaining is None else min(int(remaining), output.shape[0])
@@ -559,7 +571,7 @@ class PDEloader:
         sample_start = 0
         sample_count = 0
 
-        for i in range(size):
+        for i in self._legacy_shard_indices(data_path, size, start=0):
             file_path = self._legacy_path(data_path, f"2d_swe_128_128_10_{i}.h5")
             file_param_names = set()
 
@@ -751,9 +763,14 @@ class PDEloader:
         self.pde_params = {}
         self.pde_param_sources = {}
         self.pde_param_slices = []
+        sample_ids = []
+        sample_seeds = []
+        seen_sample_ids = set()
+        seen_sample_seeds = set()
         sample_start = 0
         for file_path in tqdm(file_paths):
             with h5py.File(file_path, "r") as file:
+                self._validate_pair_h5_split(file, file_path, split)
                 if "input_data" not in file or "output_data" not in file:
                     raise KeyError(f"{file_path} must contain data or input_data/output_data")
                 remaining = None if max_samples is None else max_samples - sample_start
@@ -761,6 +778,18 @@ class PDEloader:
                     break
                 arr = self._pair_h5_materialize(file, materialize_params=materialize_params, max_samples=remaining)
                 params, sources = self._pair_h5_scalar_params(file, arr.shape[0])
+                file_ids, file_seeds = self._pair_h5_sample_identities(file, file_path, arr.shape[0])
+                if file_seeds is not None:
+                    duplicate_seeds = sorted(set(file_seeds).intersection(seen_sample_seeds))
+                    if duplicate_seeds:
+                        raise ValueError(f"Duplicate pair_h5 sample_seed values detected: {duplicate_seeds[:5]}")
+                    seen_sample_seeds.update(file_seeds)
+                    sample_seeds.extend(file_seeds)
+                duplicates = sorted(set(file_ids).intersection(seen_sample_ids))
+                if duplicates:
+                    raise ValueError(f"Duplicate pair_h5 sample_id values detected: {duplicates[:5]}")
+                seen_sample_ids.update(file_ids)
+                sample_ids.extend(file_ids)
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim != 4:
                 raise ValueError(f"{file_path} data must be [N,C,H,W], got {arr.shape}")
@@ -794,11 +823,59 @@ class PDEloader:
                 "selected_files": [str(path) for path in file_paths],
                 "file_paths": [str(path) for path in file_paths],
                 "num_loaded_samples": int(len(data)),
+                "split": split,
+                "sample_id": sample_ids,
                 "residual_family": self.spec.residual_family,
                 "channel_names": list(self.spec.channel_names),
             }
         )
+        if sample_seeds:
+            self.extra_metadata["sample_seed"] = sample_seeds
         return data, label
+
+    @staticmethod
+    def _validate_pair_h5_split(file, file_path, requested_split):
+        stored = file.attrs.get("split")
+        if stored is None:
+            raise ValueError(f"{file_path} is missing required root HDF5 attr split={requested_split!r}")
+        if isinstance(stored, bytes):
+            stored = stored.decode("utf-8")
+        if str(stored) != str(requested_split):
+            raise ValueError(
+                f"{file_path} root split={stored!r} does not match requested split={requested_split!r}"
+            )
+
+    @staticmethod
+    def _pair_h5_sample_identities(file, file_path, n_samples):
+        sample_ids = None
+        for name in ("sample_id", "sample_ids"):
+            if name in file:
+                dataset = file[name]
+                values = np.asarray(dataset[()] if dataset.shape == () else dataset[:n_samples]).reshape(-1)
+                sample_ids = [str(value.decode("utf-8") if isinstance(value, bytes) else value) for value in values]
+                break
+        sample_seeds = None
+        for name in ("sample_seed", "sample_seeds", "seed"):
+            if name in file:
+                dataset = file[name]
+                values = np.asarray(dataset[()] if dataset.shape == () else dataset[:n_samples]).reshape(-1)
+                sample_seeds = [int(value) for value in values]
+                break
+        if sample_ids is None:
+            if sample_seeds is not None:
+                sample_ids = [f"seed:{seed}" for seed in sample_seeds]
+            else:
+                resolved = str(Path(file_path).resolve())
+                sample_ids = [f"{resolved}#{index}" for index in range(int(n_samples))]
+        if len(sample_ids) != int(n_samples):
+            raise ValueError(f"sample_id count must be {n_samples}, got {len(sample_ids)} in {file_path}")
+        if sample_seeds is not None and len(sample_seeds) != int(n_samples):
+            raise ValueError(f"sample_seed count must be {n_samples}, got {len(sample_seeds)} in {file_path}")
+        if sample_seeds is not None and len(set(sample_seeds)) != len(sample_seeds):
+            raise ValueError(f"Duplicate sample_seed values within {file_path}")
+        if len(set(sample_ids)) != len(sample_ids):
+            raise ValueError(f"Duplicate sample_id values within {file_path}")
+        return sample_ids, sample_seeds
 
     def _pair_h5_materialize(self, file, materialize_params=False, max_samples=None):
         n_take = file["input_data"].shape[0] if max_samples is None else min(int(max_samples), file["input_data"].shape[0])
@@ -867,6 +944,13 @@ class PDEloader:
     def _pair_h5_paths(self, data_path, size=5, split="train"):
         path = Path(data_path)
         if path.is_file():
+            name = path.name
+            if split == "train" and ("_test_" in name or "_val_" in name):
+                raise ValueError(f"Training input must be a train shard, got {name!r}")
+            if split == "test" and "_test_" not in name:
+                raise ValueError(f"Test input filename must contain '_test_', got {name!r}")
+            if split == "val" and "_val_" not in name:
+                raise ValueError(f"Validation input filename must contain '_val_', got {name!r}")
             return [path]
 
         pde_dir = path / self.pde
@@ -881,7 +965,11 @@ class PDEloader:
             file_paths = sorted(pde_dir.glob(f"{self.pde}_val_*-*-*.h5"))
         elif split == "train":
             file_paths = sorted(
-                (p for p in pde_dir.glob(f"{self.pde}_*-*-*_[0-9]*.h5") if "_test_" not in p.name),
+                (
+                    p
+                    for p in pde_dir.glob(f"{self.pde}_*-*-*_[0-9]*.h5")
+                    if "_test_" not in p.name and "_val_" not in p.name
+                ),
                 key=self._pair_h5_sort_key,
             )
         else:

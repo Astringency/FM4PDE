@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,6 +20,7 @@ def make_mask(
     seed: int,
     device: str | Any = "cpu",
     dtype: Any | None = None,
+    num_sensor_columns: int | None = None,
 ) -> Any:
     import torch
 
@@ -28,7 +30,7 @@ def make_mask(
     if target.type == "cuda" and not torch.cuda.is_available():
         target = torch.device("cpu")
     mask = torch.zeros((b, c, h, w), dtype=dtype, device=target)
-    if num_obs <= 0:
+    if mode != "sensor_column" and num_obs <= 0:
         return mask
     spatial_count = h * w
     k = min(int(num_obs), spatial_count)
@@ -48,7 +50,14 @@ def make_mask(
         for y, x in coords:
             mask[:, :, y, x] = 1
     elif mode == "sensor_column":
-        columns = min(k, w)
+        if num_sensor_columns is None or int(num_sensor_columns) <= 0:
+            raise ValueError("sensor_column requires an explicit positive num_sensor_columns")
+        columns = int(num_sensor_columns)
+        if columns > w:
+            raise ValueError(
+                f"num_sensor_columns={columns} exceeds spatial width={w}; "
+                "sensor columns are complete columns, not individual points"
+            )
         idx = torch.randperm(w, generator=gen)[:columns]
         mask[:, :, :, idx] = 1
     else:
@@ -65,10 +74,14 @@ def make_pair_masks(
     seed: int,
     device: str | Any = "cpu",
     dtype: Any | None = None,
+    num_sensor_columns: int | None = None,
 ) -> PairMasks:
     coef_norm = _normalize_shape(coef_shape)
     sol_norm = _normalize_shape(sol_shape)
-    coef_mask = make_mask(coef_norm, num_obs, mode, seed, device, dtype)
+    coef_mask = make_mask(
+        coef_norm, num_obs, mode, seed, device, dtype,
+        num_sensor_columns=num_sensor_columns,
+    )
     if shared_mask and coef_norm[-2:] == sol_norm[-2:]:
         import torch
 
@@ -79,12 +92,16 @@ def make_pair_masks(
         else:
             sol_mask = coef_mask.clone()
     else:
-        sol_mask = make_mask(sol_norm, num_obs, mode, seed + 1, device, dtype)
+        sol_mask = make_mask(
+            sol_norm, num_obs, mode, seed + 1, device, dtype,
+            num_sensor_columns=num_sensor_columns,
+        )
     return PairMasks(
         coef=coef_mask,
         sol=sol_mask,
         metadata={
             "num_obs": num_obs,
+            "num_sensor_columns": num_sensor_columns,
             "sensor_mode": mode,
             "shared_mask": shared_mask,
             "mask_seed_coef": seed,
@@ -93,7 +110,14 @@ def make_pair_masks(
     )
 
 
-def residual_region_mask(region: str, coef_mask: Any, sol_mask: Any, residual_shape: tuple[int, ...]) -> Any | None:
+def residual_region_mask(
+    region: str,
+    coef_mask: Any,
+    sol_mask: Any,
+    residual_shape: tuple[int, ...],
+    *,
+    task: str = "both",
+) -> Any | None:
     import torch
 
     if region == "full":
@@ -109,10 +133,34 @@ def residual_region_mask(region: str, coef_mask: Any, sol_mask: Any, residual_sh
             mask[..., :, 0] = 0
             mask[..., :, -1] = 0
         return mask
-    if region == "observed":
+    if region in {"observed", "union_obs"}:
+        warnings.warn(
+            f"pde_residual_region={region!r} is deprecated; use 'active_obs_union'",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        region = "active_obs_union"
+    active_coef = task in {"forward", "both"}
+    active_sol = task in {"inverse", "both"}
+    if region == "coef_obs":
+        if not active_coef:
+            raise ValueError(f"coef_obs is not active for task={task!r}")
+        base = coef_mask
+    elif region == "sol_obs":
+        if not active_sol:
+            raise ValueError(f"sol_obs is not active for task={task!r}")
         base = sol_mask
-    elif region == "union_obs":
-        base = torch.maximum(_single_channel(coef_mask), _single_channel(sol_mask))
+    elif region == "active_obs_union":
+        active_masks = []
+        if active_coef:
+            active_masks.append(_single_channel(coef_mask))
+        if active_sol:
+            active_masks.append(_single_channel(sol_mask))
+        if not active_masks:
+            raise ValueError("active_obs_union is undefined for task='unconditional'")
+        base = active_masks[0]
+        for candidate in active_masks[1:]:
+            base = torch.maximum(base, candidate)
     else:
         raise ValueError(f"Unknown residual region: {region}")
     base = _single_channel(base)

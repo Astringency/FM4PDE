@@ -23,11 +23,8 @@ residual_mode: hermite_bridge
 hermite_collocation_times: [0.25, 0.5, 0.75]
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0
-num_near_endpoint_obs: 0
-near_endpoint_sensor_mode: random
-near_endpoint_mask_seed: 0
-near_endpoint_shared_mask: true
 num_obs: 500
+num_sensor_columns: 5
 sensor_mode: random
 shared_mask: false
 mask_seed: 0

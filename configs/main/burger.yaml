@@ -31,6 +31,7 @@ boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
 legacy_ignore_boundary: false
 num_obs: 500
+num_sensor_columns: 5
 sensor_mode: sensor_column
 shared_mask: false
 mask_seed: 0

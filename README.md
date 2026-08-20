@@ -28,7 +28,7 @@ Those dataset names are part of the file format. Scalar PDE parameters such as `
 
 `pair_h5` is a file-format/loadby name, not a directory name. Formal data paths use one PDE-named directory directly under the data root, for example `PDEdata/heat/heat_test_1000-128-128.h5`.
 
-Non-bounded Navier-Stokes keeps its generated HDF5 layout exposed as `loadby: h5py`, usually with `w0` as the initial vorticity field and `w` as the vorticity trajectory. Sampling reads optional sample-level `nu`, `viscosity`, `T`, `total_time`, and `dt` from root attributes or datasets using `data/specs.py`. When `residual_mode: full_trajectory_fd` is requested, the `w` trajectory is normalized to `[B,T,C,H,W]` and used as explicit trajectory state; missing or ambiguous trajectory data raises `ValueError`.
+Non-bounded Navier-Stokes keeps its generated HDF5 layout exposed as `loadby: h5py`, usually with `w0` as the initial vorticity field and `w` as the vorticity trajectory. Sampling reads optional sample-level `nu`, `viscosity`, `T`, `total_time`, and `dt` from root attributes or datasets using `data/specs.py`. The model currently predicts only `w0/wT`, so its endpoint fields in PDE loss always come from the model. A saved true `w` trajectory is never substituted for those outputs. The sole field-data exception is an explicitly selected `near_endpoint_temporal` residual, which may read only sparse masked observations at `dt` and `T-dt`.
 
 ## Residual Families
 
@@ -46,7 +46,7 @@ Non-bounded Navier-Stokes keeps its generated HDF5 layout exposed as `loadby: h5
 | shallow_water | temporal_endpoint | hermite_bridge | approximate |
 | nsnonbounded | temporal_endpoint | hermite_bridge | approximate; PDE guidance enabled |
 
-Temporal endpoint PDEs support `hermite_bridge`, `endpoint_secant`, `near_endpoint_temporal`, and `full_trajectory_fd`. `endpoint_secant` is a coarse ablation mode. `near_endpoint_temporal` requires explicit near-endpoint observations and masks. `full_trajectory_fd` requires an explicit full trajectory tensor.
+Temporal endpoint models normally use `hermite_bridge` or `endpoint_secant`, both computed from predicted `a/q0` and `u/qT`. For Heat, Wave, Advection-Diffusion, Reaction-Diffusion, Shallow Water, and Non-bounded Navier-Stokes, formal sampling may use the sole `near_endpoint_temporal` exception: `q(dt)` reuses the q0 sensor mask and `q(T-dt)` reuses the qT sensor mask. Unobserved auxiliary values are removed before the residual is evaluated; unconditional periodic training evaluation rejects this mode. Burgers instead outputs the complete `[B,1,T,X]` prediction, and PDE loss finite-differences that predicted field at every interior time point.
 
 Burgers is not an endpoint pair residual: its single BCHW field contains a time-space grid and uses full finite differences. Steady Heat Conduction is static, not a time-dependent approximation.
 

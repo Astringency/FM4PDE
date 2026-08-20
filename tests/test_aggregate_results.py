@@ -74,6 +74,26 @@ def test_aggregate_outputs_statistics(tmp_path):
     assert float(curves[0]["rel_l2_u_mean"]) == pytest.approx(3.0)
 
 
+def test_failed_pde_evaluations_remain_in_raw_output_but_are_not_aggregated(tmp_path):
+    _write_run(tmp_path, "ok", 1.0, 2.0)
+    _write_run(tmp_path, "failed", 100.0, 200.0)
+    metrics_path = tmp_path / "failed" / "metrics_final.json"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    # Legacy artifacts could be marked ok even though the residual failed.
+    metrics["status"] = "ok"
+    metrics["pde_residual_status"] = "error"
+    metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+
+    outputs = aggregate_root(tmp_path)
+    raw = list(csv.DictReader(outputs["raw"].open(encoding="utf-8")))
+    grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+
+    assert len(raw) == 2
+    assert len(grouped) == 1
+    assert float(grouped[0]["rel_l2_a_mean"]) == pytest.approx(1.0)
+    assert int(grouped[0]["rel_l2_a_n"]) == 1
+
+
 def test_statistics_seed_offset_groups_across_names_and_seeds(tmp_path):
     for idx, value in enumerate([1.0, 2.0, 3.0]):
         _write_run(
@@ -158,3 +178,39 @@ def test_list_group_values_are_stably_serialized(tmp_path):
     assert len(grouped) == 1
     assert grouped[0]["hermite_collocation_times"] == "[0.25,0.5,0.75]"
     assert int(grouped[0]["rel_l2_a_n"]) == 2
+
+
+def test_cross_run_grouped_metrics_are_sample_weighted_with_separate_run_stats(tmp_path):
+    _write_run(tmp_path, "small", 1.0, 1.0)
+    _write_run(tmp_path, "large", 3.0, 3.0)
+    for name, values in (("small", [1.0]), ("large", [3.0, 3.0, 3.0])):
+        path = tmp_path / name / "metrics_per_sample.csv"
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=[
+                    "sample_index", "sample_id", "rel_l2_a", "rel_l2_u",
+                    "obs_rel_l2_a", "obs_rel_l2_u", "pde_residual_norm",
+                ],
+            )
+            writer.writeheader()
+            for index, value in enumerate(values):
+                writer.writerow(
+                    {
+                        "sample_index": index,
+                        "sample_id": f"{name}-{index}",
+                        "rel_l2_a": value,
+                        "rel_l2_u": value,
+                        "obs_rel_l2_a": value,
+                        "obs_rel_l2_u": value,
+                        "pde_residual_norm": value,
+                    }
+                )
+
+    outputs = aggregate_root(tmp_path)
+    sample_grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))[0]
+    run_grouped = list(csv.DictReader(outputs["run_seed_grouped"].open(encoding="utf-8")))[0]
+    assert float(sample_grouped["rel_l2_a_mean"]) == pytest.approx(2.5)
+    assert int(sample_grouped["rel_l2_a_n"]) == 4
+    assert float(run_grouped["rel_l2_a_mean"]) == pytest.approx(2.0)
+    assert int(run_grouped["rel_l2_a_n"]) == 2

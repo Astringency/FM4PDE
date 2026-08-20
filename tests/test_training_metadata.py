@@ -185,6 +185,80 @@ def test_fallback_train_validation_split_is_9_to_1():
     assert sorted(train_idx.tolist() + val_idx.tolist()) == list(range(100))
 
 
+def test_training_loader_uses_train_data_disjoint_split_and_local_joint_labels(monkeypatch):
+    import train
+
+    class DummyLoader:
+        def __init__(self, pde):
+            self.pde = pde
+            self.pde_params = {}
+
+        def load_data(self, data_path, **kwargs):
+            value = 1.0 if self.pde == "heat" else 2.0
+            data = torch.full((10, 2, 4, 4), value)
+            return data, torch.full((10,), 99, dtype=torch.long)
+
+        def metadata(self):
+            return {"extra_metadata": {}}
+
+    monkeypatch.setattr(train, "PDEloader", DummyLoader)
+    train_data, train_labels, _, val_data, val_labels, _, split = (
+        train._load_training_and_validation_data(
+            ["heat", "advection_diffusion"],
+            "train-root",
+            seed=5,
+        )
+    )
+    assert train_data.shape[0] == 18
+    assert val_data.shape[0] == 2
+    assert sorted(torch.unique(train_labels).tolist()) == [0, 1]
+    assert sorted(torch.unique(val_labels).tolist()) == [0, 1]
+    assert split["pde_label_mapping"] == {"heat": 0, "advection_diffusion": 1}
+    assert all(
+        item["source"] == "deterministic_disjoint_9_1_from_train_data"
+        for item in split["per_pde"].values()
+    )
+
+
+def test_train_val_split_rejects_single_sample_instead_of_leaking_it():
+    from train import _train_val_split_indices
+
+    with pytest.raises(ValueError, match="at least two distinct samples"):
+        _train_val_split_indices(1, seed=123, val_ratio=0.1)
+
+
+def test_joint_pde_labels_are_contiguous_and_old_joint_checkpoint_is_rejected():
+    from train import _validate_or_apply_joint_conditioning
+
+    config = {"num_classes": None}
+    _validate_or_apply_joint_conditioning(
+        config,
+        ["heat", "advection_diffusion"],
+        checkpoint_metadata=None,
+        checkpoint_path=None,
+        is_resume=False,
+    )
+    assert config["num_classes"] == 2
+    with pytest.raises(ValueError, match="Old joint checkpoint"):
+        _validate_or_apply_joint_conditioning(
+            {"num_classes": None},
+            ["heat", "advection_diffusion"],
+            checkpoint_metadata={},
+            checkpoint_path="old.pth",
+            is_resume=True,
+        )
+
+
+def test_distributed_eval_sampler_shards_without_padding():
+    from train import DistributedEvalSampler
+
+    dataset = list(range(5))
+    shards = [list(DistributedEvalSampler(dataset, 3, rank)) for rank in range(3)]
+    flattened = [index for shard in shards for index in shard]
+    assert sorted(flattened) == list(range(5))
+    assert len(flattened) == len(set(flattened))
+
+
 def test_eval_frequency_help_describes_residual_eval_not_fid():
     from train_arg_parser import get_args_parser
 

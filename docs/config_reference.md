@@ -42,12 +42,12 @@
 | `zeta_obs_u` | `float` | `1.0` | 解观测引导强度，越大越强制生成结果在观测点上拟合解数据 |
 | `zeta_pde` | `float` | `1.0` | PDE 残差引导强度，越大越强制生成结果满足物理方程 |
 | `guidance_schedule` | `str` | `constant` | 引导强度随时间变化策略：<br>`constant` — 全程恒定不变<br>`delta` — 集中在采样末期施加<br>`bt` — 与时间步长 `b_t` 相关<br>`cosine` — 余弦衰减/增长<br>`polynomial` — 多项式调度<br>`obs_decay` — 观测权重逐渐衰减 |
-| `gradient_target` | `str` | `current_state_chain_rule` | 梯度计算方式：`current_state_chain_rule`（链式法则通过当前状态）、`loss_state_direct`（直接对 loss_state 求导）、`next_state_direct`（直接对下一步求导） |
+| `gradient_target` | `str` | `current_state_chain_rule` | 梯度计算方式：`current_state_chain_rule`（链式法则通过当前状态）、`loss_state_direct`（直接对 loss_state 求导）、`next_state_direct`（仅允许与 `loss_state=x_next` 配合）；启用但断图会直接报错 |
 | `stochastic_guidance_coeff` | `float` | `0.1` | 随机阶段引入的额外噪声系数 |
 | `stochastic_guidance_time` | `str` | `t` | 随机引导作用时间，`t` 表示在整个随机阶段有效 |
-| `clip_mode` | `str` | `global_norm` | 梯度裁剪方式：`none`（不裁剪）、`global_norm`（全局范数裁剪）、`per_component_norm`（逐引导分量裁剪）、`per_sample_norm`（逐样本裁剪） |
+| `clip_mode` | `str` | `global_norm` | 梯度裁剪方式：`none`（不裁剪）、`global_norm`（每个样本内对总梯度做全局范数裁剪）、`per_component_norm`（每个样本内逐引导分量裁剪）、`per_sample_norm`（`global_norm` 的兼容别名）；batch 中不同样本不会共享裁剪范数 |
 | `clip_threshold` | `float` | `1e10` | 梯度裁剪阈值（`clip_mode != none` 时生效） |
-| `pde_residual_region` | `str` | `full` | PDE 残差计算空间区域：`full`（全域网格）、`observed`（仅观测点区域）、`boundary_excluded`（排除边界点的内部区域）、`union_obs`（观测点并集区域） |
+| `pde_residual_region` | `str` | `full` | PDE 内部残差区域：`full`、`boundary_excluded`、`coef_obs`、`sol_obs`、`active_obs_union`。观测区域按 task 判断有效侧；旧 `observed`/`union_obs` 是带警告的兼容别名 |
 | `obs_decay` | `float` | `1.0` | obs_decay 调度模式的衰减系数 |
 | `obs_decay_start_ratio` | `float` | `1.0` | obs_decay 调度开始衰减的时间比例 |
 | `polynomial_power` | `float` | `2.0` | polynomial 调度模式的幂次 |
@@ -74,6 +74,7 @@
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `num_obs` | `int` | `500` | 观测点总数量（每个 sample 中可见的数据点个数） |
+| `num_sensor_columns` | `int` 或 `null` | `null` | `sensor_column` 专用的完整列数；该模式必须显式给出正整数且不能超过网格宽度，不复用 `num_obs` |
 | `sensor_mode` | `str` | `random` | 传感器分布模式：`random`（随机撒点）、`fixed`（固定位置）、`grid`（规则网格）、`sensor_column`（按列）、`per_sample_random`（每个样本独立随机） |
 | `shared_mask` | `bool` | `false` | 系数 coef 和解 sol 是否共用同一组观测点掩码 |
 | `mask_seed` | `int` | `0` | 观测点掩码生成的随机种子 |
@@ -90,15 +91,16 @@ PDE 残差通过计算生成轨迹上物理方程的约束来指导采样。不�
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `residual_mode` | `str` | `auto` | 残差计算模式：<br>`auto` — 根据 PDE 自动选择（稳态→`static`，时变→`hermite_bridge`）<br>`hermite_bridge` — 用 Hermite 插值在配点时刻计算时间导数（时变 PDE 推荐）<br>`endpoint_secant` — 用端点割线近似时间导数（最低成本）<br>`near_endpoint_temporal` — 利用近端点额外观测计算时间导数<br>`full_trajectory_fd` — 对整个轨迹做有限差分（最高精度但最慢）<br>`full_time_space` — 时空联合残差<br>`disabled` — 禁用 PDE 残差 |
+| `residual_mode` | `str` | `auto` | 残差计算模式：<br>`auto` — 根据 PDE 自动选择（稳态→`static`，端点时变 PDE→`hermite_bridge`，Burgers→完整时空残差）<br>`hermite_bridge` — 仅从模型预测的两个端点构造 Hermite bridge<br>`endpoint_secant` — 仅从模型预测端点计算割线近似<br>`full_trajectory_fd` / `full_time_space` — 仅适用于模型直接输出完整时空场的 Burgers<br>`near_endpoint_temporal` — 仅 Heat、Wave、Advection-Diffusion、Reaction-Diffusion、Shallow-Water、NS 可用；`q0/qT` 使用模型预测，`q(dt)` 复用 coef/q0 mask，`q(T-dt)` 复用 sol/qT mask。这是 PDE loss 唯一允许真实场观测作为辅助输入的例外<br>`disabled` — 禁用 PDE 残差 |
 | `hermite_collocation_times` | `list[float]` | `[0.25, 0.5, 0.75]` | hermite_bridge 模式的时间配点（归一化时间 t∈[0,1] 内的取值） |
 | `hermite_num_collocation` | `int` | `0` | 自动等距配点数（0=使用 `hermite_collocation_times`） |
 | `hermite_include_integral_residual` | `bool` | `true` | 是否包含时间积分残差项 |
 | `hermite_integral_weight` | `float` | `1.0` | 积分残差权重 |
-| `num_near_endpoint_obs` | `int` | `0` | near_endpoint_temporal 模式下近端点的额外时间观测点数 |
-| `near_endpoint_sensor_mode` | `str` | `random` | 额外时间观测点的传感器模式 |
-| `near_endpoint_mask_seed` | `int` | `0` | 额外时间观测点掩码种子 |
-| `near_endpoint_shared_mask` | `bool` | `true` | 额外时间观测点是否共享掩码 |
+| `ns_operator_mode` | `str` | `generator_dealiased` | NS 默认按数据生成器对非线性项和 forcing 做 2/3 去混叠；`continuous_spectral` 保留连续谱诊断版本 |
+| `cfg_scale` | `float` | `1.0` | 联合 PDE checkpoint 的标准 CFG 系数：`0` 无条件、`1` 条件，公式为 `v_uncond+s(v_cond-v_uncond)` |
+| `save_per_sample_curves` | `bool` | `false` | 是否保存逐 step、逐 sample 的 `metrics_step_per_sample.csv`；最终逐 sample 指标总是写入 `metrics_per_sample.csv` |
+
+近端观测不再有独立预算或独立 mask。旧字段 `num_near_endpoint_obs`、`near_endpoint_sensor_mode`、`near_endpoint_mask_seed`、`near_endpoint_shared_mask` 已删除并会被配置校验拒绝。
 
 ---
 
@@ -111,7 +113,7 @@ PDE 残差通过计算生成轨迹上物理方程的约束来指导采样。不�
 | `enforce_boundary_conditions` | `bool` | `true` | 是否施加边界条件（BC）损失 |
 | `enforce_initial_conditions` | `bool` | `true` | 是否施加初始条件（IC）损失 |
 | `boundary_condition_mode` | `str` | `auto` | 边界条件类型：`auto`（从 checkpoint 自动检测）、`dirichlet_zero`（零 Dirichlet）、`neumann_zero`（零 Neumann）、`periodic`（周期边界）、`mixed`（混合）、`wall`（壁面/固壁）、`open`（开放式/流出）、`none`（无边界）、`legacy_ignore`（旧版忽略） |
-| `initial_condition_mode` | `str` | `auto` | 初始条件类型：`auto`（自动检测）、`endpoint_initial`（端点值作为初值）、`observed_initial`（观测值作为初值）、`trajectory_initial`（轨迹初值）、`none`（无初始条件）、`legacy_ignore`（旧版忽略） |
+| `initial_condition_mode` | `str` | `auto` | 采样时 `auto` 按 `none` 处理：预测的 `a/q0` 已直接进入 PDE 算子，不再与真实初值比较。`observed_initial`、`trajectory_initial`、`endpoint_initial` 会把真实场混入 PDE loss，现已禁止；真实观测只进入 observation loss。`none` 与 `legacy_ignore` 可用。 |
 | `bc_weight` | `float` | `1.0` | 边界条件损失权重 |
 | `ic_weight` | `float` | `1.0` | 初始条件损失权重 |
 | `endpoint_bc_weight` | `float` | `1.0` | 端点处边界条件权重 |
@@ -192,3 +194,5 @@ python -m sampling.runner \
 ├── result.pt              # 最终结果（coef/sol 预测值、ground truth、配置等）
 └── figures/               # --vis 时的可视化对比图
 ```
+
+当 `batch_size > 1` 时，`rel_l2_a`、`rel_l2_u` 及观测区域相对误差均为“逐样本计算相对 L2，再对样本取算术平均”。每个样本的原始值同时保存在对应的 `*_per_sample` 字段中。`pde_residual_norm` 同样是逐样本 RMS 的平均；没有可归属于生成结果的 PDE residual 时记录为空值，而不是伪造为 0。PDE 参数也逐样本广播（包括 Burgers 的 `nu`、`T/trajectory_dt` 和 `domain_length`），不会从 batch 第一个样本复制到其他样本。

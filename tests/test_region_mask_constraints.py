@@ -37,7 +37,7 @@ def test_boundary_excluded_masks_only_interior_not_boundary():
     assert out.L_pde.item() > 0
 
 
-def test_near_endpoint_temporal_skips_second_region_mask():
+def test_near_endpoint_temporal_uses_sparse_observation_exception_and_skips_second_region_mask():
     q0 = torch.zeros(1, 1, 5, 5)
     qT = torch.ones_like(q0)
     mask_0 = torch.zeros_like(q0)
@@ -49,8 +49,7 @@ def test_near_endpoint_temporal_skips_second_region_mask():
         task="both",
         guidance_components="pde_only",
         residual_mode="near_endpoint_temporal",
-        num_near_endpoint_obs=1,
-        pde_residual_region="union_obs",
+        pde_residual_region="active_obs_union",
         boundary_condition_mode="periodic",
         initial_condition_mode="none",
     )
@@ -72,4 +71,13 @@ def test_near_endpoint_temporal_skips_second_region_mask():
     out = compute_guidance_losses(SplitState(q0, qT), gt, masks, cfg)
     assert out.metadata["pde"]["pde_residual_region_skipped"] is True
     assert out.metadata["pde"]["reason"] == "near_endpoint_temporal interior is already sparse-temporal masked"
+    assert out.metadata["pde"]["uses_ground_truth_fields"] is True
+    assert out.metadata["pde"]["uses_ground_truth_endpoint_fields"] is False
+    assert out.metadata["pde"]["ground_truth_field_exception"] == (
+        "near_endpoint_temporal_sparse_observations"
+    )
+    assert out.metadata["pde"]["field_input_sources"] == {
+        "coef": "model_output",
+        "sol": "model_output",
+    }
     assert out.pde_residual.abs().sum() > 0

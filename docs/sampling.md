@@ -112,7 +112,7 @@ New config fields:
 - `allow_unknown_boundary_conditions: false`
 - `legacy_ignore_boundary: false`
 
-Supported `boundary_condition_mode` values are `auto`, `dirichlet_zero`, `neumann_zero`, `periodic`, `mixed`, `none`, `wall`, `open`, and `legacy_ignore`. Supported `initial_condition_mode` values are `auto`, `endpoint_initial`, `observed_initial`, `trajectory_initial`, `none`, and `legacy_ignore`.
+Supported `boundary_condition_mode` values are `auto`, `dirichlet_zero`, `neumann_zero`, `periodic`, `mixed`, `none`, `wall`, `open`, and `legacy_ignore`. Sampling PDE loss accepts `initial_condition_mode: auto`, `none`, or `legacy_ignore`; `auto` resolves to no reference-field IC component. Modes that compare against an observed or true initial field are rejected because observations belong in observation loss, not PDE loss.
 
 Current formal config BC/IC sources:
 
@@ -124,7 +124,7 @@ Current formal config BC/IC sources:
 - Shallow Water: `open` from Clawpack extrapolation boundary/config.
 - Burgers: spatial periodic boundary on the BCHW time-space field; IC residual requires a known initial slice.
 - Steady Heat Conduction: `mixed` from generator metadata/config; bottom Dirichlet `u_D`, other sides zero Neumann.
-- Non-bounded Navier-Stokes: scalar-vorticity PDE residual is enabled for sampling guidance on the periodic torus `Omega=[0,1)^2`. Velocity is reconstructed from vorticity with the periodic FFT stream-function solve `-Delta psi=omega`, `v=(partial_y psi, -partial_x psi)`. The default fixed forcing is `f_NS(x,y)=0.1(sin(2*pi*(x+y))+cos(2*pi*(x+y)))` on endpoint-false grid points `x_i=i/W`, `y_j=j/H`; explicit `forcing` overrides it.
+- Non-bounded Navier-Stokes: scalar-vorticity PDE residual is enabled for sampling guidance on the periodic torus `Omega=[0,1)^2`. Velocity is reconstructed from vorticity with the periodic FFT stream-function solve `-Delta psi=omega`, `v=(partial_y psi, -partial_x psi)`. `ns_operator_mode=generator_dealiased` (default) applies the generator's 2/3 Fourier projection to the nonlinear product and forcing; `continuous_spectral` is available as a diagnostic. NaN/Inf fails immediately instead of being clamped.
 
 For Non-bounded Navier-Stokes, guidance uses:
 
@@ -132,32 +132,26 @@ For Non-bounded Navier-Stokes, guidance uses:
 r = \partial_\tau \omega + v \cdot \nabla \omega - \nu \Delta \omega - f_{NS}.
 ```
 
-Endpoint-only modes such as `hermite_bridge` and `endpoint_secant` are approximate. `full_trajectory_fd` uses finite differences when an explicit full trajectory is available.
+Endpoint-only modes such as `hermite_bridge` and `endpoint_secant` are approximate and use only the model-predicted `a/q0` and `u/qT`. Burgers is the only current model whose output itself is a full time-space field, so it alone uses full-trajectory finite differences during guidance and evaluation.
 
-Endpoint-only temporal PDEs do not fabricate an IC residual from `q0-q0`. IC residuals are added from masked `observed_initial` only when coefficient/initial observations are active, or from explicitly supplied `true_initial` extra conditions. Inverse, `pde_only`, and unconditional runs do not inject initial observations through the PDE residual.
+Forward, inverse, and both tasks always pass model-predicted `coef/a/q0` and `sol/u/qT` as the direct PDE residual fields; none substitutes `ground_truth.coef`, `ground_truth.sol`, an observed initial field, or a stored trajectory. The sole field-data exception is `near_endpoint_temporal`, which may additionally read sparse true observations at `dt` and `T-dt` for the six supported temporal-endpoint PDEs. Scalar coefficients, time intervals, forcing definitions, and boundary-condition parameters may also come from dataset metadata because they define the PDE rather than supply a target solution field.
 
 ## PDE Residual Region
 
-`pde_residual_region` now masks only the `interior` PDE residual component. Boundary, initial, and endpoint components are appended after the interior mask and are never intersected with observation masks or boundary-exclusion masks. This prevents `boundary_excluded`, `observed`, and `union_obs` from accidentally deleting explicit BC/IC/endpoint residuals.
+`pde_residual_region` masks only the `interior` component. `coef_obs`, `sol_obs`, and `active_obs_union` explicitly select the task-active observation side; invalid task/side combinations fail. Deprecated `observed` and `union_obs` warn and resolve to `active_obs_union`. Boundary, initial, and endpoint components are never intersected with these masks.
 
-For `near_endpoint_temporal`, the interior residual is already sparse-temporal masked by `mask_0` and `mask_T`; `pde_residual_region` is skipped for that mode and metadata records:
-
-```yaml
-pde_residual_region_applied_to: interior_only
-pde_residual_region_skipped: true
-reason: near_endpoint_temporal interior is already sparse-temporal masked
-```
+`near_endpoint_temporal` is a valid formal sampling guidance/evaluation mode only for Heat, Wave, Advection-Diffusion, Reaction-Diffusion, Shallow Water, and Non-bounded Navier-Stokes. The predicted `q0/qT` remain the differentiated fields. `q(dt)` reuses the coef/q0 mask and `q(T-dt)` reuses the sol/qT mask, so there is no independent near-endpoint budget or seed. Training's unconditional periodic evaluator rejects this mode.
 
 ## Artifacts
 
-`result.pt` stores PDE params after recursive CPU sanitization. For `near_endpoint_temporal`, full hidden near-endpoint frames are not saved. The artifact keeps:
+`near_endpoint_temporal` artifacts sanitize hidden frames. They keep:
 
 - `q_dt_obs = q_dt * mask_0`
 - `q_T_minus_dt_obs = q_T_minus_dt * mask_T`
 - `mask_0`, `mask_T`, `dt`
-- metadata with `full_near_endpoint_frames_saved: false`
+- metadata identifying `near_endpoint_temporal_sparse_observations` as the ground-truth field exception and recording that no full near-endpoint frame was retained
 
-Full trajectory fields are omitted unless `residual_mode: full_trajectory_fd` and `save_intermediate: true`; metadata records the omission so large hidden trajectories are not silently persisted.
+Stored ground-truth trajectory fields are excluded from sampling PDE loss and generated-sample metrics. Burgers needs no auxiliary trajectory parameter: its model output tensor is already the full predicted time-space field.
 
 ## Commands
 
@@ -193,3 +187,11 @@ python -m sampling.aggregate outputs/ablations --output-dir outputs/ablations
 ```
 
 Each run writes `resolved_config.yaml`, `run_metadata.json`, `metrics_step.jsonl`, `metrics_final.json`, `curves.csv`, `summary.csv`, `result.pt`, and `masks.pt`.
+
+For batched sampling, relative L2 errors are computed independently for each sample and then averaged. The per-sample values are retained in the matching `*_per_sample` fields. PDE residual norms use the mean of per-sample RMS values.
+
+PDE residual operators also keep sample-level physical parameters independent. In particular, batched Burgers evaluation broadcasts each sample's own `nu`, `T`/`trajectory_dt`, and `domain_length`; it does not reuse the first batch element's values. Step metrics record `pde_coef_input_source=model_output` and `pde_sol_input_source=model_output`. Normally `pde_uses_ground_truth_fields=false`; `near_endpoint_temporal` records it as true together with `pde_uses_ground_truth_endpoint_fields=false`, `pde_ground_truth_field_exception=near_endpoint_temporal_sparse_observations`, and the sparse auxiliary input sources. Training-time periodic generated-sample evaluation records equivalent `eval_pde_*` provenance fields.
+
+Evaluation losses are independent of guidance flags and zeta weights: `eval_L_pde` is always computed from the generated model outputs when the selected residual mode is evaluable, while `guidance_L_pde` is the separately gated optimization objective. Enabled but disconnected guidance gradients raise an error. Batch clipping, observation normalization, noise scaling, and reported relative errors are all per sample. Every run writes one compact row per sample to `metrics_per_sample.csv`; `metrics_final.json` contains means/counts and batch-level status only. Set `save_per_sample_curves=true` only when the larger `metrics_step_per_sample.csv` is needed.
+
+For joint-PDE checkpoints, labels are checkpoint-local contiguous IDs and the null ID is `num_classes`. Sampling uses standard classifier-free guidance `v_uncond + cfg_scale * (v_cond - v_uncond)`; the unconditional branch drops only the PDE label and retains scalar conditioning. Old joint checkpoints without the mapping/category layer are rejected, while single-PDE checkpoints remain unconditional and unchanged.

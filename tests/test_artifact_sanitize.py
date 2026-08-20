@@ -19,7 +19,7 @@ def test_sanitize_pde_params_recursive_cpu():
 
 
 def test_near_endpoint_temporal_sanitize_omits_hidden_frames():
-    cfg = AblationConfig(residual_mode="near_endpoint_temporal", num_near_endpoint_obs=1)
+    cfg = AblationConfig(pde="heat", residual_mode="near_endpoint_temporal", num_obs=1)
     q_dt = torch.arange(16, dtype=torch.float32).view(1, 1, 4, 4)
     q_tm = q_dt + 100
     mask_0 = torch.zeros_like(q_dt)

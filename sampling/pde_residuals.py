@@ -206,13 +206,29 @@ def _burger(
 ) -> ResidualOutput:
     import torch
 
+    same_view = (
+        a.shape == u.shape
+        and a.stride() == u.stride()
+        and a.storage_offset() == u.storage_offset()
+        and a.data_ptr() == u.data_ptr()
+    )
+    if a.shape != u.shape or (not same_view and not torch.equal(a.detach(), u.detach())):
+        raise ValueError(
+            "Burgers uses one model-predicted full time-space field; coef/sol are aliases and must contain "
+            "the same prediction"
+        )
     if u.ndim != 4 or u.shape[1] != 1 or u.shape[-2] < 3:
         raise ValueError(f"Burgers full trajectory must be [B,1,T,X] with T>=3, got {u.shape}")
-    final_time = _float_param(pde_params, "T", _float_param(pde_params, "total_time", 1.0))
-    dt = _float_param(pde_params, "trajectory_dt", final_time / max(int(u.shape[-2]) - 1, 1))
-    domain_length = _float_param(pde_params, "domain_length", 1.0)
+    final_time = _param_field_any(pde_params, ("T", "total_time"), u, default=1.0)
+    if "trajectory_dt" in pde_params:
+        dt = _param_field(pde_params, "trajectory_dt", u, default=1.0)
+        dt_source = "trajectory_dt"
+    else:
+        dt = final_time / max(int(u.shape[-2]) - 1, 1)
+        dt_source = "T_or_total_time/(num_time_points-1)"
+    domain_length = _param_field(pde_params, "domain_length", u, default=1.0)
     dx = domain_length / max(int(u.shape[-1]), 1)
-    nu = _float_param(pde_params, "nu", _float_param(pde_params, "viscosity", 0.01))
+    nu = _param_field_any(pde_params, ("nu", "viscosity"), u, default=0.01)
     state = u[:, :, 1:-1]
     ut = (u[:, :, 2:] - u[:, :, :-2]) / (2.0 * dt)
     ux, uxx = _periodic_trajectory_x_derivatives(state, domain_length=domain_length)
@@ -224,9 +240,11 @@ def _burger(
         status="reliable",
         metadata={
             "equation": "u_t + u u_x - nu u_xx",
-            "nu": nu,
-            "dt": dt,
-            "dx": dx,
+            "nu": _metadata_values(nu),
+            "dt": _metadata_values(dt),
+            "dt_source": dt_source,
+            "dx": _metadata_values(dx),
+            "domain_length": _metadata_values(domain_length),
             "axis": "BCHW-as-time-space",
             "mode": "full_trajectory_fd",
             "requested_residual_mode": residual_mode,
@@ -236,6 +254,8 @@ def _burger(
             "temporal_derivative_mode": "full_fd",
             "endpoint_only": False,
             "uses_generated_trajectory": True,
+            "field_input_source": "model_output_full_time_space",
+            "uses_ground_truth_fields": False,
             "uses_extra_temporal_observations": False,
             "two_time_level_approx": False,
         },
@@ -478,10 +498,7 @@ def _shallow_water_endpoint_secant(
     h_mid = 0.5 * (h0 + h)
     hu_mid = 0.5 * (hu0 + hu)
     hv_mid = 0.5 * (hv0 + hv)
-    eps = _float_param(pde_params, "eps", 1e-6)
-    g = _param_field(pde_params, "g", h, default=1.0)
     time_scale, time_meta = _time_scale_field(pde_params, h)
-    h_safe = h_mid.clamp_min(eps)
     rhs_mid = _rhs_shallow_water(torch.cat([h_mid, hu_mid, hv_mid], dim=1), pde_params)
     mass = (h - h0) / time_scale - rhs_mid[:, 0:1]
     mom_x = (hu - hu0) / time_scale - rhs_mid[:, 1:2]
@@ -1213,9 +1230,9 @@ def _rhs_shallow_water(q: Any, pde_params: dict[str, Any]) -> Any:
     if q.shape[1] != 3:
         raise ValueError(f"shallow_water RHS expects [h,hu,hv] channels, got {q.shape}")
     h, hu, hv = q[:, 0:1], q[:, 1:2], q[:, 2:3]
-    eps = _float_param(pde_params, "eps", 1e-6)
+    eps = _param_field(pde_params, "eps", h, default=1e-6)
     g = _param_field(pde_params, "g", h, default=1.0)
-    h_safe = h.clamp_min(eps)
+    h_safe = torch.maximum(h, eps)
     flux_x = torch.cat(
         [
             hu,
@@ -1252,11 +1269,41 @@ def _rhs_nsnonbounded(q: Any, pde_params: dict[str, Any]) -> Any:
     lap_w = torch.fft.ifft2(-k2 * w_hat, dim=(-2, -1)).real
     nu = _param_field_any(pde_params, ("nu", "viscosity"), w, default=1e-3)
     forcing = _forcing_field(pde_params, w) if "forcing" in pde_params else _ns_default_forcing(w)
-    result = -u_vel * w_x - v_vel * w_y + nu * lap_w + forcing
-    # Numerical protection: clamp to prevent NaN/Inf propagation in Hermite bridge
-    result = torch.nan_to_num(result, nan=0.0, posinf=1e6, neginf=-1e6)
-    result = torch.clamp(result, -1e6, 1e6)
+    operator_mode = str(pde_params.get("ns_operator_mode", "generator_dealiased"))
+    nonlinear = u_vel * w_x + v_vel * w_y
+    if operator_mode == "generator_dealiased":
+        # Match the data generator: project both the pseudospectral nonlinear
+        # product and forcing through its 2/3 Fourier mask.
+        nonlinear = _ns_two_thirds_projection(nonlinear)
+        forcing = _ns_two_thirds_projection(forcing)
+    elif operator_mode != "continuous_spectral":
+        raise ValueError(
+            "ns_operator_mode must be 'generator_dealiased' or 'continuous_spectral', "
+            f"got {operator_mode!r}"
+        )
+    result = -nonlinear + nu * lap_w + forcing
+    if not bool(torch.isfinite(result).all().detach().cpu()):
+        raise FloatingPointError("nsnonbounded RHS contains NaN or Inf")
     return result
+
+
+def _ns_two_thirds_projection(field: Any) -> Any:
+    import math
+    import torch
+
+    height, width = int(field.shape[-2]), int(field.shape[-1])
+    modes_x = torch.fft.fftfreq(height, d=1.0 / max(height, 1), device=field.device)
+    modes_y = torch.fft.fftfreq(width, d=1.0 / max(width, 1), device=field.device)
+    cutoff_x = (2.0 / 3.0) * math.floor(height / 2.0)
+    cutoff_y = (2.0 / 3.0) * math.floor(width / 2.0)
+    mask = (modes_x.abs().view(height, 1) <= cutoff_x) & (
+        modes_y.abs().view(1, width) <= cutoff_y
+    )
+    projected = torch.fft.ifft2(
+        torch.fft.fft2(field, dim=(-2, -1)) * mask.view(1, 1, height, width),
+        dim=(-2, -1),
+    ).real
+    return projected
 
 
 def _periodic_stream_function_fft(w: Any) -> tuple[Any, Any, Any, Any]:
@@ -1580,12 +1627,15 @@ def _darcy_spline_matrices(resolution: int, dtype: Any, device: Any) -> tuple[An
     )
 
 
-def _periodic_trajectory_x_derivatives(state: Any, domain_length: float) -> tuple[Any, Any]:
+def _periodic_trajectory_x_derivatives(state: Any, domain_length: Any) -> tuple[Any, Any]:
     import torch
 
     n = int(state.shape[-1])
-    modes = torch.fft.fftfreq(n, d=domain_length / max(n, 1), device=state.device, dtype=state.dtype)
-    wave_number = 2.0 * torch.pi * modes.view(1, 1, 1, n)
+    modes = torch.fft.fftfreq(n, d=1.0 / max(n, 1), device=state.device, dtype=state.dtype)
+    length = torch.as_tensor(domain_length, dtype=state.dtype, device=state.device)
+    if length.ndim == 0:
+        length = length.reshape(1, 1, 1, 1)
+    wave_number = 2.0 * torch.pi * modes.view(1, 1, 1, n) / length
     state_hat = torch.fft.fft(state, dim=-1)
     first = torch.fft.ifft(1j * wave_number * state_hat, dim=-1).real
     second = torch.fft.ifft(-(wave_number**2) * state_hat, dim=-1).real
@@ -1623,13 +1673,13 @@ def _periodic_grid_spacing(reference: Any, pde_params: dict[str, Any] | None = N
     if "dx" in pde_params:
         dx = _param_field(pde_params, "dx", reference, default=1.0)
     else:
-        domain_x = _float_param(pde_params, "domain_length_x", _float_param(pde_params, "domain_length", 1.0))
-        dx = torch.full((reference.shape[0], 1, 1, 1), domain_x / max(int(reference.shape[-2]), 1), dtype=reference.dtype, device=reference.device)
+        domain_x = _param_field_any(pde_params, ("domain_length_x", "domain_length"), reference, default=1.0)
+        dx = domain_x / max(int(reference.shape[-2]), 1)
     if "dy" in pde_params:
         dy = _param_field(pde_params, "dy", reference, default=1.0)
     else:
-        domain_y = _float_param(pde_params, "domain_length_y", _float_param(pde_params, "domain_length", 1.0))
-        dy = torch.full((reference.shape[0], 1, 1, 1), domain_y / max(int(reference.shape[-1]), 1), dtype=reference.dtype, device=reference.device)
+        domain_y = _param_field_any(pde_params, ("domain_length_y", "domain_length"), reference, default=1.0)
+        dy = domain_y / max(int(reference.shape[-1]), 1)
     return dx.abs().clamp_min(1e-12), dy.abs().clamp_min(1e-12)
 
 
@@ -1752,10 +1802,11 @@ def _reaction_diffusion_laplacian(u: Any, pde_params: dict[str, Any] | None = No
     import torch
 
     pde_params = pde_params or {}
-    hx, hy = _rd_grid_spacing_fields(pde_params, u)
+    dx, dy = _rd_grid_spacing_fields(pde_params, u)
     padded = torch.nn.functional.pad(u, (1, 1, 1, 1), mode="replicate")
-    lap_x = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (hx**2)
-    lap_y = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (hy**2)
+    # RD tensors use the conventional BCHW layout [B,C,Y,X].
+    lap_y = (padded[:, :, :-2, 1:-1] + padded[:, :, 2:, 1:-1] - 2.0 * u) / (dy**2)
+    lap_x = (padded[:, :, 1:-1, :-2] + padded[:, :, 1:-1, 2:] - 2.0 * u) / (dx**2)
     return lap_x + lap_y
 
 
@@ -1776,9 +1827,9 @@ def _rd_grid_spacing_fields(pde_params: dict[str, Any], reference: Any) -> tuple
     x_left, x_right, _ = _rd_axis_bounds(pde_params, "x", reference)
     y_bottom, y_top, _ = _rd_axis_bounds(pde_params, "y", reference)
     if hx is None:
-        hx = (x_right - x_left) / max(int(reference.shape[-2]), 1)
+        hx = (x_right - x_left) / max(int(reference.shape[-1]), 1)
     if hy is None:
-        hy = (y_top - y_bottom) / max(int(reference.shape[-1]), 1)
+        hy = (y_top - y_bottom) / max(int(reference.shape[-2]), 1)
     return hx.abs().clamp_min(1e-12), hy.abs().clamp_min(1e-12)
 
 
@@ -1859,6 +1910,12 @@ def _rhs_metadata(pde: str, pde_params: dict[str, Any], reference: Any) -> dict[
             "forcing_defaulted": not forcing_present,
             "forcing_grid": "endpoint_false",
             "forcing_formula": "0.1 * (sin(2*pi*(x+y)) + cos(2*pi*(x+y)))",
+            "ns_operator_mode": str(pde_params.get("ns_operator_mode", "generator_dealiased")),
+            "dealiasing": (
+                "two_thirds_generator_aligned"
+                if str(pde_params.get("ns_operator_mode", "generator_dealiased")) == "generator_dealiased"
+                else "none"
+            ),
         }
     return {}
 
@@ -1988,17 +2045,21 @@ def _neumann_residual(
     dy_line = dy[..., 0, 0].unsqueeze(-1)
     active = _active_sides(sides or {})
     val = value[..., 0, 0].unsqueeze(-1)
+    # Reaction-diffusion is explicitly BCHW=[B,C,Y,X]. Other legacy PDE
+    # generators in this module retain their historical first-axis-x layout.
+    horizontal_spacing = dx_line if pde == "reaction_diffusion" else dy_line
+    vertical_spacing = dy_line if pde == "reaction_diffusion" else dx_line
     if w > 1 and "left" in active:
-        residual[..., :, 0] = (u[..., :, 1] - u[..., :, 0]) / dx_line - val
+        residual[..., :, 0] = (u[..., :, 1] - u[..., :, 0]) / horizontal_spacing - val
         mask[..., :, 0] = 1.0
     if w > 1 and "right" in active:
-        residual[..., :, -1] = (u[..., :, -1] - u[..., :, -2]) / dx_line - val
+        residual[..., :, -1] = (u[..., :, -1] - u[..., :, -2]) / horizontal_spacing - val
         mask[..., :, -1] = 1.0
     if h > 1 and "bottom" in active:
-        residual[..., 0, :] = (u[..., 1, :] - u[..., 0, :]) / dy_line - val
+        residual[..., 0, :] = (u[..., 1, :] - u[..., 0, :]) / vertical_spacing - val
         mask[..., 0, :] = 1.0
     if h > 1 and "top" in active:
-        residual[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / dy_line - val
+        residual[..., -1, :] = (u[..., -1, :] - u[..., -2, :]) / vertical_spacing - val
         mask[..., -1, :] = 1.0
     return _normalize_masked_residual(residual, mask, normalization)
 
@@ -2290,17 +2351,6 @@ def _time_scale_field(params: dict[str, Any], reference: Any, default: float = 1
         "reason": "pde_params did not contain T, total_time, or dt",
         "candidate_order": ["T", "total_time", "dt"],
     }
-
-
-def _float_param(params: dict[str, Any], name: str, default: float) -> float:
-    import torch
-
-    if name not in params:
-        return float(default)
-    value = torch.as_tensor(params[name]).detach().reshape(-1)
-    if value.numel() < 1:
-        return float(default)
-    return float(value[0].cpu().item())
 
 
 def _normalize_residual_mode(mode: str) -> str:

@@ -9,6 +9,7 @@ from data.load import PDEloader, TensorDataset
 
 def _write_pair_h5(path, n_samples=2, input_channels=1, output_channels=1):
     with h5py.File(path, "w") as file:
+        file.attrs["split"] = "train"
         file.create_dataset("input_data", data=np.zeros((n_samples, input_channels, 4, 4), dtype=np.float32))
         file.create_dataset("output_data", data=np.ones((n_samples, output_channels, 4, 4), dtype=np.float32))
         file.create_dataset(
@@ -80,6 +81,26 @@ def test_pair_h5_reads_optional_time_scale_dataset(tmp_path):
     assert tuple(data.shape) == (2, 4, 4, 4)
     assert torch.allclose(loader.pde_params["dt"], torch.tensor([0.25, 0.5]))
     assert loader.pde_param_sources["dt"] == "dataset"
+
+
+def test_pair_h5_training_requires_matching_root_split(tmp_path):
+    path = tmp_path / "heat_1-4-4_1.h5"
+    _write_pair_h5(path, n_samples=2)
+    with h5py.File(path, "a") as file:
+        file.attrs["split"] = "test"
+        file.create_dataset("alpha", data=np.array([0.1, 0.2], dtype=np.float32))
+    with pytest.raises(ValueError, match="does not match requested split='train'"):
+        PDEloader("heat").load_data(str(path))
+
+
+def test_pair_h5_rejects_duplicate_sample_seeds(tmp_path):
+    path = tmp_path / "heat_1-4-4_1.h5"
+    _write_pair_h5(path, n_samples=2)
+    with h5py.File(path, "a") as file:
+        file.create_dataset("alpha", data=np.array([0.1, 0.2], dtype=np.float32))
+        file.create_dataset("sample_seed", data=np.array([7, 7], dtype=np.int64))
+    with pytest.raises(ValueError, match="Duplicate sample_seed"):
+        PDEloader("heat").load_data(str(path))
 
 
 def test_tensor_dataset_optional_scalar_conditioning():

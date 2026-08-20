@@ -46,6 +46,7 @@ def wave_metadata(config: PairH5Config) -> dict[str, object]:
         "hdf5_schema": {
             "input_data": "[N,2,H,W] u0,v0",
             "output_data": "[N,2,H,W] uT,vT",
+            "full_trajectory": "[N,2,T,H,W] u(t),v(t) when save_trajectory=true",
             "c": "[N] only when c_mode=random",
             "fixed_c": "root attr only when c_mode=fixed",
         },
@@ -72,7 +73,7 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
     kabs = np.sqrt(ksq)
     input_data = np.empty((n, 2, s, s), dtype=np.float64)
     output_data = np.empty((n, 2, s, s), dtype=np.float64)
-    trajectory = np.empty((n, 1, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
+    trajectory = np.empty((n, 2, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
     random_v0 = bool(config.extra.get("random_v0", False))
     c_mode = config.extra.get("c_mode", "fixed")
     if c_mode not in {"fixed", "random"}:
@@ -107,7 +108,7 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
         input_data[local_idx] = np.stack([u0, v0], axis=0)
         output_data[local_idx] = np.stack([frames_arr[-1], v_frames_arr[-1]], axis=0)
         if trajectory is not None:
-            trajectory[local_idx, 0] = frames_arr
+            trajectory[local_idx] = np.stack([frames_arr, v_frames_arr], axis=0)
 
     data = None
     if config.materialize_constant_fields:
@@ -136,7 +137,7 @@ def solve_wave_variable_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
     times = np.linspace(0.0, config.T, config.n_time, dtype=np.float64)
     input_data = np.empty((n, 3, s, s), dtype=np.float64)
     output_data = np.empty((n, 3, s, s), dtype=np.float64)
-    trajectory = np.empty((n, 1, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
+    trajectory = np.empty((n, 2, config.n_time, s, s), dtype=np.float64) if config.save_trajectory else None
     c_mean = np.empty((n,), dtype=np.float64)
     c_max = np.empty((n,), dtype=np.float64)
     dt_used = np.empty((n,), dtype=np.float64)
@@ -153,8 +154,10 @@ def solve_wave_variable_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
         steps_total = n_internal_steps_for_cfl(config.T, s, float(np.max(c_field)), cfl=0.25)
         dt = config.T / steps_total
         record_frames = []
+        record_velocity_frames = []
         target_idx = 0
         record_frames.append(u.copy())
+        record_velocity_frames.append(v.copy())
         for step in range(1, steps_total + 1):
             lap = finite_difference_periodic_laplacian(u, dx)
             v_half = v + 0.5 * dt * (c_field**2) * lap
@@ -164,14 +167,17 @@ def solve_wave_variable_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
             t_now = step * dt
             while target_idx + 1 < len(times) and t_now + 0.5 * dt >= times[target_idx + 1]:
                 record_frames.append(u.copy())
+                record_velocity_frames.append(v.copy())
                 target_idx += 1
         while len(record_frames) < len(times):
             record_frames.append(u.copy())
+            record_velocity_frames.append(v.copy())
         frames_arr = np.stack(record_frames[: len(times)], axis=0)
+        velocity_frames_arr = np.stack(record_velocity_frames[: len(times)], axis=0)
         input_data[local_idx] = np.stack([u0, v0, c_field], axis=0)
         output_data[local_idx] = np.stack([frames_arr[-1], v, c_field], axis=0)
         if trajectory is not None:
-            trajectory[local_idx, 0] = frames_arr
+            trajectory[local_idx] = np.stack([frames_arr, velocity_frames_arr], axis=0)
         c_mean[local_idx] = float(np.mean(c_field))
         c_max[local_idx] = float(np.max(c_field))
         dt_used[local_idx] = dt

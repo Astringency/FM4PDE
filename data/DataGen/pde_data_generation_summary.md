@@ -140,7 +140,7 @@ python data/DataGen/time_dependent/gen_swe.py \
   $$\partial_{tt}u=c^2\Delta u,\quad u(0)=u_0,\quad \partial_tu(0)=v_0.$$
 - 初边值条件：周期边界；`u0` 从平滑 GRF 采样，默认 `v0=0`，可选随机初速度；默认固定 `c=1`。
 - 生成代码：`data/DataGen/python/generate_wave.py`；固定 scalar `c` 时使用 Fourier 精确公式，`variable_c=True` 当前禁用。
-- 磁盘格式：`wave/wave_10000-128-128_i.h5` 和 test 文件；`input_data=[N,2,H,W]` 存 `[u0,v0]`，`output_data=[N,2,H,W]` 存 `[uT,vT]`，但当前 `full_trajectory=[N,1,T,H,W]` 只保存位移 `u`，没有保存速度轨迹。full-trajectory residual 因此使用二阶形式 `u_tt-c^2 Delta u`；端点近似仍可使用 `[u,v]` 一阶系统。随机 `c` 存 dataset，固定 `c` 存 attrs。
+- 磁盘格式：`wave/wave_10000-128-128_i.h5` 和 test 文件；`input_data=[N,2,H,W]` 存 `[u0,v0]`，`output_data=[N,2,H,W]` 存 `[uT,vT]`，新生成的 `full_trajectory=[N,2,T,H,W]` 保存完整 `[u(t),v(t)]` 状态。旧文件的 `[N,1,T,H,W]` 位移轨迹仍可用于二阶 full-trajectory 诊断；近端稀疏模式会按生成器的常系数谱解重建对应时刻的真实速度，且仅把掩码内的 `[u,v]` 值传给 residual。随机 `c` 存 dataset，固定 `c` 存 attrs。
 - FM4PDE 读入：`[u0,v0,uT,vT]`，即 `[N,4,H,W]`；`c,T,dt` 作为 metadata/pde_params。
 
 ## 10. Advection-Diffusion
@@ -179,7 +179,7 @@ z = (data - mean) / std
 
 ## PDE residual 时间模式
 
-- `full_trajectory_fd`：使用保存的全部时间点；在内部时间点用中心时间差分。Burgers 固定采用此模式。wave 的单通道轨迹使用二阶时间差分，其余方程使用一阶中心时间差分。
+- `full_trajectory_fd`：采样引导与生成结果评估中仅适用于模型直接输出完整 `[T,X]` 时空场的 Burgers。数据文件保存的真实轨迹不得代替模型输出进入 PDE loss；显式轨迹接口仅保留给离线数据诊断。
 - `endpoint_secant`：只使用初值和终值，在中点状态上计算割线近似；这是明确标记为 approximate 的两层近似。
-- FM4PDE 还保留 `hermite_bridge` 和需要额外近端观测的 `near_endpoint_temporal`。这些模式都是端点/稀疏时间近似，不能标记为 full-trajectory residual。
+- FM4PDE 采样对端点模型默认使用仅依赖预测 `q0/qT` 的 `hermite_bridge` 或 `endpoint_secant`。Heat、Wave、Advection-Diffusion、Reaction-Diffusion、Shallow-Water、NS 还可显式选择 `near_endpoint_temporal`：`q0/qT` 仍是模型输出，只额外读取 `q(dt)`、`q(T-dt)` 的稀疏真实观测；未观测值被清零且完整近端帧不进入 PDE loss。这是唯一的真实场辅助输入例外。
 - 周期数据的首末网格点是不同的物理点，周期性由 FFT/roll 算子编码，不能额外强迫二者相等。RD 的 Neumann 与 SWE 的 extrapolation 由 ghost-cell 算子编码，也不能强迫相邻物理单元相等。

@@ -62,6 +62,7 @@ def load_fm4pde_checkpoint_bundle(
         num_channels=num_channels,
         requested_profile=model_profile,
     )
+    _validate_joint_checkpoint_conditioning(payload, model_cfg, selected_metadata, path)
     model = instantiate_model(architechture=pde_type, use_ema=False, model_config=model_cfg)
     state, selected_inference_weight = _select_inference_state(payload, model, prefer_ema=prefer_ema)
     try:
@@ -97,6 +98,31 @@ def load_fm4pde_checkpoint_bundle(
         )
     wrapped = WrappedModel(model).to(device) if wrap else model
     return wrapped, normalizer, payload
+
+
+def _validate_joint_checkpoint_conditioning(
+    payload: dict[str, Any],
+    model_cfg: dict[str, Any],
+    model_metadata: dict[str, Any],
+    checkpoint_path: Path,
+) -> None:
+    data_metadata = payload.get("data_metadata", {})
+    joint_names = model_metadata.get("joint_pde_names")
+    if not isinstance(joint_names, list) and isinstance(data_metadata, dict):
+        joint_names = data_metadata.get("pde_names")
+    if not isinstance(joint_names, list) or len(joint_names) <= 1:
+        return
+    mapping = model_metadata.get("pde_label_mapping")
+    if not isinstance(mapping, dict) and isinstance(data_metadata, dict):
+        mapping = data_metadata.get("pde_label_mapping")
+    if model_cfg.get("num_classes") is None or not isinstance(mapping, dict):
+        raise ValueError(
+            "Old joint checkpoint lacks the required PDE category layer or pde_label_mapping and cannot "
+            f"be sampled safely: {checkpoint_path}. Retrain the joint model. Single-PDE checkpoints are unaffected."
+        )
+    normalized = {str(name): int(index) for name, index in mapping.items()}
+    if sorted(normalized.values()) != list(range(int(model_cfg["num_classes"]))):
+        raise ValueError(f"Joint checkpoint has a non-contiguous pde_label_mapping: {normalized}")
 
 
 def _select_model_config_from_payload(

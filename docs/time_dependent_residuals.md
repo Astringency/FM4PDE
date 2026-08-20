@@ -8,7 +8,7 @@ FM4PDE separates residual family from residual status.
 
 Burgers is the only current full time-space tensor residual: the BCHW tensor itself stores a one-dimensional PDE time-space field, with `H` as time and `W` as space. It uses `u_t + u u_x - nu u_xx` with finite differences and records `status=reliable`.
 
-The other time-dependent PDEs use the unified temporal endpoint mode system below. Endpoint-only is the default in the current endpoint-pair FM setup, not the only valid temporal residual form.
+The other time-dependent PDEs use predicted endpoint pairs. Their `q0/qT` inputs to PDE loss always come from the model. The sole field-data exception is `near_endpoint_temporal`: when explicitly selected for one of the six supported temporal-endpoint PDEs, it may additionally consume sparse masked ground-truth observations at `dt` and `T-dt`. It never substitutes a true endpoint or full trajectory for a model output.
 
 Sampling guidance now treats observation loss as masked MSE over observed entries:
 
@@ -69,6 +69,8 @@ status: approximate
 
 ## `near_endpoint_temporal`
 
+This mode is available in formal sampling for Heat, Wave, Advection-Diffusion, Reaction-Diffusion, Shallow Water, and Non-bounded Navier-Stokes. It is the sole guidance/evaluation exception that may pass ground-truth solution-field values into the PDE residual. Poisson, Burgers, and all other model families reject it, as does unconditional periodic training evaluation.
+
 Requires extra sparse temporal observations:
 
 ```text
@@ -84,9 +86,9 @@ r0 = (q_dt - q0) / dt - F(q0)
 rT = (qT - q_T_minus_dt) / dt - F(qT)
 ```
 
-The residual is masked and normalized by observed count so sparse masks do not shrink the loss. Missing auxiliary observations raise `ValueError`; there is no fallback to Hermite.
+Here `q0` and `qT` are always model predictions. `q_dt` reuses the coef/q0 endpoint mask and `q_T_minus_dt` reuses the sol/qT endpoint mask. There is no separate near-endpoint observation budget, sensor mode, seed, or sharing flag. The loader zeroes unobserved entries immediately, and the loss boundary reapplies the masks before calling the residual. The auxiliary observations are detached; gradients flow through predicted endpoints only.
 
-Near-endpoint temporal observations are not initial conditions. IC residuals are added only when masked coefficient/initial observations are active and injected as `pde_params["observed_initial"]`, or when an experiment explicitly passes `true_initial` as an extra condition. `initial_mask` is honored for sparse forward observations.
+The residual is masked and normalized by observed count so sparse masks do not shrink the loss. Every batch sample must have at least one observation at each near-endpoint frame. Missing observations or empty masks raise `ValueError`; there is no fallback to Hermite. True initial fields, true endpoints, and true complete trajectories remain forbidden as PDE-loss inputs.
 
 Metadata marks this as:
 
@@ -97,6 +99,9 @@ endpoint_only: false
 uses_generated_trajectory: false
 uses_extra_temporal_observations: true
 requires_extra_temporal_observations: true
+uses_ground_truth_fields: true
+uses_ground_truth_endpoint_fields: false
+ground_truth_field_exception: near_endpoint_temporal_sparse_observations
 status: approximate
 ```
 
@@ -123,7 +128,7 @@ warning: coarse two-time-level endpoint residual; not a full spatiotemporal PDE 
 
 ## `full_trajectory_fd`
 
-Reserved for full-trajectory FM or explicit trajectory auxiliary state. It requires `pde_params["full_trajectory"]` or `pde_params["trajectory"]` with layout `[B,T,C,H,W]` or `[B,C,T,H,W]`.
+In sampling, this mode is reserved for Burgers because its model output is already `[B,1,T,X]`. The lower-level residual API can still consume an explicit trajectory for offline diagnostics, but stored ground-truth trajectories are rejected as guidance/evaluation inputs for endpoint-output models.
 
 It computes finite-difference time derivatives across the trajectory and compares them with the same RHS `F(q; params)` used by Hermite and endpoint modes. If only endpoint state is present, this mode raises `ValueError`.
 
@@ -143,7 +148,7 @@ status: reliable
 - Heat: `F(u) = alpha * Laplacian(u)`
 - Wave: `F([u,v]) = [v, c^2 Laplacian(u)]`
 - Advection-Diffusion: `F(u) = -b_x u_x - b_y u_y + kappa Laplacian(u)`
-- Reaction-Diffusion: FitzHugh-Nagumo RHS with Neumann Laplacian
+- Reaction-Diffusion: FitzHugh-Nagumo RHS with Neumann Laplacian in explicit `[B,C,Y,X]` layout; `dx` differentiates the last axis and `dy` the penultimate axis
 - Shallow Water: standard 2D conservative flux RHS with clamped safe depth
 - Non-bounded Navier-Stokes: scalar-vorticity 2D Navier-Stokes residual on the periodic torus. It reconstructs velocity from vorticity with an FFT stream-function solve and uses the fixed forcing `f_NS(x,y)=0.1(sin(2*pi*(x+y))+cos(2*pi*(x+y)))` when no explicit forcing is supplied.
 
@@ -160,7 +165,7 @@ r = partial_tau omega - F(omega)
   = partial_tau omega + v dot grad omega - nu Delta omega - f_NS
 ```
 
-The default viscosity is `nu=1e-3`; explicit `nu`, `viscosity`, or `forcing` in PDE params override the corresponding defaults. Endpoint-only Hermite and endpoint-secant modes remain approximate unless `full_trajectory_fd` receives an explicit trajectory.
+The default viscosity is `nu=1e-3`; explicit `nu`, `viscosity`, or `forcing` in PDE params override the corresponding defaults. The default `generator_dealiased` operator applies the same 2/3 Fourier projection as the data generator to the nonlinear product and forcing. `continuous_spectral` is an explicit diagnostic alternative. Non-finite values fail immediately rather than being clamped. Endpoint-only Hermite and endpoint-secant modes remain approximate; they are not upgraded using a stored ground-truth trajectory.
 
 For Heat, Wave, and Advection-Diffusion generated by the pair-HDF5 spectral solvers, the stored spatial grid is endpoint-false periodic: `np.linspace(0, 1, resolution, endpoint=False)`. The first and last samples are adjacent grid cells, not duplicate samples of the same physical point. Periodic BCs are therefore enforced by the discrete operator: `torch.roll` stencils with spacing `1/N`, not by a first-minus-last value residual. Metadata records:
 

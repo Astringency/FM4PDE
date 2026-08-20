@@ -9,7 +9,7 @@
 - NS test attrs 中 `dt=0.0001` 是内部求解步长；`t=[0.1,...,1.0]`，与 `w0` 拼接后的 11 帧差分间隔为 `0.1`。旧 train 文件没有 attrs，但保存的 `t` 同样给出快照时间；PDE 固定 `nu=0.001,T=1`。
 - SWE test group attrs 给出 `g=1,T=1,x_range=y_range=[-2.5,2.5]`；旧 train group 没有 `T` root attr，但 `grid/t=[0,0.1,...,1]` 且 group 中保存 `g` 和空间范围。
 - Burgers 真实 MAT header 为 `input=(10000,128)`、`output=(10000,128,128)`；128 帧包含初值，故 `dt=1/127`，周期空间 `dx=1/128`。
-- Wave 的 endpoint 为 `[u,v]` 两通道，但 `full_trajectory=(N,1,11,128,128)` 只保存位移。
+- 已验证的旧 Wave 文件 endpoint 为 `[u,v]` 两通道，但 `full_trajectory=(N,1,11,128,128)` 只保存位移；当前生成器已改为保存 `[N,2,T,H,W]` 的完整 `[u,v]` 轨迹。旧文件用于 `near_endpoint_temporal` 时，loader 按同一常系数谱解重建近端速度，再仅保留稀疏观测值。
 
 ## 静态方程
 
@@ -42,5 +42,5 @@ Darcy、Poisson、Helmholtz 已达到生成器离散系统的浮点精度。Stea
 
 - 静态方程已按实际生成器离散算子实现；Darcy 不再是存储网格代理，Helmholtz 不再额外施加与生成器矛盾的标准零 Dirichlet loss。
 - Burgers 的 `128` 帧、`dt=1/127`、`dx=1/128`、`nu=0.01` 已得到真实数据验证。
-- 所有其余时变方程均能运行 full-trajectory 与 endpoint-only 两条路径；full 模式从保存的时间坐标计算快照间隔。FM4PDE 端点生成模型加载的真实 full trajectory 只用于评估；PDE guidance 若没有模型预测的完整轨迹会显式报错，避免把 ground truth 常数误当作可求梯度 loss。
+- 所有其余时变方程的底层诊断均能运行 full-trajectory 与 endpoint-only 两条路径；full 模式从保存的时间坐标计算快照间隔。FM4PDE 端点生成模型不会把真实 full trajectory 用于采样 guidance 或生成结果 PDE 指标。唯一例外是显式选择的 `near_endpoint_temporal`：它允许六类端点时变 PDE 额外读取 `q(dt)`、`q(T-dt)` 的稀疏真实观测，但 `q0/qT` 仍必须来自模型输出。
 - 训练/test 参数从真实文件逐样本/逐 group 读取；只有生成器不保存的固定常数才使用明确的 generator-profile fallback。

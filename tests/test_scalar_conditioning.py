@@ -124,7 +124,7 @@ def test_periodic_eval_uses_same_validation_rows_for_scalar_and_residual(monkeyp
 
     def fake_sample(**kwargs):
         captured["model_extra"] = kwargs["model_extra"]
-        return torch.zeros(
+        sample = torch.zeros(
             kwargs["batch_size"],
             kwargs["num_channels"],
             kwargs["resolution"],
@@ -132,9 +132,14 @@ def test_periodic_eval_uses_same_validation_rows_for_scalar_and_residual(monkeyp
             device=kwargs["device"],
             dtype=kwargs["dtype"],
         )
+        sample[:, 0] = 3.0
+        sample[:, 1] = 7.0
+        return sample
 
     def fake_residual(pde_name, coef, sol, *, pde_params, residual_mode):
         captured["residual_pde_params"] = pde_params
+        captured["residual_coef"] = coef
+        captured["residual_sol"] = sol
         return SimpleNamespace(
             residual=torch.zeros_like(sol),
             status="ok",
@@ -166,6 +171,8 @@ def test_periodic_eval_uses_same_validation_rows_for_scalar_and_residual(monkeyp
             "pde_params": {
                 "alpha": torch.tensor([1.0, 3.0, 5.0]),
                 "T": torch.tensor([2.0, 2.0, 2.0]),
+                "observed_initial": torch.full((3, 1, 4, 4), 101.0),
+                "trajectory": torch.full((3, 5, 1, 4, 4), 202.0),
             }
         }
     }
@@ -188,7 +195,85 @@ def test_periodic_eval_uses_same_validation_rows_for_scalar_and_residual(monkeyp
     assert torch.allclose(scalar, torch.tensor([[-1.0, 0.0], [1.0, 0.0]]))
     assert torch.allclose(pde_params["alpha"], torch.tensor([1.0, 3.0]))
     assert torch.allclose(pde_params["T"], torch.tensor([2.0, 2.0]))
+    assert "observed_initial" not in pde_params
+    assert "trajectory" not in pde_params
+    assert torch.allclose(captured["residual_coef"], torch.full((2, 1, 4, 4), 3.0))
+    assert torch.allclose(captured["residual_sol"], torch.full((2, 1, 4, 4), 7.0))
     assert stats["eval_pde_residual_status"] == "ok"
+    assert stats["eval_pde_uses_ground_truth_fields"] is False
+    assert stats["eval_pde_excluded_ground_truth_field_params"] == ["observed_initial", "trajectory"]
+
+
+def test_periodic_training_eval_rejects_near_endpoint_observations(monkeypatch, tmp_path):
+    import train
+    from data.transform import PDEStandardizer
+
+    captured = {}
+
+    def fake_sample(**kwargs):
+        return torch.zeros(
+            kwargs["batch_size"],
+            kwargs["num_channels"],
+            kwargs["resolution"],
+            kwargs["resolution"],
+            device=kwargs["device"],
+            dtype=kwargs["dtype"],
+        )
+
+    def fake_residual(pde_name, coef, sol, *, pde_params, residual_mode):
+        captured["pde_params"] = pde_params
+        return SimpleNamespace(
+            residual=torch.zeros_like(sol),
+            status="approximate",
+            metadata={"resolved_residual_mode": residual_mode},
+        )
+
+    monkeypatch.setattr(train, "_euler_flow_sample", fake_sample)
+    monkeypatch.setattr(train, "compute_pde_residual", fake_residual)
+    monkeypatch.setattr(train, "_save_eval_figure", lambda *args, **kwargs: None)
+
+    q_dt = torch.full((3, 1, 4, 4), 100.0)
+    q_tm = torch.full((3, 1, 4, 4), -100.0)
+    mask_0 = torch.zeros_like(q_dt)
+    mask_T = torch.zeros_like(q_tm)
+    mask_0[:, :, 1, 2] = 1.0
+    mask_T[:, :, 2, 1] = 1.0
+    q_dt[:, :, 1, 2] = torch.tensor([1.0, 2.0, 3.0]).reshape(3, 1)
+    q_tm[:, :, 2, 1] = torch.tensor([4.0, 5.0, 6.0]).reshape(3, 1)
+    val_metadata = {
+        "heat": {
+            "pde_params": {
+                "alpha": torch.tensor([0.1, 0.2, 0.3]),
+                "near_endpoint_temporal": {
+                    "q_dt": q_dt,
+                    "q_T_minus_dt": q_tm,
+                    "dt": torch.tensor([0.1, 0.2, 0.3]),
+                    "mask_0": mask_0,
+                    "mask_T": mask_T,
+                },
+            }
+        }
+    }
+    args = argparse.Namespace(
+        eval_num_samples=2,
+        eval_num_steps=1,
+        eval_residual_mode="near_endpoint_temporal",
+        output_dir=str(tmp_path),
+        seed=0,
+    )
+
+    with pytest.raises(ValueError, match="unconditional"):
+        train._run_periodic_flow_eval(
+            args=args,
+            model=torch.nn.Identity(),
+            normalizer=PDEStandardizer.identity(2, channel_names=["u0", "uT"], pde="heat"),
+            pde_name="heat",
+            epoch=0,
+            num_channels=2,
+            resolution=4,
+            device=torch.device("cpu"),
+            val_loader_metadata=val_metadata,
+        )
 
 
 def test_sampling_runner_builds_scalar_extra_from_checkpoint_and_ground_truth():

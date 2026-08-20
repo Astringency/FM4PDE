@@ -78,20 +78,60 @@ def compute_guidance_gradient(
     import torch
 
     zero = torch.zeros_like(grad_target)
-    grad_a = _grad_or_zero(losses.L_obs_a, grad_target, zero, retain_graph=True)
-    grad_u = _grad_or_zero(losses.L_obs_u, grad_target, zero, retain_graph=True)
-    grad_pde = _grad_or_zero(losses.L_pde, grad_target, zero, retain_graph=False)
+    enabled = losses.metadata.get("enabled")
+    if not isinstance(enabled, dict):
+        enabled = guidance_component_flags(config.guidance_components, getattr(config, "task", "both"))
+        if float(getattr(config, "zeta_pde", 1.0)) == 0.0:
+            enabled["pde"] = False
+    # Losses are reported as the mean of per-sample losses. Differentiate
+    # their sum so each sample receives the same gradient whether sampled
+    # alone or as part of a larger batch.
+    batch_scale = (
+        int(grad_target.shape[0])
+        if losses.metadata.get("loss_batch_reduction") == "mean_of_per_sample"
+        else 1
+    )
+    guidance_L_obs_a = losses.guidance_L_obs_a if losses.guidance_L_obs_a is not None else losses.L_obs_a
+    guidance_L_obs_u = losses.guidance_L_obs_u if losses.guidance_L_obs_u is not None else losses.L_obs_u
+    guidance_L_pde = losses.guidance_L_pde if losses.guidance_L_pde is not None else losses.L_pde
+    grad_a = _grad_or_zero(
+        guidance_L_obs_a,
+        grad_target,
+        zero,
+        retain_graph=bool(enabled["obs_u"] or enabled["pde"]),
+        enabled=bool(enabled["obs_a"]),
+        component="obs_a",
+        batch_scale=batch_scale,
+    )
+    grad_u = _grad_or_zero(
+        guidance_L_obs_u,
+        grad_target,
+        zero,
+        retain_graph=bool(enabled["pde"]),
+        enabled=bool(enabled["obs_u"]),
+        component="obs_u",
+        batch_scale=batch_scale,
+    )
+    grad_pde = _grad_or_zero(
+        guidance_L_pde,
+        grad_target,
+        zero,
+        retain_graph=False,
+        enabled=bool(enabled["pde"]),
+        component="pde",
+        batch_scale=batch_scale,
+    )
 
-    grad_a, scale_a = _clip_single(grad_a, config.clip_threshold, config.clip_mode == "per_component_norm")
-    grad_u, scale_u = _clip_single(grad_u, config.clip_threshold, config.clip_mode == "per_component_norm")
-    grad_pde, scale_pde = _clip_single(grad_pde, config.clip_threshold, config.clip_mode == "per_component_norm")
+    grad_a, scale_a = _clip_per_sample(grad_a, config.clip_threshold, config.clip_mode == "per_component_norm")
+    grad_u, scale_u = _clip_per_sample(grad_u, config.clip_threshold, config.clip_mode == "per_component_norm")
+    grad_pde, scale_pde = _clip_per_sample(grad_pde, config.clip_threshold, config.clip_mode == "per_component_norm")
 
     total = schedule.zeta_obs_a_t * grad_a + schedule.zeta_obs_u_t * grad_u + schedule.zeta_pde_t * grad_pde
     clip_scale = 1.0
-    if config.clip_mode == "global_norm":
-        total, clip_scale = _clip_single(total, config.clip_threshold, True)
-    elif config.clip_mode == "per_sample_norm":
-        total, clip_scale = _clip_per_sample(total, config.clip_threshold)
+    if config.clip_mode in {"global_norm", "per_sample_norm"}:
+        # A batch is a collection of independent inverse problems. Clipping
+        # over the whole BCHW tensor would couple their sampling trajectories.
+        total, clip_scale = _clip_per_sample(total, config.clip_threshold, True)
     elif config.clip_mode == "none":
         clip_scale = 1.0
     elif config.clip_mode != "per_component_norm":
@@ -111,6 +151,8 @@ def compute_guidance_gradient(
         metadata={
             "gradient_target": getattr(config, "gradient_target", "loss_state_direct"),
             "grad_target_shape": list(grad_target.shape),
+            "loss_gradient_batch_reduction": "sum_of_per_sample",
+            "clip_scope": "per_sample",
         },
     )
 
@@ -138,32 +180,51 @@ def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, conf
     return float(config.stochastic_guidance_coeff) * (1.0 - time_value).clamp_min(0.0)
 
 
-def _grad_or_zero(loss: Any, x: Any, zero: Any, retain_graph: bool) -> Any:
+def _grad_or_zero(
+    loss: Any,
+    x: Any,
+    zero: Any,
+    retain_graph: bool,
+    *,
+    enabled: bool,
+    component: str,
+    batch_scale: int,
+) -> Any:
     import torch
 
-    if not getattr(loss, "requires_grad", False):
+    if not enabled:
         return zero
-    grad = torch.autograd.grad(loss, x, retain_graph=retain_graph, allow_unused=True)[0]
-    return zero if grad is None else grad
+    if loss is None:
+        raise RuntimeError(f"Enabled guidance loss {component!r} is unavailable")
+    scaled_loss = loss * batch_scale
+    if not getattr(scaled_loss, "requires_grad", False):
+        raise RuntimeError(f"Enabled guidance loss {component!r} is detached from the autograd graph")
+    grad = torch.autograd.grad(scaled_loss, x, retain_graph=retain_graph, allow_unused=True)[0]
+    if grad is None:
+        raise RuntimeError(
+            f"Enabled guidance loss {component!r} is not connected to gradient_target; "
+            "check loss_state and gradient_target"
+        )
+    return grad
 
 
-def _clip_single(grad: Any, threshold: float, active: bool) -> tuple[Any, float]:
+def _clip_single(grad: Any, threshold: float) -> tuple[Any, float]:
     import torch
 
-    if not active:
-        return grad, 1.0
     norm = torch.linalg.vector_norm(grad)
     scale = torch.minimum(torch.ones((), dtype=grad.dtype, device=grad.device), torch.as_tensor(threshold, dtype=grad.dtype, device=grad.device) / (norm + 1e-12))
     return grad * scale, float(scale.detach().cpu())
 
 
-def _clip_per_sample(grad: Any, threshold: float) -> tuple[Any, float]:
+def _clip_per_sample(grad: Any, threshold: float, active: bool = True) -> tuple[Any, float]:
     """Clip each sample in the batch independently.  grad shape: [B, C, H, W]."""
     import torch
 
+    if not active:
+        return grad, 1.0
     B = int(grad.shape[0])
     if B <= 1:
-        return _clip_single(grad, threshold, True)
+        return _clip_single(grad, threshold)
     flat = grad.reshape(B, -1)
     norms = torch.linalg.vector_norm(flat, dim=1)  # [B]
     scales = torch.clamp(threshold / (norms + 1e-12), max=1.0)  # [B]

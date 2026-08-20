@@ -164,7 +164,7 @@ def get_args_parser():
     )
     parser.add_argument(
         "--cfg_scale",
-        default=0.2,
+        default=1.0,
         type=float,
         help="Classifier-free guidance scale for generating samples.",
     )

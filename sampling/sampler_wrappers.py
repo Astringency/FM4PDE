@@ -123,8 +123,11 @@ def _stochastic_step(
         x_endpoint = endpoint_from_velocity(x_cur, v, t)
     elif method == "midpoint":
         v = _call_velocity_model(net, x_cur, t, model_extra)
-        t_mid = t + 0.5 * (1.0 - t)
-        x_mid = x_cur + 0.5 * (1.0 - t) * v
+        # Midpoint is local to the current integration interval, just as in
+        # the deterministic solver. The stochasticity belongs to the bridge
+        # resampling below, not to a t-to-1 midpoint extrapolation.
+        t_mid = t + 0.5 * step_size
+        x_mid = x_cur + 0.5 * step_size * v
         x_endpoint = endpoint_from_velocity(
             x_mid,
             _call_velocity_model(net, x_mid, t_mid, model_extra),
@@ -143,4 +146,26 @@ def _stochastic_step(
 def _call_velocity_model(net: Any, x: Any, t: Any, model_extra: dict[str, Any] | None) -> Any:
     if model_extra is None:
         return net(x, t)
-    return net(x, t, extra=model_extra)
+    if "_cfg_scale" not in model_extra:
+        return net(x, t, extra=model_extra)
+    extra = dict(model_extra)
+    cfg_scale = extra.pop("_cfg_scale", None)
+    null_label = extra.pop("_cfg_null_label", None)
+    if cfg_scale is None:
+        return net(x, t, extra=extra)
+    if "label" not in extra or null_label is None:
+        raise ValueError("CFG requires a conditional label and explicit null label")
+    scale = float(cfg_scale)
+    conditional = net(x, t, extra=extra) if scale != 0.0 else None
+    if scale == 1.0:
+        return conditional
+    unconditional_extra = dict(extra)
+    unconditional_extra["label"] = extra["label"].new_full(
+        extra["label"].shape, int(null_label)
+    )
+    # Only the PDE category is dropped. Scalar conditioning remains present in
+    # unconditional_extra by construction.
+    unconditional = net(x, t, extra=unconditional_extra)
+    if scale == 0.0:
+        return unconditional
+    return unconditional + scale * (conditional - unconditional)

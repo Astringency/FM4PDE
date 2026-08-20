@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from sampling.sampler_wrappers import choose_loss_state, sampler_step
+from sampling.sampler_wrappers import _call_velocity_model, choose_loss_state, sampler_step
 
 
 class AffineVelocity:
@@ -17,6 +17,26 @@ class ExtraCapturingVelocity:
     def __call__(self, x, t, extra=None):
         self.extras.append(extra)
         return torch.ones_like(x)
+
+
+class TimeCapturingVelocity:
+    def __init__(self):
+        self.times = []
+
+    def __call__(self, x, t):
+        self.times.append(float(t))
+        return torch.ones_like(x)
+
+
+class LabelScalarVelocity:
+    def __init__(self):
+        self.extras = []
+
+    def __call__(self, x, t, extra=None):
+        self.extras.append(extra)
+        label = extra["label"].to(x).view(-1, 1, 1, 1)
+        scalar = extra["scalar_conditioning"].to(x).view(-1, 1, 1, 1)
+        return torch.ones_like(x) * (10.0 * label + scalar)
 
 
 def test_choose_loss_state_selects_expected_tensor():
@@ -49,6 +69,39 @@ def test_midpoint_endpoint_uses_midpoint_state_and_time():
     assert torch.allclose(out.x_loss_state, expected_endpoint)
     assert out.loss_state == "endpoint"
     assert out.wall_time >= 0.0
+
+
+def test_stochastic_midpoint_uses_current_step_midpoint():
+    net = TimeCapturingVelocity()
+    sampler_step(
+        net=net,
+        x_cur=torch.zeros(1, 1, 2, 2),
+        t=torch.tensor(0.2),
+        t_next=torch.tensor(0.4),
+        phase="stochastic",
+        step_method="midpoint",
+        loss_state="endpoint",
+    )
+    assert net.times == pytest.approx([0.2, 0.3])
+
+
+@pytest.mark.parametrize("scale,expected", [(0.0, 23.0), (1.0, 13.0), (2.0, 3.0)])
+def test_cfg_uses_standard_formula_and_retains_scalar_conditioning(scale, expected):
+    net = LabelScalarVelocity()
+    x = torch.zeros(1, 1, 2, 2)
+    result = _call_velocity_model(
+        net,
+        x,
+        torch.tensor(0.2),
+        {
+            "label": torch.tensor([1]),
+            "scalar_conditioning": torch.tensor([[3.0]]),
+            "_cfg_scale": scale,
+            "_cfg_null_label": 2,
+        },
+    )
+    assert torch.allclose(result, torch.full_like(x, expected))
+    assert all("scalar_conditioning" in extra for extra in net.extras)
 
 
 @pytest.mark.parametrize("phase", ["deterministic", "stochastic"])

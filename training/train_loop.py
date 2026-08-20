@@ -34,9 +34,9 @@ class MeanAccumulator:
         self.total = 0.0
         self.count = 0
 
-    def update(self, value: torch.Tensor) -> None:
-        self.total += float(value.detach().cpu())
-        self.count += 1
+    def update(self, value: torch.Tensor, count: int = 1) -> None:
+        self.total += float(value.detach().cpu()) * int(count)
+        self.count += int(count)
 
     def compute(self) -> float:
         return self.total / max(self.count, 1)
@@ -93,8 +93,8 @@ def train_one_epoch(
         )
 
         loss_value = float(loss.detach().cpu())
-        batch_loss.update(loss)
-        epoch_loss.update(loss)
+        batch_loss.update(loss, int(samples.shape[0]))
+        epoch_loss.update(loss, int(samples.shape[0]))
 
         if not math.isfinite(loss_value):
             raise ValueError(f"Loss is {loss_value}, stopping training")
@@ -161,7 +161,7 @@ def validate_one_epoch(
             loss_value = float(loss.detach().cpu())
             if not math.isfinite(loss_value):
                 raise ValueError(f"Validation loss is {loss_value}, stopping training")
-            epoch_loss.update(loss)
+            epoch_loss.update(loss, int(samples.shape[0]))
             if data_iter_step % PRINT_FREQUENCY == 0:
                 logger.info(
                     f"Validation epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {epoch_loss.compute()}"
@@ -169,7 +169,17 @@ def validate_one_epoch(
     finally:
         model.train(was_training)
 
-    return {"loss": epoch_loss.compute()}
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        totals = torch.tensor(
+            [epoch_loss.total, float(epoch_loss.count)],
+            device=device,
+            dtype=torch.float64,
+        )
+        torch.distributed.all_reduce(totals, op=torch.distributed.ReduceOp.SUM)
+        global_loss = float((totals[0] / totals[1].clamp_min(1.0)).cpu())
+    else:
+        global_loss = epoch_loss.compute()
+    return {"loss": global_loss}
 
 
 def _flow_matching_loss(
@@ -234,9 +244,17 @@ def _conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor, class_
     num_classes = _model_num_classes(model)
     if num_classes is None:
         return {}
-    if torch.rand((), device=labels.device) < class_drop_prob:
-        return {}
-    return {"label": labels.long()}
+    labels = labels.long()
+    if bool(torch.any((labels < 0) | (labels >= int(num_classes))).detach().cpu()):
+        raise ValueError(
+            f"Class labels must be contiguous in [0, {int(num_classes) - 1}] for joint PDE training"
+        )
+    if not 0.0 <= float(class_drop_prob) <= 1.0:
+        raise ValueError("class_drop_prob must be in [0, 1]")
+    if class_drop_prob > 0:
+        drop = torch.rand(labels.shape, device=labels.device) < float(class_drop_prob)
+        labels = torch.where(drop, torch.full_like(labels, int(num_classes)), labels)
+    return {"label": labels}
 
 
 def _model_num_classes(model: torch.nn.Module) -> int | None:

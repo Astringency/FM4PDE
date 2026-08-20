@@ -100,3 +100,22 @@ def test_xt_current_state_and_direct_gradients_match():
 
     assert torch.allclose(grad_current.grad_pde, grad_direct.grad_pde)
     assert torch.allclose(grad_current.grad_pde, 2.0 * x_cur)
+
+
+def test_enabled_guidance_with_disconnected_target_raises():
+    cfg = AblationConfig(
+        guidance_components="pde_only",
+        loss_state="x_next",
+        gradient_target="next_state_direct",
+        clip_mode="none",
+    )
+    connected = torch.ones(1, 1, 2, 2, requires_grad=True)
+    disconnected = torch.zeros(1, 1, 2, 2, requires_grad=True)
+    loss = connected.square().sum()
+    with pytest.raises(RuntimeError, match="not connected"):
+        compute_guidance_gradient(
+            _loss_output(loss, connected),
+            disconnected,
+            _schedule(cfg),
+            cfg,
+        )

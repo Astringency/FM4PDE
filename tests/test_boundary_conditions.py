@@ -60,6 +60,35 @@ def test_neumann_residual_defaults_closed_interval_for_static_pdes():
     assert residual[..., :, -1].mean().item() == pytest.approx(1.0)
 
 
+def test_neumann_residual_uses_spacing_for_the_differentiated_tensor_axis():
+    h, w = 4, 5
+    along_first_axis = (torch.arange(h, dtype=torch.float32) * 0.5).view(1, 1, h, 1).repeat(1, 1, 1, w)
+    along_last_axis = (torch.arange(w, dtype=torch.float32) * 0.2).view(1, 1, 1, w).repeat(1, 1, h, 1)
+    params = {"dx": torch.tensor([0.5]), "dy": torch.tensor([0.2])}
+
+    bottom_top = _neumann_residual(
+        along_first_axis,
+        0.0,
+        {"bottom": {}, "top": {}},
+        "mean",
+        pde_params=params,
+        pde="poisson",
+    )
+    left_right = _neumann_residual(
+        along_last_axis,
+        0.0,
+        {"left": {}, "right": {}},
+        "mean",
+        pde_params=params,
+        pde="poisson",
+    )
+
+    assert bottom_top[..., 0, :].mean().item() == pytest.approx(1.0)
+    assert bottom_top[..., -1, :].mean().item() == pytest.approx(1.0)
+    assert left_right[..., :, 0].mean().item() == pytest.approx(1.0)
+    assert left_right[..., :, -1].mean().item() == pytest.approx(1.0)
+
+
 def test_periodic_endpoint_false_does_not_compare_first_last():
     n = 16
     x = torch.arange(n, dtype=torch.float32) / n

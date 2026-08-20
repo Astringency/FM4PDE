@@ -7,25 +7,64 @@ from typing import Any
 
 
 def relative_l2(pred: Any, target: Any, eps: float = 1e-12) -> float:
+    values = relative_l2_per_sample(pred, target, eps=eps)
+    return sum(values) / len(values)
+
+
+def relative_l2_per_sample(pred: Any, target: Any, eps: float = 1e-12) -> list[float]:
     import torch
 
-    return float((torch.linalg.vector_norm(pred - target) / torch.linalg.vector_norm(target).clamp_min(eps)).detach().cpu())
+    diff_flat = _batch_flatten(pred - target)
+    target_flat = _batch_flatten(target)
+    values = torch.linalg.vector_norm(diff_flat, dim=1) / torch.linalg.vector_norm(target_flat, dim=1).clamp_min(eps)
+    return [float(value) for value in values.detach().cpu().tolist()]
 
 
 def obs_relative_l2(pred: Any, target: Any, mask: Any, eps: float = 1e-12) -> float:
+    values = obs_relative_l2_per_sample(pred, target, mask, eps=eps)
+    return sum(values) / len(values)
+
+
+def obs_relative_l2_per_sample(pred: Any, target: Any, mask: Any, eps: float = 1e-12) -> list[float]:
     import torch
 
     diff = (pred - target) * mask
-    denom = torch.linalg.vector_norm(target * mask).clamp_min(eps)
-    return float((torch.linalg.vector_norm(diff) / denom).detach().cpu())
+    diff_flat = _batch_flatten(diff)
+    target_flat = _batch_flatten(target * mask)
+    values = torch.linalg.vector_norm(diff_flat, dim=1) / torch.linalg.vector_norm(target_flat, dim=1).clamp_min(eps)
+    return [float(value) for value in values.detach().cpu().tolist()]
 
 
-def pde_residual_norm(residual: Any | None, eps: float = 1e-12) -> float:
+def pde_residual_norm(residual: Any | None, mask: Any | None = None, eps: float = 1e-12) -> float:
+    values = pde_residual_norm_per_sample(residual, mask=mask, eps=eps)
+    return float("nan") if not values else sum(values) / len(values)
+
+
+def pde_residual_norm_per_sample(
+    residual: Any | None,
+    mask: Any | None = None,
+    eps: float = 1e-12,
+) -> list[float]:
     import torch
 
     if residual is None:
-        return 0.0
-    return float((torch.linalg.vector_norm(residual) / max(residual.numel(), 1)).detach().cpu())
+        return []
+    residual_flat = _batch_flatten(residual)
+    if mask is None:
+        values = residual_flat.square().mean(dim=1).sqrt()
+    else:
+        expanded = torch.as_tensor(mask, dtype=residual.dtype, device=residual.device).expand_as(residual)
+        mask_flat = _batch_flatten(expanded)
+        numerator = (residual_flat.square() * mask_flat).sum(dim=1)
+        denominator = mask_flat.sum(dim=1).clamp_min(eps)
+        values = (numerator / denominator).sqrt()
+    return [float(value) for value in values.detach().cpu().tolist()]
+
+
+def _batch_flatten(value: Any) -> Any:
+    if value.ndim <= 1:
+        return value.reshape(1, -1)
+    return value.reshape(value.shape[0], -1)
 
 
 def step_metrics(
@@ -45,7 +84,19 @@ def step_metrics(
     loss_reduction = eval_losses.metadata.get("loss_reduction", {})
     obs_counts = eval_losses.metadata.get("obs_counts", {})
     component_losses = pde_meta.get("component_losses", {}) or {}
-    guidance_component_losses = guidance_pde_meta.get("component_losses", {}) or {}
+    guidance_component_losses = guidance_pde_meta.get("guidance_component_losses", {}) or {}
+    rel_l2_a_per_sample = relative_l2_per_sample(phys_state.coef, ground_truth.coef)
+    rel_l2_u_per_sample = relative_l2_per_sample(phys_state.sol, ground_truth.sol)
+    obs_rel_l2_a_per_sample = obs_relative_l2_per_sample(phys_state.coef, ground_truth.coef, masks.coef)
+    obs_rel_l2_u_per_sample = obs_relative_l2_per_sample(phys_state.sol, ground_truth.sol, masks.sol)
+    eval_pde_per_sample = pde_residual_norm_per_sample(
+        eval_losses.pde_residual, mask=getattr(eval_losses, "pde_residual_mask", None)
+    )
+    guidance_pde_per_sample = pde_residual_norm_per_sample(
+        guidance_losses.pde_residual, mask=getattr(guidance_losses, "pde_residual_mask", None)
+    )
+    component_norms = pde_meta.get("component_norms", {}) or {}
+    missing_component_value = None if not eval_pde_per_sample else 0.0
     row = {
         "step": step,
         "t": _scalar(step_output.t),
@@ -55,33 +106,56 @@ def step_metrics(
         "wall_time": wall_time,
         "L_obs_a": _scalar(eval_losses.L_obs_a),
         "L_obs_u": _scalar(eval_losses.L_obs_u),
-        "L_pde": _scalar(eval_losses.L_pde),
+        "L_pde": _optional_scalar(eval_losses.L_pde),
         "clean_L_obs_a": _scalar(eval_losses.clean_L_obs_a),
         "clean_L_obs_u": _scalar(eval_losses.clean_L_obs_u),
         "eval_L_obs_a": _scalar(eval_losses.L_obs_a),
         "eval_L_obs_u": _scalar(eval_losses.L_obs_u),
-        "eval_L_pde": _scalar(eval_losses.L_pde),
+        "eval_L_pde": _optional_scalar(eval_losses.L_pde),
         "eval_clean_L_obs_a": _scalar(eval_losses.clean_L_obs_a),
         "eval_clean_L_obs_u": _scalar(eval_losses.clean_L_obs_u),
-        "guidance_L_obs_a": _scalar(guidance_losses.L_obs_a),
-        "guidance_L_obs_u": _scalar(guidance_losses.L_obs_u),
-        "guidance_L_pde": _scalar(guidance_losses.L_pde),
+        "guidance_L_obs_a": _optional_scalar(_guidance_value(guidance_losses, "obs_a")),
+        "guidance_L_obs_u": _optional_scalar(_guidance_value(guidance_losses, "obs_u")),
+        "guidance_L_pde": _optional_scalar(_guidance_value(guidance_losses, "pde")),
         "guidance_clean_L_obs_a": _scalar(guidance_losses.clean_L_obs_a),
         "guidance_clean_L_obs_u": _scalar(guidance_losses.clean_L_obs_u),
-        "rel_l2_a": relative_l2(phys_state.coef, ground_truth.coef),
-        "rel_l2_u": relative_l2(phys_state.sol, ground_truth.sol),
-        "obs_rel_l2_a": obs_relative_l2(phys_state.coef, ground_truth.coef, masks.coef),
-        "obs_rel_l2_u": obs_relative_l2(phys_state.sol, ground_truth.sol, masks.sol),
-        "pde_residual_norm": pde_residual_norm(eval_losses.pde_residual),
-        "eval_pde_residual_norm": pde_residual_norm(eval_losses.pde_residual),
-        "guidance_pde_residual_norm": pde_residual_norm(guidance_losses.pde_residual),
+        "rel_l2_a": sum(rel_l2_a_per_sample) / len(rel_l2_a_per_sample),
+        "rel_l2_u": sum(rel_l2_u_per_sample) / len(rel_l2_u_per_sample),
+        "obs_rel_l2_a": sum(obs_rel_l2_a_per_sample) / len(obs_rel_l2_a_per_sample),
+        "obs_rel_l2_u": sum(obs_rel_l2_u_per_sample) / len(obs_rel_l2_u_per_sample),
+        "rel_l2_a_per_sample": rel_l2_a_per_sample,
+        "rel_l2_u_per_sample": rel_l2_u_per_sample,
+        "obs_rel_l2_a_per_sample": obs_rel_l2_a_per_sample,
+        "obs_rel_l2_u_per_sample": obs_rel_l2_u_per_sample,
+        "relative_l2_reduction": "mean_of_per_sample_relative_l2",
+        "pde_residual_norm": None if not eval_pde_per_sample else sum(eval_pde_per_sample) / len(eval_pde_per_sample),
+        "eval_pde_residual_norm": (
+            None if not eval_pde_per_sample else sum(eval_pde_per_sample) / len(eval_pde_per_sample)
+        ),
+        "guidance_pde_residual_norm": (
+            None
+            if not guidance_pde_per_sample
+            else sum(guidance_pde_per_sample) / len(guidance_pde_per_sample)
+        ),
+        "pde_residual_norm_per_sample": eval_pde_per_sample,
+        "guidance_pde_residual_norm_per_sample": guidance_pde_per_sample,
+        "pde_residual_norm_reduction": "mean_of_per_sample_rms",
         "pde_residual_status": eval_losses.pde_residual_status,
         "guidance_pde_residual_status": guidance_losses.pde_residual_status,
+        "pde_residual_error_type": pde_meta.get("error_type", ""),
+        "pde_residual_error_message": pde_meta.get("error_message", ""),
+        "pde_uses_ground_truth_fields": pde_meta.get("uses_ground_truth_fields", False),
+        "pde_uses_ground_truth_endpoint_fields": pde_meta.get("uses_ground_truth_endpoint_fields", False),
+        "pde_ground_truth_field_exception": pde_meta.get("ground_truth_field_exception"),
+        "pde_coef_input_source": pde_meta.get("field_input_sources", {}).get("coef", ""),
+        "pde_sol_input_source": pde_meta.get("field_input_sources", {}).get("sol", ""),
+        "pde_auxiliary_field_input_sources": pde_meta.get("auxiliary_field_input_sources", {}),
+        "pde_excluded_ground_truth_field_params": pde_meta.get("excluded_ground_truth_field_params", []),
         "pde_residual_equation": pde_meta.get("equation", ""),
-        "interior_residual_norm": pde_meta.get("component_norms", {}).get("interior", 0.0),
-        "boundary_residual_norm": pde_meta.get("component_norms", {}).get("boundary", 0.0),
-        "initial_residual_norm": pde_meta.get("component_norms", {}).get("initial", 0.0),
-        "endpoint_residual_norm": pde_meta.get("component_norms", {}).get("endpoint", 0.0),
+        "interior_residual_norm": component_norms.get("interior", missing_component_value),
+        "boundary_residual_norm": component_norms.get("boundary", missing_component_value),
+        "initial_residual_norm": component_norms.get("initial", missing_component_value),
+        "endpoint_residual_norm": component_norms.get("endpoint", missing_component_value),
         "bc_residual_status": "enabled" if pde_meta.get("bc_residual_enabled") else "disabled",
         "ic_residual_status": "enabled" if pde_meta.get("ic_residual_enabled") else "disabled",
         "boundary_condition_mode": pde_meta.get("boundary_condition_type", ""),
@@ -127,6 +201,7 @@ def step_metrics(
                 "grad_norm_pde": gradient.grad_norm_pde,
                 "grad_norm_total": gradient.grad_norm_total,
                 "gradient_target": gradient.metadata.get("gradient_target", ""),
+                "clip_scope": gradient.metadata.get("clip_scope", ""),
                 "guidance_update_scale": gradient.metadata.get("guidance_update_scale", 0.0),
                 "stochastic_guidance_time": gradient.metadata.get("stochastic_guidance_time", ""),
             }
@@ -140,6 +215,7 @@ def step_metrics(
                 "grad_norm_pde": 0.0,
                 "grad_norm_total": 0.0,
                 "gradient_target": "",
+                "clip_scope": "",
                 "guidance_update_scale": 0.0,
                 "stochastic_guidance_time": "",
             }
@@ -153,6 +229,41 @@ def final_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     last = rows[-1].copy()
     last["num_recorded_steps"] = len(rows)
     return last
+
+
+def per_sample_metrics(
+    phys_state: Any,
+    ground_truth: Any,
+    masks: Any,
+    eval_losses: Any,
+    *,
+    step: int | None = None,
+) -> list[dict[str, Any]]:
+    """Return one independent, compact evaluation row per batch sample."""
+    rel_a = relative_l2_per_sample(phys_state.coef, ground_truth.coef)
+    rel_u = relative_l2_per_sample(phys_state.sol, ground_truth.sol)
+    obs_a = obs_relative_l2_per_sample(phys_state.coef, ground_truth.coef, masks.coef)
+    obs_u = obs_relative_l2_per_sample(phys_state.sol, ground_truth.sol, masks.sol)
+    pde = pde_residual_norm_per_sample(
+        eval_losses.pde_residual,
+        mask=getattr(eval_losses, "pde_residual_mask", None),
+    )
+    sample_ids = list(ground_truth.metadata.get("sample_ids", []))
+    rows = []
+    for index in range(len(rel_a)):
+        row = {
+            "sample_index": index,
+            "sample_id": sample_ids[index] if index < len(sample_ids) else str(index),
+            "rel_l2_a": rel_a[index],
+            "rel_l2_u": rel_u[index],
+            "obs_rel_l2_a": obs_a[index],
+            "obs_rel_l2_u": obs_u[index],
+            "pde_residual_norm": pde[index] if index < len(pde) else None,
+        }
+        if step is not None:
+            row = {"step": int(step), **row}
+        rows.append(row)
+    return rows
 
 
 def append_jsonl(path: str | Path, row: dict[str, Any]) -> None:
@@ -186,3 +297,12 @@ def _scalar(value: Any) -> float:
         return float(value.detach().cpu())
     except Exception:
         return float(value)
+
+
+def _optional_scalar(value: Any) -> float | None:
+    return None if value is None else _scalar(value)
+
+
+def _guidance_value(losses: Any, component: str) -> Any:
+    value = getattr(losses, f"guidance_L_{component}", None)
+    return getattr(losses, f"L_{component}") if value is None else value

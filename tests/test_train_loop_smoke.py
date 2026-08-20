@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from training.grad_scaler import NativeScalerWithGradNormCount
-from training.train_loop import train_one_epoch, validate_one_epoch
+from training.train_loop import _conditioning_for_model, train_one_epoch, validate_one_epoch
 
 
 class TinyVelocityModel(torch.nn.Module):
@@ -119,3 +119,16 @@ def test_train_one_epoch_accepts_scalar_conditioning_batch():
     )
 
     assert "loss" in stats
+
+
+def test_class_dropout_is_applied_per_sample(monkeypatch):
+    model = TinyVelocityModel()
+    model.num_classes = 3
+    labels = torch.tensor([0, 1, 2, 0])
+    monkeypatch.setattr(
+        torch,
+        "rand",
+        lambda shape, device=None: torch.tensor([0.1, 0.9, 0.2, 0.8], device=device),
+    )
+    conditioning = _conditioning_for_model(model, labels, class_drop_prob=0.5)
+    assert conditioning["label"].tolist() == [3, 1, 3, 0]

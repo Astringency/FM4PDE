@@ -33,14 +33,24 @@ def add_observation_noise(
         )
     gen = torch.Generator(device="cpu").manual_seed(int(seed))
     eps = torch.randn(clean.shape, generator=gen, dtype=clean.dtype).to(clean.device)
-    observed = clean[mask.bool()]
-    if observed.numel() == 0:
-        scale = torch.as_tensor(0.0, dtype=clean.dtype, device=clean.device)
-    elif relative:
-        scale = observed.std(unbiased=False).clamp_min(1e-12)
+    if relative:
+        batch = int(clean.shape[0])
+        clean_flat = clean.reshape(batch, -1)
+        mask_flat = mask.reshape(batch, -1)
+        counts = mask_flat.sum(dim=1)
+        means = (clean_flat * mask_flat).sum(dim=1) / counts.clamp_min(1.0)
+        variances = (
+            ((clean_flat - means[:, None]) ** 2 * mask_flat).sum(dim=1)
+            / counts.clamp_min(1.0)
+        )
+        scale_values = variances.sqrt().clamp_min(1e-12)
+        scale_values = torch.where(counts > 0, scale_values, torch.zeros_like(scale_values))
+        scale = scale_values.view(batch, *([1] * (clean.ndim - 1)))
     else:
-        scale = torch.as_tensor(1.0, dtype=clean.dtype, device=clean.device)
+        scale_values = torch.ones(int(clean.shape[0]), dtype=clean.dtype, device=clean.device)
+        scale = scale_values.view(int(clean.shape[0]), *([1] * (clean.ndim - 1)))
     noise = noise_level * scale * eps * mask
+    scale_metadata = [float(value) for value in scale_values.detach().cpu().tolist()]
     return ObservationNoise(
         clean=clean,
         noisy=clean + noise,
@@ -49,6 +59,8 @@ def add_observation_noise(
             "noise_level": noise_level,
             "noise_seed": seed,
             "relative": relative,
-            "scale": float(scale.detach().cpu()) if hasattr(scale, "detach") else float(scale),
+            "scale": scale_metadata[0] if len(scale_metadata) == 1 else scale_metadata,
+            "scale_per_sample": scale_metadata,
+            "scale_reduction": "per_sample_observed_std",
         },
     )

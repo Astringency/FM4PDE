@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from data.specs import TEMPORAL_ENDPOINT_PDES
+
 
 VALID_PDES = {
     "darcy",
@@ -46,7 +48,17 @@ VALID_GUIDANCE_SCHEDULES = {
     "obs_decay",
 }
 VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm", "per_sample_norm"}
-VALID_PDE_REGIONS = {"full", "observed", "boundary_excluded", "union_obs"}
+VALID_PDE_REGIONS = {
+    "full",
+    "boundary_excluded",
+    "coef_obs",
+    "sol_obs",
+    "active_obs_union",
+    # Deprecated aliases retained for config compatibility. Both resolve to
+    # the task-aware active observation union in sampling.masks.
+    "observed",
+    "union_obs",
+}
 VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
@@ -64,11 +76,18 @@ VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy", "legacy_base"}
 VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "legacy_ignore", "wall", "open"}
 VALID_INITIAL_CONDITION_MODES = {"auto", "endpoint_initial", "observed_initial", "trajectory_initial", "none", "legacy_ignore"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
+VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
 _TYPE_SUFFIX = "type"
 DEPRECATED_LOSS_CONFIG_FIELDS = {f"loss_{_TYPE_SUFFIX}", f"obs_loss_{_TYPE_SUFFIX}", f"pde_loss_{_TYPE_SUFFIX}"}
 DEPRECATED_LOSS_CONFIG_MESSAGE = (
     "loss reducers are no longer configurable; observation loss is masked MSE and PDE loss is component-wise MSE."
 )
+REMOVED_NEAR_ENDPOINT_CONFIG_FIELDS = {
+    "num_near_endpoint_obs",
+    "near_endpoint_sensor_mode",
+    "near_endpoint_mask_seed",
+    "near_endpoint_shared_mask",
+}
 
 
 _LOCAL_CHECKPOINTS = {
@@ -106,6 +125,7 @@ class AblationConfig:
     pde_residual_region: str = "full"
 
     num_obs: int = 500
+    num_sensor_columns: int | None = None
     sensor_mode: str = "random"
     shared_mask: bool = False
     mask_seed: int = 0
@@ -124,6 +144,7 @@ class AblationConfig:
     dtype: str = "float32"
     save_intermediate: bool = False
     save_plots: bool = False
+    save_per_sample_curves: bool = False
     dry_run: bool = False
 
     zeta_obs_a: float = 1.0
@@ -131,6 +152,7 @@ class AblationConfig:
     zeta_pde: float = 1.0
     stochastic_guidance_coeff: float = 0.1
     stochastic_guidance_time: str = "t"
+    cfg_scale: float = 1.0
     obs_decay: float = 1.0
     obs_decay_start_ratio: float = 1.0
     polynomial_power: float = 2.0
@@ -146,16 +168,13 @@ class AblationConfig:
     ic_weight: float = 1.0
     endpoint_bc_weight: float = 1.0
     boundary_residual_normalization: str = "sqrt_grid_over_mask"
+    ns_operator_mode: str = "generator_dealiased"
     allow_unknown_boundary_conditions: bool = False
     legacy_ignore_boundary: bool = False
     hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
     hermite_num_collocation: int = 0
     hermite_include_integral_residual: bool = True
     hermite_integral_weight: float = 1.0
-    num_near_endpoint_obs: int = 0
-    near_endpoint_sensor_mode: str = "random"
-    near_endpoint_mask_seed: int = 0
-    near_endpoint_shared_mask: bool = True
     data_path: str = ""
     offset: int = 0
     img_channels: int = 2
@@ -175,6 +194,13 @@ class AblationConfig:
         if deprecated:
             fields = ", ".join(sorted(deprecated))
             raise ValueError(f"{fields}: {DEPRECATED_LOSS_CONFIG_MESSAGE}")
+        removed_near = REMOVED_NEAR_ENDPOINT_CONFIG_FIELDS.intersection(self.extra)
+        if removed_near:
+            fields = ", ".join(sorted(removed_near))
+            raise ValueError(
+                f"{fields} have been removed. near_endpoint_temporal now reuses the main endpoint "
+                "sensor mask; configure num_obs/sensor_mode or num_sensor_columns instead."
+            )
         checks = [
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),
@@ -191,7 +217,7 @@ class AblationConfig:
             ("stochastic_guidance_time", self.stochastic_guidance_time, VALID_STOCHASTIC_GUIDANCE_TIMES),
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
             ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
-            ("near_endpoint_sensor_mode", self.near_endpoint_sensor_mode, VALID_SENSOR_MODES),
+            ("ns_operator_mode", self.ns_operator_mode, VALID_NS_OPERATOR_MODES),
             ("boundary_condition_mode", self.boundary_condition_mode, VALID_BOUNDARY_CONDITION_MODES),
             ("initial_condition_mode", self.initial_condition_mode, VALID_INITIAL_CONDITION_MODES),
             ("boundary_residual_normalization", self.boundary_residual_normalization, VALID_BOUNDARY_RESIDUAL_NORMALIZATION),
@@ -207,10 +233,48 @@ class AblationConfig:
             raise ValueError("batch_size must be positive")
         if self.num_obs < 0:
             raise ValueError("num_obs must be non-negative")
-        if self.num_near_endpoint_obs < 0:
-            raise ValueError("num_near_endpoint_obs must be non-negative")
-        if self.residual_mode == "near_endpoint_temporal" and self.num_near_endpoint_obs <= 0:
-            raise ValueError("residual_mode='near_endpoint_temporal' requires num_near_endpoint_obs > 0")
+        if self.sensor_mode == "sensor_column":
+            if self.num_sensor_columns is None or int(self.num_sensor_columns) <= 0:
+                raise ValueError(
+                    "sensor_mode='sensor_column' requires an explicit positive num_sensor_columns"
+                )
+        elif self.num_sensor_columns is not None and int(self.num_sensor_columns) <= 0:
+            raise ValueError("num_sensor_columns must be positive when specified")
+        if self.residual_mode == "near_endpoint_temporal":
+            has_observations = (
+                self.num_sensor_columns is not None and int(self.num_sensor_columns) > 0
+                if self.sensor_mode == "sensor_column"
+                else self.num_obs > 0
+            )
+            if not has_observations:
+                raise ValueError(
+                    "residual_mode='near_endpoint_temporal' requires a positive main endpoint sensor budget"
+                )
+        if self.residual_mode == "near_endpoint_temporal" and self.pde not in TEMPORAL_ENDPOINT_PDES:
+            raise ValueError(
+                f"residual_mode={self.residual_mode!r} is only supported for temporal endpoint PDEs "
+                f"{sorted(TEMPORAL_ENDPOINT_PDES)}; got pde={self.pde!r}"
+            )
+        if self.pde != "burger" and self.residual_mode in {"full_trajectory_fd", "full_time_space"}:
+            raise ValueError(
+                f"residual_mode={self.residual_mode!r} requires a model-predicted full time-space field, "
+                "but the current FM4PDE model outputs only a/u endpoint fields. "
+                "Only Burgers outputs a full predicted time-space field."
+            )
+        if self.pde == "burger" and self.residual_mode in {
+            "hermite_bridge",
+            "endpoint_secant",
+        }:
+            raise ValueError(
+                f"residual_mode={self.residual_mode!r} is an endpoint approximation, but Burgers already "
+                "outputs the full predicted time-space field. Use auto, full_trajectory_fd, or full_time_space."
+            )
+        if self.initial_condition_mode in {"observed_initial", "trajectory_initial", "endpoint_initial"}:
+            raise ValueError(
+                f"initial_condition_mode={self.initial_condition_mode!r} would mix an observed/ground-truth field "
+                "into PDE loss. Use observation guidance for measured initial values; sampling PDE loss is "
+                "computed from model outputs only."
+            )
         if self.hermite_num_collocation < 0:
             raise ValueError("hermite_num_collocation must be non-negative")
         if self.hermite_integral_weight < 0:
@@ -222,6 +286,20 @@ class AblationConfig:
                 raise ValueError("hermite_collocation_times values must lie inside (0, 1)")
         if self.clip_threshold <= 0 and self.clip_mode != "none":
             raise ValueError("clip_threshold must be positive when clipping is enabled")
+        if self.cfg_scale < 0:
+            raise ValueError("cfg_scale must be non-negative")
+        if self.gradient_target == "next_state_direct" and self.loss_state != "x_next":
+            raise ValueError(
+                "gradient_target='next_state_direct' is only connected when loss_state='x_next'"
+            )
+        if self.pde_residual_region == "coef_obs" and self.task not in {"forward", "both"}:
+            raise ValueError(f"pde_residual_region='coef_obs' is inactive for task={self.task!r}")
+        if self.pde_residual_region == "sol_obs" and self.task not in {"inverse", "both"}:
+            raise ValueError(f"pde_residual_region='sol_obs' is inactive for task={self.task!r}")
+        if self.pde_residual_region in {"active_obs_union", "observed", "union_obs"} and self.task == "unconditional":
+            raise ValueError(
+                f"pde_residual_region={self.pde_residual_region!r} is undefined for task='unconditional'"
+            )
         validate_task_guidance(self.task, self.guidance_components)
 
     def resolved_ablation_name(self) -> str:
@@ -233,7 +311,7 @@ class AblationConfig:
         return (
             f"{self.guidance_components}_{self.loss_state}_{phase}_"
             f"{self.guidance_schedule}_{self.clip_mode}{self.clip_threshold:g}_"
-            f"{self.sensor_mode}{self.num_obs}_noise{self.noise_level:g}_"
+            f"{self.sensor_mode}{self._sensor_budget()}_noise{self.noise_level:g}_"
             f"{self.time_grid}{self.num_steps}_{self.step_method}_"
             f"{self._short_residual_fragment()}_{self._short_bc_ic_fragment()}"
         )
@@ -248,10 +326,7 @@ class AblationConfig:
             "disabled": "res-off",
         }
         if self.residual_mode == "near_endpoint_temporal":
-            return (
-                f"res-near{self.num_near_endpoint_obs}_"
-                f"{self.near_endpoint_sensor_mode}_shared{int(bool(self.near_endpoint_shared_mask))}"
-            )
+            return f"res-near-aligned-{self.sensor_mode}{self._sensor_budget()}"
         base = mode_map.get(self.residual_mode, f"res-{self.residual_mode}")
         if self.residual_mode in {"auto", "hermite_bridge"}:
             k = self.hermite_num_collocation if self.hermite_num_collocation > 0 else len(self.hermite_collocation_times)
@@ -264,6 +339,11 @@ class AblationConfig:
             else:
                 base = f"{base}-int0"
         return base
+
+    def _sensor_budget(self) -> int:
+        if self.sensor_mode == "sensor_column":
+            return int(self.num_sensor_columns or 0)
+        return int(self.num_obs)
 
     def _short_bc_ic_fragment(self) -> str:
         return (

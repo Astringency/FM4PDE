@@ -41,6 +41,7 @@ from models.model_configs import (
     model_config_metadata_from_config,
 )
 from train_arg_parser import get_args_parser
+from sampling.losses import prediction_only_pde_params
 from sampling.metrics import pde_residual_norm
 from sampling.pde_residuals import compute_pde_residual
 from sampling.state import split_pair_state
@@ -52,6 +53,22 @@ from training.train_loop import train_one_epoch, validate_one_epoch
 logger = logging.getLogger(__name__)
 
 DEFAULT_VAL_RATIO = 0.1
+
+
+class DistributedEvalSampler(torch.utils.data.Sampler):
+    """Shard validation indices across ranks without padding or duplication."""
+
+    def __init__(self, dataset, num_replicas: int, rank: int):
+        self.dataset = dataset
+        self.num_replicas = int(num_replicas)
+        self.rank = int(rank)
+
+    def __iter__(self):
+        return iter(range(self.rank, len(self.dataset), self.num_replicas))
+
+    def __len__(self):
+        remaining = len(self.dataset) - self.rank
+        return 0 if remaining <= 0 else (remaining + self.num_replicas - 1) // self.num_replicas
 
 
 def _resolve_lr_scheduler_name(args) -> str:
@@ -332,8 +349,8 @@ def main(args):
     )
     data_loader_val = torch.utils.data.DataLoader(
         dataset_val,
+        sampler=DistributedEvalSampler(dataset_val, num_replicas=num_tasks, rank=global_rank),
         batch_size=args.batch_size,
-        shuffle=False,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=False,
@@ -522,6 +539,13 @@ def _resolve_training_model_config(
     checkpoint_model_config = resume_arch_meta.get("checkpoint_model_config")
     if checkpoint_model_config and not resume_arch_meta.get("override", False):
         model_config = deepcopy(dict(checkpoint_model_config))
+        _validate_or_apply_joint_conditioning(
+            model_config,
+            pde_names,
+            checkpoint_metadata=resume_arch_meta.get("checkpoint_model_config_metadata"),
+            checkpoint_path=resume_arch_meta.get("checkpoint_path"),
+            is_resume=True,
+        )
         _validate_checkpoint_model_config_channels(
             model_config,
             num_channels=num_channels,
@@ -550,6 +574,13 @@ def _resolve_training_model_config(
         in_channels=num_channels,
         out_channels=num_channels,
     )
+    _validate_or_apply_joint_conditioning(
+        model_config,
+        pde_names,
+        checkpoint_metadata=None,
+        checkpoint_path=None,
+        is_resume=False,
+    )
     _apply_scalar_conditioning_to_model_config(model_config, requested_scalar_params)
     model_config_metadata = model_config_metadata_from_config(model_config)
     model_config_metadata["model_arch"] = model_arch
@@ -576,6 +607,37 @@ def _validate_checkpoint_model_config_channels(
             f"checkpoint_model_config {', '.join(mismatches)}; "
             f"current_training_num_channels={num_channels}."
         )
+
+
+def _validate_or_apply_joint_conditioning(
+    model_config: dict[str, Any],
+    pde_names: list[str],
+    *,
+    checkpoint_metadata: Any,
+    checkpoint_path: str | None,
+    is_resume: bool,
+) -> None:
+    if len(pde_names) <= 1:
+        return
+    expected_mapping = {name: index for index, name in enumerate(pde_names)}
+    if is_resume:
+        metadata = checkpoint_metadata if isinstance(checkpoint_metadata, dict) else {}
+        saved_mapping = metadata.get("pde_label_mapping")
+        if not isinstance(saved_mapping, dict) or model_config.get("num_classes") is None:
+            raise ValueError(
+                "Old joint checkpoint lacks the required contiguous PDE label mapping/category layer; "
+                f"checkpoint_path={checkpoint_path}. Retrain the joint model."
+            )
+        normalized_mapping = {str(name): int(index) for name, index in saved_mapping.items()}
+        if normalized_mapping != expected_mapping:
+            raise ValueError(
+                "Joint checkpoint PDE label mapping does not match this dataset order; "
+                f"checkpoint={normalized_mapping}, requested={expected_mapping}"
+            )
+        if int(model_config["num_classes"]) != len(expected_mapping):
+            raise ValueError("Joint checkpoint num_classes does not match its PDE label mapping")
+    else:
+        model_config["num_classes"] = len(expected_mapping)
 
 
 def _normalize_scalar_conditioning_params(params: Any) -> tuple[str, ...]:
@@ -729,6 +791,9 @@ def _build_data_metadata(
     return {
         "dataset": args.dataset,
         "pde_names": list(pde_names),
+        "pde_label_mapping": {
+            pde_name: index for index, pde_name in enumerate(pde_names)
+        },
         "pde_data_specs": specs,
         "data_path": args.data_path,
         "data_size": args.data_size,
@@ -807,6 +872,10 @@ def _add_joint_model_metadata(metadata: dict[str, Any], pde_names: list[str]) ->
     if len(pde_names) > 1:
         metadata["model_arch_source"] = "first_pde_in_joint_dataset"
         metadata["joint_pde_names"] = list(pde_names)
+        metadata["pde_label_mapping"] = {
+            pde_name: index for index, pde_name in enumerate(pde_names)
+        }
+        metadata["null_pde_label"] = len(pde_names)
         metadata["joint_architecture_limitation"] = (
             "joint training uses the first PDE architecture because current joint datasets "
             "require identical channel counts and a single UNet instance"
@@ -856,6 +925,7 @@ def _load_training_data(
     label_list = []
     channel_counts = {}
     metadata: dict[str, Any] = {}
+    pde_label_mapping = {pde_name: index for index, pde_name in enumerate(pde_names)}
 
     for pde_name in pde_names:
         logger.info(f">>> Initializing Dataset: {pde_name} <<<")
@@ -868,8 +938,15 @@ def _load_training_data(
             raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
         channel_counts[pde_name] = int(dataset.shape[1])
         dataset_list.append(dataset)
-        label_list.append(label.long())
+        label_list.append(
+            torch.full(
+                (int(dataset.shape[0]),),
+                int(pde_label_mapping[pde_name]),
+                dtype=torch.long,
+            )
+        )
         loader_meta = pde_loader.metadata()
+        _assert_unique_sample_identity(loader_meta, pde_name)
         if pde_loader.pde_params or loader_meta.get("extra_metadata"):
             metadata[pde_name] = loader_meta
 
@@ -909,6 +986,7 @@ def _load_training_and_validation_data(
     split_metadata: dict[str, Any] = {"val_ratio": DEFAULT_VAL_RATIO, "per_pde": {}}
     train_channel_counts = {}
     val_channel_counts = {}
+    pde_label_mapping = {pde_name: index for index, pde_name in enumerate(pde_names)}
 
     for pde_name in pde_names:
         logger.info(f">>> Initializing Dataset: {pde_name} <<<")
@@ -920,32 +998,21 @@ def _load_training_and_validation_data(
         if dataset.ndim != 4:
             raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
         loader_meta = pde_loader.metadata()
+        _assert_unique_sample_identity(loader_meta, pde_name)
 
-        val_loaded = _try_load_validation_data(
-            pde_name,
-            data_path,
-            data_size=data_size,
-            max_train_samples=max_train_samples,
+        train_idx, val_idx = _train_val_split_indices(
+            int(dataset.shape[0]),
+            seed=seed + int(get_pde_spec(pde_name).label_id) * 1009,
+            val_ratio=DEFAULT_VAL_RATIO,
         )
-        if val_loaded is None:
-            train_idx, val_idx = _train_val_split_indices(
-                int(dataset.shape[0]),
-                seed=seed + int(get_pde_spec(pde_name).label_id) * 1009,
-                val_ratio=DEFAULT_VAL_RATIO,
-            )
-            train_dataset = dataset[train_idx].contiguous()
-            train_label = label[train_idx].long().contiguous()
-            val_dataset = dataset[val_idx].contiguous()
-            val_label = label[val_idx].long().contiguous()
-            pde_train_meta = _slice_loader_metadata(loader_meta, train_idx)
-            pde_val_meta = _slice_loader_metadata(loader_meta, val_idx)
-            split_source = "fallback_random_9_1_split"
-        else:
-            val_dataset, val_label, pde_val_meta = val_loaded
-            train_dataset = dataset
-            train_label = label.long()
-            pde_train_meta = loader_meta
-            split_source = "validation_files"
+        train_dataset = dataset[train_idx].contiguous()
+        val_dataset = dataset[val_idx].contiguous()
+        local_label = int(pde_label_mapping[pde_name])
+        train_label = torch.full((len(train_idx),), local_label, dtype=torch.long)
+        val_label = torch.full((len(val_idx),), local_label, dtype=torch.long)
+        pde_train_meta = _slice_loader_metadata(loader_meta, train_idx)
+        pde_val_meta = _slice_loader_metadata(loader_meta, val_idx)
+        split_source = "deterministic_disjoint_9_1_from_train_data"
 
         train_channel_counts[pde_name] = int(train_dataset.shape[1])
         val_channel_counts[pde_name] = int(val_dataset.shape[1])
@@ -981,6 +1048,7 @@ def _load_training_and_validation_data(
     validation_label = torch.cat(val_label_parts, dim=0).to(torch.long)
     split_metadata["train_samples"] = int(train_data.shape[0])
     split_metadata["validation_samples"] = int(validation_data.shape[0])
+    split_metadata["pde_label_mapping"] = pde_label_mapping
     return (
         train_data,
         train_label,
@@ -992,41 +1060,6 @@ def _load_training_and_validation_data(
     )
 
 
-def _try_load_validation_data(
-    pde_name: str,
-    data_path: str,
-    data_size: int,
-    max_train_samples: int | None,
-) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]] | None:
-    if get_pde_spec(pde_name).default_loadby != "pair_h5":
-        return None
-    if not _find_validation_h5_files(pde_name, data_path):
-        return None
-    val_loader = PDEloader(pde_name)
-    dataset, label = val_loader.load_data(
-        data_path,
-        size=data_size,
-        split="val",
-        max_samples=max_train_samples,
-    )
-    logger.info(f"Loaded validation files for {pde_name}: shape={tuple(dataset.shape)}")
-    return dataset, label.long(), val_loader.metadata()
-
-
-def _find_validation_h5_files(pde_name: str, data_path: str) -> list[Path]:
-    path = Path(data_path).expanduser()
-    if path.is_file():
-        return []
-    candidates = []
-    for candidate in (path / pde_name, path):
-        if candidate.exists() and candidate not in candidates:
-            candidates.append(candidate)
-    files: list[Path] = []
-    for candidate in candidates:
-        files.extend(sorted(candidate.glob(f"{pde_name}_val_*.h5")))
-    return files
-
-
 def _train_val_split_indices(
     num_samples: int,
     seed: int,
@@ -1035,13 +1068,10 @@ def _train_val_split_indices(
     if num_samples < 1:
         raise ValueError("Cannot split an empty dataset")
     if num_samples == 1:
-        warnings.warn(
-            "Only one sample was loaded; reusing it for validation because a distinct 9:1 split is impossible.",
-            RuntimeWarning,
-            stacklevel=2,
+        raise ValueError(
+            "Cannot create disjoint training and validation sets from one sample; "
+            "provide at least two distinct samples"
         )
-        index = torch.tensor([0], dtype=torch.long)
-        return index, index
     val_count = max(1, int(round(float(num_samples) * float(val_ratio))))
     val_count = min(val_count, num_samples - 1)
     generator = torch.Generator(device="cpu").manual_seed(int(seed))
@@ -1049,6 +1079,20 @@ def _train_val_split_indices(
     val_idx = permutation[:val_count].sort().values
     train_idx = permutation[val_count:].sort().values
     return train_idx, val_idx
+
+
+def _assert_unique_sample_identity(metadata: dict[str, Any], pde_name: str) -> None:
+    extra = metadata.get("extra_metadata", {}) if isinstance(metadata, dict) else {}
+    if not isinstance(extra, dict):
+        return
+    for name in ("sample_id", "sample_seed"):
+        values = extra.get(name)
+        if values is None:
+            continue
+        flattened = list(values) if isinstance(values, (list, tuple)) else list(np.asarray(values).reshape(-1))
+        normalized = [str(value) if name == "sample_id" else int(value) for value in flattened]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError(f"Duplicate {name} values detected in {pde_name} training data")
 
 
 def _slice_loader_metadata(metadata: dict[str, Any], indices: torch.Tensor) -> dict[str, Any]:
@@ -1121,6 +1165,27 @@ def _run_periodic_flow_eval(
         device=device,
         dtype=dtype,
     )
+    eval_residual_mode = str(getattr(args, "eval_residual_mode", "auto"))
+    if eval_residual_mode == "near_endpoint_temporal":
+        raise ValueError(
+            "Periodic training evaluation is unconditional and therefore cannot use "
+            "near_endpoint_temporal sparse observations. Use formal sampling evaluation instead."
+        )
+    pde_params, excluded_ground_truth_field_params = prediction_only_pde_params(
+        pde_params,
+        allow_sparse_near_endpoint=False,
+    )
+    uses_sparse_near_endpoint_exception = False
+    if pde_name != "burger" and eval_residual_mode in {"full_trajectory_fd", "full_time_space"}:
+        raise ValueError(
+            f"Periodic generated-sample evaluation for {pde_name!r} cannot use {eval_residual_mode!r}: "
+            "the model outputs only a/u endpoints. Only Burgers outputs a full predicted time-space field."
+        )
+    if pde_name == "burger" and eval_residual_mode in {"hermite_bridge", "endpoint_secant"}:
+        raise ValueError(
+            f"Periodic Burgers evaluation cannot use endpoint mode {eval_residual_mode!r}; "
+            "evaluate the full model-predicted time-space field instead."
+        )
     model_extra = None
     scalar_meta = scalar_conditioning_metadata or _scalar_conditioning_metadata_disabled()
     if bool(scalar_meta.get("enabled", False)):
@@ -1146,6 +1211,7 @@ def _run_periodic_flow_eval(
         dtype=dtype,
         seed=int(args.seed) + 1_000_003 + eval_epoch,
         model_extra=model_extra,
+        cfg_scale=float(getattr(args, "cfg_scale", 1.0)),
     )
     sample_physical = normalizer.inverse_transform(sample_standardized)
     split = split_pair_state(sample_physical, pde_name)
@@ -1154,7 +1220,7 @@ def _run_periodic_flow_eval(
         split.coef,
         split.sol,
         pde_params=pde_params,
-        residual_mode=getattr(args, "eval_residual_mode", "auto"),
+        residual_mode=eval_residual_mode,
     )
     residual_norm = pde_residual_norm(residual.residual)
 
@@ -1181,7 +1247,24 @@ def _run_periodic_flow_eval(
         "eval_num_samples": batch_size,
         "eval_pde_residual_norm": residual_norm,
         "eval_pde_residual_status": residual.status,
-        "eval_pde_residual_mode": residual.metadata.get("resolved_residual_mode", getattr(args, "eval_residual_mode", "auto")),
+        "eval_pde_residual_mode": residual.metadata.get("resolved_residual_mode", eval_residual_mode),
+        "eval_pde_field_input_sources": {"coef": "model_output", "sol": "model_output"},
+        "eval_pde_uses_ground_truth_fields": uses_sparse_near_endpoint_exception,
+        "eval_pde_uses_ground_truth_endpoint_fields": False,
+        "eval_pde_ground_truth_field_exception": (
+            "near_endpoint_temporal_sparse_observations"
+            if uses_sparse_near_endpoint_exception
+            else None
+        ),
+        "eval_pde_auxiliary_field_input_sources": (
+            {
+                "q_dt": "sparse_ground_truth_observations",
+                "q_T_minus_dt": "sparse_ground_truth_observations",
+            }
+            if uses_sparse_near_endpoint_exception
+            else {}
+        ),
+        "eval_pde_excluded_ground_truth_field_params": excluded_ground_truth_field_params,
         "eval_figure_path": str(figure_path),
     }
 
@@ -1198,6 +1281,7 @@ def _euler_flow_sample(
     dtype: torch.dtype,
     seed: int,
     model_extra: dict[str, Any] | None = None,
+    cfg_scale: float = 1.0,
 ) -> torch.Tensor:
     was_training = model.training
     model.eval()
@@ -1213,12 +1297,9 @@ def _euler_flow_sample(
             dtype=dtype,
             generator=generator,
         )
-        label = torch.full(
-            (batch_size,),
-            int(get_pde_spec(pde_name).label_id),
-            device=device,
-            dtype=torch.long,
-        )
+        # Periodic evaluation samples pde_names[0], whose checkpoint-local
+        # category is always zero. Single-PDE models ignore this tensor.
+        label = torch.zeros((batch_size,), device=device, dtype=torch.long)
         extra = _eval_conditioning_for_model(model, label)
         if model_extra:
             extra = {**extra, **model_extra}
@@ -1226,7 +1307,7 @@ def _euler_flow_sample(
         for step in range(num_steps):
             t = torch.full((batch_size,), float(grid[step].item()), device=device, dtype=dtype)
             step_size = grid[step + 1] - grid[step]
-            velocity = model(x, t, extra=extra)
+            velocity = _cfg_eval_velocity(model, x, t, extra, cfg_scale)
             if velocity.shape != x.shape:
                 raise ValueError(f"Eval model output shape {tuple(velocity.shape)} does not match sample shape {tuple(x.shape)}")
             x = x + step_size * velocity
@@ -1244,6 +1325,33 @@ def _eval_conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor) -
     return {"label": labels.long()}
 
 
+def _cfg_eval_velocity(
+    model: torch.nn.Module,
+    x: torch.Tensor,
+    t: torch.Tensor,
+    extra: dict[str, torch.Tensor],
+    cfg_scale: float,
+) -> torch.Tensor:
+    module = getattr(model, "module", model)
+    if hasattr(module, "model") and hasattr(module.model, "num_classes"):
+        module = module.model
+    num_classes = getattr(module, "num_classes", None)
+    if num_classes is None:
+        return model(x, t, extra=extra)
+    if "label" not in extra:
+        raise ValueError("Class-conditional periodic evaluation requires a PDE label")
+    scale = float(cfg_scale)
+    conditional = model(x, t, extra=extra) if scale != 0.0 else None
+    if scale == 1.0:
+        return conditional
+    unconditional_extra = dict(extra)
+    unconditional_extra["label"] = torch.full_like(extra["label"], int(num_classes))
+    unconditional = model(x, t, extra=unconditional_extra)
+    if scale == 0.0:
+        return unconditional
+    return unconditional + scale * (conditional - unconditional)
+
+
 def _pde_params_for_eval(
     loader_metadata: dict[str, Any],
     pde_name: str,
@@ -1257,23 +1365,43 @@ def _pde_params_for_eval(
         return {}
     out: dict[str, Any] = {}
     for name, value in params.items():
-        try:
-            tensor = torch.as_tensor(value, device=device)
-        except (TypeError, ValueError):
-            out[name] = value
+        if name == "near_endpoint_temporal" and isinstance(value, dict):
+            out[name] = {
+                child_name: (
+                    child_value
+                    if child_name == "metadata"
+                    else _eval_batch_param_value(child_value, batch_size, device, dtype)
+                )
+                for child_name, child_value in value.items()
+            }
             continue
-        if torch.is_floating_point(tensor):
-            tensor = tensor.to(dtype=dtype)
-        if tensor.ndim == 0:
-            tensor = tensor.repeat(batch_size)
-        elif int(tensor.shape[0]) >= batch_size:
-            tensor = tensor[:batch_size]
-        elif int(tensor.shape[0]) == 1:
-            tensor = tensor.repeat(batch_size, *([1] * (tensor.ndim - 1)))
-        else:
-            continue
-        out[name] = tensor
+        selected = _eval_batch_param_value(value, batch_size, device, dtype)
+        if selected is not None:
+            out[name] = selected
     return out
+
+
+def _eval_batch_param_value(
+    value: Any,
+    batch_size: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Any | None:
+    try:
+        tensor = torch.as_tensor(value, device=device)
+    except (TypeError, ValueError):
+        return value
+    if torch.is_floating_point(tensor):
+        tensor = tensor.to(dtype=dtype)
+    if tensor.ndim == 0:
+        tensor = tensor.repeat(batch_size)
+    elif int(tensor.shape[0]) >= batch_size:
+        tensor = tensor[:batch_size]
+    elif int(tensor.shape[0]) == 1:
+        tensor = tensor.repeat(batch_size, *([1] * (tensor.ndim - 1)))
+    else:
+        return None
+    return tensor
 
 
 def _save_eval_figure(

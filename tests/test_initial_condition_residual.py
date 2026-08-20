@@ -83,7 +83,7 @@ def test_inverse_does_not_inject_initial_observation():
     masks = PairMasks(torch.ones_like(coef), torch.ones_like(sol), {})
     out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol, {"alpha": 1e-3}), masks, cfg)
     assert out.metadata["pde"]["ic_residual_enabled"] is False
-    assert out.metadata["pde"]["initial_condition_source"] == "not_available"
+    assert out.metadata["pde"]["initial_condition_source"] == "config"
 
 
 def test_pde_only_does_not_inject_initial_observation():
@@ -100,7 +100,7 @@ def test_pde_only_does_not_inject_initial_observation():
     masks = PairMasks(torch.ones_like(coef), torch.ones_like(sol), {})
     out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol, {"alpha": 1e-3}), masks, cfg)
     assert out.metadata["pde"]["ic_residual_enabled"] is False
-    assert out.metadata["pde"]["initial_condition_source"] == "not_available"
+    assert out.metadata["pde"]["initial_condition_source"] == "config"
 
 
 def test_full_trajectory_ground_truth_cannot_be_used_as_endpoint_guidance():
@@ -123,7 +123,7 @@ def test_full_trajectory_ground_truth_cannot_be_used_as_endpoint_guidance():
         },
     )
     masks = PairMasks(torch.zeros_like(coef), torch.zeros_like(sol), {})
-    with pytest.raises(ValueError, match="evaluation-only"):
+    with pytest.raises(ValueError, match="must not be mixed into PDE loss"):
         compute_guidance_losses(SplitState(coef, sol), gt, masks, cfg)
 
 
@@ -139,5 +139,5 @@ def test_observed_initial_mode_requires_obs_a():
         boundary_condition_mode="periodic",
     )
     masks = PairMasks(torch.ones_like(coef), torch.ones_like(sol), {})
-    with pytest.raises(ValueError, match="requires coefficient/initial observations"):
+    with pytest.raises(ValueError, match="not allowed in sampling PDE loss"):
         compute_guidance_losses(SplitState(coef, sol), GT(coef, sol), masks, cfg)

@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from sampling.config import AblationConfig, load_config, normalize_residual_mode, parse_cli_overrides
-from sampling.data import finalize_ground_truth_config, load_ground_truth
+from sampling.data import attach_near_endpoint_observations, finalize_ground_truth_config, load_ground_truth
 from sampling.guidance import apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
 from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
 
 from sampling.logging import make_run_dir, save_torch, write_run_metadata
 from sampling.losses import ObservationTargets, compute_guidance_losses, guidance_component_flags
 from sampling.masks import make_pair_masks
-from sampling.metrics import append_jsonl, final_metrics, step_metrics, write_csv, write_json
+from sampling.metrics import append_jsonl, final_metrics, per_sample_metrics, step_metrics, write_csv, write_json
 from sampling.model_io import load_fm4pde_checkpoint_bundle
 from sampling.noise import add_observation_noise
 from sampling.pde_residuals import residual_status
@@ -49,8 +49,6 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     config.device = str(device)
     gt = load_ground_truth(config)
     config.img_channels = int(gt.pair.shape[1])
-    run_dir = make_run_dir(config)
-    write_run_metadata(config, run_dir, ground_truth_metadata=gt.metadata, residual_metadata=_residual_metadata_for_config(config))
     masks = make_pair_masks(
         gt.coef.shape,
         gt.sol.shape,
@@ -60,7 +58,11 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         config.mask_seed,
         device=device,
         dtype=gt.coef.dtype,
+        num_sensor_columns=config.num_sensor_columns,
     )
+    gt = attach_near_endpoint_observations(config, gt, masks)
+    run_dir = make_run_dir(config)
+    write_run_metadata(config, run_dir, ground_truth_metadata=gt.metadata, residual_metadata=_residual_metadata_for_config(config))
     noise_a = add_observation_noise(
         gt.coef,
         masks.coef,
@@ -94,12 +96,22 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             model_profile=config.model_profile,
         )
     checkpoint_metadata = _checkpoint_metadata(checkpoint_payload)
-    model_extra, scalar_conditioning_metadata = _scalar_conditioning_for_sampling(
+    scalar_extra, scalar_conditioning_metadata = _scalar_conditioning_for_sampling(
         checkpoint_payload=checkpoint_payload,
         gt=gt,
         config=config,
         device=device,
     )
+    class_extra, class_conditioning_metadata = _class_conditioning_for_sampling(
+        checkpoint_payload=checkpoint_payload,
+        pde=config.pde,
+        batch_size=config.batch_size,
+        device=device,
+        cfg_scale=config.cfg_scale,
+    )
+    combined_extra = {**class_extra, **(scalar_extra or {})}
+    model_extra = combined_extra or None
+    checkpoint_metadata["class_conditioning"] = class_conditioning_metadata
     write_run_metadata(
         config,
         run_dir,
@@ -124,6 +136,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     saved_guidance_components = config.guidance_components
 
     rows: list[dict[str, Any]] = []
+    per_sample_curve_rows: list[dict[str, Any]] = []
     intermediates = []
     start = time.time()
     with Progress(
@@ -201,6 +214,19 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                     "bt": _scalar(schedule.bt),
                 }
             )
+            if config.save_per_sample_curves:
+                per_sample_curve_rows.extend(
+                    per_sample_metrics(
+                        phys_eval,
+                        gt,
+                        masks,
+                        eval_losses,
+                        step=step,
+                    )
+                )
+            # Standard step artifacts contain batch means only. This keeps
+            # metrics_final.json and curves.csv compact for large batches.
+            row = {key: value for key, value in row.items() if not key.endswith("_per_sample")}
             rows.append(row)
             append_jsonl(run_dir / "metrics_step.jsonl", row)
             progress.update(
@@ -208,7 +234,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                 advance=1,
                 rel_u=f"{row["rel_l2_u"]:.4g}",
                 rel_a=f"{row["rel_l2_a"]:.4g}",
-                pde_loss=f"{row["L_pde"]:.2e}",
+                pde_loss="n/a" if row["L_pde"] is None else f"{row['L_pde']:.2e}",
                 phase=phase,
             )
             if config.save_intermediate:
@@ -227,21 +253,40 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                     }
                 )
 
+    config.guidance_components = saved_guidance_components
     final_phys = _physical_from_model_state(x_next, config, normalizer)
+    with torch.no_grad():
+        final_eval_losses = compute_guidance_losses(final_phys, gt, masks, config, observations)
+    sample_rows = per_sample_metrics(final_phys, gt, masks, final_eval_losses)
     final = final_metrics(rows)
+    final_residual_status = (
+        rows[-1].get("pde_residual_status", residual_status(config.pde))
+        if rows
+        else residual_status(config.pde)
+    )
+    pde_eval_error_count = sum(row.get("pde_residual_status") == "error" for row in rows)
     final.update(
         {
-            "status": "ok",
+            "status": "pde_eval_error" if pde_eval_error_count else "ok",
             "run_dir": str(run_dir),
             "wall_clock_time": time.time() - start,
             "synthetic_data": bool(gt.metadata.get("synthetic", False)),
-            "pde_residual_status": rows[-1].get("pde_residual_status", residual_status(config.pde)) if rows else residual_status(config.pde),
+            "pde_residual_status": final_residual_status,
+            "pde_eval_error_count": pde_eval_error_count,
             "gradient_target": config.gradient_target,
             "stochastic_guidance_time": config.stochastic_guidance_time,
+            "num_samples": len(sample_rows),
+            "per_sample_metrics_file": "metrics_per_sample.csv",
+            "per_sample_curve_file": (
+                "metrics_step_per_sample.csv" if config.save_per_sample_curves else None
+            ),
         }
     )
     write_json(run_dir / "metrics_final.json", final)
     write_csv(run_dir / "curves.csv", rows)
+    write_csv(run_dir / "metrics_per_sample.csv", sample_rows)
+    if config.save_per_sample_curves:
+        write_csv(run_dir / "metrics_step_per_sample.csv", per_sample_curve_rows)
     write_csv(run_dir / "summary.csv", [final])
     save_torch(
         run_dir / "result.pt",
@@ -393,6 +438,59 @@ def _scalar_conditioning_for_sampling(
     }
 
 
+def _class_conditioning_for_sampling(
+    *,
+    checkpoint_payload: dict[str, Any],
+    pde: str,
+    batch_size: int,
+    device: Any,
+    cfg_scale: float,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    import torch
+
+    model_config = checkpoint_payload.get("model_config", {})
+    num_classes = model_config.get("num_classes") if isinstance(model_config, dict) else None
+    if num_classes is None:
+        return {}, {"enabled": False, "cfg_scale": 1.0, "pde_label_mapping": None}
+    metadata = checkpoint_payload.get("model_config_metadata", {})
+    data_metadata = checkpoint_payload.get("data_metadata", {})
+    mapping = metadata.get("pde_label_mapping") if isinstance(metadata, dict) else None
+    if not isinstance(mapping, dict) and isinstance(data_metadata, dict):
+        mapping = data_metadata.get("pde_label_mapping")
+    if not isinstance(mapping, dict):
+        raise ValueError(
+            "Joint checkpoint has a category layer but no contiguous pde_label_mapping. "
+            "Old joint checkpoints must be retrained; single-PDE checkpoints are unaffected."
+        )
+    normalized = {str(name): int(index) for name, index in mapping.items()}
+    expected_indices = list(range(int(num_classes)))
+    if sorted(normalized.values()) != expected_indices:
+        raise ValueError(
+            f"Joint checkpoint pde_label_mapping must be contiguous {expected_indices}, got {normalized}"
+        )
+    if pde not in normalized:
+        raise ValueError(f"PDE {pde!r} is absent from joint checkpoint mapping {normalized}")
+    labels = torch.full(
+        (int(batch_size),),
+        int(normalized[pde]),
+        dtype=torch.long,
+        device=device,
+    )
+    return {
+        "label": labels,
+        "_cfg_scale": float(cfg_scale),
+        "_cfg_null_label": int(num_classes),
+    }, {
+        "enabled": True,
+        "cfg_scale": float(cfg_scale),
+        "conditional_label": int(normalized[pde]),
+        "null_label": int(num_classes),
+        "pde_label_mapping": normalized,
+        "unconditional_drops": ["pde_label"],
+        "unconditional_retains": ["scalar_conditioning"],
+    }
+
+
 def _check_sampling_channels(gt: Any, normalizer: Any | None, payload: dict[str, Any]) -> None:
     expected = int(gt.pair.shape[1])
     if normalizer is not None and int(normalizer.mean.shape[1]) != expected:
@@ -480,6 +578,7 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         endpoint_only = False
         uses_generated_trajectory = False
         uses_extra_temporal_observations = False
+    uses_sparse_near_endpoint_exception = resolved_mode == "near_endpoint_temporal"
     metadata = {
         "pde": config.pde,
         "residual_status": residual_status(config.pde),
@@ -488,6 +587,22 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         "endpoint_only": endpoint_only,
         "uses_generated_trajectory": uses_generated_trajectory,
         "uses_extra_temporal_observations": uses_extra_temporal_observations,
+        "field_input_sources": {"coef": "model_output", "sol": "model_output"},
+        "uses_ground_truth_fields": uses_sparse_near_endpoint_exception,
+        "uses_ground_truth_endpoint_fields": False,
+        "ground_truth_field_exception": (
+            "near_endpoint_temporal_sparse_observations"
+            if uses_sparse_near_endpoint_exception
+            else None
+        ),
+        "auxiliary_field_input_sources": (
+            {
+                "q_dt": "sparse_ground_truth_observations",
+                "q_T_minus_dt": "sparse_ground_truth_observations",
+            }
+            if uses_sparse_near_endpoint_exception
+            else {}
+        ),
         "residual_mode": config.residual_mode,
         "resolved_residual_mode": resolved_mode,
         "zeta_pde": config.zeta_pde,
@@ -495,10 +610,15 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         "hermite_num_collocation": config.hermite_num_collocation,
         "hermite_include_integral_residual": config.hermite_include_integral_residual,
         "hermite_integral_weight": config.hermite_integral_weight,
-        "num_near_endpoint_obs": config.num_near_endpoint_obs,
-        "near_endpoint_sensor_mode": config.near_endpoint_sensor_mode,
-        "near_endpoint_mask_seed": config.near_endpoint_mask_seed,
-        "near_endpoint_shared_mask": config.near_endpoint_shared_mask,
+        "near_endpoint_mask_alignment": (
+            {"q_dt": "coef/q0", "q_T_minus_dt": "sol/qT"}
+            if uses_sparse_near_endpoint_exception
+            else None
+        ),
+        "sensor_mode": config.sensor_mode,
+        "num_obs": config.num_obs,
+        "num_sensor_columns": config.num_sensor_columns,
+        "ns_operator_mode": config.ns_operator_mode,
     }
     return metadata
 

@@ -44,8 +44,44 @@ def test_residual_mode_validation():
         alias.validate()
 
     bad = AblationConfig(residual_mode="near_endpoint_temporal")
-    with pytest.raises(ValueError, match="num_near_endpoint_obs"):
+    with pytest.raises(ValueError, match="only supported for temporal endpoint PDEs"):
         bad.validate()
+
+
+def test_sampling_rejects_residual_modes_that_require_ground_truth_time_fields():
+    for pde in (
+        "heat",
+        "wave",
+        "advection_diffusion",
+        "reaction_diffusion",
+        "shallow_water",
+        "nsnonbounded",
+    ):
+        near = AblationConfig(pde=pde, residual_mode="near_endpoint_temporal", num_obs=1)
+        near.validate()
+
+    for pde in ("poisson", "burger"):
+        near = AblationConfig(pde=pde, residual_mode="near_endpoint_temporal", num_obs=1)
+        with pytest.raises(ValueError, match="only supported for temporal endpoint PDEs"):
+            near.validate()
+
+    full_trajectory = AblationConfig(pde="heat", residual_mode="full_trajectory_fd")
+    with pytest.raises(ValueError, match="Only Burgers"):
+        full_trajectory.validate()
+
+    full_time_space = AblationConfig(pde="heat", residual_mode="full_time_space")
+    with pytest.raises(ValueError, match="Only Burgers"):
+        full_time_space.validate()
+
+    burger = AblationConfig(pde="burger", residual_mode="full_trajectory_fd")
+    burger.validate()
+
+
+def test_sampling_rejects_ground_truth_initial_condition_modes():
+    for mode in ("observed_initial", "trajectory_initial", "endpoint_initial"):
+        config = AblationConfig(initial_condition_mode=mode)
+        with pytest.raises(ValueError, match="ground-truth field"):
+            config.validate()
 
 
 def test_model_profile_validation():
@@ -107,8 +143,30 @@ def test_boundary_condition_changes_ablation_name():
 
 
 def test_near_endpoint_obs_changes_ablation_name():
-    one = AblationConfig(residual_mode="near_endpoint_temporal", num_near_endpoint_obs=1).resolved_ablation_name()
-    two = AblationConfig(residual_mode="near_endpoint_temporal", num_near_endpoint_obs=2).resolved_ablation_name()
+    one = AblationConfig(pde="heat", residual_mode="near_endpoint_temporal", num_obs=1).resolved_ablation_name()
+    two = AblationConfig(pde="heat", residual_mode="near_endpoint_temporal", num_obs=2).resolved_ablation_name()
     assert one != two
-    assert "res-near1" in one
-    assert "res-near2" in two
+    assert "res-near-aligned-random1" in one
+    assert "res-near-aligned-random2" in two
+
+
+def test_removed_independent_near_endpoint_mask_config_is_rejected(tmp_path):
+    path = tmp_path / "removed_near.yaml"
+    path.write_text(
+        "pde: heat\nresidual_mode: near_endpoint_temporal\nnum_near_endpoint_obs: 4\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="have been removed"):
+        load_config(path)
+
+
+def test_sensor_column_has_separate_explicit_budget():
+    with pytest.raises(ValueError, match="num_sensor_columns"):
+        AblationConfig(sensor_mode="sensor_column").validate()
+    cfg = AblationConfig(sensor_mode="sensor_column", num_sensor_columns=3)
+    cfg.validate()
+
+
+def test_next_state_direct_requires_x_next_loss_state():
+    with pytest.raises(ValueError, match="loss_state='x_next'"):
+        AblationConfig(loss_state="endpoint", gradient_target="next_state_direct").validate()

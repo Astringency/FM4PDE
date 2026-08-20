@@ -92,13 +92,8 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     elif config.loadby == "swe":
         pde_params, pde_param_sources = _swe_params_for_offsets(raw["__h5__"], offsets, pair.device)
     _attach_boundary_metadata_params(config, raw.get("__h5__") if isinstance(raw, dict) else None, pde_params, pde_param_sources)
-    near_metadata: dict[str, Any] | None = None
-    if normalize_residual_mode(config.residual_mode) == "near_endpoint_temporal":
-        near_params, near_metadata = _near_endpoint_temporal_for_offsets(config, raw, offsets, coef_t, sol_t, pde_params)
-        pde_params["near_endpoint_temporal"] = near_params
-        pde_param_sources["near_endpoint_temporal"] = "extra_sparse_temporal_observations"
     trajectory_metadata: dict[str, Any] | None = None
-    if normalize_residual_mode(config.residual_mode) == "full_trajectory_fd":
+    if normalize_residual_mode(config.residual_mode) == "full_trajectory_fd" and config.pde != "burger":
         trajectory, trajectory_metadata = _full_trajectory_for_offsets(config, raw, offsets, coef_t, pde_params)
         pde_params["trajectory"] = trajectory
         pde_param_sources["trajectory"] = "full_trajectory_observations"
@@ -108,6 +103,14 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         if time_values is not None:
             pde_params["trajectory_time_values"] = time_values
             pde_param_sources["trajectory_time_values"] = "saved_snapshot_times"
+    elif normalize_residual_mode(config.residual_mode) == "full_trajectory_fd" and config.pde == "burger":
+        trajectory_metadata = {
+            "source": "model_output_at_guidance_and_evaluation_time",
+            "shape": list(coef_t.shape),
+            "ground_truth_auxiliary_loaded": False,
+            "uses_generated_trajectory": True,
+            "endpoint_only": False,
+        }
     spec = get_pde_spec(config.pde)
     channel_names_coef = _channel_names(spec.coef_channel_names, int(coef_t.shape[1]), "coef")
     channel_names_sol = _channel_names(spec.sol_channel_names, int(sol_t.shape[1]), "sol")
@@ -117,6 +120,8 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         "loadby": config.loadby,
         "synthetic": False,
         "batch_size": config.batch_size,
+        "sample_offsets": offsets,
+        "sample_ids": [str(offset) for offset in offsets],
         "channel_names": list(spec.channel_names),
         "channel_names_coef": channel_names_coef,
         "channel_names_sol": channel_names_sol,
@@ -130,15 +135,11 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         "boundary_condition": pde_params.get("boundary_condition_kind", None),
         "boundary_condition_source": pde_param_sources.get("boundary_condition_kind", None),
     }
-    if near_metadata is not None:
-        metadata["near_endpoint_temporal"] = near_metadata
-        metadata["pde_params_keys"] = sorted(pde_params)
-        metadata["pde_params_sources"] = pde_param_sources
     if trajectory_metadata is not None:
         metadata["full_trajectory_fd"] = trajectory_metadata
         metadata["pde_params_keys"] = sorted(pde_params)
         metadata["pde_params_sources"] = pde_param_sources
-    return PDEGroundTruth(
+    ground_truth = PDEGroundTruth(
         pde=config.pde,
         coef=coef_t,
         sol=sol_t,
@@ -148,6 +149,48 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         channel_names_sol=channel_names_sol,
         metadata=metadata,
     )
+    handle = raw.get("__h5__") if isinstance(raw, dict) else None
+    if handle is not None:
+        handle.close()
+    return ground_truth
+
+
+def attach_near_endpoint_observations(
+    config: AblationConfig,
+    ground_truth: PDEGroundTruth,
+    masks: Any,
+) -> PDEGroundTruth:
+    """Attach the sole allowed true-field PDE auxiliary using endpoint-aligned masks."""
+    if normalize_residual_mode(config.residual_mode) != "near_endpoint_temporal":
+        return ground_truth
+    if not config.data_path or not Path(config.data_path).exists():
+        raise FileNotFoundError(
+            "near_endpoint_temporal requires real temporal data containing q(dt) and q(T-dt)"
+        )
+    offsets = [int(value) for value in ground_truth.metadata.get("sample_offsets", [])]
+    if len(offsets) != int(ground_truth.coef.shape[0]):
+        offsets = [int(config.offset) + idx for idx in range(int(ground_truth.coef.shape[0]))]
+    raw = _load_raw_data(config)
+    try:
+        near_params, near_metadata = _near_endpoint_temporal_for_offsets(
+            config,
+            raw,
+            offsets,
+            ground_truth.coef,
+            ground_truth.sol,
+            ground_truth.pde_params,
+            masks,
+        )
+    finally:
+        handle = raw.get("__h5__") if isinstance(raw, dict) else None
+        if handle is not None:
+            handle.close()
+    ground_truth.pde_params["near_endpoint_temporal"] = near_params
+    sources = ground_truth.metadata.setdefault("pde_params_sources", {})
+    sources["near_endpoint_temporal"] = "endpoint_aligned_sparse_temporal_observations"
+    ground_truth.metadata["near_endpoint_temporal"] = near_metadata
+    ground_truth.metadata["pde_params_keys"] = sorted(ground_truth.pde_params)
+    return ground_truth
 
 
 def make_synthetic_ground_truth(config: AblationConfig) -> PDEGroundTruth:
@@ -241,7 +284,7 @@ def _extract_single_sample(config: AblationConfig, raw: dict[str, Any], offset: 
     pde = config.pde
     if config.loadby == "swe":
         file = raw["__h5__"]
-        key = list(file.keys())[offset]
+        key = _sample_group_key(file, offset)
         group = file[key]["data"]
         import numpy as np
 
@@ -302,14 +345,10 @@ def _near_endpoint_temporal_for_offsets(
     coef_t: Any,
     sol_t: Any,
     pde_params: dict[str, Any],
+    masks: Any,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     import torch
 
-    if int(config.num_near_endpoint_obs) <= 0:
-        raise ValueError(
-            "near_endpoint_temporal mode requires extra near-endpoint sparse temporal observations and masks; "
-            "num_near_endpoint_obs must be > 0"
-        )
     q_dt_list = []
     q_T_minus_dt_list = []
     dt_values = []
@@ -341,30 +380,41 @@ def _near_endpoint_temporal_for_offsets(
             f"got q_dt={tuple(q_dt_t.shape)}, q_T_minus_dt={tuple(q_T_minus_dt_t.shape)}, "
             f"coef={tuple(coef_t.shape)}, sol={tuple(sol_t.shape)}"
         )
-    mask_0, mask_T, mask_meta = _make_near_endpoint_masks(
-        config,
-        batch_size=int(coef_t.shape[0]),
-        height=int(coef_t.shape[-2]),
-        width=int(coef_t.shape[-1]),
-        device=coef_t.device,
-        dtype=coef_t.dtype,
-    )
+    mask_0 = torch.as_tensor(masks.coef, dtype=coef_t.dtype, device=coef_t.device).detach()
+    mask_T = torch.as_tensor(masks.sol, dtype=sol_t.dtype, device=sol_t.device).detach()
+    if mask_0.shape != q_dt_t.shape or mask_T.shape != q_T_minus_dt_t.shape:
+        raise ValueError(
+            "near_endpoint_temporal reuses endpoint masks, which must match the temporal state shapes; "
+            f"mask_0={tuple(mask_0.shape)}, q_dt={tuple(q_dt_t.shape)}, "
+            f"mask_T={tuple(mask_T.shape)}, q_T_minus_dt={tuple(q_T_minus_dt_t.shape)}"
+        )
+    # Retain only the explicitly observed values. The full true near-endpoint
+    # frames are temporary loader inputs and must not enter guidance artifacts
+    # or the PDE residual outside the selected sparse sensor locations.
+    q_dt_obs = q_dt_t * mask_0
+    q_T_minus_dt_obs = q_T_minus_dt_t * mask_T
     dt_t = torch.as_tensor(dt_values, dtype=coef_t.dtype, device=coef_t.device)
     metadata = {
         "source": config.loadby,
         "frame_metadata": frame_metadata,
         "dt": dt_values,
-        "num_near_endpoint_obs": int(config.num_near_endpoint_obs),
-        "near_endpoint_sensor_mode": config.near_endpoint_sensor_mode,
-        "near_endpoint_mask_seed": int(config.near_endpoint_mask_seed),
-        "near_endpoint_shared_mask": bool(config.near_endpoint_shared_mask),
-        "extra_observation_budget": True,
-        **mask_meta,
+        "sensor_mode": config.sensor_mode,
+        "num_obs": int(config.num_obs),
+        "num_sensor_columns": config.num_sensor_columns,
+        "mask_alignment": {"q_dt": "coef/q0", "q_T_minus_dt": "sol/qT"},
+        "uses_endpoint_sensor_budget": True,
+        "extra_observation_budget": False,
+        "ground_truth_field_exception": "near_endpoint_temporal_sparse_observations",
+        "observed_values_only": True,
+        "unobserved_values_zeroed": True,
+        "full_near_endpoint_frames_retained": False,
+        "observed_count_q_dt_per_sample": mask_0.reshape(mask_0.shape[0], -1).sum(dim=1).detach().cpu().tolist(),
+        "observed_count_q_T_minus_dt_per_sample": mask_T.reshape(mask_T.shape[0], -1).sum(dim=1).detach().cpu().tolist(),
     }
     return (
         {
-            "q_dt": q_dt_t,
-            "q_T_minus_dt": q_T_minus_dt_t,
+            "q_dt": q_dt_obs,
+            "q_T_minus_dt": q_T_minus_dt_obs,
             "dt": dt_t,
             "mask_0": mask_0,
             "mask_T": mask_T,
@@ -383,7 +433,7 @@ def _extract_near_endpoint_single(
 ) -> tuple[Any, Any, float, dict[str, Any]]:
     if config.loadby == "swe":
         file = raw["__h5__"]
-        key = list(file.keys())[offset]
+        key = _sample_group_key(file, offset)
         group = file[key]["data"]
         n_time = int(group["h"].shape[0])
         if n_time < 3:
@@ -451,18 +501,54 @@ def _extract_near_endpoint_single(
             )
         expected_channels = _channel_counts(config.pde, config.img_channels)[0]
         trajectory = _pair_h5_trajectory_sample(file[dataset_name], offset)
-        n_time = _trajectory_time_length(trajectory, expected_channels)
+        stored_channels = expected_channels
+        try:
+            n_time = _trajectory_time_length(trajectory, expected_channels)
+        except ValueError:
+            if config.pde != "wave":
+                raise
+            # Legacy Wave files store only displacement in full_trajectory even
+            # though endpoint states are [u, v]. Reconstruct the exact velocity
+            # used by the constant-c spectral generator, then expose only the
+            # selected sparse [u, v] observations to the residual.
+            stored_channels = 1
+            n_time = _trajectory_time_length(trajectory, stored_channels)
         if n_time < 3:
             raise ValueError(f"{dataset_name} must contain at least three time frames for near_endpoint_temporal")
         start_idx, near_start_idx, near_end_idx, final_idx = 0, 1, n_time - 2, n_time - 1
         dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, final_idx - start_idx)
+        if config.pde == "wave" and stored_channels == 1:
+            q_dt = _legacy_wave_near_endpoint_state(
+                file,
+                trajectory,
+                offset=offset,
+                frame_idx=near_start_idx,
+                dt=dt_value,
+                pde_params=pde_params,
+                batch_idx=batch_idx,
+            )
+            q_T_minus_dt = _legacy_wave_near_endpoint_state(
+                file,
+                trajectory,
+                offset=offset,
+                frame_idx=near_end_idx,
+                dt=dt_value,
+                pde_params=pde_params,
+                batch_idx=batch_idx,
+            )
+            state_source = "legacy_displacement_plus_exact_spectral_velocity_reconstruction"
+        else:
+            q_dt = _trajectory_frame_to_chw(trajectory, near_start_idx, expected_channels)
+            q_T_minus_dt = _trajectory_frame_to_chw(trajectory, near_end_idx, expected_channels)
+            state_source = "saved_full_state_trajectory"
         return (
-            _trajectory_frame_to_chw(trajectory, near_start_idx, expected_channels),
-            _trajectory_frame_to_chw(trajectory, near_end_idx, expected_channels),
+            q_dt,
+            q_T_minus_dt,
             dt_value,
             {
                 "sample_offset": int(offset),
                 "trajectory_dataset": dataset_name,
+                "near_endpoint_state_source": state_source,
                 "start_frame": start_idx,
                 "q_dt_frame": near_start_idx,
                 "q_T_minus_dt_frame": near_end_idx,
@@ -472,29 +558,35 @@ def _extract_near_endpoint_single(
         )
     if config.loadby == "h5py":
         file = raw["__h5__"]
-        sol_dataset = file[config.solution_name]  # [N, H, W, T] or [H, W, N, T]
-        import numpy as np
-        sol = np.array(sol_dataset)
-        # Handle [H, W, N, T] format (darcy-like) vs [N, H, W, T]
-        if sol.ndim == 4 and sol.shape[0] == sol.shape[1]:
-            # [H, W, N, T] -> [N, H, W, T]
-            sol = sol.transpose(2, 0, 1, 3)
-        n_time = sol.shape[-1]
+        if config.pde != "nsnonbounded":
+            raise ValueError(
+                "near_endpoint_temporal loadby='h5py' is currently defined only for nsnonbounded"
+            )
+        # Formal NS files store w at t=dt,...,T and store w0 separately.
+        # Read one sample only: loading the whole HDF5 trajectory here can use
+        # hundreds of MB and also obscures the fact that w does not include t=0.
+        trajectory = _ns_h5py_trajectory_sample(
+            file[config.solution_name], offset, config.solution_name
+        )
+        n_time = int(trajectory.shape[0])
         if n_time < 3:
             raise ValueError("near_endpoint_temporal mode requires at least three time frames in h5py trajectory")
-        q_dt_np = sol[offset, :, :, 1]
-        q_T_minus_dt_np = sol[offset, :, :, n_time - 2]
-        dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, n_time - 1)
+        # w[0] is q(dt), w[-2] is q(T-dt), and there are n_time
+        # intervals from the separately stored q0 to w[-1]=q(T).
+        q_dt_np = trajectory[0]
+        q_T_minus_dt_np = trajectory[-2]
+        dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, n_time)
         return (
             q_dt_np,
             q_T_minus_dt_np,
             dt_value,
             {
                 "sample_offset": int(offset),
-                "q_dt_frame": 1,
+                "q_dt_frame": 0,
                 "q_T_minus_dt_frame": n_time - 2,
                 "final_frame": n_time - 1,
                 "dt_source": dt_source,
+                "initial_frame_stored_separately": True,
                 "auto_constructed": True,
             },
         )
@@ -892,7 +984,7 @@ def _extract_full_trajectory_single(
         return file[key]["data"][:], {"sample_offset": int(offset), "dataset_key": str(key)}
     if config.loadby == "swe":
         file = raw["__h5__"]
-        key = list(file.keys())[offset]
+        key = _sample_group_key(file, offset)
         group = file[key]["data"]
         import numpy as np
 
@@ -1028,6 +1120,42 @@ def _trajectory_frame_to_chw(trajectory: Any, frame_idx: int, expected_channels:
     raise ValueError(f"Cannot infer trajectory layout for shape {tuple(trajectory.shape)}")
 
 
+def _legacy_wave_near_endpoint_state(
+    file: Any,
+    trajectory: Any,
+    *,
+    offset: int,
+    frame_idx: int,
+    dt: float,
+    pde_params: dict[str, Any],
+    batch_idx: int,
+) -> Any:
+    """Build a legacy Wave [u,v] frame without exposing a true endpoint to PDE loss."""
+    import numpy as np
+
+    displacement = _trajectory_frame_to_chw(trajectory, frame_idx, 1)[0]
+    initial = _ensure_chw_array(_pair_h5_endpoint_sample(file["input_data"], offset), 2)
+    u0, v0 = initial[0], initial[1]
+    c = _batch_scalar(pde_params.get("c", 1.0), batch_idx)
+    resolution = int(u0.shape[-1])
+    if u0.shape != (resolution, resolution) or v0.shape != u0.shape:
+        raise ValueError(
+            "Legacy Wave spectral velocity reconstruction requires square u0/v0 fields; "
+            f"got u0={u0.shape}, v0={v0.shape}"
+        )
+    angular_k = 2.0 * np.pi * np.fft.fftfreq(resolution, d=1.0 / resolution)
+    kx, ky = np.meshgrid(angular_k, angular_k, indexing="ij")
+    k_abs = np.sqrt(kx**2 + ky**2)
+    time_value = float(frame_idx) * float(dt)
+    phase = float(c) * k_abs * time_value
+    u0_hat = np.fft.fft2(u0)
+    v0_hat = np.fft.fft2(v0)
+    velocity_hat = -u0_hat * float(c) * k_abs * np.sin(phase) + v0_hat * np.cos(phase)
+    velocity_hat[0, 0] = v0_hat[0, 0]
+    velocity = np.fft.ifft2(velocity_hat).real.astype(np.float32, copy=False)
+    return np.stack([displacement, velocity], axis=0).astype(np.float32, copy=False)
+
+
 def _ensure_chw_array(value: Any, expected_channels: int) -> Any:
     import numpy as np
 
@@ -1071,93 +1199,6 @@ def _batch_scalar(value: Any, batch_idx: int) -> float:
     if batch_idx >= arr.size:
         raise IndexError(f"Cannot read batch scalar index {batch_idx} from shape {arr.shape}")
     return float(arr[batch_idx])
-
-
-def _make_near_endpoint_masks(
-    config: AblationConfig,
-    *,
-    batch_size: int,
-    height: int,
-    width: int,
-    device: Any,
-    dtype: Any,
-) -> tuple[Any, Any, dict[str, Any]]:
-    import torch
-
-    generator = torch.Generator(device="cpu").manual_seed(int(config.near_endpoint_mask_seed))
-    masks_0 = []
-    masks_T = []
-    if bool(config.near_endpoint_shared_mask):
-        base = _single_near_endpoint_mask(config.near_endpoint_sensor_mode, int(config.num_near_endpoint_obs), height, width, generator)
-        masks_0 = [base.clone() for _ in range(batch_size)]
-        masks_T = [base.clone() for _ in range(batch_size)]
-    else:
-        for _ in range(batch_size):
-            masks_0.append(
-                _single_near_endpoint_mask(
-                    config.near_endpoint_sensor_mode,
-                    int(config.num_near_endpoint_obs),
-                    height,
-                    width,
-                    generator,
-                )
-            )
-            masks_T.append(
-                _single_near_endpoint_mask(
-                    config.near_endpoint_sensor_mode,
-                    int(config.num_near_endpoint_obs),
-                    height,
-                    width,
-                    generator,
-                )
-            )
-    mask_0 = torch.stack(masks_0, dim=0).unsqueeze(1).to(device=device, dtype=dtype)
-    mask_T = torch.stack(masks_T, dim=0).unsqueeze(1).to(device=device, dtype=dtype)
-    counts_0 = mask_0.reshape(batch_size, -1).sum(dim=1).detach().cpu().tolist()
-    counts_T = mask_T.reshape(batch_size, -1).sum(dim=1).detach().cpu().tolist()
-    return (
-        mask_0,
-        mask_T,
-        {
-            "mask_observed_points_0": counts_0,
-            "mask_observed_points_T": counts_T,
-            "mask_shape": [batch_size, 1, height, width],
-        },
-    )
-
-
-def _single_near_endpoint_mask(mode: str, num_obs: int, height: int, width: int, generator: Any) -> Any:
-    import math
-    import torch
-
-    total = int(height * width)
-    n = min(max(int(num_obs), 0), total)
-    mask = torch.zeros(total, dtype=torch.float32)
-    if n == 0:
-        return mask.view(height, width)
-    if mode in {"random", "per_sample_random"}:
-        indices = torch.randperm(total, generator=generator)[:n]
-    elif mode == "fixed":
-        indices = torch.arange(n)
-    elif mode == "grid":
-        side = max(int(math.ceil(math.sqrt(n))), 1)
-        ys = torch.linspace(0, height - 1, side).round().long()
-        xs = torch.linspace(0, width - 1, side).round().long()
-        grid = torch.cartesian_prod(ys, xs)
-        indices = torch.unique(grid[:, 0] * width + grid[:, 1])[:n]
-        if indices.numel() < n:
-            filler = torch.arange(total)
-            indices = torch.unique(torch.cat([indices, filler]))[:n]
-    elif mode == "sensor_column":
-        cols_needed = max(int(math.ceil(n / max(height, 1))), 1)
-        cols = torch.linspace(0, width - 1, cols_needed).round().long()
-        rows = torch.arange(height)
-        grid = torch.cartesian_prod(rows, cols)
-        indices = torch.unique(grid[:, 0] * width + grid[:, 1])[:n]
-    else:
-        raise ValueError(f"Unsupported near_endpoint_sensor_mode={mode!r}")
-    mask[indices] = 1.0
-    return mask.view(height, width)
 
 
 def _ensure_bchw(value: Any, pde: str, side: str, device: str, dtype_name: str, expected_channels: int | None = None) -> Any:

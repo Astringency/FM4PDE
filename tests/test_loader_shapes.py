@@ -10,6 +10,7 @@ from data.specs import PDE_DATA_SPECS, get_pde_spec
 
 def _write_pair_h5(path, n_samples=3, input_channels=1, output_channels=1, attrs=None, datasets=None):
     with h5py.File(path, "w") as file:
+        file.attrs["split"] = "train"
         file.create_dataset("input_data", data=np.zeros((n_samples, input_channels, 6, 6), dtype=np.float32))
         file.create_dataset("output_data", data=np.ones((n_samples, output_channels, 6, 6), dtype=np.float32))
         for key, value in (attrs or {}).items():

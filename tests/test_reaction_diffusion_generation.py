@@ -12,7 +12,13 @@ TIME_DEPENDENT_DIR = ROOT / "data" / "DataGen" / "time_dependent"
 if str(TIME_DEPENDENT_DIR) not in sys.path:
     sys.path.insert(0, str(TIME_DEPENDENT_DIR))
 
-from gen_rd import generate_dataset  # noqa: E402
+from gen_rd import generate_dataset, resolve_seed_offset  # noqa: E402
+
+
+def test_default_seed_offsets_are_disjoint_between_splits():
+    assert resolve_seed_offset("train", None) == 0
+    assert resolve_seed_offset("test", None) == 10_000_000
+    assert resolve_seed_offset("test", 123) == 123
 
 
 def _args(tmp_path, init_mode):

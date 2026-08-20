@@ -48,14 +48,14 @@ class PairH5GenerationTest(unittest.TestCase):
 
     def test_hdf5_on_disk_schema(self) -> None:
         expected = {
-            "heat": {"cin": 1, "cout": 1, "scalars": ["alpha"], "trajectory": True},
-            "wave": {"cin": 2, "cout": 2, "scalars": [], "trajectory": True},
-            "advection_diffusion": {"cin": 1, "cout": 1, "scalars": ["b_x", "b_y", "kappa"], "trajectory": True},
+            "heat": {"cin": 1, "cout": 1, "scalars": ["alpha"], "trajectory_channels": 1},
+            "wave": {"cin": 2, "cout": 2, "scalars": [], "trajectory_channels": 2},
+            "advection_diffusion": {"cin": 1, "cout": 1, "scalars": ["b_x", "b_y", "kappa"], "trajectory_channels": 1},
             "steady_heat_conduction": {
                 "cin": 1,
                 "cout": 1,
                 "scalars": ["u_D", "residual_norm", "picard_iters", "converged"],
-                "trajectory": False,
+                "trajectory_channels": 0,
             },
         }
         for pde, spec in expected.items():
@@ -72,8 +72,11 @@ class PairH5GenerationTest(unittest.TestCase):
                 for key in spec["scalars"]:
                     self.assertIn(key, h5)
                     self.assertEqual(h5[key].shape[0], 4)
-                if spec["trajectory"]:
-                    self.assertEqual(h5["full_trajectory"].shape, (4, 1, 5, 16, 16))
+                if spec["trajectory_channels"]:
+                    self.assertEqual(
+                        h5["full_trajectory"].shape,
+                        (4, spec["trajectory_channels"], 5, 16, 16),
+                    )
                 else:
                     self.assertNotIn("full_trajectory", h5)
 
