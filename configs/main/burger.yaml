@@ -1,12 +1,13 @@
 pde: burger
 task: both
 data_config_path: configs/main/burger.yaml
-data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_1000-128-128_1.mat
+# data_path: /large_storage/zhangxf/PDEdata/burgers/burger_10000-128-128_1.mat
+data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128.mat
 loadby: scipy
 coef_name: output
 solution_name: output
-checkpoint_path: outputs/pretrained/fm4burgers.pth
-output_dir: outputs/ablations
+checkpoint_path: outputs/pretrained/formal/burger/260625-150439-burger-batch4-epoch300-accum8-float32/fm4burger.pth
+output_dir: outputs/samples
 img_channels: 1
 img_resolution: 128
 allow_synthetic_data: false
@@ -32,7 +33,8 @@ allow_unknown_boundary_conditions: false
 legacy_ignore_boundary: false
 num_obs: 500
 num_sensor_columns: 5
-sensor_mode: sensor_column
+sensor_mode: random
+# sensor_mode: sensor_column
 shared_mask: false
 mask_seed: 0
 noise_level: 0.0

@@ -1,12 +1,13 @@
 pde: helmholtz
 task: both
 data_config_path: configs/main/helmholtz.yaml
-data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_1000-128-128.mat
+data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_10000-128-128_1.mat
+# data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128.mat
 loadby: scipy
 coef_name: f_data
 solution_name: psi_data
-checkpoint_path: outputs/pretrained/fm4helmholtz.pth
-output_dir: outputs/ablations
+checkpoint_path: outputs/pretrained/formal/helmholtz/260625-150653-helmholtz-batch4-epoch300-accum8-float32/fm4helmholtz.pth
+output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
@@ -44,7 +45,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 200000
-zeta_obs_u: 20000000
-zeta_pde: 1
+zeta_obs_a: 20000
+zeta_obs_u: 80000000
+zeta_pde: 0.1
 k: 1

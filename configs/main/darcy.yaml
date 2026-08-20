@@ -1,13 +1,13 @@
 pde: darcy
 task: both
 data_config_path: configs/main/darcy.yaml
-data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_10000-128-128_1.mat
-# data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
+# data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_10000-128-128_1.mat
+data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
 loadby: h5py
 coef_name: thresh_a_data
 solution_name: thresh_p_data
-checkpoint_path: outputs/pretrained/fm4darcy.pth
-output_dir: outputs/ablations
+checkpoint_path: outputs/pretrained/formal/darcy/260625-150746-darcy-batch4-epoch300-accum8-float32/fm4darcy.pth
+output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
@@ -39,12 +39,12 @@ mask_seed: 0
 noise_level: 0.0
 noise_seed: 0
 time_grid: uniform
-num_steps: 1000
+num_steps: 100
 step_method: euler
 batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 100000
-zeta_obs_u: 50000000
-zeta_pde: 1
+zeta_obs_a: 10
+zeta_obs_u: 500000000
+zeta_pde: 0.1
