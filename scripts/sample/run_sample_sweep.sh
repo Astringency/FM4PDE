@@ -44,13 +44,13 @@ cd "${ROOT_DIR}"
 
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 MAX_BATCH_SIZE="${MAX_BATCH_SIZE:-20}"
-PDE_LIST="${PDE_LIST:-darcy nsnonbounded}" # poisson helmholtz
+PDE_LIST="${PDE_LIST:-poisson helmholtz darcy nsnonbounded}" # 
 TASK_LIST="${TASK_LIST:-forward inverse both}"
 SAMPLER_LIST="${SAMPLER_LIST:-stochastic}" # deterministic hybrid_s2d
 SENSOR_MODE_LIST="${SENSOR_MODE_LIST:-random}"
 NUM_STEPS="${NUM_STEPS:-100}"
 NUM_OBS="${NUM_OBS:-500}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/MAIN1000_100}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/MAIN1000_100_TRAIN}"
 CONFIG_DIR="${CONFIG_DIR:-configs/main}"
 DEVICE="${DEVICE:-cuda}"
 DEVICE_LIST="${DEVICE_LIST:-${DEVICE}}"

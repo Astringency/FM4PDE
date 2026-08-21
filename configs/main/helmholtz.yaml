@@ -1,8 +1,8 @@
 pde: helmholtz
 task: both
 data_config_path: configs/main/helmholtz.yaml
-# data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_10000-128-128_1.mat
-data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128.mat
+data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_10000-128-128_1.mat
+# data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128.mat
 loadby: scipy
 coef_name: f_data
 solution_name: psi_data

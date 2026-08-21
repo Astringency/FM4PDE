@@ -1,8 +1,8 @@
 pde: nsnonbounded
 task: both
 data_config_path: configs/main/nsnonbounded.yaml
-# data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
-data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
+data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
+# data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
 loadby: h5py
 coef_name: w0
 solution_name: w
