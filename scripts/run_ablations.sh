@@ -1,104 +1,113 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# FM4PDE 消融实验脚本 — 支持运行全部或单个消融组
+# FM4PDE formal ablation sweep
 #
-# 用法:
-#   bash scripts/run_ablations.sh                         # 运行全部 9 组
-#   bash scripts/run_ablations.sh guidance_components     # 只运行 guidance_components
-#   bash scripts/run_ablations.sh guidance_components loss_state  # 多个
-#   bash scripts/run_ablations.sh --help                  # 列出所有组
+# Examples:
+#   bash scripts/run_ablations.sh
+#   PDE_LIST="poisson heat" bash scripts/run_ablations.sh
+#   PDE_LIST="poisson heat" bash scripts/run_ablations.sh \
+#     guidance_components time_grid_by_sampler
+#   PDE_LIST="poisson" PLAN_ONLY=true bash scripts/run_ablations.sh sampler_phase
+#
+# Environment variables:
+#   PDE_LIST       Space-separated PDEs (default: all 11 formal PDEs)
+#   OUTPUT_DIR     Artifact and aggregate output root (default: outputs/ablations)
+#   DEVICE         Runtime device override (default: cuda)
+#   BATCH_SIZE     Samples in each ablation job (default: 1)
+#   OFFSET         Shared dataset offset override (default: 0)
+#   VIS            Save plots for completed jobs (default: false)
+#   DRY_RUN        Run the sampling runner in dry-run mode (default: false)
+#   PLAN_ONLY      List selected jobs without sampling (default: false)
+#   AGGREGATE      Aggregate successful jobs after sampling (default: true)
 # ============================================================================
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-OUTPUT="outputs/ablations"
-mkdir -p "${OUTPUT}"
-
-# ── ablation group registry ───────────────────────────────────────────────────
-declare -A ABLATION_GRIDS=(
-    ["guidance_components"]="configs/ablations/main_guidance_components.yaml"
-    ["loss_state"]="configs/ablations/main_loss_state.yaml"
-    ["sampler_phase"]="configs/ablations/main_sampler_phase.yaml"
-    ["guidance_schedule"]="configs/ablations/main_guidance_schedule.yaml"
-    ["clipping"]="configs/ablations/main_clipping.yaml"
-    ["pde_residual_region"]="configs/ablations/main_pde_residual_region.yaml"
-    ["sensor_noise"]="configs/ablations/main_sensor_noise.yaml"
-    ["steps_timegrid"]="configs/ablations/main_steps_timegrid.yaml"
-    ["zeta_sensitivity"]="configs/ablations/main_zeta_sensitivity.yaml"
-)
+GRID="configs/ablations/all_internal_ablation_grid.yaml"
+PDE_LIST="${PDE_LIST:-darcy poisson helmholtz nsnonbounded burger reaction_diffusion shallow_water heat wave advection_diffusion steady_heat_conduction}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/ablations}"
+DEVICE="${DEVICE:-cuda}"
+BATCH_SIZE="${BATCH_SIZE:-1}"
+OFFSET="${OFFSET:-0}"
+VIS="${VIS:-false}"
+DRY_RUN="${DRY_RUN:-false}"
+PLAN_ONLY="${PLAN_ONLY:-false}"
+AGGREGATE="${AGGREGATE:-true}"
 
 ALL_GROUPS=(
     guidance_components
-    loss_state
+    loss_state_by_sampler
     sampler_phase
-    guidance_schedule
-    clipping
-    pde_residual_region
-    sensor_noise
-    steps_timegrid
-    zeta_sensitivity
+    time_grid_by_sampler
+    num_steps_by_sampler
+    step_method_by_sampler
+    sensor_sparsity
+    sensor_mode
+    noise_robustness
+    temporal_residual_mode
+    statistics_stability
 )
 
-# ── base config ──────────────────────────────────────────────────────────────
-# 直接使用 configs/ablations/base/poisson_both.yaml 作为基线
-BASE_CFG="configs/ablations/base/poisson_both.yaml"
-if [[ ! -f "${BASE_CFG}" ]]; then
-    echo "Base config not found: ${BASE_CFG}" >&2
-    exit 2
-fi
-
-# ── run one ablation group ────────────────────────────────────────────────────
-run_ablation() {
-    local name="$1"
-    local grid_file="${ABLATION_GRIDS[${name}]}"
-    echo ""
-    echo "=== Ablation: ${name} (${grid_file}) ==="
-
-    local modified="${OUTPUT}/grid_${name}.yaml"
-    python3 -c "
-import yaml
-with open('${grid_file}') as f:
-    grid = yaml.safe_load(f)
-grid['base_config'] = '${BASE_CFG}'
-with open('${modified}', 'w') as f:
-    yaml.dump(grid, f)
-"
-
-    python -u -m sampling.sweep --grid "${modified}" 2>&1
-    echo "--- ${name} done ---"
+is_true() {
+    case "${1,,}" in
+        true|1|yes|on) return 0 ;;
+        false|0|no|off) return 1 ;;
+        *) echo "Invalid boolean value: $1" >&2; exit 2 ;;
+    esac
 }
 
-# ── main ──────────────────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "Usage: bash scripts/run_ablations.sh [group ...]"
+    echo ""
     echo "Available ablation groups:"
-    for g in "${ALL_GROUPS[@]}"; do
-        echo "  ${g}  →  ${ABLATION_GRIDS[${g}]}"
+    for group in "${ALL_GROUPS[@]}"; do
+        echo "  ${group}"
     done
+    echo ""
+    echo "Select PDEs with PDE_LIST, for example:"
+    echo '  PDE_LIST="poisson heat" PLAN_ONLY=true bash scripts/run_ablations.sh guidance_components'
     exit 0
 fi
 
-if [[ $# -eq 0 ]]; then
-    GROUPS=("${ALL_GROUPS[@]}")
-else
-    GROUPS=("$@")
+read -r -a PDES <<< "${PDE_LIST}"
+if [[ ${#PDES[@]} -eq 0 ]]; then
+    echo "PDE_LIST must select at least one PDE" >&2
+    exit 2
 fi
 
-for name in "${GROUPS[@]}"; do
-    if [[ -z "${ABLATION_GRIDS[${name}]:-}" ]]; then
-        echo "Unknown ablation group: ${name}" >&2
-        echo "Run --help to see available groups." >&2
-        exit 2
-    fi
-    run_ablation "${name}"
+VIS_OVERRIDE=false
+if is_true "${VIS}"; then
+    VIS_OVERRIDE=true
+fi
+
+ARGS=(--grid "${GRID}")
+for pde in "${PDES[@]}"; do
+    ARGS+=(--pde "${pde}")
 done
+for group in "$@"; do
+    ARGS+=(--group "${group}")
+done
+ARGS+=(
+    --override "output_dir=${OUTPUT_DIR}"
+    --override "device=${DEVICE}"
+    --override "batch_size=${BATCH_SIZE}"
+    --override "offset=${OFFSET}"
+    --override "save_plots=${VIS_OVERRIDE}"
+)
 
-# ── aggregate ─────────────────────────────────────────────────────────────────
-echo ""
-echo "=== Aggregating ablation results ==="
-python -u -m sampling.aggregate "${OUTPUT}" --output-dir "${OUTPUT}" 2>&1
+if is_true "${PLAN_ONLY}"; then
+    exec python -u -m sampling.sweep "${ARGS[@]}" --list
+fi
+if is_true "${DRY_RUN}"; then
+    ARGS+=(--dry-run)
+fi
 
-echo ""
-echo "=== Ablations complete ==="
-echo "Results: ${OUTPUT}/summary_all_raw.csv"
+python -u -m sampling.sweep "${ARGS[@]}"
+
+if is_true "${AGGREGATE}"; then
+    python -u -m sampling.aggregate "${OUTPUT_DIR}" --output-dir "${OUTPUT_DIR}"
+fi
+
+echo "Ablations complete: ${OUTPUT_DIR}/summary_all_raw.csv"

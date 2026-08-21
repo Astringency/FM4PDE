@@ -5,16 +5,22 @@ import itertools
 from pathlib import Path
 from typing import Any
 
-from sampling.config import load_config, load_yaml_file
+from sampling.config import VALID_PDES, load_config, load_yaml_file, parse_cli_overrides
 from sampling.runner import run_single_ablation
 
 
-def expand_grid(grid_path: str, selected_groups: set[str] | None = None) -> list[tuple[str, dict[str, Any]]]:
+def expand_grid(
+    grid_path: str,
+    selected_groups: set[str] | None = None,
+    selected_pdes: set[str] | None = None,
+    global_overrides: dict[str, Any] | None = None,
+) -> list[tuple[str, dict[str, Any]]]:
     spec = load_yaml_file(grid_path)
     default_base_configs = _base_configs_from_spec(spec, fallback=["configs/ablations/smoke.yaml"])
     groups = spec.get("groups", {})
     if not isinstance(groups, dict):
         raise ValueError("Sweep YAML must contain groups: mapping")
+    _validate_selection(groups, selected_groups, selected_pdes)
     jobs: list[tuple[str, dict[str, Any]]] = []
     for group_name, group_spec in groups.items():
         if selected_groups and group_name not in selected_groups:
@@ -27,10 +33,14 @@ def expand_grid(grid_path: str, selected_groups: set[str] | None = None) -> list
         product = bool(group_spec.get("product", False))
         expanded = _expand_matrix(matrix, product=product)
         for base_index, base_config in enumerate(group_base_configs):
+            base_pde = str(load_yaml_file(base_config).get("pde", ""))
+            if selected_pdes and base_pde not in selected_pdes:
+                continue
             for index, params in enumerate(expanded):
                 overrides = {}
                 overrides.update(fixed)
                 overrides.update(params)
+                overrides.update(global_overrides or {})
                 if "test_index" in overrides and "offset" not in overrides:
                     overrides["offset"] = overrides["test_index"]
                 stem = Path(str(base_config)).stem
@@ -46,9 +56,16 @@ def run_grid(
     dry_run: bool = False,
     limit: int | None = None,
     selected_groups: set[str] | None = None,
+    selected_pdes: set[str] | None = None,
+    global_overrides: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     results = []
-    jobs = expand_grid(grid_path, selected_groups=selected_groups)
+    jobs = expand_grid(
+        grid_path,
+        selected_groups=selected_groups,
+        selected_pdes=selected_pdes,
+        global_overrides=global_overrides,
+    )
     for config_path, overrides in jobs[:limit]:
         if dry_run:
             overrides["dry_run"] = True
@@ -64,15 +81,41 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--list", action="store_true", help="Only list expanded jobs.")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of jobs.")
     parser.add_argument("--group", action="append", default=[], help="Run or list only one group. Can be repeated.")
+    parser.add_argument("--pde", action="append", default=[], help="Run or list only one PDE. Can be repeated.")
+    parser.add_argument(
+        "--override",
+        action="append",
+        default=[],
+        help="Apply a key=value config override to every selected job. Can be repeated.",
+    )
     args = parser.parse_args(argv)
     selected_groups = set(args.group) if args.group else None
-    jobs = expand_grid(args.grid, selected_groups=selected_groups)
+    selected_pdes = set(args.pde) if args.pde else None
+    try:
+        global_overrides = parse_cli_overrides(args.override)
+        jobs = expand_grid(
+            args.grid,
+            selected_groups=selected_groups,
+            selected_pdes=selected_pdes,
+            global_overrides=global_overrides,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    if not jobs:
+        parser.error("The selected PDE/group filters produced no ablation jobs")
     selected = jobs[: args.limit] if args.limit else jobs
     if args.list:
         for config_path, overrides in selected:
             print(config_path, overrides)
         return
-    run_grid(args.grid, dry_run=args.dry_run, limit=args.limit, selected_groups=selected_groups)
+    run_grid(
+        args.grid,
+        dry_run=args.dry_run,
+        limit=args.limit,
+        selected_groups=selected_groups,
+        selected_pdes=selected_pdes,
+        global_overrides=global_overrides,
+    )
 
 
 def _expand_matrix(matrix: dict[str, Any], product: bool) -> list[dict[str, Any]]:
@@ -102,6 +145,19 @@ def _base_configs_from_spec(spec: dict[str, Any], fallback: list[str]) -> list[s
     if isinstance(value, list):
         return [str(item) for item in value]
     return [str(value)]
+
+
+def _validate_selection(
+    groups: dict[str, Any],
+    selected_groups: set[str] | None,
+    selected_pdes: set[str] | None,
+) -> None:
+    unknown_groups = (selected_groups or set()) - set(groups)
+    if unknown_groups:
+        raise ValueError(f"Unknown ablation group(s): {', '.join(sorted(unknown_groups))}")
+    unknown_pdes = (selected_pdes or set()) - VALID_PDES
+    if unknown_pdes:
+        raise ValueError(f"Unknown PDE(s): {', '.join(sorted(unknown_pdes))}")
 
 
 if __name__ == "__main__":

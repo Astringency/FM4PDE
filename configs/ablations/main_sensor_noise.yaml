@@ -1,12 +1,17 @@
-base_config: configs/ablations/smoke.yaml
+base_config: configs/ablations/base/poisson_both.yaml
 groups:
   sensor_sparsity:
     fixed:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
       sensor_mode: per_sample_random
       noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
     matrix:
       num_obs: [50, 100, 250, 500, 1000]
   sensor_mode:
@@ -14,9 +19,13 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
-      sensor_mode: per_sample_random
+      sampler_phase: stochastic
+      switch_ratio: 0.5
       num_obs: 500
       noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
     matrix:
       sensor_mode: [random, fixed, grid, sensor_column, per_sample_random]
   noise_robustness:
@@ -24,7 +33,12 @@ groups:
       task: both
       guidance_components: obs_pde
       loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
       sensor_mode: per_sample_random
       num_obs: 500
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
     matrix:
       noise_level: [0.0, 0.01, 0.05, 0.10]

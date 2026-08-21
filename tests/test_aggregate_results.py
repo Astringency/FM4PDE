@@ -94,23 +94,23 @@ def test_failed_pde_evaluations_remain_in_raw_output_but_are_not_aggregated(tmp_
     assert int(grouped[0]["rel_l2_a_n"]) == 1
 
 
-def test_statistics_seed_offset_groups_across_names_and_seeds(tmp_path):
-    for idx, value in enumerate([1.0, 2.0, 3.0]):
+def test_statistics_stability_groups_same_offset_across_seeds(tmp_path):
+    for idx, value in enumerate([1.0, 2.0, 3.0, 4.0, 5.0]):
         _write_run(
             tmp_path,
             f"run{idx}",
             value,
             value,
             {
-                "ablation_name": f"statistics_seed_offset_poisson_{idx:03d}",
+                "ablation_name": f"statistics_stability_poisson_{idx:03d}",
                 "sample_seed": idx,
                 "mask_seed": idx * 11,
-                "noise_seed": idx * 101,
-                "offset": idx,
+                "noise_seed": 0,
+                "offset": 0,
                 "batch_size": 1,
-                "noise_level": 0.01,
+                "noise_level": 0.0,
                 "sensor_mode": "per_sample_random",
-                "extra": {"ablation_group": "statistics_seed_offset"},
+                "extra": {"ablation_group": "statistics_stability"},
             },
         )
 
@@ -118,19 +118,21 @@ def test_statistics_seed_offset_groups_across_names_and_seeds(tmp_path):
     raw = list(csv.DictReader(outputs["raw"].open(encoding="utf-8")))
     grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
 
-    assert len(raw) == 3
+    assert len(raw) == 5
     assert {row["ablation_name"] for row in raw} == {
-        "statistics_seed_offset_poisson_000",
-        "statistics_seed_offset_poisson_001",
-        "statistics_seed_offset_poisson_002",
+        "statistics_stability_poisson_000",
+        "statistics_stability_poisson_001",
+        "statistics_stability_poisson_002",
+        "statistics_stability_poisson_003",
+        "statistics_stability_poisson_004",
     }
-    assert {row["sample_seed"] for row in raw} == {"0", "1", "2"}
-    assert {row["mask_seed"] for row in raw} == {"0", "11", "22"}
-    assert {row["noise_seed"] for row in raw} == {"0", "101", "202"}
-    assert {row["offset"] for row in raw} == {"0", "1", "2"}
+    assert {row["sample_seed"] for row in raw} == {"0", "1", "2", "3", "4"}
+    assert {row["mask_seed"] for row in raw} == {"0", "11", "22", "33", "44"}
+    assert {row["noise_seed"] for row in raw} == {"0"}
+    assert {row["offset"] for row in raw} == {"0"}
     assert len(grouped) == 1
-    assert grouped[0]["ablation_family"] == "poisson|both|statistics_seed_offset"
-    assert int(grouped[0]["rel_l2_a_n"]) == 3
+    assert grouped[0]["ablation_family"] == "poisson|both|statistics_stability"
+    assert int(grouped[0]["rel_l2_a_n"]) == 5
     for raw_only_key in ("sample_seed", "mask_seed", "noise_seed", "offset", "batch_size", "ablation_name"):
         assert raw_only_key not in grouped[0]
 

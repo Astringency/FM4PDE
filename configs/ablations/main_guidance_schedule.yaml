@@ -1,9 +1,0 @@
-base_config: configs/ablations/smoke.yaml
-groups:
-  guidance_schedule:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-    matrix:
-      guidance_schedule: [constant, delta, bt, cosine, polynomial, obs_decay]

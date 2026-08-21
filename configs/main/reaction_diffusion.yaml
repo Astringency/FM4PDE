@@ -5,7 +5,7 @@ data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_
 loadby: rd
 coef_name: a
 solution_name: u
-checkpoint_path: outputs/pretrained/fm4reaction_diffusion.pth
+checkpoint_path: outputs/pretrained/formal/reaction_diffusion/260712-121626-reaction_diffusion-batch2-epoch300-accum16-float32/fm4reaction_diffusion.pth
 output_dir: outputs/ablations
 img_channels: 4
 img_resolution: 128

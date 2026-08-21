@@ -1,145 +1,184 @@
 base_config: configs/ablations/base/poisson_both.yaml
+
 groups:
-  group1_guidance_components:
+  guidance_components:
+    fixed:
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      loss_state: endpoint
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    product: true
+    matrix:
+      task: [both, forward, inverse]
+      guidance_components: [noguide, obs_only, pde_only, obs_pde]
+
+  loss_state_by_sampler:
     fixed:
       task: both
-      sampler_phase: stochastic
+      guidance_components: obs_pde
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    product: true
+    matrix:
+      loss_state: [xt, x_next, endpoint]
+      sampler_phase: [deterministic, stochastic]
+
+  sampler_phase:
+    fixed:
+      task: both
+      guidance_components: obs_pde
       loss_state: endpoint
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_d2s, hybrid_d2s, hybrid_s2d, hybrid_s2d, hybrid_s2d]
+      switch_ratio: [0.5, 0.5, 0.2, 0.5, 0.8, 0.2, 0.5, 0.8]
+
+  time_grid_by_sampler:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
       num_obs: 500
       noise_level: 0.0
       num_steps: 100
-      sensor_mode: per_sample_random
-    matrix:
-      guidance_components: [noguide, obs_only, pde_only, obs_pde, coef_obs_only, sol_obs_only]
-  group2_loss_state:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      sampler_phase: stochastic
-      sensor_mode: per_sample_random
-      num_obs: 500
-    matrix:
-      loss_state: [xt, x_next, endpoint]
-  group3_sampler_phase:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-    matrix:
-      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_d2s, hybrid_d2s, hybrid_s2d]
-      switch_ratio: [0.5, 0.5, 0.2, 0.5, 0.8, 0.2]
-  group4_guidance_schedule:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-    matrix:
-      guidance_schedule: [constant, delta, bt, cosine, polynomial, obs_decay]
-  group5_clipping:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-    matrix:
-      clip_mode: [none, global_norm, global_norm, global_norm, global_norm, global_norm, per_component_norm]
-      clip_threshold: [1.0, 1.0, 10.0, 100.0, 10000.0, 10000000000.0, 10.0]
-  group5b_pde_residual_region:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-    matrix:
-      pde_residual_region: [full, observed, boundary_excluded, union_obs]
-  group5b_boundary_condition_enforcement:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-      enforce_boundary_conditions: true
-      enforce_initial_conditions: true
-      legacy_ignore_boundary: false
-      allow_unknown_boundary_conditions: false
-    matrix:
-      bc_weight: [0.1, 1.0, 10.0]
-  group5c_time_dependent_residual_mode:
-    base_configs:
-      - configs/ablations/base/heat.yaml
-      - configs/ablations/base/wave.yaml
-      - configs/ablations/base/advection_diffusion.yaml
-      - configs/ablations/base/reaction_diffusion.yaml
-      - configs/ablations/base/shallow_water.yaml
-      - configs/ablations/base/nsnonbounded_both.yaml
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-    matrix:
-      residual_mode: [endpoint_secant, hermite_bridge]
-  group5d_near_endpoint_temporal_residual:
-    base_configs:
-      - configs/ablations/base/heat.yaml
-      - configs/ablations/base/wave.yaml
-      - configs/ablations/base/advection_diffusion.yaml
-      - configs/ablations/base/reaction_diffusion.yaml
-      - configs/ablations/base/shallow_water.yaml
-      - configs/ablations/base/nsnonbounded_both.yaml
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-      residual_mode: near_endpoint_temporal
-      num_obs: 64
-    matrix:
-      offset: [0]
-  group6_sensor_sparsity:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-    matrix:
-      num_obs: [50, 100, 250, 500, 1000]
-  group6b_sensor_mode:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-      num_obs: 500
-    matrix:
-      sensor_mode: [random, fixed, grid, sensor_column, per_sample_random]
-  group7_noise_robustness:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
-      num_obs: 500
-    matrix:
-      noise_level: [0.0, 0.01, 0.05, 0.10]
-  group8_time_grid_steps:
-    fixed:
-      task: both
-      guidance_components: obs_pde
-      loss_state: endpoint
-      sensor_mode: per_sample_random
+      step_method: euler
     product: true
     matrix:
-      time_grid: [uniform, geometric]
-      num_steps: [20, 50, 100, 200]
-      step_method: [euler, midpoint]
-  group9_task:
+      time_grid: [uniform, geometric, cosine]
+      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_s2d]
+
+  num_steps_by_sampler:
     fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      step_method: euler
+    product: true
+    matrix:
+      num_steps: [10, 50, 100, 200, 500, 1000, 2000]
+      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_s2d]
+
+  step_method_by_sampler:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+    product: true
+    matrix:
+      step_method: [euler, midpoint]
+      sampler_phase: [deterministic, stochastic, hybrid_d2s, hybrid_s2d]
+
+  sensor_sparsity:
+    fixed:
+      task: both
+      guidance_components: obs_pde
       loss_state: endpoint
       sampler_phase: stochastic
+      switch_ratio: 0.5
       sensor_mode: per_sample_random
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
     matrix:
-      task: [forward, inverse, both, unconditional]
-      guidance_components: [obs_pde, obs_pde, obs_pde, noguide]
+      num_obs: [50, 100, 250, 500, 1000]
+
+  sensor_mode:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      sensor_mode: [random, fixed, grid, sensor_column, per_sample_random]
+
+  noise_robustness:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      noise_level: [0.0, 0.01, 0.05, 0.10]
+
+  temporal_residual_mode:
+    base_configs:
+      - configs/ablations/base/heat.yaml
+      - configs/ablations/base/wave.yaml
+      - configs/ablations/base/advection_diffusion.yaml
+      - configs/ablations/base/reaction_diffusion.yaml
+      - configs/ablations/base/shallow_water.yaml
+      - configs/ablations/base/nsnonbounded_both.yaml
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      residual_mode: [endpoint_secant, hermite_bridge, near_endpoint_temporal]
+
+  statistics_stability:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      noise_seed: 0
+      offset: 0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      sample_seed: [0, 1, 2, 3, 4]
+      mask_seed: [0, 11, 22, 33, 44]

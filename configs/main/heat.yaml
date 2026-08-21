@@ -5,7 +5,7 @@ data_path: /large_storage/zhangxf/PDEdata/heat/heat_test_1000-128-128.h5
 loadby: pair_h5
 coef_name: input_data
 solution_name: output_data
-checkpoint_path: outputs/pretrained/fm4heat.pth
+checkpoint_path: outputs/pretrained/formal/heat/260701-114751-heat-batch4-epoch300-accum8-float32/fm4heat.pth
 output_dir: outputs/ablations
 img_channels: 2
 img_resolution: 128

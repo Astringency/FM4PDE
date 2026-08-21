@@ -5,7 +5,7 @@ data_path: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_con
 loadby: pair_h5
 coef_name: input_data
 solution_name: output_data
-checkpoint_path: outputs/pretrained/fm4steady_heat_conduction.pth
+checkpoint_path: outputs/pretrained/formal/steady_heat_conduction/260625-150844-steady_heat_conduction-batch4-epoch300-accum8-float32/fm4steady_heat_conduction.pth
 model_profile: recommended
 output_dir: outputs/ablations
 img_channels: 2

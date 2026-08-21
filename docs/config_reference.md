@@ -157,14 +157,19 @@ configs/
     │   ├── poisson_both.yaml
     │   └── ...
     │
-    ├── all_ablation_grid.yaml     # 消融实验网格定义（批量生成多组实验）
+    ├── all_internal_ablation_grid.yaml # 11 种 PDE 的正式消融网格（1041 jobs）
+    ├── all_ablation_grid.yaml     # Poisson 聚焦网格 + 时间 PDE residual（111 jobs）
     ├── smoke.yaml                 # 冒烟测试
-    └── main_*.yaml                # 分主题消融实验配置
+    └── main_*.yaml                # 新方案的分主题消融配置
 ```
 
 ### 使用方式
 
 ```bash
+# 按 PDE 和实验组查看正式消融计划
+PDE_LIST="poisson heat" PLAN_ONLY=true \
+  bash scripts/run_ablations.sh guidance_components time_grid_by_sampler
+
 # 单次采样（通过环境变量覆盖配置）
 PDE=poisson TASK=both bash scripts/sample/run_sample.sh
 
@@ -211,6 +216,20 @@ python -m sampling.runner \
   --override noise_level=0.01 \
   --vis
 ```
+
+正式消融组为：
+
+- 指导组成：四种组成与 `both/forward/inverse` 的 12 个组合。
+- 损失状态：`xt/x_next/endpoint` 分别在确定性、随机采样下比较。
+- 采样阶段：确定性、随机，以及 D→S/S→D 在 `0.2/0.5/0.8` 的切换。
+- 时间离散：网格、步数、积分方法三个独立组，各自跨四种采样阶段。
+- 观测设置：稀疏度、布局、噪声三个独立组，固定 `both + stochastic`。
+- 时间 residual：六种时间 PDE 上比较 `endpoint_secant`、`hermite_bridge`、
+  `near_endpoint_temporal`，统一使用 500 个观测点。
+- 稳定性：固定 `offset=0` 和 `noise_seed=0`，配对使用五组 sample/mask seeds。
+
+`sampling.sweep` 支持重复传入 `--pde`、`--group` 和 `--override key=value`。
+不存在的过滤值或零任务选择会在运行采样前报错。
 
 `run_sample_sweep.sh` 以 PDE × task × sensor mode 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
 `PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。

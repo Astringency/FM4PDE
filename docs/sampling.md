@@ -169,16 +169,53 @@ List a sweep:
 ```bash
 python -m sampling.sweep \
   --grid configs/ablations/all_internal_ablation_grid.yaml \
+  --pde poisson \
+  --group guidance_components \
   --list
 ```
 
-Run one sweep group:
+Run selected PDEs and one sweep group with shared runtime overrides:
 
 ```bash
 python -m sampling.sweep \
   --grid configs/ablations/all_internal_ablation_grid.yaml \
-  --group time_dependent_residual_mode
+  --pde heat \
+  --pde wave \
+  --group temporal_residual_mode \
+  --override output_dir=outputs/ablations \
+  --override device=cuda
+
+PDE_LIST="poisson heat" \
+PLAN_ONLY=true \
+  bash scripts/run_ablations.sh guidance_components time_grid_by_sampler
 ```
+
+`--pde`, `--group`, and `--override key=value` may each be repeated. Unknown
+PDEs/groups and filters that select no jobs fail before sampling. The formal
+grid has 1,041 jobs across 11 PDEs; the Poisson-focused grid has 111 jobs.
+
+Formal experiment groups and per-PDE variant counts are:
+
+| group | variants per applicable PDE |
+| --- | ---: |
+| `guidance_components` | 12 |
+| `loss_state_by_sampler` | 6 |
+| `sampler_phase` | 8 |
+| `time_grid_by_sampler` | 12 |
+| `num_steps_by_sampler` | 28 |
+| `step_method_by_sampler` | 8 |
+| `sensor_sparsity` | 5 |
+| `sensor_mode` | 5 |
+| `noise_robustness` | 4 |
+| `temporal_residual_mode` | 3, on six temporal endpoint PDEs |
+| `statistics_stability` | 5 |
+
+The three time-discretization groups vary one factor at a time. Their hybrid
+samplers use `switch_ratio=0.5`; the dedicated `sampler_phase` group tests both
+hybrid directions at `0.2`, `0.5`, and `0.8`. Temporal residual comparison uses
+`endpoint_secant`, `hermite_bridge`, and `near_endpoint_temporal` with a shared
+500-observation budget. `auto` is omitted because it resolves to Hermite, while
+full-trajectory modes are not valid endpoint-model approximations.
 
 Aggregate:
 

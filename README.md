@@ -10,6 +10,7 @@ python -m sampling.runner --config configs/ablations/base/heat.yaml
 PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep.sh
 PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep_burger.sh
 python -m sampling.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
+PDE_LIST="poisson heat" PLAN_ONLY=true bash scripts/run_ablations.sh guidance_components
 python -m sampling.aggregate outputs/ablations --output-dir outputs/ablations
 ```
 
@@ -271,15 +272,38 @@ After a successful sweep, aggregation writes files such as
 
 ### Ablation sweep
 
-The configuration-grid ablation entrypoint remains available separately:
+The formal ablation grid contains 1,041 jobs across all 11 PDEs. Select PDEs
+and experiment groups either through the Python entrypoint or the shell wrapper:
 
 ```bash
 python -m sampling.sweep \
   --grid configs/ablations/all_internal_ablation_grid.yaml \
-  --group time_dependent_residual_mode
+  --pde heat \
+  --group temporal_residual_mode \
+  --list
+
+PDE_LIST="poisson heat" \
+OUTPUT_DIR=outputs/ablations \
+DEVICE=cuda \
+PLAN_ONLY=true \
+  bash scripts/run_ablations.sh guidance_components time_grid_by_sampler
 ```
 
-`configs/ablations/all_internal_ablation_grid.yaml` includes `nsnonbounded` in the top-level `base_configs`, so NS participates in the same guidance, sensor, noise, zeta, time-grid, clipping, residual-region, and statistics ablations as the other PDEs. The time-dependent residual-mode group also includes NS with the other temporal endpoint PDEs.
+The formal groups are `guidance_components`, `loss_state_by_sampler`,
+`sampler_phase`, `time_grid_by_sampler`, `num_steps_by_sampler`,
+`step_method_by_sampler`, `sensor_sparsity`, `sensor_mode`,
+`noise_robustness`, `temporal_residual_mode`, and `statistics_stability`.
+The first ten non-temporal groups expand over all 11 PDEs. Temporal residual
+comparison is scoped to Heat, Wave, Advection-Diffusion, Reaction-Diffusion,
+Shallow Water, and Non-bounded Navier-Stokes.
+
+Time grid, step count, and integration method are deliberately independent
+ablations rather than one large Cartesian product. The Poisson-focused grid in
+`configs/ablations/all_ablation_grid.yaml` contains 111 jobs, including the 18
+temporal-PDE residual jobs. `endpoint_secant`, `hermite_bridge`, and
+`near_endpoint_temporal` all use the same 500-point endpoint observation budget.
+The near-endpoint mode additionally requires saved near-endpoint frames or a
+full trajectory in the formal dataset.
 
 Formal base configs set `allow_synthetic_data: false`; dry-run smoke configs may use synthetic data.
 
