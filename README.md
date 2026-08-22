@@ -240,13 +240,43 @@ PLAN_ONLY=true \
   bash scripts/sample/run_sample_sweep_burger.sh
 ```
 
-`RESUME=true` is enabled by default. A chunk is skipped only when its full
-configuration matches and `resolved_config.yaml`, a successful
-`metrics_final.json`, and `result.pt` are all present. If a run is interrupted,
-rerun the same command: completed chunks are retained and the interrupted or
-missing offsets are scheduled again. Configuration changes, including
-`sensor_mode`, produce a different fingerprint and do not silently reuse
-incompatible results.
+### Burgers parameter tuning and inverse debug
+
+The staged Burgers tuner evaluates zeta and clipping on disjoint offset blocks,
+supports the `random` and `sensor_column` layouts, and resumes completed jobs:
+
+```bash
+STAGE=screen DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/tuning/run_burger_tuning.sh
+STAGE=validate ZETA_OBS_U_LIST=409600 ZETA_PDE_LIST=10 \
+  CLIP_THRESHOLD_LIST=50 DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/tuning/run_burger_tuning.sh
+STAGE=samplers ZETA_OBS_U_LIST=409600 ZETA_PDE_LIST=10 \
+  CLIP_THRESHOLD_LIST=50 DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/tuning/run_burger_tuning.sh
+```
+
+Set `CACHE_DIR` when data and checkpoints are on a slow remote mount. The
+script copies complete inputs through a `.partial` file before starting jobs.
+Use `PLAN_ONLY=true` to inspect the full experiment cross-product.
+
+The ten non-Burgers main equations have a separate inverse/random debug pass:
+
+```bash
+DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/tuning/run_inverse_debug.sh
+```
+
+Both scripts accept `PDE_DATA_ROOT`, `OUTPUT_DIR`, `NUM_STEPS`, `BATCH_SIZE`,
+`RESUME`, and `AGGREGATE` overrides. See `docs/burger_tuning_results.md` for the
+local Burger tuning evidence and the fixed-five-column limitation.
+
+`RESUME=true` is enabled by default. Each tuning job identifier includes the
+observation layout, sampler, zeta values, clipping, steps, offset, batch, and
+seeds. Its `.complete` marker is written only after a successful
+`metrics_final.json` and the matching `result.pt` are found. If a run is
+interrupted, rerun the same command: completed jobs are retained and incomplete
+jobs are scheduled again.
 
 Artifacts preserve the existing MAIN1000-style layout:
 

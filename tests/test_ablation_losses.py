@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from sampling.config import AblationConfig
-from sampling.losses import _componentwise_pde_mse_loss, _masked_mse, compute_guidance_losses
+from sampling.losses import _componentwise_pde_mse_loss, _masked_l2_norm, _masked_mse, compute_guidance_losses
 from sampling.masks import PairMasks
 from sampling.state import SplitState
 
@@ -83,6 +83,55 @@ def test_masked_mse_zero_mask_is_finite_zero():
     out = _masked_mse(pred, target, mask)
     assert torch.isfinite(out)
     assert out.item() == pytest.approx(0.0)
+
+
+def test_masked_l2_norm_matches_diffusionpde_style_per_sample_reduction():
+    pred = torch.tensor(
+        [
+            [[[3.0, 4.0], [99.0, 99.0]]],
+            [[[0.0, 0.0], [5.0, 12.0]]],
+        ]
+    )
+    target = torch.zeros_like(pred)
+    mask = torch.tensor(
+        [
+            [[[1.0, 1.0], [0.0, 0.0]]],
+            [[[0.0, 0.0], [1.0, 1.0]]],
+        ]
+    )
+
+    assert _masked_l2_norm(pred, target, mask).item() == pytest.approx((5.0 + 13.0) / 2.0)
+
+
+def test_masked_l2_norm_has_finite_zero_gradient_at_exact_match():
+    pred = torch.zeros(1, 1, 2, 2, requires_grad=True)
+    target = torch.zeros_like(pred)
+    mask = torch.ones_like(pred)
+
+    _masked_l2_norm(pred, target, mask).backward()
+
+    assert torch.isfinite(pred.grad).all()
+    assert pred.grad.abs().max().item() == pytest.approx(0.0)
+
+
+def test_l2_guidance_keeps_mse_evaluation_loss_comparable():
+    cfg = AblationConfig(
+        task="both",
+        guidance_components="obs_only",
+        obs_guidance_reduction="l2_norm",
+    )
+    pred = SplitState(torch.ones(1, 1, 2, 2) * 3.0, torch.ones(1, 1, 2, 2) * 4.0)
+    gt = GT(torch.zeros_like(pred.coef), torch.zeros_like(pred.sol))
+    masks = PairMasks(torch.ones_like(pred.coef), torch.ones_like(pred.sol), {})
+
+    out = compute_guidance_losses(pred, gt, masks, cfg)
+
+    assert out.L_obs_a.item() == pytest.approx(9.0)
+    assert out.L_obs_u.item() == pytest.approx(16.0)
+    assert out.guidance_L_obs_a.item() == pytest.approx(6.0)
+    assert out.guidance_L_obs_u.item() == pytest.approx(8.0)
+    assert out.metadata["loss_reduction"]["obs_a"] == "masked_mse_over_observed_entries"
+    assert out.metadata["guidance_loss_reduction"]["obs_a"] == "mean_of_per_sample_masked_l2_norm"
 
 
 def test_pde_componentwise_mse_sums_components_with_separate_denominators():

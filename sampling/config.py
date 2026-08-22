@@ -77,6 +77,7 @@ VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "per
 VALID_INITIAL_CONDITION_MODES = {"auto", "endpoint_initial", "observed_initial", "trajectory_initial", "none", "legacy_ignore"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
+VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm"}
 _TYPE_SUFFIX = "type"
 DEPRECATED_LOSS_CONFIG_FIELDS = {f"loss_{_TYPE_SUFFIX}", f"obs_loss_{_TYPE_SUFFIX}", f"pde_loss_{_TYPE_SUFFIX}"}
 DEPRECATED_LOSS_CONFIG_MESSAGE = (
@@ -115,6 +116,7 @@ class AblationConfig:
     model_profile: str = "recommended"
 
     guidance_components: str = "obs_pde"
+    obs_guidance_reduction: str = "mse"
     loss_state: str = "endpoint"
     gradient_target: str = "current_state_chain_rule"
     sampler_phase: str = "stochastic"
@@ -207,6 +209,7 @@ class AblationConfig:
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),
             ("guidance_components", self.guidance_components, VALID_GUIDANCE_COMPONENTS),
+            ("obs_guidance_reduction", self.obs_guidance_reduction, VALID_OBS_GUIDANCE_REDUCTIONS),
             ("loss_state", self.loss_state, VALID_LOSS_STATES),
             ("gradient_target", self.gradient_target, VALID_GRADIENT_TARGETS),
             ("sampler_phase", self.sampler_phase, VALID_SAMPLER_PHASES),
@@ -314,8 +317,9 @@ class AblationConfig:
         phase = self.sampler_phase
         if phase.startswith("hybrid"):
             phase = f"{phase}_{self.switch_ratio:g}"
+        reduction = "" if self.obs_guidance_reduction == "mse" else f"_obsred-{self.obs_guidance_reduction}"
         return (
-            f"{self.guidance_components}_{self.loss_state}_{phase}_"
+            f"{self.guidance_components}{reduction}_{self.loss_state}_{phase}_"
             f"{self.guidance_schedule}_{self.clip_mode}{self.clip_threshold:g}_"
             f"{self.sensor_mode}{self._sensor_budget()}_noise{self.noise_level:g}_"
             f"{self.time_grid}{self.num_steps}_{self.step_method}_"

@@ -231,6 +231,12 @@ python -m sampling.runner \
 `sampling.sweep` 支持重复传入 `--pde`、`--group` 和 `--override key=value`。
 不存在的过滤值或零任务选择会在运行采样前报错。
 
+网格组可使用 `conditional_overrides` 命名映射为特定 PDE/变体声明经过校准的参数。每条规则包含
+`when` 和 `set` 两个映射；规则在 `fixed + matrix` 展开之后应用，而命令行
+`--override` 最后应用、优先级最高。Poisson 的正式网格仅对
+`loss_state=x_next + sampler_phase=stochastic` 使用强 zeta profile，其余变体与
+`configs/main/poisson.yaml` 保持一致，避免旧消融基线的过强引导。
+
 `run_sample_sweep.sh` 以 PDE × task × sensor mode 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
 `PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。
 不同 sensor mode 可以并行；同一 PDE × task × sensor mode 内的 sampler 和 offset 分片保持串行。

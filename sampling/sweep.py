@@ -40,6 +40,12 @@ def expand_grid(
                 overrides = {}
                 overrides.update(fixed)
                 overrides.update(params)
+                _apply_conditional_overrides(
+                    group_spec.get("conditional_overrides", []),
+                    base_config=str(base_config),
+                    base_pde=base_pde,
+                    overrides=overrides,
+                )
                 overrides.update(global_overrides or {})
                 if "test_index" in overrides and "offset" not in overrides:
                     overrides["offset"] = overrides["test_index"]
@@ -145,6 +151,42 @@ def _base_configs_from_spec(spec: dict[str, Any], fallback: list[str]) -> list[s
     if isinstance(value, list):
         return [str(item) for item in value]
     return [str(value)]
+
+
+def _apply_conditional_overrides(
+    rules: Any,
+    *,
+    base_config: str,
+    base_pde: str,
+    overrides: dict[str, Any],
+) -> None:
+    """Apply declarative per-variant settings before command-line overrides."""
+    if rules in (None, [], {}):
+        return
+    if isinstance(rules, dict):
+        named_rules = list(rules.items())
+    elif isinstance(rules, list):
+        named_rules = [(str(index), rule) for index, rule in enumerate(rules)]
+    else:
+        raise ValueError("conditional_overrides must be a mapping or list")
+    context = {
+        "base_config": base_config,
+        "base_stem": Path(base_config).stem,
+        "pde": base_pde,
+        **overrides,
+    }
+    for rule_name, rule in named_rules:
+        if not isinstance(rule, dict):
+            raise ValueError(f"conditional_overrides[{rule_name!r}] must be a mapping")
+        conditions = rule.get("when")
+        values = rule.get("set")
+        if not isinstance(conditions, dict) or not isinstance(values, dict):
+            raise ValueError(
+                f"conditional_overrides[{rule_name!r}] requires mapping-valued 'when' and 'set'"
+            )
+        if all(context.get(key) == value for key, value in conditions.items()):
+            overrides.update(values)
+            context.update(values)
 
 
 def _validate_selection(

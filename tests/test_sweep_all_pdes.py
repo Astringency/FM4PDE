@@ -74,6 +74,41 @@ def test_loss_state_and_sampler_phase_matrices():
     }
 
 
+def test_poisson_zeta_baseline_and_stochastic_xnext_profile_are_locked():
+    expected_baseline = (50000.0, 90000000.0, 0.1)
+    main = load_config("configs/main/poisson.yaml")
+    assert (main.zeta_obs_a, main.zeta_obs_u, main.zeta_pde) == expected_baseline
+    for task in ("forward", "inverse", "both"):
+        cfg = load_config(f"configs/ablations/base/poisson_{task}.yaml")
+        assert (cfg.zeta_obs_a, cfg.zeta_obs_u, cfg.zeta_pde) == expected_baseline
+
+    resolved = {}
+    for path, overrides in _jobs("loss_state_by_sampler"):
+        cfg = load_config(path, overrides=overrides)
+        resolved[(cfg.loss_state, cfg.sampler_phase)] = (
+            cfg.zeta_obs_a,
+            cfg.zeta_obs_u,
+            cfg.zeta_pde,
+        )
+    assert resolved[("x_next", "stochastic")] == (600000.0, 2000000000.0, 1.0)
+    assert all(
+        zeta == expected_baseline
+        for variant, zeta in resolved.items()
+        if variant != ("x_next", "stochastic")
+    )
+
+    darcy = expand_grid(GRID, selected_groups={"loss_state_by_sampler"}, selected_pdes={"darcy"})
+    assert all("zeta_obs_a" not in overrides for _, overrides in darcy)
+
+    forced = expand_grid(
+        GRID,
+        selected_groups={"loss_state_by_sampler"},
+        selected_pdes={"poisson"},
+        global_overrides={"zeta_obs_a": 123.0},
+    )
+    assert all(overrides["zeta_obs_a"] == 123.0 for _, overrides in forced)
+
+
 def test_time_discretization_is_three_independent_ablations():
     phases = {"deterministic", "stochastic", "hybrid_d2s", "hybrid_s2d"}
     grid_jobs = _jobs("time_grid_by_sampler")

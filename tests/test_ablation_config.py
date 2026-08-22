@@ -126,6 +126,19 @@ def test_deprecated_loss_type_extra_is_rejected():
         cfg.validate()
 
 
+def test_observation_guidance_reduction_is_explicit_and_named_in_ablation():
+    mse = AblationConfig(obs_guidance_reduction="mse")
+    mse.validate()
+    assert "obsred" not in mse.resolved_ablation_name()
+
+    l2 = AblationConfig(obs_guidance_reduction="l2_norm")
+    l2.validate()
+    assert "obsred-l2_norm" in l2.resolved_ablation_name()
+
+    with pytest.raises(ValueError, match="obs_guidance_reduction"):
+        AblationConfig(obs_guidance_reduction="relative_l2").validate()
+
+
 def test_residual_mode_changes_ablation_name():
     hermite = AblationConfig(residual_mode="hermite_bridge").resolved_ablation_name()
     secant = AblationConfig(residual_mode="endpoint_secant").resolved_ablation_name()

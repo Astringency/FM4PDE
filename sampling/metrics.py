@@ -82,6 +82,7 @@ def step_metrics(
     guidance_pde_meta = guidance_losses.metadata.get("pde", {})
     channels = pde_meta.get("residual_channels", {}) or {}
     loss_reduction = eval_losses.metadata.get("loss_reduction", {})
+    guidance_loss_reduction = guidance_losses.metadata.get("guidance_loss_reduction", {})
     obs_counts = eval_losses.metadata.get("obs_counts", {})
     component_losses = pde_meta.get("component_losses", {}) or {}
     guidance_component_losses = guidance_pde_meta.get("guidance_component_losses", {}) or {}
@@ -176,6 +177,9 @@ def step_metrics(
         "obs_loss_reduction_a": loss_reduction.get("obs_a", ""),
         "obs_loss_reduction_u": loss_reduction.get("obs_u", ""),
         "pde_loss_reduction": loss_reduction.get("pde", pde_meta.get("loss_reduction", "")),
+        "guidance_obs_loss_reduction_a": guidance_loss_reduction.get("obs_a", ""),
+        "guidance_obs_loss_reduction_u": guidance_loss_reduction.get("obs_u", ""),
+        "guidance_pde_loss_reduction": guidance_loss_reduction.get("pde", ""),
         "obs_count_coef": obs_counts.get("coef", 0.0),
         "obs_count_sol": obs_counts.get("sol", 0.0),
         "pde_loss_interior": component_losses.get("interior", 0.0),

@@ -32,6 +32,19 @@ groups:
     matrix:
       loss_state: [xt, x_next, endpoint]
       sampler_phase: [deterministic, stochastic]
+    # x_next differentiates a different state and needs a larger observation
+    # scale. This profile was paired on eight Poisson error quantiles; all
+    # other variants retain the main Poisson baseline from the base config.
+    conditional_overrides:
+      poisson_stochastic_xnext:
+        when:
+          pde: poisson
+          loss_state: x_next
+          sampler_phase: stochastic
+        set:
+          zeta_obs_a: 600000
+          zeta_obs_u: 2000000000.0
+          zeta_pde: 1.0
 
   sampler_phase:
     fixed:

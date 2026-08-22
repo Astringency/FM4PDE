@@ -78,8 +78,19 @@ def compute_guidance_losses(
     # when a guidance component or its zeta coefficient is disabled.
     L_obs_a = _masked_mse(phys_state.coef, target_coef, masks.coef)
     L_obs_u = _masked_mse(phys_state.sol, target_sol, masks.sol)
-    guidance_L_obs_a = L_obs_a if enabled["obs_a"] else zero
-    guidance_L_obs_u = L_obs_u if enabled["obs_u"] else zero
+    obs_guidance_reduction = str(getattr(config, "obs_guidance_reduction", "mse"))
+    if obs_guidance_reduction == "mse":
+        raw_guidance_L_obs_a = L_obs_a
+        raw_guidance_L_obs_u = L_obs_u
+        obs_guidance_reduction_label = "masked_mse_over_observed_entries"
+    elif obs_guidance_reduction == "l2_norm":
+        raw_guidance_L_obs_a = _masked_l2_norm(phys_state.coef, target_coef, masks.coef)
+        raw_guidance_L_obs_u = _masked_l2_norm(phys_state.sol, target_sol, masks.sol)
+        obs_guidance_reduction_label = "mean_of_per_sample_masked_l2_norm"
+    else:
+        raise ValueError(f"Unknown obs_guidance_reduction={obs_guidance_reduction!r}")
+    guidance_L_obs_a = raw_guidance_L_obs_a if enabled["obs_a"] else zero
+    guidance_L_obs_u = raw_guidance_L_obs_u if enabled["obs_u"] else zero
     clean_L_obs_a = _masked_mse(phys_state.coef, clean_coef, masks.coef)
     clean_L_obs_u = _masked_mse(phys_state.sol, clean_sol, masks.sol)
     obs_counts = {
@@ -223,6 +234,11 @@ def compute_guidance_losses(
         "loss_reduction": {
             "obs_a": "masked_mse_over_observed_entries",
             "obs_u": "masked_mse_over_observed_entries",
+            "pde": "componentwise_mse_sum",
+        },
+        "guidance_loss_reduction": {
+            "obs_a": obs_guidance_reduction_label,
+            "obs_u": obs_guidance_reduction_label,
             "pde": "componentwise_mse_sum",
         },
         "loss_batch_reduction": "mean_of_per_sample",
@@ -373,6 +389,18 @@ def _masked_mse(pred: Any, target: Any, mask: Any, *, eps: float = 1e-12) -> Any
     numerator = residual2.reshape(batch, -1).sum(dim=1)
     denominator = expanded_mask.reshape(batch, -1).sum(dim=1)
     per_sample = numerator / denominator.clamp_min(eps)
+    return per_sample.mean()
+
+
+def _masked_l2_norm(pred: Any, target: Any, mask: Any) -> Any:
+    """Mean of per-sample L2 norms over observed entries, matching DiffusionPDE at B=1."""
+    import torch
+
+    mask = torch.as_tensor(mask, dtype=pred.dtype, device=pred.device).expand_as(pred)
+    target = torch.as_tensor(target, dtype=pred.dtype, device=pred.device)
+    residual = (pred - target) * mask
+    batch = int(pred.shape[0]) if pred.ndim > 1 else 1
+    per_sample = torch.linalg.vector_norm(residual.reshape(batch, -1), dim=1)
     return per_sample.mean()
 
 

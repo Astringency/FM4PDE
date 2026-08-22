@@ -66,6 +66,7 @@ def test_aggregate_outputs_statistics(tmp_path):
     assert float(row["rel_l2_a_sem"]) == pytest.approx(1.0)
     assert float(row["rel_l2_a_ci95"]) == pytest.approx(1.96)
     assert float(row["rel_l2_a_median"]) == pytest.approx(2.0)
+    assert float(row["rel_l2_a_p90"]) == pytest.approx(2.8)
     assert float(row["rel_l2_a_min"]) == pytest.approx(1.0)
     assert float(row["rel_l2_a_max"]) == pytest.approx(3.0)
 

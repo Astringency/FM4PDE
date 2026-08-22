@@ -1,6 +1,5 @@
 # Poisson equation: Δu = f
-# task-specific zeta values (sampling scripts auto-select based on task):
-#   forward:  za=6e5, zu=4e9   inverse:  za=3e6, zu=1e10   both:  za=6e5, zu=2e9
+# Paper ablation baseline. Keep this aligned with configs/main/poisson.yaml.
 pde: poisson
 task: inverse
 data_config_path: configs/main/poisson.yaml
@@ -50,8 +49,8 @@ device: cuda
 dtype: float32
 stochastic_guidance_coeff: 0.1
 stochastic_guidance_time: t
-zeta_obs_a: 3000000
-zeta_obs_u: 10000000000.0
-zeta_pde: 1.0
+zeta_obs_a: 50000
+zeta_obs_u: 90000000
+zeta_pde: 0.1
 extra:
   det_guidance_stoch_scale: true

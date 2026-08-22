@@ -236,6 +236,7 @@ def _stats(name: str, values: list[float]) -> dict[str, Any]:
             f"{name}_sem": "",
             f"{name}_ci95": "",
             f"{name}_median": "",
+            f"{name}_p90": "",
             f"{name}_min": "",
             f"{name}_max": "",
         }
@@ -249,9 +250,26 @@ def _stats(name: str, values: list[float]) -> dict[str, Any]:
         f"{name}_sem": sem,
         f"{name}_ci95": 1.96 * sem,
         f"{name}_median": statistics.median(values),
+        f"{name}_p90": _percentile(values, 0.9),
         f"{name}_min": min(values),
         f"{name}_max": max(values),
     }
+
+
+def _percentile(values: list[float], quantile: float) -> float:
+    """Return a linearly interpolated percentile on the sorted observations."""
+    if not values:
+        raise ValueError("percentile requires at least one value")
+    if not 0.0 <= quantile <= 1.0:
+        raise ValueError("quantile must lie in [0, 1]")
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * quantile
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return ordered[lower]
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
 
 
 def _to_float(value: Any) -> float | None:

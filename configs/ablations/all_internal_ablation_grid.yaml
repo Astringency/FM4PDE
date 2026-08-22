@@ -43,6 +43,18 @@ groups:
     matrix:
       loss_state: [xt, x_next, endpoint]
       sampler_phase: [deterministic, stochastic]
+    # Poisson stochastic+x_next uses a separately calibrated gradient scale.
+    # Other PDEs and loss-state/phase combinations keep their base zeta.
+    conditional_overrides:
+      poisson_stochastic_xnext:
+        when:
+          pde: poisson
+          loss_state: x_next
+          sampler_phase: stochastic
+        set:
+          zeta_obs_a: 600000
+          zeta_obs_u: 2000000000.0
+          zeta_pde: 1.0
 
   sampler_phase:
     fixed:

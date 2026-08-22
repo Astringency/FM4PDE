@@ -42,6 +42,8 @@ def sampler_step(
     loss_state: str,
     device: str | Any = "cpu",
     model_extra: dict[str, Any] | None = None,
+    stochastic_noise_source_batch_size: int | None = None,
+    stochastic_noise_source_indices: list[int] | None = None,
 ) -> SamplerStepOutput:
     import torch
 
@@ -50,7 +52,18 @@ def sampler_step(
     if phase == "deterministic":
         x_endpoint, x_next = _deterministic_step(net, x_cur, t, step_size, step_method, model_extra)
     elif phase == "stochastic":
-        x_endpoint, x_next = _stochastic_step(net, x_cur, t, t_next, step_size, step_method, device, model_extra)
+        x_endpoint, x_next = _stochastic_step(
+            net,
+            x_cur,
+            t,
+            t_next,
+            step_size,
+            step_method,
+            device,
+            model_extra,
+            stochastic_noise_source_batch_size=stochastic_noise_source_batch_size,
+            stochastic_noise_source_indices=stochastic_noise_source_indices,
+        )
     else:
         raise ValueError(f"Unknown phase={phase!r}")
 
@@ -115,6 +128,9 @@ def _stochastic_step(
     method: str,
     device: str | Any,
     model_extra: dict[str, Any] | None,
+    *,
+    stochastic_noise_source_batch_size: int | None = None,
+    stochastic_noise_source_indices: list[int] | None = None,
 ) -> tuple[Any, Any]:
     import torch
 
@@ -138,9 +154,44 @@ def _stochastic_step(
     target = torch.device(device if isinstance(device, str) else device)
     if target.type == "cuda" and not torch.cuda.is_available():
         target = torch.device("cpu")
-    x0 = torch.randn_like(x_cur, device=target)
+    x0 = _stochastic_bridge_noise_like(
+        x_cur,
+        device=target,
+        source_batch_size=stochastic_noise_source_batch_size,
+        source_indices=stochastic_noise_source_indices,
+    )
     x_next = (1.0 - t_next) * x0 + t_next * x_endpoint
     return x_endpoint, x_next
+
+
+def _stochastic_bridge_noise_like(
+    x_cur: Any,
+    *,
+    device: Any,
+    source_batch_size: int | None = None,
+    source_indices: list[int] | None = None,
+) -> Any:
+    """Draw bridge noise, optionally replaying selected rows from a larger batch draw."""
+    import torch
+
+    if source_batch_size is None and source_indices is None:
+        return torch.randn_like(x_cur, device=device)
+    source_batch_size = int(source_batch_size if source_batch_size is not None else x_cur.shape[0])
+    source_indices = (
+        list(range(int(x_cur.shape[0])))
+        if source_indices is None
+        else [int(value) for value in source_indices]
+    )
+    if source_batch_size < int(x_cur.shape[0]):
+        raise ValueError("stochastic noise source_batch_size must be at least the current batch size")
+    if len(source_indices) != int(x_cur.shape[0]):
+        raise ValueError("stochastic noise source_indices must contain exactly one entry per current sample")
+    if any(index < 0 or index >= source_batch_size for index in source_indices):
+        raise ValueError("stochastic noise source_indices values must lie inside the source batch")
+    template = x_cur.new_empty((source_batch_size, *x_cur.shape[1:]), device=device)
+    source = torch.randn_like(template, device=device)
+    index = torch.as_tensor(source_indices, dtype=torch.long, device=device)
+    return source.index_select(0, index)
 
 
 def _call_velocity_model(net: Any, x: Any, t: Any, model_extra: dict[str, Any] | None) -> Any:

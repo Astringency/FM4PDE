@@ -15,3 +15,13 @@ groups:
     matrix:
       loss_state: [xt, x_next, endpoint]
       sampler_phase: [deterministic, stochastic]
+    conditional_overrides:
+      poisson_stochastic_xnext:
+        when:
+          pde: poisson
+          loss_state: x_next
+          sampler_phase: stochastic
+        set:
+          zeta_obs_a: 600000
+          zeta_obs_u: 2000000000.0
+          zeta_pde: 1.0

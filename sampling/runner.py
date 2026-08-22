@@ -135,14 +135,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     _check_sampling_channels(gt, normalizer, checkpoint_payload)
 
     grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta)
-    x_next = torch.randn(
-        config.batch_size,
-        int(gt.pair.shape[1]),
-        int(gt.pair.shape[2]),
-        int(gt.pair.shape[3]),
-        device=device,
-        dtype=gt.pair.dtype,
-    )
+    x_next = _sample_initial_noise(config, gt, device)
 
     pde_start_step = int(config.extra.get("pde_guidance_start_step", 0))
     saved_guidance_components = config.guidance_components
@@ -196,9 +189,24 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                 loss_state=config.loss_state,
                 device=device,
                 model_extra=model_extra,
+                stochastic_noise_source_batch_size=config.extra.get(
+                    "initial_noise_source_batch_size"
+                ),
+                stochastic_noise_source_indices=config.extra.get("initial_noise_source_indices"),
             )
             phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
             losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
+            calibration = _calibrate_l2_observation_zeta(config, losses, step=step)
+            if calibration:
+                config.extra["obs_l2_step0_calibration"] = calibration
+                write_run_metadata(
+                    config,
+                    run_dir,
+                    ground_truth_metadata=gt.metadata,
+                    residual_metadata=_residual_metadata_for_config(config),
+                    checkpoint_metadata=checkpoint_metadata,
+                    scalar_conditioning_metadata=scalar_conditioning_metadata,
+                )
             coeffs = scheduler_coefficients(t, scheduler="CondOT")
             affine = affine_coefficients(coeffs, training="velocity")
             schedule = make_zeta_schedule(config, t, t_next, affine.b_t)
@@ -384,6 +392,89 @@ def _physical_from_model_state(x_model: Any, config: AblationConfig, normalizer:
         img_channels=config.img_channels,
         normalizer=normalizer,
     )
+
+
+def _sample_initial_noise(config: AblationConfig, ground_truth: Any, device: Any) -> Any:
+    """Sample the initial latent, optionally selecting rows from a larger reproducibility batch."""
+    import torch
+
+    source_batch_size = int(config.extra.get("initial_noise_source_batch_size", config.batch_size))
+    source_indices_raw = config.extra.get("initial_noise_source_indices")
+    if source_indices_raw is None:
+        source_indices = list(range(int(config.batch_size)))
+    elif isinstance(source_indices_raw, int):
+        source_indices = [int(source_indices_raw)]
+    else:
+        source_indices = [int(value) for value in source_indices_raw]
+    if source_batch_size < int(config.batch_size):
+        raise ValueError("initial_noise_source_batch_size must be at least batch_size")
+    if len(source_indices) != int(config.batch_size):
+        raise ValueError("initial_noise_source_indices must contain exactly batch_size entries")
+    if any(index < 0 or index >= source_batch_size for index in source_indices):
+        raise ValueError("initial_noise_source_indices values must lie inside the source batch")
+
+    source = torch.randn(
+        source_batch_size,
+        int(ground_truth.pair.shape[1]),
+        int(ground_truth.pair.shape[2]),
+        int(ground_truth.pair.shape[3]),
+        device=device,
+        dtype=ground_truth.pair.dtype,
+    )
+    if source_batch_size == int(config.batch_size) and source_indices == list(range(int(config.batch_size))):
+        return source
+    index = torch.as_tensor(source_indices, dtype=torch.long, device=device)
+    return source.index_select(0, index)
+
+
+def _calibrate_l2_observation_zeta(
+    config: AblationConfig,
+    losses: Any,
+    *,
+    step: int,
+) -> dict[str, Any]:
+    """Match batch-1 L2 observation-gradient scale to configured MSE-reference zeta values."""
+    if step != 0 or config.obs_guidance_reduction != "l2_norm":
+        return {}
+    reference_keys = {
+        "a": "obs_l2_reference_mse_zeta_a",
+        "u": "obs_l2_reference_mse_zeta_u",
+    }
+    if not any(key in config.extra for key in reference_keys.values()):
+        return {}
+    if int(config.batch_size) != 1:
+        raise ValueError("Exact step-0 L2/MSE zeta calibration currently requires batch_size=1")
+
+    flags = guidance_component_flags(config.guidance_components, config.task)
+    counts = losses.metadata.get("obs_counts", {})
+    calibration: dict[str, Any] = {
+        "method": "exact_batch1_step0_gradient_scale_match",
+        "formula": "zeta_l2=zeta_mse*2*sqrt(masked_mse)/sqrt(observed_entries)",
+    }
+    for side, count_key in (("a", "coef"), ("u", "sol")):
+        reference_key = reference_keys[side]
+        if reference_key not in config.extra or not flags[f"obs_{side}"]:
+            continue
+        reference_zeta = float(config.extra[reference_key])
+        mse = float(getattr(losses, f"L_obs_{side}").detach().cpu())
+        observed_entries = float(counts.get(count_key, 0.0))
+        if mse <= 0.0 or observed_entries <= 0.0:
+            raise ValueError(
+                f"Cannot calibrate L2 observation zeta for side {side}: "
+                f"masked_mse={mse}, observed_entries={observed_entries}"
+            )
+        factor = observed_entries**0.5 / (2.0 * mse**0.5)
+        calibrated_zeta = reference_zeta / factor
+        setattr(config, f"zeta_obs_{side}", calibrated_zeta)
+        calibration[side] = {
+            "reference_mse_zeta": reference_zeta,
+            "step0_masked_mse": mse,
+            "observed_entries": observed_entries,
+            "l2_to_mse_gradient_factor": factor,
+            "calibrated_l2_zeta": calibrated_zeta,
+            "weighted_gradient_ratio_l2_over_mse": calibrated_zeta * factor / reference_zeta,
+        }
+    return calibration
 
 
 def _gradient_target_tensor(config: AblationConfig, x_cur: Any, step_out: Any) -> Any:
