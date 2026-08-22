@@ -52,6 +52,27 @@ if (( ${#DEVICES[@]} == 0 || MAX_PARALLEL_TASKS < 1 || MAX_PARALLEL_TASKS > ${#D
     exit 2
 fi
 
+if ! is_true "${PLAN_ONLY}"; then
+    preflight_failed=0
+    for pde in "${PDES[@]}"; do
+        config_path="configs/main/${pde}.yaml"
+        data_path="$(data_path_for "${pde}")"
+        if [[ ! -f "${config_path}" ]]; then
+            echo "MISSING CONFIG ${pde}: ${ROOT_DIR}/${config_path}" >&2
+            preflight_failed=1
+        fi
+        if [[ ! -f "${data_path}" ]]; then
+            echo "MISSING DATA   ${pde}: ${data_path}" >&2
+            preflight_failed=1
+        fi
+    done
+    if (( preflight_failed != 0 )); then
+        echo "Preflight failed. Set PDE_DATA_ROOT to the directory containing the per-PDE subdirectories." >&2
+        echo "Example: PDE_DATA_ROOT=/absolute/path/to/PDEdata bash scripts/tuning/run_inverse_debug.sh" >&2
+        exit 2
+    fi
+fi
+
 mkdir -p "${OUTPUT_DIR}/logs" "${OUTPUT_DIR}/jobs"
 
 run_job() {
@@ -64,19 +85,14 @@ run_job() {
     marker="${job_root}/.complete"
     log_path="${OUTPUT_DIR}/logs/${pde}_inverse_random.log"
 
-    if is_true "${RESUME}" && [[ -f "${marker}" ]]; then
-        echo "SKIP ${pde}"
-        return 0
-    fi
     if is_true "${PLAN_ONLY}"; then
         printf 'PLAN pde=%s device=%s data=%s\n' "${pde}" "${device}" "${data_path}"
         return 0
     fi
-    if [[ ! -f "${config_path}" || ! -f "${data_path}" ]]; then
-        echo "Missing config or data for ${pde}: ${config_path}, ${data_path}" >&2
-        return 1
+    if is_true "${RESUME}" && [[ -f "${marker}" ]]; then
+        echo "SKIP ${pde}"
+        return 0
     fi
-
     mkdir -p "${job_root}"
     echo "RUN  ${pde} device=${device} log=${log_path}"
     if ! python -u -m sampling.runner \
@@ -160,8 +176,12 @@ if (( ${#pids[@]} > 0 )); then
 fi
 
 if ! is_true "${PLAN_ONLY}" && is_true "${AGGREGATE}"; then
-    python -u -m sampling.aggregate "${OUTPUT_DIR}/jobs" --output-dir "${OUTPUT_DIR}/summary"
-    echo "Summary: ${OUTPUT_DIR}/summary/summary_all_grouped.csv"
+    if find "${OUTPUT_DIR}/jobs" -type f -name metrics_final.json -print -quit | grep -q .; then
+        python -u -m sampling.aggregate "${OUTPUT_DIR}/jobs" --output-dir "${OUTPUT_DIR}/summary"
+        echo "Summary: ${OUTPUT_DIR}/summary/summary_all_grouped.csv"
+    else
+        echo "No completed metrics found; skipping aggregation." >&2
+    fi
 fi
 
 exit "${failed}"

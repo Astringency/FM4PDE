@@ -155,11 +155,6 @@ run_job() {
     marker="${job_root}/.complete"
     log_path="${OUTPUT_DIR}/logs/${STAGE}_${job_id}.log"
 
-    if is_true "${RESUME}" && [[ -f "${marker}" ]]; then
-        echo "SKIP ${job_id}"
-        return 0
-    fi
-
     local command=(
         python -u -m sampling.runner
         --config "${CONFIG_PATH}"
@@ -188,6 +183,10 @@ run_job() {
 
     if is_true "${PLAN_ONLY}"; then
         printf 'PLAN %s device=%s\n' "${job_id}" "${device}"
+        return 0
+    fi
+    if is_true "${RESUME}" && [[ -f "${marker}" ]]; then
+        echo "SKIP ${job_id}"
         return 0
     fi
 

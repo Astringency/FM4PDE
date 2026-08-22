@@ -267,9 +267,27 @@ DEVICE_LIST="cuda:0 cuda:1" \
   bash scripts/tuning/run_inverse_debug.sh
 ```
 
-Both scripts accept `PDE_DATA_ROOT`, `OUTPUT_DIR`, `NUM_STEPS`, `BATCH_SIZE`,
+After the one-configuration debug pass, run the result-driven inverse grids in
+two stages. Both stages keep stochastic sampling at 100 steps and evaluate
+each parameter set on two disjoint offset blocks:
+
+```bash
+STAGE=stabilize DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/tuning/run_inverse_tuning.sh
+STAGE=refine DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/tuning/run_inverse_tuning.sh
+```
+
+`stabilize` runs 108 jobs for the six equations that produced NaN/Inf or large
+finite divergence. `refine` runs 96 jobs for Darcy, Poisson, Helmholtz, and
+non-bounded Navier-Stokes. Each stage writes `selected_params.csv`, requiring
+all expected offsets to complete before ranking a configuration by coefficient
+relative-L2 mean, P90, and maximum. Use `PLAN_ONLY=true` to review the grids.
+
+The scripts accept `PDE_DATA_ROOT`, `OUTPUT_DIR`, `NUM_STEPS`, `BATCH_SIZE`,
 `RESUME`, and `AGGREGATE` overrides. See `docs/burger_tuning_results.md` for the
-local Burger tuning evidence and the fixed-five-column limitation.
+local Burger tuning evidence and `docs/inverse_tuning_results.md` for the first
+inverse baseline and second-round grid rationale.
 
 `RESUME=true` is enabled by default. Each tuning job identifier includes the
 observation layout, sampler, zeta values, clipping, steps, offset, batch, and
