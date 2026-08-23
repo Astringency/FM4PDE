@@ -1,14 +1,12 @@
-# Darcy equation: div(a ∇u) + 1 = 0
-# task-specific zeta: forward za=10 zu=40, inverse za=1 zu=2e9, both za=10 zu=40
-pde: darcy
+pde: poisson
 task: both
-data_config_path: configs/main/both/darcy.yaml
-data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
-loadby: h5py
-coef_name: thresh_a_data
-solution_name: thresh_p_data
-checkpoint_path: outputs/pretrained/formal/darcy/260625-150746-darcy-batch4-epoch300-accum8-float32/fm4darcy.pth
-model_profile: recommended
+data_config_path: configs/main/both/poisson.yaml
+data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_10000-128-128_1.mat
+# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
+loadby: scipy
+coef_name: f_data
+solution_name: phi_data
+checkpoint_path: outputs/pretrained/formal/poisson/260621-104344-poisson-batch4-epoch300-accum8-float32/fm4poisson.pth
 output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
@@ -19,7 +17,7 @@ gradient_target: current_state_chain_rule
 sampler_phase: stochastic
 switch_ratio: 0.5
 guidance_schedule: constant
-clip_mode: per_sample_norm
+clip_mode: global_norm
 clip_threshold: 10000000000.0
 pde_residual_region: full
 residual_mode: auto
@@ -41,16 +39,13 @@ mask_seed: 0
 noise_level: 0.0
 noise_seed: 0
 time_grid: uniform
-num_steps: 1000
+num_steps: 100
 step_method: euler
 batch_size: 1
-sample_seed: 42
-device: cuda
+sample_seed: 0
+device: cpu
 dtype: float32
-stochastic_guidance_coeff: 0.1
-stochastic_guidance_time: t
-zeta_obs_a: 10.0
-zeta_obs_u: 40.0
-zeta_pde: 1.0
-extra:
-  det_guidance_stoch_scale: true
+# Untuned both baseline retained separately from inverse tuning.
+zeta_obs_a: 50000.0
+zeta_obs_u: 90000000.0
+zeta_pde: 0.1

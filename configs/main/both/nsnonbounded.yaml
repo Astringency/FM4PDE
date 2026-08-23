@@ -1,6 +1,6 @@
 pde: nsnonbounded
 task: both
-data_config_path: configs/main/nsnonbounded.yaml
+data_config_path: configs/main/both/nsnonbounded.yaml
 data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
 # data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
 loadby: h5py
@@ -49,6 +49,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 60000
-zeta_obs_u: 60000
+# Untuned both baseline retained separately from inverse tuning.
+zeta_obs_a: 60000.0
+zeta_obs_u: 60000.0
 zeta_pde: 0.1

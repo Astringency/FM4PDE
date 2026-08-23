@@ -6,7 +6,7 @@ set -euo pipefail
 # This wrapper fixes the PDE/task selection to burger/both and, by default,
 # runs both observation layouts configured for Burgers:
 #   random         -> uses NUM_OBS (default: 500)
-#   sensor_column  -> uses num_sensor_columns from configs/main/burger.yaml
+#   sensor_column  -> uses num_sensor_columns from configs/main/both/burger.yaml
 #
 # All common controls are inherited by run_sample_sweep.sh, including
 # NUM_SAMPLES, MAX_BATCH_SIZE, SAMPLER_LIST, DEVICE_LIST, RESUME, VIS,

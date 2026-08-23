@@ -27,7 +27,7 @@ set -euo pipefail
 #   NUM_STEPS            Sampling steps (default: 100)
 #   NUM_OBS              Sparse observations (default: 500)
 #   OUTPUT_DIR           Artifact root (default: outputs/MAIN1000_100)
-#   CONFIG_DIR           Main config directory (default: configs/main)
+#   CONFIG_DIR           Main config root (default: configs/main; reads <task>/<pde>.yaml)
 #   DEVICE               Device used when DEVICE_LIST is unset (default: cuda)
 #   DEVICE_LIST          Devices assigned round-robin to PDE × task × sensor jobs
 #   PARALLEL             Run PDE × task × sensor jobs concurrently (default: true)

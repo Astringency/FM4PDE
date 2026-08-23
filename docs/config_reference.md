@@ -10,7 +10,7 @@
 |---|---|---|---|
 | `pde` | `str` | `poisson` | PDE 方程名。可选: `poisson`, `helmholtz`, `darcy`, `nsnonbounded`, `burger`, `heat`, `wave`, `reaction_diffusion`, `shallow_water`, `advection_diffusion`, `steady_heat_conduction` |
 | `task` | `str` | `forward` | 任务类型：`forward`（已知系数推断解）、`inverse`（已知解推断系数）、`both`（同时推断系数和解）、`unconditional`（无观测无条件生成） |
-| `data_config_path` | `str` | `configs/main/poisson.yaml` | 指向 `configs/main/` 下数据格式配置文件 |
+| `data_config_path` | `str` | `configs/main/both/poisson.yaml` | 指向 `configs/main/<task>/` 下数据格式配置文件 |
 | `data_path` | `str` | `""` | 测试数据文件路径（`.mat` 或 `.h5`） |
 | `loadby` | `str` | `""` | 数据加载方式，如 `scipy`（.mat）或 `h5py`（.h5） |
 | `coef_name` | `str` | `""` | 数据文件中系数变量的名称，如 `f_data` |
@@ -145,10 +145,13 @@ PDE 残差通过计算生成轨迹上物理方程的约束来指导采样。不�
 
 ```
 configs/
-├── main/                          # 数据格式定义（路径、变量名、加载方式）
-│   ├── poisson.yaml
-│   ├── helmholtz.yaml
-│   └── ...
+├── main/                          # 按任务存放主采样配置
+│   ├── both/                     # 十个非 Burger 方程 + Burger
+│   │   ├── poisson.yaml
+│   │   ├── burger.yaml
+│   │   └── ...
+│   ├── forward/                  # 十个非 Burger 方程
+│   └── inverse/                  # 十个非 Burger 方程（含调参结果）
 │
 └── ablations/
     ├── base/                      # 单次采样实验配置文件
@@ -235,7 +238,7 @@ python -m sampling.runner \
 `when` 和 `set` 两个映射；规则在 `fixed + matrix` 展开之后应用，而命令行
 `--override` 最后应用、优先级最高。Poisson 的正式网格仅对
 `loss_state=x_next + sampler_phase=stochastic` 使用强 zeta profile，其余变体与
-`configs/main/poisson.yaml` 保持一致，避免旧消融基线的过强引导。
+`configs/main/both/poisson.yaml` 保持一致，避免旧消融基线的过强引导。
 
 `run_sample_sweep.sh` 以 PDE × task × sensor mode 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
 `PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。
@@ -244,7 +247,7 @@ python -m sampling.runner \
 终端会实时显示当前 sensor mode、sampler、已完成样本数、offset/batch、采样 step、相对误差和总体进度。
 `run_sample_sweep_burger.sh` 固定运行 `burger / both`，默认
 `BURGER_SENSOR_MODE_LIST="random sensor_column"`，并强制覆盖调用环境中可能残留的通用
-`SENSOR_MODE_LIST`。其中 `sensor_column` 使用 `configs/main/burger.yaml` 的 `num_sensor_columns`。
+`SENSOR_MODE_LIST`。其中 `sensor_column` 使用 `configs/main/both/burger.yaml` 的 `num_sensor_columns`。
 在两张 GPU 上设置 `PARALLEL=true MAX_PARALLEL_TASKS=2 DEVICE_LIST="cuda:0 cuda:1"` 时，
 两个 Burgers sensor mode 会各占一个 worker 并行执行。
 

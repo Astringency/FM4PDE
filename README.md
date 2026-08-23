@@ -116,10 +116,12 @@ Configs use flat `AblationConfig` YAML. Old `data/generate/model` YAML structure
 
 ### Single run
 
-The five main sampling configs are `poisson`, `helmholtz`, `darcy`,
-`nsnonbounded`, and `burger` under `configs/main/`. Each config selects its
-active training or test `data_path`; switch the active path in that YAML before
-starting a sweep if a different split is required.
+Main sampling configs are task-specific: `configs/main/{both,forward,inverse}/`
+contains one YAML per supported PDE/task combination. The ten non-Burgers PDEs
+support all three tasks; Burger is intentionally available only as
+`configs/main/both/burger.yaml`. Each config selects its active training or test
+`data_path`; switch the active path in that YAML before starting a sweep if a
+different split is required.
 
 Run one PDE/task/batch through the shell entrypoint:
 

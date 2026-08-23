@@ -1,29 +1,27 @@
-# NS non-bounded: scalar vorticity, 10-frame temporal trajectory
-# Uses obs_only (PDE residual explodes with hermite_bridge).
-# task-specific zeta: forward/inverse/both all za=3e5, zu=4e5
 pde: nsnonbounded
-task: inverse
-data_config_path: configs/main/inverse/nsnonbounded.yaml
-data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
+task: forward
+data_config_path: configs/main/forward/nsnonbounded.yaml
+data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
+# data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
 loadby: h5py
 coef_name: w0
 solution_name: w
 checkpoint_path: outputs/pretrained/formal/nsnonbounded/260712-121023-nsnonbounded-batch4-epoch300-accum8-float32/fm4nsnonbounded.pth
-model_profile: recommended
 output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
-guidance_components: obs_only
+guidance_components: obs_pde
 loss_state: endpoint
 gradient_target: current_state_chain_rule
 sampler_phase: stochastic
 switch_ratio: 0.5
 guidance_schedule: constant
-clip_mode: per_sample_norm
+clip_mode: global_norm
 clip_threshold: 10000000000.0
 pde_residual_region: full
-residual_mode: hermite_bridge
+# residual_mode: hermite_bridge
+residual_mode: endpoint_secant
 enforce_boundary_conditions: false
 enforce_initial_conditions: false
 boundary_condition_mode: none
@@ -45,16 +43,13 @@ mask_seed: 0
 noise_level: 0.0
 noise_seed: 0
 time_grid: uniform
-num_steps: 1000
+num_steps: 100
 step_method: euler
 batch_size: 1
-sample_seed: 42
-device: cuda
+sample_seed: 0
+device: cpu
 dtype: float32
-stochastic_guidance_coeff: 0.1
-stochastic_guidance_time: t
-zeta_obs_a: 300000
-zeta_obs_u: 400000
-zeta_pde: 1.0
-extra:
-  det_guidance_stoch_scale: true
+# Untuned forward baseline retained separately from inverse tuning.
+zeta_obs_a: 60000.0
+zeta_obs_u: 60000.0
+zeta_pde: 0.1

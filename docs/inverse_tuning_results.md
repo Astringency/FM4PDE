@@ -51,6 +51,21 @@ of the four finite equations. Both stages use offsets 0 and 1000 with batch size
 ranking. The rank score is `0.5 * mean + 0.3 * P90 + 0.2 * max` of coefficient
 relative L2; incomplete configurations are excluded.
 
-After selecting candidates, validation should use new offset blocks such as
-3000 and 5000, larger batches, and at least two mask seeds before updating the
-main equation configs.
+Final validation should use new offset blocks such as 3000 and 5000, larger
+batches, and at least two mask seeds before treating any candidate as a final
+benchmark configuration.
+
+## Provisional main configurations
+
+The best finite settings from the four unique samples at offsets 0-1 and
+1000-1001 have been copied to `configs/main/inverse`. The separate inverse
+configs use random observations, stochastic 100-step sampling, and global-norm
+clipping at 50. The `both` and `forward` directories retain their independent
+baselines. These values reproduce the screening setup but remain provisional
+until evaluation on disjoint offsets with more samples.
+
+Some stability-screen winners resolved to `zeta_pde=0.0` because the original
+integer-valued YAML fields truncated fractional CLI overrides. The main zeta
+fields are now written explicitly as floats to prevent the same coercion during
+subsequent tuning. A zero value records the configuration that actually ran; it
+does not constitute a comparison against the intended 0.01 and 0.1 values.

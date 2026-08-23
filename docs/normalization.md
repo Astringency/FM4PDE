@@ -46,5 +46,5 @@ python train.py --dataset heat --data_path /large_storage/zhangxf/PDEdata/ --epo
 Sampling example:
 
 ```bash
-python -m sampling.runner --config configs/main/heat.yaml --override checkpoint_path=.../fm4heat.pth
+python -m sampling.runner --config configs/main/both/heat.yaml --override checkpoint_path=.../fm4heat.pth
 ```

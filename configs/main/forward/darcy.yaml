@@ -1,6 +1,6 @@
 pde: darcy
-task: both
-data_config_path: configs/main/darcy.yaml
+task: forward
+data_config_path: configs/main/forward/darcy.yaml
 data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_10000-128-128_1.mat
 # data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
 loadby: h5py
@@ -47,6 +47,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 10
-zeta_obs_u: 500000000
+# Untuned forward baseline retained separately from inverse tuning.
+zeta_obs_a: 10.0
+zeta_obs_u: 500000000.0
 zeta_pde: 0.1

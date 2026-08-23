@@ -3,7 +3,7 @@
 # task-specific zeta: forward/inverse/both all za=3e5, zu=4e5
 pde: nsnonbounded
 task: forward
-data_config_path: configs/main/nsnonbounded.yaml
+data_config_path: configs/main/forward/nsnonbounded.yaml
 data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
 loadby: h5py
 coef_name: w0

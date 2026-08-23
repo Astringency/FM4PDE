@@ -1,8 +1,8 @@
 # Poisson equation: Δu = f
-# Paper ablation baseline. Keep this aligned with configs/main/poisson.yaml.
+# Paper ablation baseline. Keep this aligned with configs/main/forward/poisson.yaml.
 pde: poisson
 task: forward
-data_config_path: configs/main/poisson.yaml
+data_config_path: configs/main/forward/poisson.yaml
 data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
 loadby: scipy
 coef_name: f_data

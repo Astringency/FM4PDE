@@ -20,7 +20,7 @@ set -euo pipefail
 #   DEVICE           设备 (默认 cuda)
 #   OUTPUT_DIR       输出目录 (默认从配置读取)
 #   SAMPLE_SEED      随机种子 (默认 42)
-#   CONFIG_DIR       配置目录 (默认 configs/main)
+#   CONFIG_DIR       任务配置根目录 (默认 configs/main；实际读取 <TASK>/<PDE>.yaml)
 #   DRY_RUN          仅校验不运行 (默认 false)
 #   VIS              采样后绘图 (默认 false)
 # ============================================================================
@@ -36,11 +36,18 @@ OFFSET="${OFFSET:-0}"
 DEVICE="${DEVICE:-cuda}"
 CONFIG_DIR="${CONFIG_DIR:-configs/main}"
 
-# ── 配置文件: configs/ablations/base/<pde>_<task>.yaml ───────────────────────
-# CONFIG="${CONFIG_DIR}/${PDE}_${TASK}.yaml"
-CONFIG="${CONFIG_DIR}/${PDE}.yaml"
+case "${TASK}" in
+    both|forward|inverse) ;;
+    *)
+        echo "TASK 必须是 both、forward 或 inverse，当前值: ${TASK}" >&2
+        exit 2
+        ;;
+esac
+
+# ── 配置文件: configs/main/<task>/<pde>.yaml ────────────────────────────────
+CONFIG="${CONFIG_DIR}/${TASK}/${PDE}.yaml"
 if [[ ! -f "${CONFIG}" ]]; then
-    echo "配置文件不存在: ${CONFIG}" >&2
+    echo "配置文件不存在或该 PDE/TASK 组合不受支持: ${CONFIG}" >&2
     exit 2
 fi
 

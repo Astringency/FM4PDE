@@ -1,6 +1,6 @@
 pde: heat
 task: both
-data_config_path: configs/main/heat.yaml
+data_config_path: configs/main/both/heat.yaml
 data_path: /large_storage/zhangxf/PDEdata/heat/heat_test_1000-128-128.h5
 loadby: pair_h5
 coef_name: input_data

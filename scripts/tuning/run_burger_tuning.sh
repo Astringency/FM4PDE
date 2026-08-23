@@ -17,7 +17,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 
-CONFIG_PATH="${CONFIG_PATH:-configs/main/burger.yaml}"
+CONFIG_PATH="${CONFIG_PATH:-configs/main/both/burger.yaml}"
 PDE_DATA_ROOT="${PDE_DATA_ROOT:-${HOME}/share/PDEdata}"
 DATA_PATH="${DATA_PATH:-${PDE_DATA_ROOT}/burgers/burger_test_10000-128-128.mat}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-outputs/pretrained/formal/burger/260625-150439-burger-batch4-epoch300-accum8-float32/fm4burger.pth}"

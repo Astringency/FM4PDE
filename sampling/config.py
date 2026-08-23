@@ -110,7 +110,7 @@ _LOCAL_CHECKPOINTS = {
 class AblationConfig:
     pde: str = "poisson"
     task: str = "forward"
-    data_config_path: str = "configs/main/poisson.yaml"
+    data_config_path: str = "configs/main/both/poisson.yaml"
     checkpoint_path: str = "outputs/pretrained/fm4poisson.pth"
     output_dir: str = "outputs/ablations"
     model_profile: str = "recommended"

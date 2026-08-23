@@ -1,12 +1,13 @@
-pde: advection_diffusion
-task: both
-data_config_path: configs/main/advection_diffusion.yaml
-data_path: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_1000-128-128.h5
-loadby: pair_h5
-coef_name: input_data
-solution_name: output_data
-checkpoint_path: outputs/pretrained/formal/advection_diffusion/260701-115538-advection_diffusion-batch4-epoch300-accum8-float32/fm4advection_diffusion.pth
-output_dir: outputs/ablations
+pde: poisson
+task: forward
+data_config_path: configs/main/forward/poisson.yaml
+data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_10000-128-128_1.mat
+# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
+loadby: scipy
+coef_name: f_data
+solution_name: phi_data
+checkpoint_path: outputs/pretrained/formal/poisson/260621-104344-poisson-batch4-epoch300-accum8-float32/fm4poisson.pth
+output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
@@ -19,20 +20,17 @@ guidance_schedule: constant
 clip_mode: global_norm
 clip_threshold: 10000000000.0
 pde_residual_region: full
-residual_mode: hermite_bridge
+residual_mode: auto
 enforce_boundary_conditions: true
 enforce_initial_conditions: true
-boundary_condition_mode: periodic
-initial_condition_mode: auto
+boundary_condition_mode: dirichlet_zero
+initial_condition_mode: none
 bc_weight: 1.0
 ic_weight: 1.0
 endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
 legacy_ignore_boundary: false
-hermite_collocation_times: [0.25, 0.5, 0.75]
-hermite_include_integral_residual: true
-hermite_integral_weight: 1.0
 num_obs: 500
 num_sensor_columns: 5
 sensor_mode: random
@@ -47,6 +45,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 1
-zeta_obs_u: 1
-zeta_pde: 1
+# Untuned forward baseline retained separately from inverse tuning.
+zeta_obs_a: 50000.0
+zeta_obs_u: 90000000.0
+zeta_pde: 0.1

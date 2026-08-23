@@ -155,8 +155,9 @@ PY
 
 
 def test_build_experiments_expands_sensor_modes_into_parallel_groups(tmp_path):
-    (tmp_path / "burger.yaml").write_text(
-        "pde: burger\nsensor_mode: random\nnum_sensor_columns: 5\n",
+    (tmp_path / "both").mkdir()
+    (tmp_path / "both" / "burger.yaml").write_text(
+        "pde: burger\ntask: both\nsensor_mode: random\nnum_sensor_columns: 5\n",
         encoding="utf-8",
     )
     args = build_arg_parser().parse_args(
@@ -186,6 +187,35 @@ def test_build_experiments_expands_sensor_modes_into_parallel_groups(tmp_path):
         "sensor_column",
     ]
     assert len({experiment.key for experiment in experiments}) == 2
+    assert all(experiment.config_path == tmp_path / "both" / "burger.yaml" for experiment in experiments)
+
+
+def test_build_experiments_rejects_missing_task_specific_config(tmp_path):
+    (tmp_path / "both").mkdir()
+    (tmp_path / "both" / "burger.yaml").write_text(
+        "pde: burger\ntask: both\nsensor_mode: random\nnum_sensor_columns: 5\n",
+        encoding="utf-8",
+    )
+    args = build_arg_parser().parse_args(
+        [
+            "--pdes",
+            "burger",
+            "--tasks",
+            "inverse",
+            "--samplers",
+            "stochastic",
+            "--config-dir",
+            str(tmp_path),
+        ]
+    )
+
+    try:
+        build_experiments(args)
+    except FileNotFoundError as exc:
+        assert "pde=burger, task=inverse" in str(exc)
+        assert str(tmp_path / "inverse" / "burger.yaml") in str(exc)
+    else:
+        raise AssertionError("missing Burger inverse config should be rejected")
 
 
 def _experiment(pde: str, task: str, sensor_mode: str = "random") -> Experiment:

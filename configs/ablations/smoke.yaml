@@ -1,6 +1,6 @@
 pde: poisson
 task: forward
-data_config_path: configs/main/poisson.yaml
+data_config_path: configs/main/forward/poisson.yaml
 checkpoint_path: outputs/pretrained/fm4poisson.pth
 output_dir: outputs/ablations
 guidance_components: obs_pde

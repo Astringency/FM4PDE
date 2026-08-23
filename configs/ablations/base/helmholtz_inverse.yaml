@@ -2,7 +2,7 @@
 # task-specific zeta: forward za=2e5 zu=1e9, inverse za=5e4 zu=4e9, both za=2e5 zu=2e9
 pde: helmholtz
 task: inverse
-data_config_path: configs/main/helmholtz.yaml
+data_config_path: configs/main/inverse/helmholtz.yaml
 data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128.mat
 loadby: scipy
 coef_name: f_data

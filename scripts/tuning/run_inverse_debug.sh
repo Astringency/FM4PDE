@@ -55,7 +55,7 @@ fi
 if ! is_true "${PLAN_ONLY}"; then
     preflight_failed=0
     for pde in "${PDES[@]}"; do
-        config_path="configs/main/${pde}.yaml"
+        config_path="configs/main/inverse/${pde}.yaml"
         data_path="$(data_path_for "${pde}")"
         if [[ ! -f "${config_path}" ]]; then
             echo "MISSING CONFIG ${pde}: ${ROOT_DIR}/${config_path}" >&2
@@ -78,7 +78,7 @@ mkdir -p "${OUTPUT_DIR}/logs" "${OUTPUT_DIR}/jobs"
 run_job() {
     local device="$1"
     local pde="$2"
-    local config_path="configs/main/${pde}.yaml"
+    local config_path="configs/main/inverse/${pde}.yaml"
     local data_path job_root marker log_path
     data_path="$(data_path_for "${pde}")"
     job_root="${OUTPUT_DIR}/jobs/${pde}_inverse_random_steps-${NUM_STEPS}_offset-${OFFSET}_batch-${BATCH_SIZE}_seed-${SAMPLE_SEED}_mask-${MASK_SEED}"

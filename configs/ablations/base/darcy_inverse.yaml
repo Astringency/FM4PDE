@@ -2,7 +2,7 @@
 # task-specific zeta: forward za=10 zu=40, inverse za=1 zu=2e9, both za=10 zu=40
 pde: darcy
 task: inverse
-data_config_path: configs/main/darcy.yaml
+data_config_path: configs/main/inverse/darcy.yaml
 data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
 loadby: h5py
 coef_name: thresh_a_data

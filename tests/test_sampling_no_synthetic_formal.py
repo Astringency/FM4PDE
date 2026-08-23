@@ -23,20 +23,7 @@ FORMAL_BASE_CONFIGS = {
     "nsnonbounded": "nsnonbounded_both",
 }
 
-TOP_LEVEL_CONFIGS = [
-    "advection_diffusion",
-    "burger",
-    "darcy",
-    "heat",
-    "heat_fixed",
-    "helmholtz",
-    "nsnonbounded",
-    "poisson",
-    "reaction_diffusion",
-    "shallow_water",
-    "steady_heat_conduction",
-    "wave",
-]
+MAIN_CONFIG_PATHS = sorted(Path("configs/main").glob("*/*.yaml"))
 
 
 def test_formal_base_configs_disable_synthetic_fallback():
@@ -58,9 +45,10 @@ def test_formal_data_paths_use_pde_named_directories():
             assert path.parent.name == name
 
 
-def test_top_level_data_paths_use_pde_named_directories():
-    for name in TOP_LEVEL_CONFIGS:
-        cfg = load_config(f"configs/main/{name}.yaml")
+def test_main_task_data_paths_use_pde_named_directories():
+    for config_path in MAIN_CONFIG_PATHS:
+        name = config_path.stem
+        cfg = load_config(config_path)
         path = Path(cfg.data_path)
         path_text = path.as_posix()
         assert "/pair_h5/" not in path_text
@@ -75,7 +63,7 @@ def test_top_level_data_paths_use_pde_named_directories():
 def test_formal_configs_reference_existing_data_configs():
     config_paths = [
         *(f"configs/ablations/base/{name}.yaml" for name in FORMAL_BASE_CONFIGS.values()),
-        *(f"configs/main/{name}.yaml" for name in TOP_LEVEL_CONFIGS),
+        *MAIN_CONFIG_PATHS,
     ]
     for config_path in config_paths:
         cfg = load_config(config_path)

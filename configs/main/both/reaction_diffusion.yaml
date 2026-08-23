@@ -6,7 +6,6 @@ loadby: rd
 coef_name: a
 solution_name: u
 checkpoint_path: outputs/pretrained/formal/reaction_diffusion/260712-121626-reaction_diffusion-batch2-epoch300-accum16-float32/fm4reaction_diffusion.pth
-model_profile: recommended
 output_dir: outputs/ablations
 img_channels: 4
 img_resolution: 128
@@ -48,6 +47,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 40000000
-zeta_obs_u: 40000000
-zeta_pde: 10
+# Untuned both baseline retained separately from inverse tuning.
+zeta_obs_a: 40000000.0
+zeta_obs_u: 40000000.0
+zeta_pde: 10.0

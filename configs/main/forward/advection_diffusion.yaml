@@ -1,14 +1,13 @@
-pde: reaction_diffusion
-task: both
-data_config_path: configs/main/both/reaction_diffusion.yaml
-data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5
-loadby: rd
-coef_name: a
-solution_name: u
-checkpoint_path: outputs/pretrained/formal/reaction_diffusion/260712-121626-reaction_diffusion-batch2-epoch300-accum16-float32/fm4reaction_diffusion.pth
-model_profile: recommended
+pde: advection_diffusion
+task: forward
+data_config_path: configs/main/forward/advection_diffusion.yaml
+data_path: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_1000-128-128.h5
+loadby: pair_h5
+coef_name: input_data
+solution_name: output_data
+checkpoint_path: outputs/pretrained/formal/advection_diffusion/260701-115538-advection_diffusion-batch4-epoch300-accum8-float32/fm4advection_diffusion.pth
 output_dir: outputs/ablations
-img_channels: 4
+img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
 guidance_components: obs_pde
@@ -23,7 +22,7 @@ pde_residual_region: full
 residual_mode: hermite_bridge
 enforce_boundary_conditions: true
 enforce_initial_conditions: true
-boundary_condition_mode: neumann_zero
+boundary_condition_mode: periodic
 initial_condition_mode: auto
 bc_weight: 1.0
 ic_weight: 1.0
@@ -48,6 +47,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 40000000
-zeta_obs_u: 40000000
-zeta_pde: 10
+# Untuned forward baseline retained separately from inverse tuning.
+zeta_obs_a: 1.0
+zeta_obs_u: 1.0
+zeta_pde: 1.0

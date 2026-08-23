@@ -1,6 +1,6 @@
 pde: shallow_water
 task: both
-data_config_path: configs/main/shallow_water.yaml
+data_config_path: configs/main/both/shallow_water.yaml
 data_path: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_1000-128-128-10.h5
 loadby: swe
 coef_name: init

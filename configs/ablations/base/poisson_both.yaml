@@ -1,10 +1,10 @@
 # Poisson equation: Δu = f
-# Paper ablation baseline. Keep this aligned with configs/main/poisson.yaml.
+# Paper ablation baseline. Keep this aligned with configs/main/both/poisson.yaml.
 # stochastic+x_next is the sole calibrated exception and is declared in the
 # loss_state_by_sampler grid via conditional_overrides.
 pde: poisson
 task: both
-data_config_path: configs/main/poisson.yaml
+data_config_path: configs/main/both/poisson.yaml
 data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
 loadby: scipy
 coef_name: f_data

@@ -1,13 +1,13 @@
-pde: burger
+pde: shallow_water
 task: both
-data_config_path: configs/main/burger.yaml
-data_path: /home/tat512/share/PDEdata/burgers/burger_test_10000-128-128.mat
-loadby: scipy
-coef_name: output
-solution_name: output
-checkpoint_path: outputs/pretrained/formal/burger/260625-150439-burger-batch4-epoch300-accum8-float32/fm4burger.pth
-output_dir: outputs/samples
-img_channels: 1
+data_config_path: configs/main/both/shallow_water.yaml
+data_path: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_1000-128-128-10.h5
+loadby: swe
+coef_name: init
+solution_name: final
+checkpoint_path: outputs/pretrained/formal/shallow_water/260712-120347-shallow_water-batch2-epoch300-accum16-float32/fm4shallow_water.pth
+output_dir: outputs/ablations
+img_channels: 6
 img_resolution: 128
 allow_synthetic_data: false
 guidance_components: obs_pde
@@ -17,12 +17,12 @@ sampler_phase: stochastic
 switch_ratio: 0.5
 guidance_schedule: constant
 clip_mode: global_norm
-clip_threshold: 50.0
+clip_threshold: 10000000000.0
 pde_residual_region: full
-residual_mode: auto
+residual_mode: hermite_bridge
 enforce_boundary_conditions: true
 enforce_initial_conditions: true
-boundary_condition_mode: periodic
+boundary_condition_mode: open
 initial_condition_mode: auto
 bc_weight: 1.0
 ic_weight: 1.0
@@ -30,10 +30,12 @@ endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
 legacy_ignore_boundary: false
+hermite_collocation_times: [0.25, 0.5, 0.75]
+hermite_include_integral_residual: true
+hermite_integral_weight: 1.0
 num_obs: 500
-num_sensor_columns: 16
+num_sensor_columns: 5
 sensor_mode: random
-# sensor_mode: sensor_column
 shared_mask: false
 mask_seed: 0
 noise_level: 0.0
@@ -45,6 +47,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-zeta_obs_a: 0
-zeta_obs_u: 409600
-zeta_pde: 10
+# Untuned both baseline retained separately from inverse tuning.
+zeta_obs_a: 200000.0
+zeta_obs_u: 200000.0
+zeta_pde: 10.0

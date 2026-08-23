@@ -747,10 +747,19 @@ def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[
     seen_groups: set[GroupKey] = set()
     requested_sensor_modes: list[str | None] = args.sensor_modes or [None]
     for pde in args.pdes:
-        config_path = Path(args.config_dir) / f"{pde}.yaml"
-        if not config_path.is_file():
-            raise FileNotFoundError(f"Configuration file does not exist: {config_path}")
         for task in args.tasks:
+            config_path = Path(args.config_dir) / task / f"{pde}.yaml"
+            if not config_path.is_file():
+                raise FileNotFoundError(
+                    f"Configuration file does not exist for pde={pde}, task={task}: {config_path}"
+                )
+            base_config = load_config(config_path)
+            if base_config.pde != pde or base_config.task != task:
+                raise ValueError(
+                    f"Configuration identity mismatch in {config_path}: "
+                    f"expected pde={pde}, task={task}; "
+                    f"found pde={base_config.pde}, task={base_config.task}"
+                )
             for sampler in args.samplers:
                 for requested_sensor_mode in requested_sensor_modes:
                     overrides: dict[str, Any] = {
@@ -857,7 +866,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-steps", type=int, default=100)
     parser.add_argument("--num-obs", type=int, default=500)
     parser.add_argument("--output-dir", default="outputs/samples")
-    parser.add_argument("--config-dir", default="configs/main")
+    parser.add_argument(
+        "--config-dir",
+        default="configs/main",
+        help="task config root containing both/, forward/, and inverse/",
+    )
     parser.add_argument("--sample-script", default="scripts/sample/run_sample.sh")
     parser.add_argument("--devices", nargs="+", default=["cuda"])
     parser.add_argument("--max-parallel-tasks", type=int, default=2)

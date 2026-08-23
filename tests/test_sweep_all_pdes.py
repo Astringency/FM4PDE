@@ -74,10 +74,10 @@ def test_loss_state_and_sampler_phase_matrices():
     }
 
 
-def test_poisson_zeta_baseline_and_stochastic_xnext_profile_are_locked():
+def test_poisson_main_inverse_tuning_and_ablation_baseline_are_locked():
     expected_baseline = (50000.0, 90000000.0, 0.1)
-    main = load_config("configs/main/poisson.yaml")
-    assert (main.zeta_obs_a, main.zeta_obs_u, main.zeta_pde) == expected_baseline
+    main = load_config("configs/main/inverse/poisson.yaml")
+    assert (main.zeta_obs_a, main.zeta_obs_u, main.zeta_pde) == (0.0, 360000000.0, 0.3)
     for task in ("forward", "inverse", "both"):
         cfg = load_config(f"configs/ablations/base/poisson_{task}.yaml")
         assert (cfg.zeta_obs_a, cfg.zeta_obs_u, cfg.zeta_pde) == expected_baseline

@@ -3,7 +3,7 @@
 # task-specific zeta: all za=0, zu=128000, zpde=10
 pde: burger
 task: both
-data_config_path: configs/main/burger.yaml
+data_config_path: configs/main/both/burger.yaml
 data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128.mat
 loadby: scipy
 coef_name: output

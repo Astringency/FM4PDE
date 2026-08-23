@@ -123,7 +123,7 @@ fi
 if ! is_true "${PLAN_ONLY}"; then
     preflight_failed=0
     for pde in "${PDES[@]}"; do
-        config_path="configs/main/${pde}.yaml"
+        config_path="configs/main/inverse/${pde}.yaml"
         data_path="$(data_path_for "${pde}")"
         if [[ ! -f "${config_path}" ]]; then
             echo "MISSING CONFIG ${pde}: ${ROOT_DIR}/${config_path}" >&2
@@ -151,7 +151,7 @@ run_job() {
     local clip_threshold="$5"
     local offset="$6"
     local mask_seed="$7"
-    local config_path="configs/main/${pde}.yaml"
+    local config_path="configs/main/inverse/${pde}.yaml"
     local data_path job_id job_root marker log_path
     data_path="$(data_path_for "${pde}")"
     job_id="${pde}_inverse_random_zu-${zeta_obs_u}_zp-${zeta_pde}_clip-${CLIP_MODE}-${clip_threshold}_steps-${NUM_STEPS}_offset-${offset}_batch-${BATCH_SIZE}_seed-${SAMPLE_SEED}_mask-${mask_seed}"
