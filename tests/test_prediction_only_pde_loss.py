@@ -25,7 +25,6 @@ def _poisson_config(task: str, guidance_components: str = "obs_pde") -> Ablation
         task=task,
         guidance_components=guidance_components,
         boundary_condition_mode="none",
-        initial_condition_mode="auto",
     )
 
 
@@ -47,7 +46,6 @@ def test_pde_loss_is_invariant_to_ground_truth_fields_for_every_task(task):
         "sol": "model_output",
     }
     assert first.metadata["pde"]["uses_ground_truth_fields"] is False
-    assert first.metadata["pde"]["ic_residual_enabled"] is False
 
 
 @pytest.mark.parametrize("task", ["forward", "inverse", "both"])
@@ -94,7 +92,6 @@ def test_ground_truth_derived_pde_params_are_removed_from_sampling_loss():
     assert set(output.metadata["excluded_ground_truth_field_params"]) == set(params)
     assert set(output.metadata["pde"]["excluded_ground_truth_field_params"]) == set(params)
     assert not (set(output.metadata["pde_params_used"]) & GROUND_TRUTH_FIELD_PDE_PARAM_KEYS)
-    assert output.metadata["pde"]["ic_residual_enabled"] is False
 
 
 def test_near_endpoint_exception_exposes_only_sparse_observed_values():
@@ -116,7 +113,6 @@ def test_near_endpoint_exception_exposes_only_sparse_observed_values():
         guidance_components="pde_only",
         residual_mode="near_endpoint_temporal",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
     )
     masks = PairMasks(torch.zeros_like(q0), torch.zeros_like(qT), {})
 
@@ -178,7 +174,6 @@ def test_near_endpoint_exception_rejects_empty_sparse_masks():
         guidance_components="pde_only",
         residual_mode="near_endpoint_temporal",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
     )
     gt = GT(
         q0,
@@ -222,7 +217,6 @@ def test_burgers_sampling_residual_uses_predicted_full_time_field_only():
         guidance_components="pde_only",
         residual_mode="full_trajectory_fd",
         boundary_condition_mode="periodic",
-        initial_condition_mode="auto",
     )
     masks = PairMasks(torch.zeros_like(prediction), torch.zeros_like(prediction), {})
 
@@ -280,7 +274,6 @@ def test_pde_guidance_gradient_is_independent_of_other_batch_samples():
         guidance_components="pde_only",
         residual_mode="endpoint_secant",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
         clip_mode="none",
     )
     schedule = make_zeta_schedule(config, torch.tensor(0.2), torch.tensor(0.4), torch.tensor(1.0))

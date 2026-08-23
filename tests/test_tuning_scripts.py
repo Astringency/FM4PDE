@@ -29,7 +29,7 @@ def test_burger_tuning_plan_expands_the_requested_cross_product():
             "ZETA_PDE_LIST": "1 10",
             "OFFSET_LIST": "0 1000",
             "MASK_SEED_LIST": "0 11",
-            "CLIP_MODE_LIST": "global_norm per_sample_norm",
+            "CLIP_MODE_LIST": "global_norm per_component_norm",
             "CLIP_THRESHOLD_LIST": "50 100",
             "BATCH_SIZE": "2",
         },

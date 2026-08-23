@@ -5,7 +5,7 @@ Training uses `model_profile=auto` by default: new training resolves it to
 `recommended`, while resume training first inspects checkpoint architecture
 metadata and uses the saved profile/config when available. `recommended` is the
 PDE-family registry; `light`, `base`, and `heavy` are explicit architecture
-ablations; `legacy_base` is only for reproducing old checkpoints.
+ablations.
 
 | PDEs | architecture family |
 | --- | --- |
@@ -22,10 +22,8 @@ captured at coarse scales. This reduces memory pressure on 128x128 data.
 
 ## Fourier Features
 
-`with_value_fourier_features` enables value Fourier features. The old
-`with_fourier_features` field remains as a backward-compatible alias for the
-same value Fourier behavior. Value Fourier applies `sin` and `cos` to input
-field values:
+`with_value_fourier_features` enables value Fourier features. Value Fourier
+applies `sin` and `cos` to input field values:
 
 ```text
 sin(omega * input_value), cos(omega * input_value)
@@ -96,9 +94,9 @@ num_channels
 checkpoint_schema_version
 ```
 
-Sampling first uses the checkpoint `model_config` to reconstruct the model. If a
-checkpoint lacks `model_config`, pass an explicit `model_profile` such as
-`legacy_base`; otherwise the loader raises a clear architecture mismatch error.
+Sampling requires a schema 3 checkpoint and uses its `model_config` to
+reconstruct the model. Missing architecture metadata, normalizer data, or plain
+model weights is an error.
 Training resume follows the same preflight idea: `auto` uses checkpoint
 architecture metadata, explicit profile mismatches fail unless
 `--allow_model_profile_override` is passed, and checkpoint `model_config`

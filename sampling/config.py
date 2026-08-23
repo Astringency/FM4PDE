@@ -47,17 +47,13 @@ VALID_GUIDANCE_SCHEDULES = {
     "polynomial",
     "obs_decay",
 }
-VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm", "per_sample_norm"}
+VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm"}
 VALID_PDE_REGIONS = {
     "full",
     "boundary_excluded",
     "coef_obs",
     "sol_obs",
     "active_obs_union",
-    # Deprecated aliases retained for config compatibility. Both resolve to
-    # the task-aware active observation union in sampling.masks.
-    "observed",
-    "union_obs",
 }
 VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
@@ -72,45 +68,15 @@ VALID_RESIDUAL_MODES = {
     "full_time_space",
     "disabled",
 }
-VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy", "legacy_base"}
-VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "legacy_ignore", "wall", "open"}
-VALID_INITIAL_CONDITION_MODES = {"auto", "endpoint_initial", "observed_initial", "trajectory_initial", "none", "legacy_ignore"}
+VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy"}
+VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "wall", "open"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
 VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm"}
-_TYPE_SUFFIX = "type"
-DEPRECATED_LOSS_CONFIG_FIELDS = {f"loss_{_TYPE_SUFFIX}", f"obs_loss_{_TYPE_SUFFIX}", f"pde_loss_{_TYPE_SUFFIX}"}
-DEPRECATED_LOSS_CONFIG_MESSAGE = (
-    "loss reducers are no longer configurable; observation loss is masked MSE and PDE loss is component-wise MSE."
-)
-REMOVED_NEAR_ENDPOINT_CONFIG_FIELDS = {
-    "num_near_endpoint_obs",
-    "near_endpoint_sensor_mode",
-    "near_endpoint_mask_seed",
-    "near_endpoint_shared_mask",
-}
-
-
-_LOCAL_CHECKPOINTS = {
-    "darcy": "outputs/pretrained/fm4darcy.pth",
-    "poisson": "outputs/pretrained/fm4poisson.pth",
-    "helmholtz": "outputs/pretrained/fm4helmholtz.pth",
-    "nsnonbounded": "outputs/pretrained/fm4nsnonbounded.pth",
-    "burger": "outputs/pretrained/fm4burgers.pth",
-    "reaction_diffusion": "outputs/pretrained/fm4reaction_diffusion.pth",
-    "shallow_water": "outputs/pretrained/fm4shallow_water.pth",
-    "heat": "outputs/pretrained/fm4heat.pth",
-    "wave": "outputs/pretrained/fm4wave.pth",
-    "advection_diffusion": "outputs/pretrained/fm4advection_diffusion.pth",
-    "steady_heat_conduction": "outputs/pretrained/fm4steady_heat_conduction.pth",
-}
-
-
 @dataclass
 class AblationConfig:
     pde: str = "poisson"
     task: str = "forward"
-    data_config_path: str = "configs/main/both/poisson.yaml"
     checkpoint_path: str = "outputs/pretrained/fm4poisson.pth"
     output_dir: str = "outputs/ablations"
     model_profile: str = "recommended"
@@ -163,18 +129,14 @@ class AblationConfig:
     pde_residual_status: str = "auto"
     residual_mode: str = "auto"
     enforce_boundary_conditions: bool = True
-    enforce_initial_conditions: bool = True
     boundary_condition_mode: str = "auto"
-    initial_condition_mode: str = "auto"
     bc_weight: float = 1.0
-    ic_weight: float = 1.0
     endpoint_bc_weight: float = 1.0
     boundary_residual_normalization: str = "sqrt_grid_over_mask"
     ns_operator_mode: str = "generator_dealiased"
     coef_positive_mode: str = "binary"
     coef_positive_floor: float = 4.0
     allow_unknown_boundary_conditions: bool = False
-    legacy_ignore_boundary: bool = False
     hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
     hermite_num_collocation: int = 0
     hermite_include_integral_residual: bool = True
@@ -187,24 +149,18 @@ class AblationConfig:
     solution_name: str = ""
     loadby: str = ""
     ablation_name: str = ""
+    ablation_group: str = ""
     allow_synthetic_data: bool = True
     empty_cache_each_step: bool = False
+    initial_noise_source_batch_size: int | None = None
+    initial_noise_source_indices: list[int] = field(default_factory=list)
+    obs_l2_reference_mse_zeta_a: float | None = None
+    obs_l2_reference_mse_zeta_u: float | None = None
     k: int = 1
-    extra: dict[str, Any] = field(default_factory=dict)
+    runtime_metadata: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     def validate(self) -> None:
         self.residual_mode = normalize_residual_mode(self.residual_mode)
-        deprecated = DEPRECATED_LOSS_CONFIG_FIELDS.intersection(self.extra)
-        if deprecated:
-            fields = ", ".join(sorted(deprecated))
-            raise ValueError(f"{fields}: {DEPRECATED_LOSS_CONFIG_MESSAGE}")
-        removed_near = REMOVED_NEAR_ENDPOINT_CONFIG_FIELDS.intersection(self.extra)
-        if removed_near:
-            fields = ", ".join(sorted(removed_near))
-            raise ValueError(
-                f"{fields} have been removed. near_endpoint_temporal now reuses the main endpoint "
-                "sensor mask; configure num_obs/sensor_mode or num_sensor_columns instead."
-            )
         checks = [
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),
@@ -224,7 +180,6 @@ class AblationConfig:
             ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
             ("ns_operator_mode", self.ns_operator_mode, VALID_NS_OPERATOR_MODES),
             ("boundary_condition_mode", self.boundary_condition_mode, VALID_BOUNDARY_CONDITION_MODES),
-            ("initial_condition_mode", self.initial_condition_mode, VALID_INITIAL_CONDITION_MODES),
             ("boundary_residual_normalization", self.boundary_residual_normalization, VALID_BOUNDARY_RESIDUAL_NORMALIZATION),
         ]
         for name, value, allowed in checks:
@@ -278,18 +233,12 @@ class AblationConfig:
                 f"residual_mode={self.residual_mode!r} is an endpoint approximation, but Burgers already "
                 "outputs the full predicted time-space field. Use auto, full_trajectory_fd, or full_time_space."
             )
-        if self.initial_condition_mode in {"observed_initial", "trajectory_initial", "endpoint_initial"}:
-            raise ValueError(
-                f"initial_condition_mode={self.initial_condition_mode!r} would mix an observed/ground-truth field "
-                "into PDE loss. Use observation guidance for measured initial values; sampling PDE loss is "
-                "computed from model outputs only."
-            )
         if self.hermite_num_collocation < 0:
             raise ValueError("hermite_num_collocation must be non-negative")
         if self.hermite_integral_weight < 0:
             raise ValueError("hermite_integral_weight must be non-negative")
-        if self.bc_weight < 0 or self.ic_weight < 0 or self.endpoint_bc_weight < 0:
-            raise ValueError("bc_weight, ic_weight and endpoint_bc_weight must be non-negative")
+        if self.bc_weight < 0 or self.endpoint_bc_weight < 0:
+            raise ValueError("bc_weight and endpoint_bc_weight must be non-negative")
         for value in self.hermite_collocation_times:
             if not 0.0 < float(value) < 1.0:
                 raise ValueError("hermite_collocation_times values must lie inside (0, 1)")
@@ -305,7 +254,7 @@ class AblationConfig:
             raise ValueError(f"pde_residual_region='coef_obs' is inactive for task={self.task!r}")
         if self.pde_residual_region == "sol_obs" and self.task not in {"inverse", "both"}:
             raise ValueError(f"pde_residual_region='sol_obs' is inactive for task={self.task!r}")
-        if self.pde_residual_region in {"active_obs_union", "observed", "union_obs"} and self.task == "unconditional":
+        if self.pde_residual_region == "active_obs_union" and self.task == "unconditional":
             raise ValueError(
                 f"pde_residual_region={self.pde_residual_region!r} is undefined for task='unconditional'"
             )
@@ -358,12 +307,12 @@ class AblationConfig:
     def _short_bc_ic_fragment(self) -> str:
         return (
             f"bc-{self.boundary_condition_mode}-bcw{self.bc_weight:g}_"
-            f"ic-{self.initial_condition_mode}-icw{self.ic_weight:g}_"
-            f"epw{self.endpoint_bc_weight:g}_legacybc{int(bool(self.legacy_ignore_boundary))}"
+            f"epw{self.endpoint_bc_weight:g}"
         )
 
     def asdict(self) -> dict[str, Any]:
         data = dataclasses.asdict(self)
+        data.pop("runtime_metadata", None)
         data["ablation_name"] = self.resolved_ablation_name()
         return data
 
@@ -378,11 +327,7 @@ def validate_task_guidance(task: str, guidance_components: str) -> None:
 
 
 def normalize_residual_mode(mode: Any) -> str:
-    aliases = {
-        "": "auto",
-        "default": "auto",
-    }
-    normalized = aliases.get(str(mode), str(mode))
+    normalized = str(mode)
     if normalized not in VALID_RESIDUAL_MODES:
         raise ValueError(f"residual_mode={mode!r} is invalid; expected one of {sorted(VALID_RESIDUAL_MODES)}")
     return normalized
@@ -390,14 +335,10 @@ def normalize_residual_mode(mode: Any) -> str:
 
 def load_config(path: str | os.PathLike[str], overrides: dict[str, Any] | None = None) -> AblationConfig:
     raw = load_yaml_file(path)
-    if "data" in raw or "generate" in raw or "model" in raw:
-        raise ValueError(
-            "This config uses the old data/generate/model schema. "
-            "Please convert it to flat AblationConfig format."
-        )
-    else:
-        cfg = AblationConfig(**{k: v for k, v in raw.items() if k in _field_names()})
-        cfg.extra.update({k: v for k, v in raw.items() if k not in _field_names()})
+    unknown = sorted(set(raw).difference(_field_names()))
+    if unknown:
+        raise ValueError(f"Unknown config fields: {', '.join(unknown)}")
+    cfg = AblationConfig(**raw)
     for key, value in (overrides or {}).items():
         set_config_value(cfg, key, value)
     cfg.validate()
@@ -424,8 +365,7 @@ def parse_cli_overrides(items: list[str] | None) -> dict[str, Any]:
 def set_config_value(cfg: AblationConfig, key: str, value: Any) -> None:
     key = key.replace("-", "_")
     if key not in _field_names():
-        cfg.extra[key] = value
-        return
+        raise ValueError(f"Unknown config override: {key}")
     current = getattr(cfg, key)
     if isinstance(current, bool):
         value = _to_bool(value)
@@ -471,7 +411,7 @@ def dump_yaml(data: dict[str, Any]) -> str:
 
 
 def _field_names() -> set[str]:
-    return {field.name for field in dataclasses.fields(AblationConfig)}
+    return {item.name for item in dataclasses.fields(AblationConfig) if item.init}
 
 
 def _simple_yaml_load(text: str) -> dict[str, Any]:

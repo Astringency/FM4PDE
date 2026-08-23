@@ -27,9 +27,9 @@ residuals are evaluated, the full pair state is inverse-transformed with the sav
 normalizer and then split into physical coefficient/source and solution fields. PDE
 residual guidance is therefore computed in physical space.
 
-Future HDF5 PDE scalar constants such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, and `u_D`
+HDF5 PDE scalar constants such as `alpha`, `c`, `b_x`, `b_y`, `kappa`, and `u_D`
 are metadata for residuals, not Flow Matching channels. The model channels are
-`input_data + output_data` unless a legacy materialized-constant mode is explicitly used.
+`input_data + output_data`.
 Training writes a JSON-safe statistical summary of these scalar constants to
 `output_dir/data_metadata.json` and stores the same `data_metadata` block in each
 checkpoint. The summary records `count`, `mean`, `std`, `min`, `max`, `first`, and

@@ -24,11 +24,9 @@ def _tiny_model_config() -> dict:
         "use_checkpoint": False,
         "num_heads": 1,
         "num_head_channels": -1,
-        "num_heads_upsample": -1,
         "use_scale_shift_norm": False,
         "resblock_updown": False,
-        "use_new_attention_order": False,
-        "with_fourier_features": False,
+        "with_value_fourier_features": False,
         "architecture_family": "unit_test_family",
         "architecture_profile": "unit_test_profile",
         "axis_semantics": "spatial_2d",
@@ -49,6 +47,7 @@ def test_checkpoint_model_config_is_used_for_sampling(tmp_path):
             "model_profile": "unit_test_profile",
             "model_config": cfg,
             "model_config_metadata": cfg,
+            "checkpoint_schema_version": 3,
         },
         checkpoint_path,
     )
@@ -58,16 +57,16 @@ def test_checkpoint_model_config_is_used_for_sampling(tmp_path):
         "heat",
         device=torch.device("cpu"),
         wrap=True,
-        model_profile="heavy",
+        model_profile="unit_test_profile",
     )
 
     assert isinstance(wrapped, WrappedModel)
     assert payload["selected_model_profile"] == "unit_test_profile"
     assert payload["selected_architecture_family"] == "unit_test_family"
-    assert payload["runtime_requested_model_profile"] == "heavy"
+    assert payload["runtime_requested_model_profile"] == "unit_test_profile"
 
 
-def test_sampling_model_io_derives_fourier_metadata_when_checkpoint_metadata_missing(tmp_path):
+def test_sampling_model_io_derives_canonical_fourier_metadata(tmp_path):
     cfg = _tiny_model_config()
     cfg.update(
         {
@@ -84,6 +83,8 @@ def test_sampling_model_io_derives_fourier_metadata_when_checkpoint_metadata_mis
             "num_channels": 2,
             "model_profile": "unit_test_profile",
             "model_config": cfg,
+            "model_config_metadata": cfg,
+            "checkpoint_schema_version": 3,
         },
         checkpoint_path,
     )
@@ -93,12 +94,12 @@ def test_sampling_model_io_derives_fourier_metadata_when_checkpoint_metadata_mis
         "heat",
         device=torch.device("cpu"),
         wrap=True,
-        model_profile="heavy",
+        model_profile="unit_test_profile",
     )
 
     metadata = payload["selected_model_config_metadata"]
     assert payload["selected_model_profile"] == "unit_test_profile"
-    assert payload["runtime_requested_model_profile"] == "heavy"
+    assert payload["runtime_requested_model_profile"] == "unit_test_profile"
     assert metadata["with_value_fourier_features"] is True
     assert metadata["with_coordinate_fourier_features"] is True
     assert metadata["value_fourier_feature_channels"] == 8
@@ -109,20 +110,21 @@ def test_sampling_model_io_derives_fourier_metadata_when_checkpoint_metadata_mis
     assert metadata["coordinate_fourier_include_raw_coords"] is True
 
 
-def test_checkpoint_without_model_config_requires_explicit_profile(tmp_path):
+def test_checkpoint_without_model_config_is_rejected(tmp_path):
     cfg = _tiny_model_config()
     model = instantiate_model("heat", use_ema=False, model_config=cfg)
-    checkpoint_path = tmp_path / "fm4heat_legacy.pth"
+    checkpoint_path = tmp_path / "fm4heat_invalid.pth"
     torch.save(
         {
             "model": model.state_dict(),
             "normalizer": PDEStandardizer.identity(2, channel_names=["u0", "uT"]).state_dict(),
             "num_channels": 2,
+            "checkpoint_schema_version": 3,
         },
         checkpoint_path,
     )
 
-    with pytest.raises(ValueError, match="Checkpoint has no saved model_config"):
+    with pytest.raises(ValueError, match="Checkpoint has no model_config"):
         load_fm4pde_checkpoint_bundle(
             str(checkpoint_path),
             "heat",

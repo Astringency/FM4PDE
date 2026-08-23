@@ -34,7 +34,7 @@ final benchmark estimates.
 
 ## Why clipping is required
 
-With the old `clip_threshold=1e10`, observation zeta values of 4800 and above
+With `clip_threshold=1e10`, observation zeta values of 4800 and above
 produced gradient spikes during steps 2-5 and could diverge by several orders
 of magnitude. Per-sample global clipping at 50 made large zeta values stable,
 allowing stronger late-stage observation fitting.

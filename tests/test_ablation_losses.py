@@ -137,18 +137,15 @@ def test_l2_guidance_keeps_mse_evaluation_loss_comparable():
 def test_pde_componentwise_mse_sums_components_with_separate_denominators():
     interior = torch.tensor([1.0, 2.0, 3.0])
     boundary = torch.tensor([4.0])
-    initial = None
     endpoint = torch.tensor([2.0, 2.0])
 
     total, parts = _componentwise_pde_mse_loss(
         {
             "interior": interior,
             "boundary": boundary,
-            "initial": initial,
             "endpoint": endpoint,
         },
         bc_weight=0.5,
-        ic_weight=1.0,
         endpoint_weight=2.0,
         fallback_field=interior,
     )
@@ -171,11 +168,9 @@ def test_pde_interior_mask_is_normalized_over_active_entries_per_sample():
             "interior": interior * mask,
             "interior_mask": mask,
             "boundary": None,
-            "initial": None,
             "endpoint": None,
         },
         bc_weight=1.0,
-        ic_weight=1.0,
         endpoint_weight=1.0,
         fallback_field=interior,
     )
@@ -191,7 +186,6 @@ def test_pde_guidance_residual_error_fails_closed():
         guidance_components="pde_only",
         residual_mode="endpoint_secant",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
     )
     q = torch.zeros(1, 1, 8, 8)
     gt = GT(q, q)
@@ -209,7 +203,6 @@ def test_pde_evaluation_error_fails_even_when_pde_guidance_is_disabled():
         guidance_components="obs_only",
         residual_mode="endpoint_secant",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
     )
     q = torch.zeros(1, 1, 8, 8)
     gt = GT(q, q)
@@ -248,7 +241,6 @@ def test_nsnonbounded_pde_only_guidance_loss_is_nonzero_from_default_forcing():
         guidance_components="pde_only",
         residual_mode="endpoint_secant",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
     )
     w0 = torch.zeros(1, 1, 8, 8)
     wT = torch.zeros_like(w0)

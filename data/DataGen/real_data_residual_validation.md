@@ -5,11 +5,11 @@
 ## 实际参数与布局检查
 
 - Heat、wave、advection-diffusion、steady heat 的 train/test 文件均为 `T=1`；随机系数从各自样本 dataset 读取，不能从 split 推断。
-- 当前 reaction-diffusion train/test 文件均为 `Du=0.002,Dv=0.004,k=0.003,T=1`，网格为 `[-1,1]^2` 单元中心。legacy profile 是另一套数据，不得按 train/test 名称自动套用。
-- NS test attrs 中 `dt=0.0001` 是内部求解步长；`t=[0.1,...,1.0]`，与 `w0` 拼接后的 11 帧差分间隔为 `0.1`。旧 train 文件没有 attrs，但保存的 `t` 同样给出快照时间；PDE 固定 `nu=0.001,T=1`。
-- SWE test group attrs 给出 `g=1,T=1,x_range=y_range=[-2.5,2.5]`；旧 train group 没有 `T` root attr，但 `grid/t=[0,0.1,...,1]` 且 group 中保存 `g` 和空间范围。
+- Reaction-diffusion train/test 文件均为 `Du=0.002,Dv=0.004,k=0.003,T=1`，网格为 `[-1,1]^2` 单元中心。
+- NS test attrs 中 `dt=0.0001` 是内部求解步长；`t=[0.1,...,1.0]`，与 `w0` 拼接后的 11 帧差分间隔为 `0.1`；PDE 固定 `nu=0.001,T=1`。
+- SWE test group attrs 给出 `g=1,T=1,x_range=y_range=[-2.5,2.5]`，`grid/t=[0,0.1,...,1]`。
 - Burgers 真实 MAT header 为 `input=(10000,128)`、`output=(10000,128,128)`；128 帧包含初值，故 `dt=1/127`，周期空间 `dx=1/128`。
-- 已验证的旧 Wave 文件 endpoint 为 `[u,v]` 两通道，但 `full_trajectory=(N,1,11,128,128)` 只保存位移；当前生成器已改为保存 `[N,2,T,H,W]` 的完整 `[u,v]` 轨迹。旧文件用于 `near_endpoint_temporal` 时，loader 按同一常系数谱解重建近端速度，再仅保留稀疏观测值。
+- Wave 的 `full_trajectory` 必须保存 `[N,2,T,H,W]` 的完整 `[u,v]` 状态轨迹。
 
 ## 静态方程
 

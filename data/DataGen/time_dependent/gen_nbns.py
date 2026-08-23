@@ -186,39 +186,6 @@ def generate_dataset(args: argparse.Namespace) -> list[Path]:
     return paths
 
 
-def main(batch=5, N_each_batch=10000, resolution=128, device="cuda", if_test=False):
-    """Backward-compatible entry point used by older scripts."""
-    device_obj = torch.device(device)
-    split = "test" if if_test else "train"
-    seed_offset = TEST_BASE_SEED if if_test else TRAIN_BASE_SEED
-
-    for i in range(batch):
-        path = _output_path(
-            DEFAULT_OUT_DIR,
-            split=split,
-            sample_count=int(N_each_batch),
-            resolution=int(resolution),
-            record_steps=10,
-            file_index=i,
-        )
-        generate_file(
-            path=path,
-            split=split,
-            sample_count=int(N_each_batch),
-            sample_start=i * int(N_each_batch),
-            resolution=int(resolution),
-            device=device_obj,
-            record_steps=10,
-            T=1.0,
-            dt=1e-4,
-            viscosity=1e-3,
-            seed_offset=seed_offset,
-            overwrite=True,
-        )
-
-    print(f"Done. Generate {batch * N_each_batch} Non-bounded navier-Stokes Equations.")
-
-
 if __name__ == "__main__":
     generated = generate_dataset(parse_args())
     for item in generated:

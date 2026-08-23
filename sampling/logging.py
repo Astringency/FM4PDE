@@ -38,7 +38,6 @@ def write_run_metadata(
         "git_commit": git_commit_hash(),
         "checkpoint_path": config.checkpoint_path,
         "data_path": config.data_path,
-        "data_config_path": config.data_config_path,
         "pde": config.pde,
         "task": config.task,
         "channel_names": ground_truth_metadata.get("channel_names", []),
@@ -66,15 +65,11 @@ def write_run_metadata(
             "gradient_target": config.gradient_target,
             "stochastic_guidance_time": config.stochastic_guidance_time,
             "enforce_boundary_conditions": config.enforce_boundary_conditions,
-            "enforce_initial_conditions": config.enforce_initial_conditions,
             "boundary_condition_mode": config.boundary_condition_mode,
-            "initial_condition_mode": config.initial_condition_mode,
             "bc_weight": config.bc_weight,
-            "ic_weight": config.ic_weight,
             "endpoint_bc_weight": config.endpoint_bc_weight,
             "boundary_residual_normalization": config.boundary_residual_normalization,
             "allow_unknown_boundary_conditions": config.allow_unknown_boundary_conditions,
-            "legacy_ignore_boundary": config.legacy_ignore_boundary,
         },
         "sampler": {
             "sampler_phase": config.sampler_phase,
@@ -101,7 +96,10 @@ def write_run_metadata(
             "standardization": None,
         },
         "checkpoint": checkpoint_metadata or {},
-        "legacy_checkpoint_boundary_metadata_missing": not bool((checkpoint_metadata or {}).get("boundary_condition") or (checkpoint_metadata or {}).get("boundary_condition_mode")),
+        "checkpoint_boundary_metadata_present": bool(
+            (checkpoint_metadata or {}).get("boundary_condition")
+            or (checkpoint_metadata or {}).get("boundary_condition_mode")
+        ),
         "model": {
             "runtime_requested_model_profile": config.model_profile,
             "checkpoint_model_profile": (checkpoint_metadata or {}).get("model_profile"),
@@ -109,6 +107,7 @@ def write_run_metadata(
             "selected_architecture_family": (checkpoint_metadata or {}).get("selected_architecture_family"),
             "selected_model_config_metadata": (checkpoint_metadata or {}).get("selected_model_config_metadata"),
         },
+        "runtime": config.runtime_metadata,
         "device": config.device,
         "dtype": config.dtype,
         "torch": torch_runtime_metadata(),

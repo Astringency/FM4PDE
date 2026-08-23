@@ -19,7 +19,7 @@ L_{obs} = \frac{\sum_i M_i (x_i - y_i)^2}{\sum_i M_i}
 The PDE loss computes MSE separately for each residual component, then applies the configured component weights:
 
 ```math
-L_{PDE} = L_{int} + \lambda_{bc} L_{bc} + \lambda_{ic} L_{ic} + \lambda_{ep} L_{ep}
+L_{PDE} = L_{int} + \lambda_{bc} L_{bc} + \lambda_{ep} L_{ep}
 ```
 
 ```math
@@ -29,15 +29,10 @@ L_{int} = \operatorname{mean}_{j \in C_{int}} |R_{int,j}|^2
 L_{bc} = \operatorname{mean}_{j \in C_{bc}} |R_{bc,j}|^2
 ```
 ```math
-L_{ic} = \operatorname{mean}_{j \in C_{ic}} |R_{ic,j}|^2
-```
-```math
 L_{ep} = \operatorname{mean}_{j \in C_{ep}} |R_{ep,j}|^2
 ```
 
-Interior, boundary, initial, and endpoint components are not concatenated and globally averaged for loss computation. Separate MSE denominators prevent different component point counts or channel counts from changing the intended weights. Concatenated residual fields remain available only for logging and residual norm diagnostics.
-
-Older code often zeroed the outer grid cells of the PDE residual. That was a boundary-excluded interior residual; it did not enforce boundary conditions. The current implementation keeps the interior residual on interior points and appends explicit, differentiable boundary and optional initial-condition residual channels where those residuals are physically meaningful.
+Interior, boundary, and endpoint components are not concatenated and globally averaged for loss computation. Separate MSE denominators prevent different component point counts or channel counts from changing the intended weights. Concatenated residual fields remain available only for logging and residual norm diagnostics. The implementation keeps the interior residual on interior points and appends explicit, differentiable boundary residual channels where they are physically meaningful.
 
 ## `hermite_bridge`
 
@@ -179,7 +174,7 @@ grid_convention: endpoint_false_periodic
 
 Only datasets that explicitly store a duplicate periodic endpoint should set `periodic_duplicate_endpoint: true`; only then is first/last value comparison applicable. Dirichlet, Neumann, open, wall, and mixed BCs still use explicit boundary residual fields.
 
-## Boundary and Initial Conditions
+## Boundary Conditions
 
 Current resolved boundary conditions:
 
@@ -191,10 +186,8 @@ Current resolved boundary conditions:
 - Burgers: periodic along the spatial axis of the BCHW time-space field.
 - Darcy, Poisson, Helmholtz: zero Dirichlet for the static datasets/configs.
 - Steady Heat Conduction: mixed; bottom Dirichlet `u=u_D`, top/left/right zero Neumann.
-- Non-bounded Navier-Stokes: periodic torus. The PDE residual is enabled in scalar-vorticity form. Periodicity is represented by FFT derivatives and endpoint-false periodic operators, so no first/last value matching residual is added unless a dataset explicitly marks duplicate periodic endpoints. IC residuals are added only from observed or explicitly supplied initial fields.
+- Non-bounded Navier-Stokes: periodic torus. The PDE residual is enabled in scalar-vorticity form. Periodicity is represented by FFT derivatives and endpoint-false periodic operators, so no first/last value matching residual is added unless a dataset explicitly marks duplicate periodic endpoints.
 
-The residual metadata records whether interior, BC, IC, and endpoint components are enabled; the boundary and initial condition types; whether each condition came from config, metadata, data, or a confirmed default; unresolved conditions; and whether `legacy_ignore_boundary` was used.
-
-`legacy_ignore_boundary: true` or `boundary_condition_mode: legacy_ignore` disables explicit BC and IC residuals for old-result ablations. It does not disable endpoint consistency residuals such as the Hermite integral component.
+The residual metadata records whether interior, BC, and endpoint components are enabled; the boundary type and source; and any unresolved boundary condition.
 
 Any experiment using extra temporal observations or full trajectory state must preserve the metadata fields above so endpoint-only results are not mixed with sparse-temporal or full-trajectory results.

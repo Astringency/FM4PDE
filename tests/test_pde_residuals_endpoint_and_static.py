@@ -219,24 +219,3 @@ def test_nsnonbounded_endpoint_secant_uses_default_fixed_forcing():
     assert out.metadata["forcing_source"] == "default_fixed_ns_forcing"
     assert out.residual.abs().sum() > 0
     assert out.residual[0, 0, 0, 0].item() == pytest.approx(-0.1)
-
-
-def test_legacy_ignore_boundary_keeps_hermite_integral_endpoint_residual():
-    q0 = torch.zeros(1, 1, 6, 6)
-    qT = torch.ones_like(q0)
-    out = compute_pde_residual(
-        "heat",
-        q0,
-        qT,
-        pde_params={
-            "alpha": 1e-3,
-            "legacy_ignore_boundary": True,
-            "hermite_include_integral_residual": True,
-            "hermite_integral_weight": 1.0,
-        },
-        residual_mode="hermite_bridge",
-    )
-    channels = out.metadata["residual_channels"]
-    assert out.metadata["legacy_boundary_ignored"] is True
-    assert out.metadata["endpoint_residual_enabled"] is True
-    assert channels["total_channels"] == channels["interior_channels"] + channels["endpoint_channels"]

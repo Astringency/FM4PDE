@@ -7,11 +7,11 @@
 import argparse
 import logging
 
-from models.model_configs import MODEL_CONFIGS
+from models.model_configs import MODEL_CONFIGS_RECOMMENDED
 
 logger = logging.getLogger(__name__)
 
-TRAIN_MODEL_PROFILE_CHOICES = ("auto", "recommended", "light", "base", "heavy", "legacy_base")
+TRAIN_MODEL_PROFILE_CHOICES = ("auto", "recommended", "light", "base", "heavy")
 
 
 class DatasetChoices:
@@ -106,11 +106,6 @@ def get_args_parser():
         type=float,
         default=[0.9, 0.999],
         help="[beta1, beta2] for AdamW",
-    )
-    parser.add_argument(
-        "--decay_lr",
-        action="store_true",
-        help="Legacy alias for --lr_scheduler linear.",
     )
     parser.add_argument(
         "--skewed_timesteps",
@@ -209,7 +204,7 @@ def get_args_parser():
         help=(
             "Model architecture profile. auto uses recommended for new training and checkpoint metadata for resume; "
             "recommended is the PDE-family registry; "
-            "light/base/heavy are architecture ablations; legacy_base explicitly reproduces old configs."
+            "light/base/heavy are architecture ablations."
         ),
     )
     parser.add_argument(
@@ -221,9 +216,9 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument(
         "--dataset",
-        default=list(MODEL_CONFIGS.keys())[0],
+        default=list(MODEL_CONFIGS_RECOMMENDED.keys())[0],
         type=str,
-        choices=DatasetChoices(MODEL_CONFIGS.keys()),
+        choices=DatasetChoices(MODEL_CONFIGS_RECOMMENDED.keys()),
         help="PDE to solve.",
     )
     parser.add_argument(
@@ -295,11 +290,4 @@ def get_args_parser():
         action="store_true",
         help="Only run one batch of training and evaluation.",
     )
-    parser.add_argument(
-        "--eval_only",
-        action="store_true",
-        help="Compatibility flag for one-pass evaluation-style runs.",
-    )
-    
-
     return parser

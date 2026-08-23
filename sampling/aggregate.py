@@ -32,7 +32,6 @@ GROUP_DIMENSION_KEYS = [
     "zeta_obs_a",
     "zeta_obs_u",
     "zeta_pde",
-    "zeta_ratio_name",
     "num_steps",
     "time_grid",
     "step_method",
@@ -50,15 +49,11 @@ GROUP_DIMENSION_KEYS = [
     "hermite_include_integral_residual",
     "hermite_integral_weight",
     "enforce_boundary_conditions",
-    "enforce_initial_conditions",
     "boundary_condition_mode",
-    "initial_condition_mode",
     "bc_weight",
-    "ic_weight",
     "endpoint_bc_weight",
     "boundary_residual_normalization",
     "allow_unknown_boundary_conditions",
-    "legacy_ignore_boundary",
 ]
 
 GROUP_KEYS = ["ablation_family", "ablation_group_key", *GROUP_DIMENSION_KEYS]
@@ -74,7 +69,6 @@ SUMMARY_METRICS = [
     "pde_residual_norm",
     "interior_residual_norm",
     "boundary_residual_norm",
-    "initial_residual_norm",
     "wall_clock_time",
 ]
 
@@ -89,7 +83,6 @@ CURVE_METRICS = [
     "pde_residual_norm",
     "interior_residual_norm",
     "boundary_residual_norm",
-    "initial_residual_norm",
 ]
 
 SAMPLE_METRICS = [
@@ -148,9 +141,6 @@ def _collect_rows(
             if run_sample_rows:
                 sample_rows.extend(run_sample_rows)
                 sample_weighted_rows.extend(run_sample_rows)
-            else:
-                # Legacy fallback: one run-level mean counts as one observation.
-                sample_weighted_rows.append(row)
     return raw_rows, curve_rows, sample_rows, sample_weighted_rows
 
 
@@ -168,22 +158,19 @@ def _read_sample_rows(run_dir: Path, config: dict[str, Any]) -> list[dict[str, A
 
 
 def _merge_config_metrics(config: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
-    extra = config.get("extra") if isinstance(config.get("extra"), dict) else {}
     row = {}
     for key in GROUP_DIMENSION_KEYS:
         if key in config:
             row[key] = config[key]
-        elif key in extra:
-            row[key] = extra[key]
         elif key in metrics:
             row[key] = metrics[key]
         else:
             row[key] = ""
-    row["ablation_name"] = config.get("ablation_name", extra.get("ablation_name", metrics.get("ablation_name", "")))
+    row["ablation_name"] = config.get("ablation_name", metrics.get("ablation_name", ""))
     row["ablation_family"] = _ablation_family(row)
     row["ablation_group_key"] = _ablation_group_key(row)
-    for key in ("sample_seed", "mask_seed", "noise_seed", "offset", "test_index", "batch_size"):
-        row[key] = config.get(key, extra.get(key, ""))
+    for key in ("sample_seed", "mask_seed", "noise_seed", "offset", "batch_size"):
+        row[key] = config.get(key, "")
     for key, value in metrics.items():
         row[key] = value
     return row
@@ -222,8 +209,7 @@ def _aggregate_rows(rows: list[dict[str, Any]], metrics: list[str], group_keys: 
 
 
 def _is_successful_run(row: dict[str, Any]) -> bool:
-    """Accept successful and legacy status-less artifacts, but not failed PDE evaluations."""
-    return row.get("status", "ok") == "ok" and row.get("pde_residual_status") != "error"
+    return row.get("status") == "ok" and row.get("pde_residual_status") != "error"
 
 
 def _stats(name: str, values: list[float]) -> dict[str, Any]:

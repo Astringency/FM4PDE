@@ -1,6 +1,6 @@
 # 采样配置文件说明
 
-本文档说明 `configs/ablations/base/` 下采样实验 YAML 配置文件中各字段的含义。
+本文档说明 `configs/main/<task>/` 主采样配置和 `configs/ablations/` 消融覆盖中各字段的含义。
 
 ---
 
@@ -10,7 +10,6 @@
 |---|---|---|---|
 | `pde` | `str` | `poisson` | PDE 方程名。可选: `poisson`, `helmholtz`, `darcy`, `nsnonbounded`, `burger`, `heat`, `wave`, `reaction_diffusion`, `shallow_water`, `advection_diffusion`, `steady_heat_conduction` |
 | `task` | `str` | `forward` | 任务类型：`forward`（已知系数推断解）、`inverse`（已知解推断系数）、`both`（同时推断系数和解）、`unconditional`（无观测无条件生成） |
-| `data_config_path` | `str` | `configs/main/both/poisson.yaml` | 指向 `configs/main/<task>/` 下数据格式配置文件 |
 | `data_path` | `str` | `""` | 测试数据文件路径（`.mat` 或 `.h5`） |
 | `loadby` | `str` | `""` | 数据加载方式，如 `scipy`（.mat）或 `h5py`（.h5） |
 | `coef_name` | `str` | `""` | 数据文件中系数变量的名称，如 `f_data` |
@@ -25,7 +24,7 @@
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `checkpoint_path` | `str` | `outputs/pretrained/fm4poisson.pth` | 预训练模型权重文件路径 |
-| `model_profile` | `str` | `recommended` | 模型规格。可选: `recommended`, `light`, `base`, `heavy`, `legacy_base` |
+| `model_profile` | `str` | `recommended` | 模型规格。可选: `recommended`, `light`, `base`, `heavy` |
 | `img_channels` | `int` | `2` | 图像总通道数（系数通道 + 解通道） |
 | `img_resolution` | `int` | `128` | 网格分辨率（正方形） |
 
@@ -45,9 +44,9 @@
 | `gradient_target` | `str` | `current_state_chain_rule` | 梯度计算方式：`current_state_chain_rule`（链式法则通过当前状态）、`loss_state_direct`（直接对 loss_state 求导）、`next_state_direct`（仅允许与 `loss_state=x_next` 配合）；启用但断图会直接报错 |
 | `stochastic_guidance_coeff` | `float` | `0.1` | 随机阶段引入的额外噪声系数 |
 | `stochastic_guidance_time` | `str` | `t` | 随机引导作用时间，`t` 表示在整个随机阶段有效 |
-| `clip_mode` | `str` | `global_norm` | 梯度裁剪方式：`none`（不裁剪）、`global_norm`（每个样本内对总梯度做全局范数裁剪）、`per_component_norm`（每个样本内逐引导分量裁剪）、`per_sample_norm`（`global_norm` 的兼容别名）；batch 中不同样本不会共享裁剪范数 |
+| `clip_mode` | `str` | `global_norm` | 梯度裁剪方式：`none`（不裁剪）、`global_norm`（每个样本内对总梯度做全局范数裁剪）、`per_component_norm`（每个样本内逐引导分量裁剪）；batch 中不同样本不会共享裁剪范数 |
 | `clip_threshold` | `float` | `1e10` | 梯度裁剪阈值（`clip_mode != none` 时生效） |
-| `pde_residual_region` | `str` | `full` | PDE 内部残差区域：`full`、`boundary_excluded`、`coef_obs`、`sol_obs`、`active_obs_union`。观测区域按 task 判断有效侧；旧 `observed`/`union_obs` 是带警告的兼容别名 |
+| `pde_residual_region` | `str` | `full` | PDE 内部残差区域：`full`、`boundary_excluded`、`coef_obs`、`sol_obs`、`active_obs_union`。观测区域按 task 判断有效侧 |
 | `obs_decay` | `float` | `1.0` | obs_decay 调度模式的衰减系数 |
 | `obs_decay_start_ratio` | `float` | `1.0` | obs_decay 调度开始衰减的时间比例 |
 | `polynomial_power` | `float` | `2.0` | polynomial 调度模式的幂次 |
@@ -100,26 +99,18 @@ PDE 残差通过计算生成轨迹上物理方程的约束来指导采样。不�
 | `cfg_scale` | `float` | `1.0` | 联合 PDE checkpoint 的标准 CFG 系数：`0` 无条件、`1` 条件，公式为 `v_uncond+s(v_cond-v_uncond)` |
 | `save_per_sample_curves` | `bool` | `false` | 是否保存逐 step、逐 sample 的 `metrics_step_per_sample.csv`；最终逐 sample 指标总是写入 `metrics_per_sample.csv` |
 
-近端观测不再有独立预算或独立 mask。旧字段 `num_near_endpoint_obs`、`near_endpoint_sensor_mode`、`near_endpoint_mask_seed`、`near_endpoint_shared_mask` 已删除并会被配置校验拒绝。
+## 七、边界条件
 
----
-
-## 七、边界条件 & 初始条件
-
-部分 PDE 需要额外的边界和初始条件约束。
+部分 PDE 需要额外的边界条件约束。
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `enforce_boundary_conditions` | `bool` | `true` | 是否施加边界条件（BC）损失 |
-| `enforce_initial_conditions` | `bool` | `true` | 是否施加初始条件（IC）损失 |
-| `boundary_condition_mode` | `str` | `auto` | 边界条件类型：`auto`（从 checkpoint 自动检测）、`dirichlet_zero`（零 Dirichlet）、`neumann_zero`（零 Neumann）、`periodic`（周期边界）、`mixed`（混合）、`wall`（壁面/固壁）、`open`（开放式/流出）、`none`（无边界）、`legacy_ignore`（旧版忽略） |
-| `initial_condition_mode` | `str` | `auto` | 采样时 `auto` 按 `none` 处理：预测的 `a/q0` 已直接进入 PDE 算子，不再与真实初值比较。`observed_initial`、`trajectory_initial`、`endpoint_initial` 会把真实场混入 PDE loss，现已禁止；真实观测只进入 observation loss。`none` 与 `legacy_ignore` 可用。 |
+| `boundary_condition_mode` | `str` | `auto` | 边界条件类型：`auto`（按 PDE/数据元数据解析）、`dirichlet_zero`（零 Dirichlet）、`neumann_zero`（零 Neumann）、`periodic`（周期边界）、`mixed`（混合）、`wall`（壁面/固壁）、`open`（开放式/流出）、`none`（无边界） |
 | `bc_weight` | `float` | `1.0` | 边界条件损失权重 |
-| `ic_weight` | `float` | `1.0` | 初始条件损失权重 |
 | `endpoint_bc_weight` | `float` | `1.0` | 端点处边界条件权重 |
 | `boundary_residual_normalization` | `str` | `sqrt_grid_over_mask` | 边界残差归一化方式：`sqrt_grid_over_mask`、`mean`、`mask_mean` |
 | `allow_unknown_boundary_conditions` | `bool` | `false` | 是否允许 checkpoint 中边界条件类型未知（按 `auto` 回退） |
-| `legacy_ignore_boundary` | `bool` | `false` | 旧版兼容开关：忽略所有边界条件约束 |
 
 ---
 
@@ -154,12 +145,7 @@ configs/
 │   └── inverse/                  # 十个非 Burger 方程（含调参结果）
 │
 └── ablations/
-    ├── base/                      # 单次采样实验配置文件
-    │   ├── poisson_forward.yaml   #   PDE + task 组合
-    │   ├── poisson_inverse.yaml
-    │   ├── poisson_both.yaml
-    │   └── ...
-    │
+    ├── formal_suite.yaml          # 正式消融公共覆盖和测试集路径
     ├── all_internal_ablation_grid.yaml # 11 种 PDE 的正式消融网格（1041 jobs）
     ├── all_ablation_grid.yaml     # Poisson 聚焦网格 + 时间 PDE residual（111 jobs）
     ├── smoke.yaml                 # 冒烟测试
@@ -214,7 +200,7 @@ OUTPUT_DIR=outputs/MAIN1000 PLAN_ONLY=true \
 
 # 直接调用 Python 模块
 python -m sampling.runner \
-  --config configs/ablations/base/poisson_both.yaml \
+  --config configs/main/both/poisson.yaml \
   --override num_steps=1000 \
   --override noise_level=0.01 \
   --vis
@@ -234,11 +220,17 @@ python -m sampling.runner \
 `sampling.sweep` 支持重复传入 `--pde`、`--group` 和 `--override key=value`。
 不存在的过滤值或零任务选择会在运行采样前报错。
 
+正式消融首先按每个展开任务读取 `configs/main/<task>/<pde>.yaml`；Burger 在
+`forward/inverse` 交叉任务消融中显式回退到唯一的 `configs/main/both/burger.yaml`。
+随后依次应用 `formal_suite.yaml` 公共/PDE 覆盖、组内 `fixed`、`matrix`、
+`conditional_overrides` 和命令行 `--override`。因此 zeta 默认只有 `configs/main`
+一处来源，测试数据路径等消融专属设置则集中在 `formal_suite.yaml`。
+
 网格组可使用 `conditional_overrides` 命名映射为特定 PDE/变体声明经过校准的参数。每条规则包含
 `when` 和 `set` 两个映射；规则在 `fixed + matrix` 展开之后应用，而命令行
 `--override` 最后应用、优先级最高。Poisson 的正式网格仅对
 `loss_state=x_next + sampler_phase=stochastic` 使用强 zeta profile，其余变体与
-`configs/main/both/poisson.yaml` 保持一致，避免旧消融基线的过强引导。
+`configs/main/both/poisson.yaml` 保持一致，避免为其他变体套用专用强引导。
 
 `run_sample_sweep.sh` 以 PDE × task × sensor mode 为独立调度任务。`PARALLEL=false` 时这些任务串行运行；
 `PARALLEL=true` 时最多同时运行 `MAX_PARALLEL_TASKS` 个任务，设备按 `DEVICE_LIST` 轮转分配。
@@ -259,7 +251,7 @@ python -m sampling.runner \
 不会被标记为完成。状态和独立 batch 日志保存在
 `<output_dir>/.sample_sweeps/<configuration-fingerprint>/`。相同命令重新启动会组合历史成功产物
 与完成标记，仅对缺失 offset 重新分片。改变模型、数据路径、采样器、`sensor_mode` 或引导配置会产生
-新的配置指纹，不会错误复用旧结果。
+新的配置指纹，不会复用不匹配的结果。
 
 ### 输出目录结构
 

@@ -62,32 +62,6 @@ def _write_ns_h5(path):
         file.create_dataset("dt", data=np.array([0.25, 0.5], dtype=np.float32))
 
 
-def _write_legacy_wave_h5(path):
-    resolution = 8
-    n_time = 5
-    times = np.linspace(0.0, 1.0, n_time, dtype=np.float32)
-    grid = np.arange(resolution, dtype=np.float32) / resolution
-    xx, _ = np.meshgrid(grid, grid, indexing="ij")
-    u0 = np.sin(2.0 * np.pi * xx).astype(np.float32)
-    v0 = np.zeros_like(u0)
-    displacement = np.stack(
-        [np.cos(2.0 * np.pi * time) * u0 for time in times], axis=0
-    ).astype(np.float32)
-    velocity = np.stack(
-        [-2.0 * np.pi * np.sin(2.0 * np.pi * time) * u0 for time in times], axis=0
-    ).astype(np.float32)
-    with h5py.File(path, "w") as file:
-        file.create_dataset("input_data", data=np.stack([[u0, v0]], axis=0))
-        file.create_dataset(
-            "output_data",
-            data=np.stack([[displacement[-1], velocity[-1]]], axis=0),
-        )
-        # Historical Wave files saved only u(t), not the full [u(t), v(t)] state.
-        file.create_dataset("full_trajectory", data=displacement[None, None])
-        file.attrs["fixed_c"] = 1.0
-        file.attrs["T"] = 1.0
-
-
 def _write_rd_h5(path):
     trajectory = np.zeros((5, 4, 4, 2), dtype=np.float32)
     for time_idx in range(5):
@@ -133,7 +107,6 @@ def test_sampling_ground_truth_reads_pair_h5_params(tmp_path):
         pde="heat",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="pair_h5",
         coef_name="input_data",
@@ -171,7 +144,6 @@ def test_sampling_ground_truth_reads_pair_h5_time_scale_params(tmp_path):
         pde="heat",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="pair_h5",
         coef_name="input_data",
@@ -199,7 +171,6 @@ def test_near_endpoint_temporal_loader_requires_trajectory(tmp_path):
         pde="heat",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="pair_h5",
         coef_name="input_data",
@@ -240,7 +211,6 @@ def test_near_endpoint_temporal_loader_from_pair_h5_trajectory(tmp_path):
         pde="heat",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="pair_h5",
         coef_name="input_data",
@@ -284,7 +254,6 @@ def test_nsnonbounded_h5py_reads_scalar_params(tmp_path):
         pde="nsnonbounded",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="h5py",
         coef_name="w0",
@@ -317,7 +286,6 @@ def test_nsnonbounded_h5py_full_trajectory_fd_reads_w(tmp_path):
         pde="nsnonbounded",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="h5py",
         coef_name="w0",
@@ -349,7 +317,6 @@ def test_nsnonbounded_near_endpoint_uses_first_saved_frame_and_correct_dt(tmp_pa
         pde="nsnonbounded",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="h5py",
         coef_name="w0",
@@ -379,50 +346,6 @@ def test_nsnonbounded_near_endpoint_uses_first_saved_frame_and_correct_dt(tmp_pa
     assert all(item["initial_frame_stored_separately"] for item in frame_meta)
 
 
-def test_legacy_wave_near_endpoint_reconstructs_full_true_state_before_masking(tmp_path):
-    path = tmp_path / "wave.h5"
-    _write_legacy_wave_h5(path)
-    cfg = AblationConfig(
-        pde="wave",
-        task="both",
-        data_path=str(path),
-        data_config_path="",
-        checkpoint_path="",
-        loadby="pair_h5",
-        coef_name="input_data",
-        solution_name="output_data",
-        img_channels=4,
-        img_resolution=8,
-        batch_size=1,
-        offset=0,
-        device="cpu",
-        allow_synthetic_data=False,
-        residual_mode="near_endpoint_temporal",
-        num_obs=5,
-        mask_seed=11,
-    )
-
-    gt = _load_and_attach(cfg)
-
-    near = gt.pde_params["near_endpoint_temporal"]
-    grid = torch.arange(8, dtype=torch.float32) / 8
-    xx, _ = torch.meshgrid(grid, grid, indexing="ij")
-    spatial = torch.sin(2.0 * torch.pi * xx)
-    expected_dt = torch.cos(torch.tensor(torch.pi / 2)) * spatial
-    expected_v_dt = -2.0 * torch.pi * torch.sin(torch.tensor(torch.pi / 2)) * spatial
-    expected_tm = torch.cos(torch.tensor(3.0 * torch.pi / 2)) * spatial
-    expected_v_tm = -2.0 * torch.pi * torch.sin(torch.tensor(3.0 * torch.pi / 2)) * spatial
-    assert tuple(near["q_dt"].shape) == (1, 2, 8, 8)
-    assert torch.allclose(near["q_dt"][0, 0], expected_dt * near["mask_0"][0, 0], atol=1e-5)
-    assert torch.allclose(near["q_dt"][0, 1], expected_v_dt * near["mask_0"][0, 0], atol=1e-5)
-    assert torch.allclose(near["q_T_minus_dt"][0, 0], expected_tm * near["mask_T"][0, 0], atol=1e-5)
-    assert torch.allclose(near["q_T_minus_dt"][0, 1], expected_v_tm * near["mask_T"][0, 0], atol=1e-5)
-    assert torch.allclose(near["dt"], torch.tensor([0.25]))
-    assert gt.metadata["near_endpoint_temporal"]["frame_metadata"][0][
-        "near_endpoint_state_source"
-    ] == "legacy_displacement_plus_exact_spectral_velocity_reconstruction"
-
-
 @pytest.mark.parametrize(
     ("pde", "loadby", "writer", "channels", "first_values", "near_end_values"),
     [
@@ -445,7 +368,6 @@ def test_grouped_temporal_pdes_retain_only_sparse_near_endpoint_observations(
         pde=pde,
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby=loadby,
         img_channels=2 * channels,
@@ -482,7 +404,6 @@ def test_burgers_full_trajectory_mode_does_not_load_ground_truth_as_pde_param(tm
         pde="burger",
         task="both",
         data_path=str(path),
-        data_config_path="",
         checkpoint_path="",
         loadby="scipy",
         coef_name="output",

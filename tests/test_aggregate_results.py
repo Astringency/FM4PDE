@@ -27,13 +27,10 @@ def _write_run(root, name, rel_l2_a, rel_l2_u, config_updates=None):
         "num_steps": 2,
         "time_grid": "uniform",
         "step_method": "euler",
-        "extra": {"ablation_group": "group"},
+        "ablation_group": "group",
     }
     for key, value in (config_updates or {}).items():
-        if key == "extra":
-            config["extra"].update(value)
-        else:
-            config[key] = value
+        config[key] = value
     (run_dir / "resolved_config.yaml").write_text(dump_yaml(config), encoding="utf-8")
     metrics = {
         "rel_l2_a": rel_l2_a,
@@ -45,10 +42,16 @@ def _write_run(root, name, rel_l2_a, rel_l2_u, config_updates=None):
         "L_pde": 0.5,
         "pde_residual_norm": 0.25,
         "wall_clock_time": 10.0,
+        "status": "ok",
+        "pde_residual_status": "reliable",
     }
     (run_dir / "metrics_final.json").write_text(json.dumps(metrics), encoding="utf-8")
+    with (run_dir / "metrics_per_sample.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(metrics))
+        writer.writeheader()
+        writer.writerow(metrics)
     with (run_dir / "metrics_step.jsonl").open("w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"step": 0, "rel_l2_a": rel_l2_a, "rel_l2_u": rel_l2_u}) + "\n")
+        handle.write(json.dumps({"step": 0, "rel_l2_a": rel_l2_a, "rel_l2_u": rel_l2_u, "status": "ok", "pde_residual_status": "reliable"}) + "\n")
 
 
 def test_aggregate_outputs_statistics(tmp_path):
@@ -80,7 +83,7 @@ def test_failed_pde_evaluations_remain_in_raw_output_but_are_not_aggregated(tmp_
     _write_run(tmp_path, "failed", 100.0, 200.0)
     metrics_path = tmp_path / "failed" / "metrics_final.json"
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
-    # Legacy artifacts could be marked ok even though the residual failed.
+    # A run-level success status does not override a failed PDE evaluation.
     metrics["status"] = "ok"
     metrics["pde_residual_status"] = "error"
     metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
@@ -111,7 +114,7 @@ def test_statistics_stability_groups_same_offset_across_seeds(tmp_path):
                 "batch_size": 1,
                 "noise_level": 0.0,
                 "sensor_mode": "per_sample_random",
-                "extra": {"ablation_group": "statistics_stability"},
+                    "ablation_group": "statistics_stability",
             },
         )
 
@@ -193,7 +196,8 @@ def test_cross_run_grouped_metrics_are_sample_weighted_with_separate_run_stats(t
                 handle,
                 fieldnames=[
                     "sample_index", "sample_id", "rel_l2_a", "rel_l2_u",
-                    "obs_rel_l2_a", "obs_rel_l2_u", "pde_residual_norm",
+                        "obs_rel_l2_a", "obs_rel_l2_u", "pde_residual_norm",
+                        "status", "pde_residual_status",
                 ],
             )
             writer.writeheader()
@@ -206,7 +210,9 @@ def test_cross_run_grouped_metrics_are_sample_weighted_with_separate_run_stats(t
                         "rel_l2_u": value,
                         "obs_rel_l2_a": value,
                         "obs_rel_l2_u": value,
-                        "pde_residual_norm": value,
+                            "pde_residual_norm": value,
+                            "status": "ok",
+                            "pde_residual_status": "reliable",
                     }
                 )
 

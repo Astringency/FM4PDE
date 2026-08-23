@@ -86,9 +86,6 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         pde_params, pde_param_sources = _h5py_params_for_offsets(raw["__h5__"], config.pde, offsets, pair.device)
     elif config.loadby == "rd":
         pde_params, pde_param_sources = _rd_params_for_offsets(raw["__h5__"], offsets, pair.device)
-        profile = _reaction_diffusion_generator_profile(raw["__h5__"], config.data_path)
-        pde_params["generator_profile"] = profile
-        pde_param_sources["generator_profile"] = "generator_signature"
     elif config.loadby == "swe":
         pde_params, pde_param_sources = _swe_params_for_offsets(raw["__h5__"], offsets, pair.device)
     _attach_boundary_metadata_params(config, raw.get("__h5__") if isinstance(raw, dict) else None, pde_params, pde_param_sources)
@@ -501,46 +498,13 @@ def _extract_near_endpoint_single(
             )
         expected_channels = _channel_counts(config.pde, config.img_channels)[0]
         trajectory = _pair_h5_trajectory_sample(file[dataset_name], offset)
-        stored_channels = expected_channels
-        try:
-            n_time = _trajectory_time_length(trajectory, expected_channels)
-        except ValueError:
-            if config.pde != "wave":
-                raise
-            # Legacy Wave files store only displacement in full_trajectory even
-            # though endpoint states are [u, v]. Reconstruct the exact velocity
-            # used by the constant-c spectral generator, then expose only the
-            # selected sparse [u, v] observations to the residual.
-            stored_channels = 1
-            n_time = _trajectory_time_length(trajectory, stored_channels)
+        n_time = _trajectory_time_length(trajectory, expected_channels)
         if n_time < 3:
             raise ValueError(f"{dataset_name} must contain at least three time frames for near_endpoint_temporal")
         start_idx, near_start_idx, near_end_idx, final_idx = 0, 1, n_time - 2, n_time - 1
         dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, final_idx - start_idx)
-        if config.pde == "wave" and stored_channels == 1:
-            q_dt = _legacy_wave_near_endpoint_state(
-                file,
-                trajectory,
-                offset=offset,
-                frame_idx=near_start_idx,
-                dt=dt_value,
-                pde_params=pde_params,
-                batch_idx=batch_idx,
-            )
-            q_T_minus_dt = _legacy_wave_near_endpoint_state(
-                file,
-                trajectory,
-                offset=offset,
-                frame_idx=near_end_idx,
-                dt=dt_value,
-                pde_params=pde_params,
-                batch_idx=batch_idx,
-            )
-            state_source = "legacy_displacement_plus_exact_spectral_velocity_reconstruction"
-        else:
-            q_dt = _trajectory_frame_to_chw(trajectory, near_start_idx, expected_channels)
-            q_T_minus_dt = _trajectory_frame_to_chw(trajectory, near_end_idx, expected_channels)
-            state_source = "saved_full_state_trajectory"
+        q_dt = _trajectory_frame_to_chw(trajectory, near_start_idx, expected_channels)
+        q_T_minus_dt = _trajectory_frame_to_chw(trajectory, near_end_idx, expected_channels)
         return (
             q_dt,
             q_T_minus_dt,
@@ -548,7 +512,7 @@ def _extract_near_endpoint_single(
             {
                 "sample_offset": int(offset),
                 "trajectory_dataset": dataset_name,
-                "near_endpoint_state_source": state_source,
+                "near_endpoint_state_source": "saved_full_state_trajectory",
                 "start_frame": start_idx,
                 "q_dt_frame": near_start_idx,
                 "q_T_minus_dt_frame": near_end_idx,
@@ -732,14 +696,6 @@ def _rd_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[
             params[right_name] = torch.stack(right_values)
             sources[right_name] = source or "attr"
     return params, sources
-
-
-def _reaction_diffusion_generator_profile(file: Any, data_path: str) -> str:
-    """Distinguish the current generator from the incompatible legacy dataset."""
-    filename = Path(data_path).name.lower()
-    current_named = "_grf_" in filename or "_iid_" in filename
-    has_current_signature = any(name in file.attrs for name in ("n_save_steps", "tdim", "init_mode"))
-    return "current" if current_named or has_current_signature else "legacy"
 
 
 def _swe_params_for_offsets(file: Any, offsets: list[int], device: Any) -> tuple[dict[str, Any], dict[str, str]]:
@@ -1118,42 +1074,6 @@ def _trajectory_frame_to_chw(trajectory: Any, frame_idx: int, expected_channels:
     if trajectory.shape[0] == expected_channels:
         return trajectory[:, frame_idx, :, :]
     raise ValueError(f"Cannot infer trajectory layout for shape {tuple(trajectory.shape)}")
-
-
-def _legacy_wave_near_endpoint_state(
-    file: Any,
-    trajectory: Any,
-    *,
-    offset: int,
-    frame_idx: int,
-    dt: float,
-    pde_params: dict[str, Any],
-    batch_idx: int,
-) -> Any:
-    """Build a legacy Wave [u,v] frame without exposing a true endpoint to PDE loss."""
-    import numpy as np
-
-    displacement = _trajectory_frame_to_chw(trajectory, frame_idx, 1)[0]
-    initial = _ensure_chw_array(_pair_h5_endpoint_sample(file["input_data"], offset), 2)
-    u0, v0 = initial[0], initial[1]
-    c = _batch_scalar(pde_params.get("c", 1.0), batch_idx)
-    resolution = int(u0.shape[-1])
-    if u0.shape != (resolution, resolution) or v0.shape != u0.shape:
-        raise ValueError(
-            "Legacy Wave spectral velocity reconstruction requires square u0/v0 fields; "
-            f"got u0={u0.shape}, v0={v0.shape}"
-        )
-    angular_k = 2.0 * np.pi * np.fft.fftfreq(resolution, d=1.0 / resolution)
-    kx, ky = np.meshgrid(angular_k, angular_k, indexing="ij")
-    k_abs = np.sqrt(kx**2 + ky**2)
-    time_value = float(frame_idx) * float(dt)
-    phase = float(c) * k_abs * time_value
-    u0_hat = np.fft.fft2(u0)
-    v0_hat = np.fft.fft2(v0)
-    velocity_hat = -u0_hat * float(c) * k_abs * np.sin(phase) + v0_hat * np.cos(phase)
-    velocity_hat[0, 0] = v0_hat[0, 0]
-    velocity = np.fft.ifft2(velocity_hat).real.astype(np.float32, copy=False)
-    return np.stack([displacement, velocity], axis=0).astype(np.float32, copy=False)
 
 
 def _ensure_chw_array(value: Any, expected_channels: int) -> Any:

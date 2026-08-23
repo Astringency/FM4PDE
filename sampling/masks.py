@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -133,13 +132,6 @@ def residual_region_mask(
             mask[..., :, 0] = 0
             mask[..., :, -1] = 0
         return mask
-    if region in {"observed", "union_obs"}:
-        warnings.warn(
-            f"pde_residual_region={region!r} is deprecated; use 'active_obs_union'",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        region = "active_obs_union"
     active_coef = task in {"forward", "both"}
     active_sol = task in {"inverse", "both"}
     if region == "coef_obs":

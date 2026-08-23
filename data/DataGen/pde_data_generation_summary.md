@@ -1,6 +1,6 @@
 # FM4PDE 数据生成与读入格式
 
-本文只记录当前 FM4PDE 正式使用的 11 个 PDE 数据集：公式、初边值条件、生成代码设置、磁盘格式、FM4PDE 读入格式、物理量，以及训练/采样时的数据变换方式。本文以数据生成代码为唯一真值；若公式的通常写法、历史文档或文件名与生成代码不一致，以生成器实际组装的离散方程和文件 attrs/datasets 为准。
+本文只记录当前 FM4PDE 正式使用的 11 个 PDE 数据集：公式、初边值条件、生成代码设置、磁盘格式、FM4PDE 读入格式、物理量，以及训练/采样时的数据变换方式。本文以数据生成代码为唯一真值；若公式的通常写法、说明文档或文件名与生成代码不一致，以生成器实际组装的离散方程和文件 attrs/datasets 为准。
 
 ## 通用约定
 
@@ -110,8 +110,8 @@ python data/DataGen/time_dependent/gen_swe.py \
   $$\partial_tu=D_u\Delta u+u-u^3-k-v,$$
   $$\partial_tv=D_v\Delta v+u-v.$$
 - 初边值条件：定义域 `[-1,1]^2`；齐次 Neumann 边界；初值支持 `init_mode=grf` 和 `init_mode=iid`，正式训练建议显式过滤 `grf` 或 `iid`，避免混合。
-- 生成代码：`data/DataGen/time_dependent/gen_rd.py`，依赖 `pdebench/data_gen/src/sim_diff_react.py`；当前 train 与 test 默认均为 `D_u=2e-3`、`D_v=4e-3`、`k=3e-3`、`T=1`、`n_save_steps=10`，因此保存 `11` 帧。历史 legacy 生成器默认 `D_u=1e-3,D_v=5e-3,k=5e-3,T=5`；只允许通过文件元数据或显式 `generator_profile=legacy` 选择，不能用 split 猜测。
-- 磁盘格式：新格式为 `reaction_diffusion_{grf|iid}_{total}-128-128-T1-steps10[_shardNNN].h5`；test 为 `reaction_diffusion_test_{grf|iid}_...h5`。每个样本 group 含 `data`，形状 `[T,H,W,2]`，并含 `grid/x`、`grid/y`、`grid/t`、attrs 和 `sample_seed`。
+- 生成代码：`data/DataGen/time_dependent/gen_rd.py`，依赖 `pdebench/data_gen/src/sim_diff_react.py`；train 与 test 默认均为 `D_u=2e-3`、`D_v=4e-3`、`k=3e-3`、`T=1`、`n_save_steps=10`，因此保存 `11` 帧。
+- 磁盘格式：`reaction_diffusion_{grf|iid}_{total}-128-128-T1-steps10[_shardNNN].h5`；test 为 `reaction_diffusion_test_{grf|iid}_...h5`。每个样本 group 含 `data`，形状 `[T,H,W,2]`，并含 `grid/x`、`grid/y`、`grid/t`、attrs 和 `sample_seed`。
 - FM4PDE 读入：`[u0,v0,uT,vT]`，即 `[N,4,H,W]`；`T,D_u,D_v,k,n_save_steps,tdim,domain,sample_seed,init_mode` 等进入 metadata/pde_params。
 
 ## 7. Shallow Water
@@ -140,7 +140,7 @@ python data/DataGen/time_dependent/gen_swe.py \
   $$\partial_{tt}u=c^2\Delta u,\quad u(0)=u_0,\quad \partial_tu(0)=v_0.$$
 - 初边值条件：周期边界；`u0` 从平滑 GRF 采样，默认 `v0=0`，可选随机初速度；默认固定 `c=1`。
 - 生成代码：`data/DataGen/python/generate_wave.py`；固定 scalar `c` 时使用 Fourier 精确公式，`variable_c=True` 当前禁用。
-- 磁盘格式：`wave/wave_10000-128-128_i.h5` 和 test 文件；`input_data=[N,2,H,W]` 存 `[u0,v0]`，`output_data=[N,2,H,W]` 存 `[uT,vT]`，新生成的 `full_trajectory=[N,2,T,H,W]` 保存完整 `[u(t),v(t)]` 状态。旧文件的 `[N,1,T,H,W]` 位移轨迹仍可用于二阶 full-trajectory 诊断；近端稀疏模式会按生成器的常系数谱解重建对应时刻的真实速度，且仅把掩码内的 `[u,v]` 值传给 residual。随机 `c` 存 dataset，固定 `c` 存 attrs。
+- 磁盘格式：`wave/wave_10000-128-128_i.h5` 和 test 文件；`input_data=[N,2,H,W]` 存 `[u0,v0]`，`output_data=[N,2,H,W]` 存 `[uT,vT]`，`full_trajectory=[N,2,T,H,W]` 保存完整 `[u(t),v(t)]` 状态。随机 `c` 存 dataset，固定 `c` 存 attrs。
 - FM4PDE 读入：`[u0,v0,uT,vT]`，即 `[N,4,H,W]`；`c,T,dt` 作为 metadata/pde_params。
 
 ## 10. Advection-Diffusion

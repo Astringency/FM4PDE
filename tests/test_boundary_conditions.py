@@ -28,7 +28,6 @@ def test_zero_boundary_no_longer_used_as_bc():
             assert out.metadata["boundary_enforced"] is True
             assert out.metadata["boundary_enforced_by_operator"] is True
             assert out.metadata["boundary_value_residual_applicable"] is False
-        assert out.metadata["legacy_boundary_ignored"] is False
 
 
 def test_poisson_dirichlet_zero_bc():
@@ -188,29 +187,6 @@ def test_open_boundary_uses_neumann_like_metadata():
     assert out.metadata["boundary_enforced_by_operator"] is True
 
 
-def test_initial_condition_masked():
-    q0 = torch.zeros(1, 1, 4, 4)
-    qT = torch.zeros_like(q0)
-    target = torch.ones_like(q0)
-    mask = torch.zeros_like(q0)
-    mask[..., 1, 1] = 1.0
-    out = compute_pde_residual(
-        "heat",
-        q0,
-        qT,
-        pde_params={
-            "boundary_condition_mode": "periodic",
-            "alpha": 1e-3,
-            "observed_initial": target * mask,
-            "initial_mask": mask,
-        },
-        residual_mode="endpoint_secant",
-    )
-    ic = out.components["initial"]
-    assert ic[..., 1, 1].abs().sum() > 0
-    assert ic[..., 0, 0].abs().sum() == pytest.approx(0.0)
-
-
 def test_unknown_bc_raises():
     with pytest.raises(ValueError):
         compute_pde_residual(
@@ -221,14 +197,14 @@ def test_unknown_bc_raises():
         )
 
 
-def test_steady_heat_conduction_migrated_bc():
+def test_steady_heat_conduction_mixed_bc():
     u = torch.ones(1, 1, 6, 6) * 298.0
     a = torch.zeros_like(u)
     params = {"u_D": torch.tensor([300.0]), "boundary_condition_mode": "mixed"}
     out = compute_pde_residual("steady_heat_conduction", a, u, pde_params=params)
-    old = _steady_heat_residual_with_boundary(u, (1.0 + 0.05 * (u - 298.0)).clamp_min(0.1), a, torch.ones_like(u) * 300.0)
+    reference = _steady_heat_residual_with_boundary(u, (1.0 + 0.05 * (u - 298.0)).clamp_min(0.1), a, torch.ones_like(u) * 300.0)
     assert out.components["boundary"] is not None
-    assert out.residual[:, :1, 1:-1, 1:-1].shape == old[:, :, 1:-1, 1:-1].shape
+    assert out.residual[:, :1, 1:-1, 1:-1].shape == reference[:, :, 1:-1, 1:-1].shape
     assert out.metadata["boundary_condition_type"] == "mixed"
 
 

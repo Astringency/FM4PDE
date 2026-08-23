@@ -26,10 +26,8 @@ def _tiny_unet(channels: int, **overrides) -> UNetModel:
         "use_checkpoint": False,
         "num_heads": 1,
         "num_head_channels": -1,
-        "num_heads_upsample": -1,
         "use_scale_shift_norm": False,
         "resblock_updown": False,
-        "use_new_attention_order": False,
     }
     cfg.update(overrides)
     return UNetModel(**cfg)

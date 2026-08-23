@@ -15,8 +15,9 @@ def expand_grid(
     selected_pdes: set[str] | None = None,
     global_overrides: dict[str, Any] | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
-    spec = load_yaml_file(grid_path)
-    default_base_configs = _base_configs_from_spec(spec, fallback=["configs/ablations/smoke.yaml"])
+    spec = _load_sweep_spec(grid_path)
+    if not spec.get("main_config_root"):
+        raise ValueError("Sweep YAML must define main_config_root")
     groups = spec.get("groups", {})
     if not isinstance(groups, dict):
         raise ValueError("Sweep YAML must contain groups: mapping")
@@ -27,33 +28,43 @@ def expand_grid(
             continue
         if not isinstance(group_spec, dict):
             continue
-        group_base_configs = _base_configs_from_spec(group_spec, fallback=default_base_configs)
+        base_items = _pdes_from_spec(group_spec, fallback=_pdes_from_spec(spec, fallback=[]))
+        if not base_items:
+            raise ValueError(f"Sweep group {group_name!r} selects no PDEs")
         matrix = group_spec.get("matrix", {})
         fixed = group_spec.get("fixed", {})
         product = bool(group_spec.get("product", False))
         expanded = _expand_matrix(matrix, product=product)
-        for base_index, base_config in enumerate(group_base_configs):
-            base_pde = str(load_yaml_file(base_config).get("pde", ""))
+        for base_index, base_item in enumerate(base_items):
+            base_pde = str(base_item)
             if selected_pdes and base_pde not in selected_pdes:
                 continue
             for index, params in enumerate(expanded):
-                overrides = {}
+                overrides = _merged_job_overrides(spec, group_spec, base_pde)
                 overrides.update(fixed)
                 overrides.update(params)
+                requested_task = str(
+                    (global_overrides or {}).get(
+                        "task", overrides.get("task", spec.get("default_task", "both"))
+                    )
+                )
+                config_path = _resolve_main_config(
+                    spec,
+                    group_spec,
+                    pde=base_pde,
+                    task=requested_task,
+                )
                 _apply_conditional_overrides(
                     group_spec.get("conditional_overrides", []),
-                    base_config=str(base_config),
-                    base_pde=base_pde,
+                    pde=base_pde,
                     overrides=overrides,
                 )
                 overrides.update(global_overrides or {})
-                if "test_index" in overrides and "offset" not in overrides:
-                    overrides["offset"] = overrides["test_index"]
-                stem = Path(str(base_config)).stem
-                suffix = f"{base_index:02d}_{index:03d}" if len(group_base_configs) > 1 else f"{index:03d}"
+                stem = Path(str(config_path)).stem
+                suffix = f"{base_index:02d}_{index:03d}" if len(base_items) > 1 else f"{index:03d}"
                 overrides["ablation_name"] = f"{group_name}_{stem}_{suffix}"
                 overrides["ablation_group"] = group_name
-                jobs.append((str(base_config), overrides))
+                jobs.append((str(config_path), overrides))
     return jobs
 
 
@@ -141,23 +152,104 @@ def _expand_matrix(matrix: dict[str, Any], product: bool) -> list[dict[str, Any]
     return rows
 
 
-def _base_configs_from_spec(spec: dict[str, Any], fallback: list[str]) -> list[str]:
-    if "base_configs" in spec:
-        value = spec["base_configs"]
-    elif "base_config" in spec:
-        value = spec["base_config"]
-    else:
-        return list(fallback)
+def _load_sweep_spec(grid_path: str) -> dict[str, Any]:
+    """Load a grid and its optional shared suite profile.
+
+    Suite profiles contain only source selection and common/per-PDE overrides;
+    the concrete grid remains the owner of experiment groups.
+    """
+    grid = load_yaml_file(grid_path)
+    suite_path = grid.get("suite_config")
+    if not suite_path:
+        return grid
+    suite = load_yaml_file(str(suite_path))
+    if "groups" in suite:
+        raise ValueError("suite_config must not define experiment groups")
+    merged = dict(suite)
+    for key, value in grid.items():
+        if key == "suite_config":
+            continue
+        if key in {"common_overrides", "pde_overrides", "task_fallbacks"}:
+            inherited = merged.get(key, {})
+            if not isinstance(inherited, dict) or not isinstance(value, dict):
+                raise ValueError(f"{key} must be a mapping")
+            merged[key] = {**inherited, **value}
+        else:
+            merged[key] = value
+    return merged
+
+
+def _pdes_from_spec(spec: dict[str, Any], fallback: list[str]) -> list[str]:
+    value = spec.get("pdes", fallback)
     if isinstance(value, list):
-        return [str(item) for item in value]
-    return [str(value)]
+        pdes = [str(item) for item in value]
+    else:
+        pdes = [str(value)]
+    unknown = set(pdes) - VALID_PDES
+    if unknown:
+        raise ValueError(f"Unknown PDE(s) in grid: {', '.join(sorted(unknown))}")
+    return pdes
+
+
+def _mapping(spec: dict[str, Any], key: str) -> dict[str, Any]:
+    value = spec.get(key, {})
+    if not isinstance(value, dict):
+        raise ValueError(f"{key} must be a mapping")
+    return value
+
+
+def _merged_job_overrides(
+    spec: dict[str, Any], group_spec: dict[str, Any], pde: str
+) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
+    overrides.update(_mapping(spec, "common_overrides"))
+    suite_pde_overrides = _mapping(spec, "pde_overrides").get(pde, {})
+    if not isinstance(suite_pde_overrides, dict):
+        raise ValueError(f"pde_overrides[{pde!r}] must be a mapping")
+    overrides.update(suite_pde_overrides)
+    overrides.update(_mapping(group_spec, "common_overrides"))
+    group_pde_overrides = _mapping(group_spec, "pde_overrides").get(pde, {})
+    if not isinstance(group_pde_overrides, dict):
+        raise ValueError(f"group pde_overrides[{pde!r}] must be a mapping")
+    overrides.update(group_pde_overrides)
+    return overrides
+
+
+def _resolve_main_config(
+    spec: dict[str, Any],
+    group_spec: dict[str, Any],
+    *,
+    pde: str,
+    task: str,
+) -> str:
+    root_value = group_spec.get("main_config_root", spec.get("main_config_root"))
+    if not root_value:
+        raise ValueError("main_config_root is required when a grid uses main configs")
+    root = Path(str(root_value))
+    config_path = root / task / f"{pde}.yaml"
+    if config_path.is_file():
+        return str(config_path)
+
+    fallbacks = {
+        **_mapping(spec, "task_fallbacks"),
+        **_mapping(group_spec, "task_fallbacks"),
+    }
+    fallback = fallbacks.get(pde)
+    if isinstance(fallback, dict):
+        fallback = fallback.get(task)
+    if fallback:
+        fallback_path = root / str(fallback) / f"{pde}.yaml"
+        if fallback_path.is_file():
+            return str(fallback_path)
+    raise ValueError(
+        f"Missing main config for pde={pde!r}, task={task!r}: {config_path}"
+    )
 
 
 def _apply_conditional_overrides(
     rules: Any,
     *,
-    base_config: str,
-    base_pde: str,
+    pde: str,
     overrides: dict[str, Any],
 ) -> None:
     """Apply declarative per-variant settings before command-line overrides."""
@@ -170,9 +262,7 @@ def _apply_conditional_overrides(
     else:
         raise ValueError("conditional_overrides must be a mapping or list")
     context = {
-        "base_config": base_config,
-        "base_stem": Path(base_config).stem,
-        "pde": base_pde,
+        "pde": pde,
         **overrides,
     }
     for rule_name, rule in named_rules:

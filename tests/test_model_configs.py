@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from models.model_configs import (
-    MODEL_CONFIGS,
+    MODEL_CONFIGS_RECOMMENDED,
     get_model_config,
     get_model_config_metadata,
     instantiate_model,
@@ -29,7 +29,7 @@ EXPECTED_PDES = {
 
 
 def test_recommended_model_configs_cover_all_pdes():
-    assert EXPECTED_PDES.issubset(MODEL_CONFIGS)
+    assert EXPECTED_PDES.issubset(MODEL_CONFIGS_RECOMMENDED)
     for pde in EXPECTED_PDES:
         cfg = get_model_config(pde, profile="recommended")
         metadata = get_model_config_metadata(pde, profile="recommended")
@@ -54,11 +54,9 @@ def test_model_config_metadata_does_not_pass_to_unet(monkeypatch):
         "use_checkpoint": False,
         "num_heads": 1,
         "num_head_channels": -1,
-        "num_heads_upsample": -1,
         "use_scale_shift_norm": False,
         "resblock_updown": False,
-        "use_new_attention_order": False,
-        "with_fourier_features": False,
+        "with_value_fourier_features": False,
         "architecture_family": "unit_test_family",
         "architecture_profile": "recommended",
         "axis_semantics": "spatial_2d",
@@ -66,7 +64,7 @@ def test_model_config_metadata_does_not_pass_to_unet(monkeypatch):
         "scalar_conditioning_params": ["alpha"],
         "notes": "metadata-only keys should be filtered",
     }
-    monkeypatch.setitem(MODEL_CONFIGS, "heat", tiny)
+    monkeypatch.setitem(MODEL_CONFIGS_RECOMMENDED, "heat", tiny)
 
     model = instantiate_model("heat", use_ema=False, in_channels=2, out_channels=2)
 
@@ -91,10 +89,8 @@ def test_value_fourier_feature_channel_count_matches_forward(channels):
         "use_checkpoint": False,
         "num_heads": 1,
         "num_head_channels": -1,
-        "num_heads_upsample": -1,
         "use_scale_shift_norm": False,
         "resblock_updown": False,
-        "use_new_attention_order": False,
         "with_value_fourier_features": True,
     }
     model = instantiate_model("heat", use_ema=False, model_config=cfg)
@@ -125,7 +121,6 @@ def test_burger_axis_semantics():
     metadata = get_model_config_metadata("burger", profile="recommended")
     assert metadata["architecture_family"] == "full_time_space"
     assert metadata["axis_semantics"] == "BCHW_as_time_space_H_time_W_space"
-    assert metadata["with_fourier_features"] is True
     assert metadata["with_value_fourier_features"] is True
     assert metadata["with_coordinate_fourier_features"] is True
 

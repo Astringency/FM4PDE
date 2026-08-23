@@ -27,7 +27,6 @@ def test_boundary_excluded_masks_only_interior_not_boundary():
         guidance_components="pde_only",
         pde_residual_region="boundary_excluded",
         boundary_condition_mode="dirichlet_zero",
-        initial_condition_mode="none",
     )
     masks = PairMasks(torch.zeros_like(coef), torch.zeros_like(sol), {})
     out = compute_guidance_losses(SplitState(coef, sol), GT(coef, sol), masks, cfg)
@@ -51,7 +50,6 @@ def test_near_endpoint_temporal_uses_sparse_observation_exception_and_skips_seco
         residual_mode="near_endpoint_temporal",
         pde_residual_region="active_obs_union",
         boundary_condition_mode="periodic",
-        initial_condition_mode="none",
     )
     gt = GT(
         q0,

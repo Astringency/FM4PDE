@@ -1,15 +1,4 @@
-base_configs:
-  - configs/ablations/base/darcy_both.yaml
-  - configs/ablations/base/poisson_both.yaml
-  - configs/ablations/base/helmholtz_both.yaml
-  - configs/ablations/base/nsnonbounded_both.yaml
-  - configs/ablations/base/burger_both.yaml
-  - configs/ablations/base/reaction_diffusion.yaml
-  - configs/ablations/base/shallow_water.yaml
-  - configs/ablations/base/heat.yaml
-  - configs/ablations/base/wave.yaml
-  - configs/ablations/base/advection_diffusion.yaml
-  - configs/ablations/base/steady_heat_conduction.yaml
+suite_config: configs/ablations/formal_suite.yaml
 
 groups:
   guidance_components:
@@ -44,7 +33,7 @@ groups:
       loss_state: [xt, x_next, endpoint]
       sampler_phase: [deterministic, stochastic]
     # Poisson stochastic+x_next uses a separately calibrated gradient scale.
-    # Other PDEs and loss-state/phase combinations keep their base zeta.
+    # Other PDEs and loss-state/phase combinations inherit zeta from configs/main.
     conditional_overrides:
       poisson_stochastic_xnext:
         when:
@@ -165,13 +154,7 @@ groups:
       noise_level: [0.0, 0.01, 0.05, 0.10]
 
   temporal_residual_mode:
-    base_configs:
-      - configs/ablations/base/heat.yaml
-      - configs/ablations/base/wave.yaml
-      - configs/ablations/base/advection_diffusion.yaml
-      - configs/ablations/base/reaction_diffusion.yaml
-      - configs/ablations/base/shallow_water.yaml
-      - configs/ablations/base/nsnonbounded_both.yaml
+    pdes: [heat, wave, advection_diffusion, reaction_diffusion, shallow_water, nsnonbounded]
     fixed:
       task: both
       guidance_components: obs_pde

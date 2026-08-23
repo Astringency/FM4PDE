@@ -298,7 +298,6 @@ class AttentionBlock(nn.Module):
         num_heads=1,
         num_head_channels=-1,
         use_checkpoint=False,
-        use_new_attention_order=False,
     ):
         super().__init__()
         self.channels = channels
@@ -312,12 +311,7 @@ class AttentionBlock(nn.Module):
         self.use_checkpoint = use_checkpoint
         self.norm = normalization(channels)
         self.qkv = conv_nd(1, channels, channels * 3, 1)
-        if use_new_attention_order:
-            # split qkv before split heads
-            self.attention = QKVAttention(self.num_heads)
-        else:
-            # split heads before split qkv
-            self.attention = QKVAttentionLegacy(self.num_heads)
+        self.attention = QKVAttention(self.num_heads)
 
         self.proj_out = zero_module(conv_nd(1, channels, channels, 1))
 
@@ -356,38 +350,6 @@ def count_flops_attn(model, _x, y):
     # the combination of the value vectors.
     matmul_ops = 2 * b * (num_spatial**2) * c
     model.total_ops += torch.DoubleTensor([matmul_ops])
-
-
-class QKVAttentionLegacy(nn.Module):
-    """
-    A module which performs QKV attention. Matches legacy QKVAttention + input/ouput heads shaping
-    """
-
-    def __init__(self, n_heads):
-        super().__init__()
-        self.n_heads = n_heads
-
-    def forward(self, qkv):
-        """
-        Apply QKV attention.
-        :param qkv: an [N x (H * 3 * C) x T] tensor of Qs, Ks, and Vs.
-        :return: an [N x (H * C) x T] tensor after attention.
-        """
-        bs, width, length = qkv.shape
-        assert width % (3 * self.n_heads) == 0
-        ch = width // (3 * self.n_heads)
-        q, k, v = qkv.reshape(bs * self.n_heads, ch * 3, length).split(ch, dim=1)
-        scale = 1 / math.sqrt(math.sqrt(ch))
-        weight = torch.einsum(
-            "bct,bcs->bts", q * scale, k * scale
-        )  # More stable with f16 than dividing afterwards
-        weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
-        a = torch.einsum("bts,bcs->bct", weight, v)
-        return a.reshape(bs, -1, length)
-
-    @staticmethod
-    def count_flops(model, _x, y):
-        return count_flops_attn(model, _x, y)
 
 
 class QKVAttention(nn.Module):
@@ -449,12 +411,8 @@ class UNetModel(nn.Module):
     :param num_heads: the number of attention heads in each attention layer.
     :param num_heads_channels: if specified, ignore num_heads and instead use
                                a fixed channel width per attention head.
-    :param num_heads_upsample: works with num_heads to set a different number
-                               of heads for upsampling. Deprecated.
     :param use_scale_shift_norm: use a FiLM-like conditioning mechanism.
     :param resblock_updown: use residual blocks for up/downsampling.
-    :param use_new_attention_order: use a different attention pattern for potentially
-                                    increased efficiency.
     """
 
     in_channels: int
@@ -470,11 +428,8 @@ class UNetModel(nn.Module):
     use_checkpoint: bool = False
     num_heads: int = 1
     num_head_channels: int = -1
-    num_heads_upsample: int = -1
     use_scale_shift_norm: bool = False
     resblock_updown: bool = False
-    use_new_attention_order: bool = False
-    with_fourier_features: bool = False
     with_value_fourier_features: bool = False
     with_coordinate_fourier_features: bool = False
     fourier_feature_start: int = 6
@@ -497,10 +452,7 @@ class UNetModel(nn.Module):
         super().__init__()
 
         self.data_in_channels = int(self.in_channels)
-        self.with_value_fourier_features = bool(
-            self.with_value_fourier_features or self.with_fourier_features
-        )
-        self.with_fourier_features = self.with_value_fourier_features
+        self.with_value_fourier_features = bool(self.with_value_fourier_features)
         self.with_coordinate_fourier_features = bool(self.with_coordinate_fourier_features)
         self.scalar_conditioning = bool(self.scalar_conditioning)
         self.scalar_conditioning_dim = int(self.scalar_conditioning_dim or 0)
@@ -526,9 +478,6 @@ class UNetModel(nn.Module):
             self.value_fourier_feature_channels + self.coordinate_fourier_feature_channels
         )
         self.in_channels = self.data_in_channels + self.fourier_feature_channels
-
-        if self.num_heads_upsample == -1:
-            self.num_heads_upsample = self.num_heads
 
         self.time_embed_dim = self.model_channels * 4
         if self.ignore_time:
@@ -597,7 +546,6 @@ class UNetModel(nn.Module):
                             use_checkpoint=self.use_checkpoint,
                             num_heads=self.num_heads,
                             num_head_channels=self.num_head_channels,
-                            use_new_attention_order=self.use_new_attention_order,
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -644,7 +592,6 @@ class UNetModel(nn.Module):
                 use_checkpoint=self.use_checkpoint,
                 num_heads=self.num_heads,
                 num_head_channels=self.num_head_channels,
-                use_new_attention_order=self.use_new_attention_order,
             ),
             ResBlock(
                 ch,
@@ -680,9 +627,8 @@ class UNetModel(nn.Module):
                         AttentionBlock(
                             ch,
                             use_checkpoint=self.use_checkpoint,
-                            num_heads=self.num_heads_upsample,
+                            num_heads=self.num_heads,
                             num_head_channels=self.num_head_channels,
-                            use_new_attention_order=self.use_new_attention_order,
                         )
                     )
                 if level and i == self.num_res_blocks:

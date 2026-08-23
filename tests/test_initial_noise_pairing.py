@@ -19,10 +19,8 @@ def test_initial_noise_can_replay_one_row_from_a_larger_batch():
 
     replay_cfg = AblationConfig(
         batch_size=1,
-        extra={
-            "initial_noise_source_batch_size": 4,
-            "initial_noise_source_indices": [2],
-        },
+        initial_noise_source_batch_size=4,
+        initial_noise_source_indices=[2],
     )
     torch.manual_seed(123)
     replay = _sample_initial_noise(replay_cfg, ground_truth, torch.device("cpu"))
@@ -31,7 +29,7 @@ def test_initial_noise_can_replay_one_row_from_a_larger_batch():
 
 
 @pytest.mark.parametrize(
-    "extra,match",
+    "fields,match",
     [
         ({"initial_noise_source_batch_size": 0}, "at least batch_size"),
         (
@@ -44,9 +42,9 @@ def test_initial_noise_can_replay_one_row_from_a_larger_batch():
         ),
     ],
 )
-def test_initial_noise_replay_validates_source_selection(extra, match):
+def test_initial_noise_replay_validates_source_selection(fields, match):
     ground_truth = SimpleNamespace(pair=torch.zeros(1, 2, 4, 4))
-    cfg = AblationConfig(batch_size=1, extra=extra)
+    cfg = AblationConfig(batch_size=1, **fields)
     with pytest.raises(ValueError, match=match):
         _sample_initial_noise(cfg, ground_truth, torch.device("cpu"))
 
@@ -57,7 +55,7 @@ def test_batch1_l2_zeta_calibration_matches_reference_mse_gradient_scale():
         batch_size=1,
         obs_guidance_reduction="l2_norm",
         zeta_obs_u=123.0,
-        extra={"obs_l2_reference_mse_zeta_u": 3200.0},
+        obs_l2_reference_mse_zeta_u=3200.0,
     )
     losses = SimpleNamespace(
         L_obs_a=torch.tensor(0.25),

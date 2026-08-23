@@ -44,7 +44,6 @@ SCALAR_CONDITIONING_PARAMS="${SCALAR_CONDITIONING_PARAMS:-}"
 RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
 USE_EMA="${USE_EMA:-0}"
-DECAY_LR="${DECAY_LR:-0}"
 MASTER_PORT_BASE="${MASTER_PORT_BASE:-29500}"
 
 DEFAULT_PDE_LIST=(
@@ -228,9 +227,6 @@ run_train() {
   fi
   if [[ "${USE_EMA}" == "1" ]]; then
     extra_args+=(--use_ema)
-  fi
-  if [[ "${DECAY_LR}" == "1" ]]; then
-    extra_args+=(--decay_lr)
   fi
   if [[ -n "${RESUME:-}" && ${#PDES[@]} -eq 1 ]]; then
     extra_args+=(--resume "${RESUME}")

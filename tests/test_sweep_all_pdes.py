@@ -4,7 +4,9 @@ from pathlib import Path
 import subprocess
 import sys
 
-from sampling.config import load_config
+import pytest
+
+from sampling.config import load_config, load_yaml_file
 from sampling.sweep import expand_grid
 
 
@@ -74,13 +76,19 @@ def test_loss_state_and_sampler_phase_matrices():
     }
 
 
-def test_poisson_main_inverse_tuning_and_ablation_baseline_are_locked():
-    expected_baseline = (50000.0, 90000000.0, 0.1)
-    main = load_config("configs/main/inverse/poisson.yaml")
-    assert (main.zeta_obs_a, main.zeta_obs_u, main.zeta_pde) == (0.0, 360000000.0, 0.3)
-    for task in ("forward", "inverse", "both"):
-        cfg = load_config(f"configs/ablations/base/poisson_{task}.yaml")
-        assert (cfg.zeta_obs_a, cfg.zeta_obs_u, cfg.zeta_pde) == expected_baseline
+def test_poisson_ablations_inherit_task_specific_main_tuning():
+    expected_by_task = {
+        "both": (50000.0, 90000000.0, 0.1),
+        "forward": (50000.0, 90000000.0, 0.1),
+        "inverse": (0.0, 360000000.0, 0.3),
+    }
+    guidance_jobs = _jobs("guidance_components")
+    for path, overrides in guidance_jobs:
+        task = overrides["task"]
+        assert path == f"configs/main/{task}/poisson.yaml"
+        cfg = load_config(path, overrides=overrides)
+        assert (cfg.zeta_obs_a, cfg.zeta_obs_u, cfg.zeta_pde) == expected_by_task[task]
+        assert cfg.data_path.endswith("/poisson/poisson_test_10000-128-128.mat")
 
     resolved = {}
     for path, overrides in _jobs("loss_state_by_sampler"):
@@ -92,7 +100,7 @@ def test_poisson_main_inverse_tuning_and_ablation_baseline_are_locked():
         )
     assert resolved[("x_next", "stochastic")] == (600000.0, 2000000000.0, 1.0)
     assert all(
-        zeta == expected_baseline
+        zeta == expected_by_task["both"]
         for variant, zeta in resolved.items()
         if variant != ("x_next", "stochastic")
     )
@@ -107,6 +115,36 @@ def test_poisson_main_inverse_tuning_and_ablation_baseline_are_locked():
         global_overrides={"zeta_obs_a": 123.0},
     )
     assert all(overrides["zeta_obs_a"] == 123.0 for _, overrides in forced)
+
+    forced_task = expand_grid(
+        GRID,
+        selected_groups={"sampler_phase"},
+        selected_pdes={"poisson"},
+        global_overrides={"task": "inverse"},
+    )
+    assert all(path == "configs/main/inverse/poisson.yaml" for path, _ in forced_task)
+    assert all(
+        load_config(path, overrides=overrides).zeta_obs_u == 360000000.0
+        for path, overrides in forced_task
+    )
+
+
+def test_burger_cross_task_jobs_use_the_declared_both_fallback():
+    jobs = expand_grid(
+        GRID,
+        selected_groups={"guidance_components"},
+        selected_pdes={"burger"},
+    )
+    assert {overrides["task"] for _, overrides in jobs} == {"both", "forward", "inverse"}
+    assert {path for path, _ in jobs} == {"configs/main/both/burger.yaml"}
+    assert {
+        (
+            load_config(path, overrides=overrides).zeta_obs_a,
+            load_config(path, overrides=overrides).zeta_obs_u,
+            load_config(path, overrides=overrides).zeta_pde,
+        )
+        for path, overrides in jobs
+    } == {(0.0, 409600.0, 10.0)}
 
 
 def test_time_discretization_is_three_independent_ablations():
@@ -183,7 +221,10 @@ def test_sweep_cli_lists_selected_jobs_and_rejects_unknown_filters():
         stdout=subprocess.PIPE,
     )
     assert len(result.stdout.splitlines()) == 12
-    assert all("poisson_both.yaml" in line for line in result.stdout.splitlines())
+    lines = result.stdout.splitlines()
+    assert sum("configs/main/both/poisson.yaml" in line for line in lines) == 4
+    assert sum("configs/main/forward/poisson.yaml" in line for line in lines) == 4
+    assert sum("configs/main/inverse/poisson.yaml" in line for line in lines) == 4
 
     bad = subprocess.run(
         [sys.executable, "-m", "sampling.sweep", "--grid", GRID, "--pde", "not_a_pde", "--list"],
@@ -206,7 +247,10 @@ def test_shell_wrapper_plan_only_filters_pde_and_group():
         env=env,
     )
     assert len(result.stdout.splitlines()) == 12
-    assert all("poisson_both.yaml" in line for line in result.stdout.splitlines())
+    lines = result.stdout.splitlines()
+    assert sum("configs/main/both/poisson.yaml" in line for line in lines) == 4
+    assert sum("configs/main/forward/poisson.yaml" in line for line in lines) == 4
+    assert sum("configs/main/inverse/poisson.yaml" in line for line in lines) == 4
 
 
 def test_topic_grids_match_focused_grid_subsets():
@@ -240,6 +284,28 @@ def test_every_formal_job_validates_and_checkpoints_exist():
     for path in checked_paths:
         checkpoint = Path(load_config(path).checkpoint_path)
         assert checkpoint.is_file(), f"Missing checkpoint for {path}: {checkpoint}"
+
+
+def test_formal_grids_do_not_reference_duplicated_ablation_bases():
+    assert not list(Path("configs/ablations/base").glob("*.yaml"))
+    for grid_path in Path("configs/ablations").glob("*.yaml"):
+        assert "configs/ablations/base/" not in grid_path.read_text(encoding="utf-8")
+
+    suite = load_yaml_file("configs/ablations/formal_suite.yaml")
+    inherited_overrides = [suite.get("common_overrides", {})]
+    inherited_overrides.extend(suite.get("pde_overrides", {}).values())
+    assert all(
+        not {"zeta_obs_a", "zeta_obs_u", "zeta_pde"}.intersection(overrides)
+        for overrides in inherited_overrides
+    )
+
+
+def test_sweep_requires_main_config_source(tmp_path):
+    grid = tmp_path / "grid.yaml"
+    grid.write_text("pdes: [poisson]\ngroups:\n  check: {}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="main_config_root"):
+        expand_grid(str(grid))
 
 
 def test_removed_experiment_definitions_are_absent():

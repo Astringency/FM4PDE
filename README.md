@@ -6,7 +6,7 @@ FM4PDE is a Flow Matching codebase for generating, completing, and inverting PDE
 
 ```bash
 python train.py
-python -m sampling.runner --config configs/ablations/base/heat.yaml
+python -m sampling.runner --config configs/main/both/heat.yaml
 PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep.sh
 PLAN_ONLY=true OUTPUT_DIR=outputs/MAIN1000 bash scripts/sample/run_sample_sweep_burger.sh
 python -m sampling.sweep --grid configs/ablations/all_internal_ablation_grid.yaml --list
@@ -90,8 +90,7 @@ channel count. Parameter counts are for the raw UNet with `use_ema=false`, so
 they do not include optimizer state, EMA shadow weights, or checkpoint metadata.
 
 The `light`, `base`, and `heavy` profiles are explicit architecture ablations.
-`legacy_base` is only for reproducing old checkpoints and is not the formal
-default. Recommended configs move attention away from downsample factor `2` to
+Recommended configs move attention away from downsample factor `2` to
 coarser factors such as `8` and `16`, reducing the quadratic attention memory
 cost on 128x128 data while preserving coarse global structure.
 
@@ -104,15 +103,15 @@ time embedding and are still not added as constant input channels.
 
 Training checkpoints save `model_profile`, `model_config`,
 `model_config_metadata`, `data_metadata`, `num_channels`, and
-`checkpoint_schema_version`. Sampling reconstructs the model from checkpoint
-`model_config` first; old checkpoints without this field require an explicit
-profile override such as `model_profile=legacy_base`.
+`checkpoint_schema_version`. Sampling requires schema 3 checkpoints with
+`model_config`, `model_config_metadata`, a plain model state, and a saved
+normalizer.
 
 See `docs/model_architectures.md` for details.
 
 ## Sampling
 
-Configs use flat `AblationConfig` YAML. Old `data/generate/model` YAML structures are rejected with a clear conversion error.
+Configs use flat `AblationConfig` YAML. Unknown fields are rejected.
 
 ### Single run
 
@@ -140,7 +139,7 @@ Or call the Python runner directly:
 
 ```bash
 python -m sampling.runner \
-  --config configs/ablations/base/heat.yaml \
+  --config configs/main/both/heat.yaml \
   --override residual_mode=hermite_bridge
 ```
 
@@ -355,7 +354,7 @@ temporal-PDE residual jobs. `endpoint_secant`, `hermite_bridge`, and
 The near-endpoint mode additionally requires saved near-endpoint frames or a
 full trajectory in the formal dataset.
 
-Formal base configs set `allow_synthetic_data: false`; dry-run smoke configs may use synthetic data.
+The formal ablation suite sets `allow_synthetic_data: false`; dry-run smoke configs may use synthetic data.
 
 ### Result visualization
 

@@ -28,27 +28,14 @@ class BoundaryConditionSpec:
 
 
 @dataclass
-class InitialConditionSpec:
-    kind: str
-    value: Any | None = None
-    source: str = "unknown"
-    strict: bool = True
-
-
-@dataclass
 class PDEConstraintSpec:
     pde: str
     bc: BoundaryConditionSpec
-    ic: InitialConditionSpec | None
     bc_weight: float
-    ic_weight: float
     endpoint_weight: float
     normalize_by_mask: bool
     boundary_residual_normalization: str
-    allow_unknown_bc: bool
-    legacy_ignore_boundary: bool
     enforce_boundary_conditions: bool
-    enforce_initial_conditions: bool
 
 
 def _apply_darcy_coef_positive(coef: Any, pde_params: dict[str, Any] | None) -> Any:
@@ -379,7 +366,6 @@ def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
         },
         spec=spec,
         endpoint_states=[a, u, u_mid],
-        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -414,7 +400,6 @@ def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
         },
         spec=spec,
         endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
-        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -446,7 +431,6 @@ def _advection_diffusion_endpoint_secant(
         },
         spec=spec,
         endpoint_states=[a, u, u_mid],
-        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -513,7 +497,6 @@ def _reaction_diffusion_endpoint_secant(
         },
         spec=spec,
         endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
-        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -556,7 +539,6 @@ def _shallow_water_endpoint_secant(
         },
         spec=spec,
         endpoint_states=[a, u, torch.cat([h_mid, hu_mid, hv_mid], dim=1)],
-        initial_state=a,
         pde_params=pde_params,
     )
 
@@ -589,7 +571,6 @@ def _generic_endpoint_secant(
         },
         spec=spec,
         endpoint_states=[a, u, q_mid],
-        initial_state=a,
         pde_params=pde_params,
     )
     return out
@@ -671,7 +652,6 @@ def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[st
         },
         spec=spec,
         endpoint_states=endpoint_states,
-        initial_state=btchw[:, 0],
         pde_params=pde_params,
     )
     observed = bool(pde_params.get("trajectory_is_observed_ground_truth", False))
@@ -689,26 +669,17 @@ def _extract_full_trajectory(params: dict[str, Any]) -> Any:
 
 def _constraint_spec_from_params(pde: str, params: dict[str, Any]) -> PDEConstraintSpec:
     bc_mode = str(params.get("boundary_condition_mode", params.get("boundary_condition", "auto")))
-    ic_mode = str(params.get("initial_condition_mode", "auto"))
-    legacy = _as_bool(params.get("legacy_ignore_boundary", False)) or bc_mode == "legacy_ignore"
     allow_unknown = _as_bool(params.get("allow_unknown_boundary_conditions", False))
     enforce_bc = _as_bool(params.get("enforce_boundary_conditions", True))
-    enforce_ic = _as_bool(params.get("enforce_initial_conditions", True))
-    bc = _resolve_boundary_spec(pde, bc_mode, params, legacy, allow_unknown)
-    ic = _resolve_initial_spec(ic_mode, params)
+    bc = _resolve_boundary_spec(pde, bc_mode, params, allow_unknown)
     return PDEConstraintSpec(
         pde=pde,
         bc=bc,
-        ic=ic,
         bc_weight=float(params.get("bc_weight", 1.0)),
-        ic_weight=float(params.get("ic_weight", 1.0)),
         endpoint_weight=float(params.get("endpoint_bc_weight", params.get("lambda_endpoint", 1.0))),
         normalize_by_mask=str(params.get("boundary_residual_normalization", "sqrt_grid_over_mask")) != "mean",
         boundary_residual_normalization=str(params.get("boundary_residual_normalization", "sqrt_grid_over_mask")),
-        allow_unknown_bc=allow_unknown,
-        legacy_ignore_boundary=legacy,
         enforce_boundary_conditions=enforce_bc,
-        enforce_initial_conditions=enforce_ic,
     )
 
 
@@ -716,11 +687,8 @@ def _resolve_boundary_spec(
     pde: str,
     mode: str,
     params: dict[str, Any],
-    legacy: bool,
     allow_unknown: bool,
 ) -> BoundaryConditionSpec:
-    if legacy:
-        return BoundaryConditionSpec(kind="none", source="legacy_ignore", strict=False)
     aliases = {
         "dirichlet_zero": ("dirichlet", 0.0, "config"),
         "neumann_zero": ("neumann", 0.0, "config"),
@@ -790,34 +758,6 @@ def _normalize_boundary_kind(kind: str, pde: str) -> str:
     return text
 
 
-def _resolve_initial_spec(mode: str, params: dict[str, Any]) -> InitialConditionSpec:
-    if mode == "legacy_ignore":
-        return InitialConditionSpec(kind="none", source="legacy_ignore", strict=False)
-    if mode in {"none", "auto"}:
-        if "observed_initial" in params:
-            return InitialConditionSpec(kind="observed_initial", value=params["observed_initial"], source="pde_params.observed_initial")
-        if "true_initial" in params and _as_bool(params.get("allow_true_initial_condition", False)):
-            return InitialConditionSpec(kind="trajectory_initial", value=params["true_initial"], source="pde_params.true_initial")
-        if mode == "none":
-            return InitialConditionSpec(kind="none", source="config", strict=False)
-        return InitialConditionSpec(kind="unknown", source="not_available", strict=False)
-    if mode == "observed_initial":
-        if "observed_initial" in params:
-            return InitialConditionSpec(kind=mode, value=params["observed_initial"], source="pde_params.observed_initial")
-        return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
-    if mode == "trajectory_initial":
-        if "true_initial" in params:
-            return InitialConditionSpec(kind=mode, value=params["true_initial"], source="pde_params.true_initial_explicit_extra_condition")
-        return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
-    if mode == "endpoint_initial":
-        if "observed_initial" in params:
-            return InitialConditionSpec(kind=mode, value=params["observed_initial"], source="pde_params.observed_initial")
-        if "true_initial" in params:
-            return InitialConditionSpec(kind=mode, value=params["true_initial"], source="pde_params.true_initial_explicit_extra_condition")
-        return InitialConditionSpec(kind="unknown", source=f"missing_{mode}", strict=True)
-    raise ValueError(f"initial_condition_mode={mode!r} is invalid")
-
-
 def _with_constraints(
     pde: str,
     state: Any,
@@ -828,38 +768,12 @@ def _with_constraints(
     *,
     bc_states: list[Any] | None = None,
     endpoint_states: list[Any] | None = None,
-    initial_state: Any | None = None,
     endpoint_component: Any | None = None,
     pde_params: dict[str, Any] | None = None,
 ) -> ResidualOutput:
     import torch
 
     pde_params = pde_params or {}
-    if spec.legacy_ignore_boundary:
-        residual = _append_constraint_residuals(
-            interior,
-            None,
-            None,
-            endpoint_component,
-            bc_weight=0.0,
-            ic_weight=0.0,
-            endpoint_weight=spec.endpoint_weight,
-        )
-        components = {"interior": interior, "boundary": None, "initial": None, "endpoint": endpoint_component}
-        out = _out(residual, status, metadata, components=components)
-        _constraint_metadata(
-            out,
-            spec,
-            interior,
-            None,
-            None,
-            endpoint_component,
-            pde=pde,
-            pde_params=pde_params,
-            legacy_used=True,
-            unresolved=[],
-        )
-        return out
     bc = None
     unresolved = []
     if spec.enforce_boundary_conditions:
@@ -871,37 +785,23 @@ def _with_constraints(
         ]
         if bc_parts:
             bc = torch.cat(bc_parts, dim=1)
-    ic = None
-    if spec.enforce_initial_conditions and spec.ic is not None:
-        ic_source_state = initial_state
-        if ic_source_state is None and endpoint_states:
-            ic_source_state = endpoint_states[0]
-        if ic_source_state is None:
-            ic_source_state = state
-        ic = _compute_initial_residual(ic_source_state, spec.ic, pde_params)
-        if ic is None and spec.ic.kind == "unknown":
-            unresolved.append("initial_condition")
     residual = _append_constraint_residuals(
         interior,
         bc,
-        ic,
         endpoint_component,
         bc_weight=spec.bc_weight,
-        ic_weight=spec.ic_weight,
         endpoint_weight=spec.endpoint_weight,
     )
-    components = {"interior": interior, "boundary": bc, "initial": ic, "endpoint": endpoint_component}
+    components = {"interior": interior, "boundary": bc, "endpoint": endpoint_component}
     out = _out(residual, status, metadata, components=components)
     _constraint_metadata(
         out,
         spec,
         interior,
         bc,
-        ic,
         endpoint_component,
         pde=pde,
         pde_params=pde_params,
-        legacy_used=False,
         unresolved=unresolved,
     )
     return out
@@ -910,11 +810,9 @@ def _with_constraints(
 def _append_constraint_residuals(
     interior: Any,
     bc: Any | None,
-    ic: Any | None,
     endpoint: Any | None,
     *,
     bc_weight: float,
-    ic_weight: float,
     endpoint_weight: float,
 ) -> Any:
     import torch
@@ -922,8 +820,6 @@ def _append_constraint_residuals(
     parts = [interior]
     if bc is not None and bc_weight > 0.0:
         parts.append(torch.as_tensor(bc_weight, dtype=interior.dtype, device=interior.device).sqrt() * bc)
-    if ic is not None and ic_weight > 0.0:
-        parts.append(torch.as_tensor(ic_weight, dtype=interior.dtype, device=interior.device).sqrt() * ic)
     if endpoint is not None and endpoint_weight > 0.0:
         parts.append(torch.as_tensor(endpoint_weight, dtype=interior.dtype, device=interior.device).sqrt() * endpoint)
     return torch.cat(parts, dim=1)
@@ -934,12 +830,10 @@ def _constraint_metadata(
     spec: PDEConstraintSpec,
     interior: Any,
     bc: Any | None,
-    ic: Any | None,
     endpoint: Any | None,
     *,
     pde: str,
     pde_params: dict[str, Any],
-    legacy_used: bool,
     unresolved: list[str],
 ) -> None:
     periodic_operator = spec.bc.kind in {"periodic", "periodic_x"}
@@ -950,26 +844,19 @@ def _constraint_metadata(
         {
             "interior_residual_enabled": True,
             "bc_residual_enabled": bc is not None,
-            "ic_residual_enabled": ic is not None,
             "endpoint_residual_enabled": endpoint is not None,
             "boundary_condition_type": spec.bc.kind,
             "boundary_condition_source": spec.bc.source,
-            "initial_condition_type": spec.ic.kind if spec.ic is not None else "none",
-            "initial_condition_source": spec.ic.source if spec.ic is not None else "none",
             "hard_coded_defaults": [spec.bc.source] if "default" in spec.bc.source else [],
             "unresolved_conditions": unresolved + (["boundary_condition"] if spec.bc.kind == "unknown" else []),
-            "legacy_ignore_boundary": spec.legacy_ignore_boundary,
-            "legacy_boundary_ignored": legacy_used,
             "boundary_enforced": boundary_enforced,
             "boundary_enforced_by_operator": bool(spec.enforce_boundary_conditions and operator_encoded_boundary and bc is None),
             "boundary_value_residual_applicable": not operator_encoded_boundary,
             "grid_convention": "endpoint_false_periodic" if periodic_operator else ("cell_centered_ghost_cells" if ghost_cell_operator else "closed_interval_or_metadata"),
-            "initial_enforced": ic is not None,
             "boundary_residual_normalization": spec.boundary_residual_normalization,
             "residual_channels": {
                 "interior_channels": int(interior.shape[1]),
                 "bc_channels": int(bc.shape[1]) if bc is not None else 0,
-                "ic_channels": int(ic.shape[1]) if ic is not None else 0,
                 "endpoint_channels": int(endpoint.shape[1]) if endpoint is not None else 0,
                 "total_channels": int(out.residual.shape[1]),
             },
@@ -1015,18 +902,6 @@ def _compute_boundary_residual(
     if bc.kind == "open":
         return _neumann_residual(q, 0.0, {}, normalization, pde_params=pde_params, pde=pde)
     raise ValueError(f"Unsupported boundary condition kind={bc.kind!r}")
-
-
-def _compute_initial_residual(q0: Any, ic: InitialConditionSpec, pde_params: dict[str, Any]) -> Any | None:
-    if ic.kind in {"none", "unknown"} or ic.value is None:
-        return None
-    target = _as_bchw_like(ic.value, q0, ic.source)
-    residual = q0 - target
-    if "initial_mask" in pde_params:
-        mask = _as_mask_like(pde_params["initial_mask"], q0, "initial_mask")
-        residual = residual * mask
-        return _normalize_masked_residual(residual, mask, "sqrt_grid_over_mask")
-    return residual
 
 
 def _trajectory_dt_field(params: dict[str, Any], reference: Any, n_time: int) -> tuple[Any, dict[str, Any]]:
@@ -1125,7 +1000,6 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
         spec=spec,
         bc_states=[q0, *collocation_states, qT],
         endpoint_states=[q0, qT],
-        initial_state=q0,
         endpoint_component=endpoint_component,
         pde_params=pde_params,
     )
@@ -1185,7 +1059,6 @@ def _near_endpoint_temporal_residual(pde: str, q0: Any, qT: Any, pde_params: dic
         spec=spec,
         bc_states=[q0, qT],
         endpoint_states=[q0, qT],
-        initial_state=q0,
         pde_params=pde_params,
     )
 
@@ -2080,8 +1953,8 @@ def _neumann_residual(
     dy_line = dy[..., 0, 0].unsqueeze(-1)
     active = _active_sides(sides or {})
     val = value[..., 0, 0].unsqueeze(-1)
-    # Reaction-diffusion is explicitly BCHW=[B,C,Y,X]. Other legacy PDE
-    # generators in this module retain their historical first-axis-x layout.
+    # Reaction-diffusion is explicitly BCHW=[B,C,Y,X]. The other generators
+    # in this module use first-axis-x layout.
     horizontal_spacing = dx_line if pde == "reaction_diffusion" else dy_line
     vertical_spacing = dy_line if pde == "reaction_diffusion" else dx_line
     if w > 1 and "left" in active:
@@ -2316,7 +2189,6 @@ def _operator_boundary_kind(pde: str, pde_params: dict[str, Any]) -> str:
         "wall": "wall",
         "mixed": "mixed",
         "none": "none",
-        "legacy_ignore": "none",
     }
     if mode != "auto":
         return aliases.get(mode, _normalize_boundary_kind(mode, pde))
@@ -2355,9 +2227,6 @@ def _required_param_field(params: dict[str, Any], name: str, reference: Any) -> 
 
 
 def _reaction_diffusion_defaults(params: dict[str, Any]) -> dict[str, float]:
-    profile = str(params.get("generator_profile", "current")).lower()
-    if profile in {"legacy", "pdebench_legacy", "reaction_diffusion_old"}:
-        return {"D_u": 1e-3, "D_v": 5e-3, "k": 5e-3}
     return {"D_u": 2e-3, "D_v": 4e-3, "k": 3e-3}
 
 
@@ -2389,11 +2258,7 @@ def _time_scale_field(params: dict[str, Any], reference: Any, default: float = 1
 
 
 def _normalize_residual_mode(mode: str) -> str:
-    aliases = {
-        "": "auto",
-        "default": "auto",
-    }
-    normalized = aliases.get(str(mode), str(mode))
+    normalized = str(mode)
     valid = {
         "auto",
         "hermite_bridge",

@@ -12,6 +12,8 @@ from typing import Any
 import torch
 from training.distributed_mode import is_main_process
 
+CHECKPOINT_SCHEMA_VERSION = 3
+
 
 def save_on_master(*args, **kwargs):
     if is_main_process():
@@ -66,101 +68,17 @@ def _resume_state_dict(model_without_ddp) -> dict[str, Any]:
     return _clone_state_dict(model_without_ddp.state_dict())
 
 
-def _looks_like_ema_state_dict(state: Any) -> bool:
-    if not isinstance(state, dict):
-        return False
-    return (
-        "num_updates" in state
-        or any(str(key).startswith("shadow_params.") for key in state)
-        or any(str(key).startswith("model.") for key in state)
-    )
-
-
-def _strip_model_prefix_state(state: dict[str, Any]) -> dict[str, Any]:
-    stripped = {
-        str(key)[len("model.") :]: value
-        for key, value in state.items()
-        if str(key).startswith("model.")
-    }
-    if not stripped:
-        raise ValueError("EMA wrapper state_dict has no model.* keys to load into a plain model")
-    return _clone_state_dict(stripped)
-
-
-def _sync_ema_shadow_params(model_without_ddp) -> None:
-    shadow_params = list(model_without_ddp.shadow_params)
-    trainable_params = [p for p in model_without_ddp.model.parameters() if p.requires_grad]
-    if len(shadow_params) != len(trainable_params):
-        raise ValueError(
-            "Cannot initialize EMA shadow parameters from plain checkpoint because the "
-            f"shadow/trainable counts differ: {len(shadow_params)} vs {len(trainable_params)}"
-        )
-    for shadow, param in zip(shadow_params, trainable_params):
-        shadow.data.copy_(param.detach().data)
-
-
 def _load_resume_state(model_without_ddp, checkpoint: dict[str, Any]) -> None:
-    if "model_for_resume" in checkpoint:
-        resume_state = checkpoint["model_for_resume"]
-    else:
-        resume_state = checkpoint["model"]
-
+    resume_state = checkpoint.get("model_for_resume")
+    if not isinstance(resume_state, dict) or not resume_state:
+        raise ValueError("Checkpoint has no model_for_resume state_dict")
     try:
         model_without_ddp.load_state_dict(resume_state)
-        return
     except RuntimeError as exc:
-        first_error = exc
-
-    if _is_ema_module(model_without_ddp):
-        if isinstance(resume_state, dict) and not _looks_like_ema_state_dict(resume_state):
-            model_without_ddp.model.load_state_dict(resume_state)
-            _sync_ema_shadow_params(model_without_ddp)
-            warnings.warn(
-                "Loaded a plain model checkpoint into an EMA wrapper and initialized "
-                "EMA shadow parameters from the loaded model weights.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return
-    elif _looks_like_ema_state_dict(resume_state):
-        try:
-            model_without_ddp.load_state_dict(_strip_model_prefix_state(resume_state))
-            warnings.warn(
-                "Checkpoint model state is an EMA wrapper state_dict. Loaded the inner "
-                "raw model.* weights into the plain model. Resume with --use_ema to "
-                "continue EMA training state.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return
-        except (RuntimeError, ValueError) as exc:
-            raise RuntimeError(
-                "Checkpoint contains an EMA wrapper state_dict, but it could not be "
-                "loaded into the current plain model. Resume with --use_ema or use a "
-                "checkpoint whose model/model_for_resume state matches this model."
-            ) from exc
-
-    if (
-        not _is_ema_module(model_without_ddp)
-        and "model" in checkpoint
-        and checkpoint["model"] is not resume_state
-        and isinstance(checkpoint["model"], dict)
-        and not _looks_like_ema_state_dict(checkpoint["model"])
-    ):
-        model_without_ddp.load_state_dict(checkpoint["model"])
-        warnings.warn(
-            "model_for_resume did not match the current plain model; loaded checkpoint['model'] "
-            "raw weights instead.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        return
-
-    raise RuntimeError(
-        "Could not load checkpoint model state into the current model. If this is an "
-        "EMA checkpoint, set --use_ema to resume EMA training, or load it through the "
-        "sampling checkpoint loader to extract plain weights."
-    ) from first_error
+        raise RuntimeError(
+            "Checkpoint model_for_resume does not match the current model. "
+            "Use the same --use_ema and model configuration as the saved run."
+        ) from exc
 
 
 def save_model(
@@ -186,6 +104,12 @@ def save_model(
     model_config: dict[str, Any] | None = None,
     model_config_metadata: dict[str, Any] | None = None,
 ):
+    if normalizer is None:
+        raise ValueError("Saving a checkpoint requires a fitted normalizer")
+    if not isinstance(model_config, dict) or not model_config:
+        raise ValueError("Saving a checkpoint requires model_config")
+    if not isinstance(model_config_metadata, dict) or not model_config_metadata:
+        raise ValueError("Saving a checkpoint requires model_config_metadata")
     output_dir = Path(args.output_dir)
     epoch_name = str(epoch)
 
@@ -215,7 +139,7 @@ def save_model(
         "use_ema": bool(getattr(args, "use_ema", False) or has_ema),
         "has_ema": bool(has_ema),
         "inference_weight": "ema" if has_ema else "raw",
-        "checkpoint_schema_version": 3,
+        "checkpoint_schema_version": CHECKPOINT_SCHEMA_VERSION,
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
         "lr_schedule": lr_schedule.state_dict() if lr_schedule is not None else None,
         "epoch": epoch,
@@ -323,14 +247,19 @@ def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
         payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
     if not isinstance(payload, dict):
-        return result
+        raise ValueError(f"Checkpoint payload must be a mapping: {result['checkpoint_path']}")
+    if payload.get("checkpoint_schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        raise ValueError(
+            f"Checkpoint schema must be {CHECKPOINT_SCHEMA_VERSION}, "
+            f"got {payload.get('checkpoint_schema_version')!r}: {result['checkpoint_path']}"
+        )
 
     model_config = payload.get("model_config")
     model_config_metadata = payload.get("model_config_metadata")
-    if not isinstance(model_config, dict):
-        model_config = None
-    if not isinstance(model_config_metadata, dict):
-        model_config_metadata = None
+    if not isinstance(model_config, dict) or not model_config:
+        raise ValueError(f"Checkpoint has no model_config: {result['checkpoint_path']}")
+    if not isinstance(model_config_metadata, dict) or not model_config_metadata:
+        raise ValueError(f"Checkpoint has no model_config_metadata: {result['checkpoint_path']}")
 
     result["has_model_config"] = bool(model_config)
     result["checkpoint_model_config"] = model_config
@@ -340,6 +269,10 @@ def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
         or (model_config or {}).get("architecture_profile")
         or (model_config_metadata or {}).get("architecture_profile")
     )
+    if not result["checkpoint_model_profile"]:
+        raise ValueError(
+            f"Checkpoint has no model_profile or architecture_profile: {result['checkpoint_path']}"
+        )
     result["checkpoint_num_channels"] = payload.get("num_channels")
     result["checkpoint_schema_version"] = payload.get("checkpoint_schema_version")
     return result
@@ -356,18 +289,17 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
         checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
     _load_resume_state(model_without_ddp, checkpoint)
     print(f"Resume {args.dataset} checkpoint {args.resume}")
-    if "normalizer" not in checkpoint or checkpoint.get("normalizer") is None:
-        warnings.warn(
-            "Checkpoint has no normalizer; this is a legacy checkpoint. "
-            "Training will use the normalizer fitted from the current training data.",
-            RuntimeWarning,
-            stacklevel=2,
+    if checkpoint.get("checkpoint_schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        raise ValueError(
+            f"Checkpoint schema must be {CHECKPOINT_SCHEMA_VERSION}, "
+            f"got {checkpoint.get('checkpoint_schema_version')!r}"
         )
+    if not isinstance(checkpoint.get("normalizer"), dict):
+        raise ValueError("Checkpoint has no saved normalizer")
     if (
         "optimizer" in checkpoint
         and checkpoint.get("optimizer") is not None
         and "epoch" in checkpoint
-        and not getattr(args, "eval_only", False)
     ):
         optimizer.load_state_dict(checkpoint["optimizer"])
         if "lr_schedule" in checkpoint and checkpoint.get("lr_schedule") is not None:

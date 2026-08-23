@@ -36,13 +36,13 @@ def test_ns_pde_guidance_is_not_mapped_to_non_pde_guidance():
     _disable_unreliable_pde_guidance(cfg)
     assert cfg.guidance_components == "pde_only"
     assert cfg.zeta_pde != 0.0
-    assert "guidance_components_requested" not in cfg.extra
+    assert "guidance_components_requested" not in cfg.runtime_metadata
 
     cfg = AblationConfig(pde="nsnonbounded", task="both", guidance_components="obs_pde")
     _disable_unreliable_pde_guidance(cfg)
     assert cfg.guidance_components == "obs_pde"
     assert cfg.zeta_pde != 0.0
-    assert "guidance_components_requested" not in cfg.extra
+    assert "guidance_components_requested" not in cfg.runtime_metadata
 
 
 def test_disabled_pde_guidance_is_still_mapped_to_non_pde_guidance():
@@ -50,8 +50,8 @@ def test_disabled_pde_guidance_is_still_mapped_to_non_pde_guidance():
     with pytest.warns(RuntimeWarning):
         _disable_unreliable_pde_guidance(cfg)
     assert cfg.guidance_components == "obs_only"
-    assert cfg.extra["guidance_components_requested"] == "obs_pde"
-    assert cfg.extra["guidance_components_effective"] == "obs_only"
+    assert cfg.runtime_metadata["guidance_components_requested"] == "obs_pde"
+    assert cfg.runtime_metadata["guidance_components_effective"] == "obs_only"
 
 
 def test_stochastic_guidance_scale_defaults_to_current_time():
@@ -85,7 +85,7 @@ def test_stochastic_guidance_scale_defaults_to_current_time():
     assert torch.allclose(updated, -0.4 * grad.grad_total)
 
 
-@pytest.mark.parametrize("clip_mode", ["none", "global_norm", "per_sample_norm", "per_component_norm"])
+@pytest.mark.parametrize("clip_mode", ["none", "global_norm", "per_component_norm"])
 def test_guidance_gradient_is_independent_of_other_batch_samples(clip_mode):
     cfg = AblationConfig(
         pde="poisson",
@@ -94,7 +94,6 @@ def test_guidance_gradient_is_independent_of_other_batch_samples(clip_mode):
         clip_mode=clip_mode,
         clip_threshold=0.2,
         boundary_condition_mode="dirichlet_zero",
-        initial_condition_mode="none",
     )
     schedule = make_zeta_schedule(cfg, torch.tensor(0.2), torch.tensor(0.4), torch.tensor(1.0))
 

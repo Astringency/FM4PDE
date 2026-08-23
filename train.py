@@ -72,17 +72,7 @@ class DistributedEvalSampler(torch.utils.data.Sampler):
 
 
 def _resolve_lr_scheduler_name(args) -> str:
-    scheduler_name = getattr(args, "lr_scheduler", "warmup_cosine")
-    if getattr(args, "decay_lr", False):
-        if scheduler_name != "linear":
-            warnings.warn(
-                "--decay_lr is a legacy alias and overrides --lr_scheduler to 'linear'. "
-                "Prefer --lr_scheduler linear for new runs.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-        return "linear"
-    return scheduler_name
+    return getattr(args, "lr_scheduler", "warmup_cosine")
 
 
 def _validate_lr_scheduler_args(args) -> tuple[float, int, float]:
@@ -449,7 +439,7 @@ def main(args):
             if final_epoch or args.test_run:
                 logger.info("Final model saved.")
 
-        if args.test_run or args.eval_only:
+        if args.test_run:
             break
 
     total_time = time.time() - start_time
@@ -478,7 +468,6 @@ def resolve_training_model_profile(args) -> tuple[str, dict[str, Any]]:
 
     checkpoint_metadata = inspect_checkpoint_architecture(resume)
     checkpoint_profile = checkpoint_metadata.get("checkpoint_model_profile")
-    has_model_config = bool(checkpoint_metadata.get("has_model_config", False))
 
     resume_metadata = {
         "resume": True,
@@ -487,40 +476,29 @@ def resolve_training_model_profile(args) -> tuple[str, dict[str, Any]]:
         **checkpoint_metadata,
     }
 
-    if checkpoint_profile:
-        if requested_profile == "auto":
-            resolved_profile = str(checkpoint_profile)
-        elif requested_profile == checkpoint_profile:
-            resolved_profile = requested_profile
-        elif allow_override:
-            resolved_profile = requested_profile
-            resume_metadata["override"] = True
-            warnings.warn(
-                "resume checkpoint architecture/profile does not match requested model_profile; "
-                f"checkpoint_model_profile={checkpoint_profile}, "
-                f"requested_model_profile={requested_profile}. "
-                "Proceeding because --allow_model_profile_override was set.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-        else:
-            raise ValueError(
-                "resume checkpoint architecture/profile does not match requested model_profile; "
-                f"checkpoint_model_profile={checkpoint_profile}; "
-                f"requested_model_profile={requested_profile}. "
-                f"Use --model_profile {checkpoint_profile} or retrain. "
-                "To intentionally override, pass --allow_model_profile_override."
-            )
-    elif has_model_config and requested_profile == "auto":
-        resolved_profile = "checkpoint"
-    elif requested_profile == "auto":
-        raise ValueError(
-            "resume checkpoint lacks architecture metadata and model_config; auto model_profile cannot infer "
-            "the correct architecture. Pass an explicit --model_profile legacy_base or another correct profile."
+    if requested_profile == "auto":
+        resolved_profile = str(checkpoint_profile)
+    elif requested_profile == checkpoint_profile:
+        resolved_profile = requested_profile
+    elif allow_override:
+        resolved_profile = requested_profile
+        resume_metadata["override"] = True
+        warnings.warn(
+            "resume checkpoint architecture/profile does not match requested model_profile; "
+            f"checkpoint_model_profile={checkpoint_profile}, "
+            f"requested_model_profile={requested_profile}. "
+            "Proceeding because --allow_model_profile_override was set.",
+            RuntimeWarning,
+            stacklevel=2,
         )
     else:
-        resolved_profile = requested_profile
-        resume_metadata["checkpoint_lacks_architecture_metadata"] = True
+        raise ValueError(
+            "resume checkpoint architecture/profile does not match requested model_profile; "
+            f"checkpoint_model_profile={checkpoint_profile}; "
+            f"requested_model_profile={requested_profile}. "
+            f"Use --model_profile {checkpoint_profile} or retrain. "
+            "To intentionally override, pass --allow_model_profile_override."
+        )
 
     resume_metadata["resolved_model_profile"] = resolved_profile
     return resolved_profile, resume_metadata
@@ -625,7 +603,7 @@ def _validate_or_apply_joint_conditioning(
         saved_mapping = metadata.get("pde_label_mapping")
         if not isinstance(saved_mapping, dict) or model_config.get("num_classes") is None:
             raise ValueError(
-                "Old joint checkpoint lacks the required contiguous PDE label mapping/category layer; "
+                "Joint checkpoint lacks the required contiguous PDE label mapping/category layer; "
                 f"checkpoint_path={checkpoint_path}. Retrain the joint model."
             )
         normalized_mapping = {str(name): int(index) for name, index in saved_mapping.items()}
@@ -822,7 +800,6 @@ def _build_data_metadata(
         "dropout": (model_config_metadata or {}).get("dropout"),
         "model_channels": (model_config_metadata or {}).get("model_channels"),
         "num_res_blocks": (model_config_metadata or {}).get("num_res_blocks"),
-        "with_fourier_features": (model_config_metadata or {}).get("with_fourier_features"),
         "with_value_fourier_features": (model_config_metadata or {}).get("with_value_fourier_features"),
         "with_coordinate_fourier_features": (model_config_metadata or {}).get("with_coordinate_fourier_features"),
         "value_fourier_feature_channels": (model_config_metadata or {}).get("value_fourier_feature_channels"),

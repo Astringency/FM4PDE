@@ -8,7 +8,7 @@ torch = pytest.importorskip("torch")
 
 from sampling.model_io import WrappedModel, load_fm4pde_checkpoint_bundle
 from data.transform import PDEStandardizer
-from models.model_configs import MODEL_CONFIGS, get_model_config_metadata, instantiate_model
+from models.model_configs import MODEL_CONFIGS_RECOMMENDED, get_model_config_metadata, instantiate_model
 from training.load_and_save import save_model
 
 
@@ -32,17 +32,15 @@ def _tiny_heat_config() -> dict:
         "use_checkpoint": False,
         "num_heads": 1,
         "num_head_channels": -1,
-        "num_heads_upsample": -1,
         "use_scale_shift_norm": False,
         "resblock_updown": False,
-        "use_new_attention_order": False,
-        "with_fourier_features": False,
+        "with_value_fourier_features": False,
     }
 
 
 @pytest.fixture(autouse=True)
 def tiny_heat_model(monkeypatch):
-    monkeypatch.setitem(MODEL_CONFIGS, "heat", _tiny_heat_config())
+    monkeypatch.setitem(MODEL_CONFIGS_RECOMMENDED, "heat", _tiny_heat_config())
 
 
 def _checkpoint_args(tmp_path, use_ema: bool) -> argparse.Namespace:
@@ -64,7 +62,7 @@ def _save_heat_checkpoint(tmp_path, model, use_ema: bool):
         data_shape=(1, 2, 4, 4),
         num_channels=2,
         model_profile="recommended",
-        model_config=MODEL_CONFIGS["heat"],
+        model_config=MODEL_CONFIGS_RECOMMENDED["heat"],
         model_config_metadata=get_model_config_metadata("heat", profile="recommended", in_channels=2, out_channels=2),
     )
     return tmp_path / "fm4heat.pth"
@@ -135,32 +133,3 @@ def test_ema_checkpoint_loads_ema_or_raw_plain_weights(tmp_path):
     )
     assert raw_payload["selected_inference_weight"] == "raw"
     assert torch.allclose(wrapped_raw.model.state_dict()[differing_key], payload["model"][differing_key])
-
-
-def test_legacy_ema_state_dict_fallback_loads_plain_model(tmp_path):
-    model = instantiate_model("heat", use_ema=True, in_channels=2, out_channels=2)
-    with torch.no_grad():
-        for param in model.model.parameters():
-            param.add_(1.0)
-            break
-    model.update_ema()
-    legacy_state = model.state_dict()
-    checkpoint_path = tmp_path / "legacy_ema.pth"
-    torch.save(
-        {"model": legacy_state, "num_channels": 2, "normalizer": PDEStandardizer.identity(2).state_dict()},
-        checkpoint_path,
-    )
-
-    wrapped, _, payload = load_fm4pde_checkpoint_bundle(
-        str(checkpoint_path),
-        "heat",
-        device=torch.device("cpu"),
-        wrap=True,
-        prefer_ema=True,
-        model_profile="recommended",
-    )
-
-    first_trainable_name = next(name for name, param in model.model.named_parameters() if param.requires_grad)
-    assert isinstance(wrapped, WrappedModel)
-    assert payload["selected_inference_weight"] == "ema"
-    assert torch.allclose(wrapped.model.state_dict()[first_trainable_name], legacy_state["shadow_params.0"])

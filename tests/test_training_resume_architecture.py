@@ -35,7 +35,7 @@ def _write_checkpoint(
     if model_profile is not None:
         checkpoint["model_profile"] = model_profile
     if include_model_config:
-        cfg_profile = model_profile if model_profile in {"recommended", "light", "base", "heavy", "legacy_base"} else "recommended"
+        cfg_profile = model_profile if model_profile in {"recommended", "light", "base", "heavy"} else "recommended"
         cfg = get_model_config(
             "heat",
             profile=cfg_profile,
@@ -107,21 +107,6 @@ def test_resume_profile_override_requires_flag(tmp_path):
 
     assert resolved == "base"
     assert metadata["override"] is True
-
-
-def test_resume_legacy_checkpoint_requires_explicit_profile(tmp_path):
-    path = tmp_path / "legacy.pth"
-    torch.save({"model": {}, "num_channels": 2}, path)
-
-    with pytest.raises(ValueError, match="lacks architecture metadata"):
-        resolve_training_model_profile(_args(str(path), model_profile="auto"))
-
-    resolved, metadata = resolve_training_model_profile(
-        _args(str(path), model_profile="legacy_base")
-    )
-
-    assert resolved == "legacy_base"
-    assert metadata["checkpoint_lacks_architecture_metadata"] is True
 
 
 def test_resume_checkpoint_model_config_channel_mismatch_raises(tmp_path):

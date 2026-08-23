@@ -1,10 +1,5 @@
-base_configs:
-  - configs/ablations/base/heat.yaml
-  - configs/ablations/base/wave.yaml
-  - configs/ablations/base/advection_diffusion.yaml
-  - configs/ablations/base/reaction_diffusion.yaml
-  - configs/ablations/base/shallow_water.yaml
-  - configs/ablations/base/nsnonbounded_both.yaml
+suite_config: configs/ablations/formal_suite.yaml
+pdes: [heat, wave, advection_diffusion, reaction_diffusion, shallow_water, nsnonbounded]
 groups:
   temporal_residual_mode:
     fixed:

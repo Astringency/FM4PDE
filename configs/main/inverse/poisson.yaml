@@ -1,6 +1,5 @@
 pde: poisson
 task: inverse
-data_config_path: configs/main/inverse/poisson.yaml
 data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_10000-128-128_1.mat
 # data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
 loadby: scipy
@@ -22,15 +21,11 @@ clip_threshold: 50.0
 pde_residual_region: full
 residual_mode: auto
 enforce_boundary_conditions: true
-enforce_initial_conditions: true
 boundary_condition_mode: dirichlet_zero
-initial_condition_mode: none
 bc_weight: 1.0
-ic_weight: 1.0
 endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
-legacy_ignore_boundary: false
 num_obs: 500
 num_sensor_columns: 5
 sensor_mode: random

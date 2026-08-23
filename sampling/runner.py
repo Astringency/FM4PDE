@@ -137,9 +137,6 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
     grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta)
     x_next = _sample_initial_noise(config, gt, device)
 
-    pde_start_step = int(config.extra.get("pde_guidance_start_step", 0))
-    saved_guidance_components = config.guidance_components
-
     rows: list[dict[str, Any]] = []
     per_sample_curve_rows: list[dict[str, Any]] = []
     intermediates = []
@@ -166,12 +163,6 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             phase="init",
         )
         for step in range(config.num_steps):
-            # Early-step PDE suppression: use obs_only for steps < pde_start_step
-            if step < pde_start_step and saved_guidance_components == "obs_pde":
-                config.guidance_components = "obs_only"
-            else:
-                config.guidance_components = saved_guidance_components
-
             step_start = time.time()
             phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps)
             x_cur = x_next.detach().clone()
@@ -189,16 +180,14 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                 loss_state=config.loss_state,
                 device=device,
                 model_extra=model_extra,
-                stochastic_noise_source_batch_size=config.extra.get(
-                    "initial_noise_source_batch_size"
-                ),
-                stochastic_noise_source_indices=config.extra.get("initial_noise_source_indices"),
+                stochastic_noise_source_batch_size=config.initial_noise_source_batch_size,
+                stochastic_noise_source_indices=config.initial_noise_source_indices or None,
             )
             phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
             losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
             calibration = _calibrate_l2_observation_zeta(config, losses, step=step)
             if calibration:
-                config.extra["obs_l2_step0_calibration"] = calibration
+                config.runtime_metadata["obs_l2_step0_calibration"] = calibration
                 write_run_metadata(
                     config,
                     run_dir,
@@ -280,7 +269,6 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                     }
                 )
 
-    config.guidance_components = saved_guidance_components
     final_phys = _physical_from_model_state(x_next, config, normalizer)
     with torch.no_grad():
         final_eval_losses = compute_guidance_losses(final_phys, gt, masks, config, observations)
@@ -398,8 +386,12 @@ def _sample_initial_noise(config: AblationConfig, ground_truth: Any, device: Any
     """Sample the initial latent, optionally selecting rows from a larger reproducibility batch."""
     import torch
 
-    source_batch_size = int(config.extra.get("initial_noise_source_batch_size", config.batch_size))
-    source_indices_raw = config.extra.get("initial_noise_source_indices")
+    source_batch_size = int(
+        config.batch_size
+        if config.initial_noise_source_batch_size is None
+        else config.initial_noise_source_batch_size
+    )
+    source_indices_raw = config.initial_noise_source_indices or None
     if source_indices_raw is None:
         source_indices = list(range(int(config.batch_size)))
     elif isinstance(source_indices_raw, int):
@@ -436,11 +428,11 @@ def _calibrate_l2_observation_zeta(
     """Match batch-1 L2 observation-gradient scale to configured MSE-reference zeta values."""
     if step != 0 or config.obs_guidance_reduction != "l2_norm":
         return {}
-    reference_keys = {
+    reference_fields = {
         "a": "obs_l2_reference_mse_zeta_a",
         "u": "obs_l2_reference_mse_zeta_u",
     }
-    if not any(key in config.extra for key in reference_keys.values()):
+    if not any(getattr(config, field) is not None for field in reference_fields.values()):
         return {}
     if int(config.batch_size) != 1:
         raise ValueError("Exact step-0 L2/MSE zeta calibration currently requires batch_size=1")
@@ -452,10 +444,11 @@ def _calibrate_l2_observation_zeta(
         "formula": "zeta_l2=zeta_mse*2*sqrt(masked_mse)/sqrt(observed_entries)",
     }
     for side, count_key in (("a", "coef"), ("u", "sol")):
-        reference_key = reference_keys[side]
-        if reference_key not in config.extra or not flags[f"obs_{side}"]:
+        reference_field = reference_fields[side]
+        reference_value = getattr(config, reference_field)
+        if reference_value is None or not flags[f"obs_{side}"]:
             continue
-        reference_zeta = float(config.extra[reference_key])
+        reference_zeta = float(reference_value)
         mse = float(getattr(losses, f"L_obs_{side}").detach().cpu())
         observed_entries = float(counts.get(count_key, 0.0))
         if mse <= 0.0 or observed_entries <= 0.0:
@@ -579,7 +572,7 @@ def _class_conditioning_for_sampling(
     if not isinstance(mapping, dict):
         raise ValueError(
             "Joint checkpoint has a category layer but no contiguous pde_label_mapping. "
-            "Old joint checkpoints must be retrained; single-PDE checkpoints are unaffected."
+            "The checkpoint is invalid and must be retrained."
         )
     normalized = {str(name): int(index) for name, index in mapping.items()}
     expected_indices = list(range(int(num_classes)))
@@ -622,8 +615,7 @@ def _check_sampling_channels(gt: Any, normalizer: Any | None, payload: dict[str,
     if payload.get("num_channels") is not None and int(payload["num_channels"]) != expected:
         raise ValueError(
             f"Checkpoint num_channels={payload['num_channels']} but ground-truth pair has {expected}. "
-            "Checkpoints using old scalar-parameter channels must be retrained with the current "
-            "sample-level pde_params channel definition."
+            "Retrain with the current sample-level pde_params channel definition."
         )
 
 
@@ -651,8 +643,8 @@ def _disable_unreliable_pde_guidance(config: AblationConfig) -> None:
         RuntimeWarning,
         stacklevel=2,
     )
-    config.extra["guidance_components_requested"] = requested
-    config.extra["guidance_components_effective"] = effective
+    config.runtime_metadata["guidance_components_requested"] = requested
+    config.runtime_metadata["guidance_components_effective"] = effective
     config.guidance_components = effective
     config.zeta_pde = 0.0
 

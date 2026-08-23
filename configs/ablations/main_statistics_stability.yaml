@@ -1,4 +1,5 @@
-base_config: configs/ablations/base/poisson_both.yaml
+suite_config: configs/ablations/formal_suite.yaml
+pdes: [poisson]
 groups:
   statistics_stability:
     fixed:

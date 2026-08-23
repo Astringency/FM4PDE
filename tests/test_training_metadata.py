@@ -8,6 +8,8 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from data.metadata import detach_pde_params, summarize_pde_params
+from data.transform import PDEStandardizer
+from models.model_configs import get_model_config, get_model_config_metadata
 from training.load_and_save import save_model
 
 
@@ -239,12 +241,12 @@ def test_joint_pde_labels_are_contiguous_and_old_joint_checkpoint_is_rejected():
         is_resume=False,
     )
     assert config["num_classes"] == 2
-    with pytest.raises(ValueError, match="Old joint checkpoint"):
+    with pytest.raises(ValueError, match="Joint checkpoint"):
         _validate_or_apply_joint_conditioning(
             {"num_classes": None},
             ["heat", "advection_diffusion"],
             checkpoint_metadata={},
-            checkpoint_path="old.pth",
+            checkpoint_path="invalid.pth",
             is_resume=True,
         )
 
@@ -276,6 +278,8 @@ def test_save_model_includes_data_metadata(tmp_path):
         "pde_param_summary": {"heat": {"alpha": {"count": 1, "mean": 0.1}}},
     }
     args = argparse.Namespace(output_dir=str(tmp_path), dataset="heat", use_ema=False)
+    model_config = get_model_config("heat", in_channels=1, out_channels=1)
+    model_config_metadata = get_model_config_metadata("heat", in_channels=1, out_channels=1)
 
     save_model(
         args=args,
@@ -286,9 +290,12 @@ def test_save_model_includes_data_metadata(tmp_path):
         lr_schedule=None,
         loss_scaler=_DummyScaler(),
         final=True,
+        normalizer=PDEStandardizer.identity(1),
         data_shape=(1, 1),
         num_channels=1,
         data_metadata=data_metadata,
+        model_config=model_config,
+        model_config_metadata=model_config_metadata,
     )
 
     checkpoint = torch.load(tmp_path / "fm4heat.pth", map_location="cpu", weights_only=False)

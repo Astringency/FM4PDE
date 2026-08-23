@@ -1,7 +1,7 @@
 import argparse
 import gc
 
-from models.model_configs import MODEL_CONFIGS, instantiate_model
+from models.model_configs import MODEL_CONFIGS_RECOMMENDED, instantiate_model
 
 
 def format_count(value: int) -> str:
@@ -49,12 +49,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        choices=sorted(MODEL_CONFIGS.keys()),
+        choices=sorted(MODEL_CONFIGS_RECOMMENDED.keys()),
         help="Only count one model architecture.",
     )
     args = parser.parse_args()
 
-    names = [args.model] if args.model else list(MODEL_CONFIGS.keys())
+    names = [args.model] if args.model else list(MODEL_CONFIGS_RECOMMENDED.keys())
     rows = []
     for name in names:
         model = instantiate_model(name, use_ema=args.ema)

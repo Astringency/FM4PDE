@@ -20,7 +20,6 @@ def _args(**overrides):
         "plateau_factor": 0.5,
         "plateau_patience": 0,
         "plateau_threshold": 0.0,
-        "decay_lr": False,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -33,11 +32,6 @@ def _optimizer(lr: float = 1e-4):
 
 def test_default_lr_scheduler_resolves_to_warmup_cosine():
     assert _resolve_lr_scheduler_name(_args()) == "warmup_cosine"
-
-
-def test_decay_lr_legacy_flag_resolves_to_linear():
-    with pytest.warns(RuntimeWarning, match="legacy alias"):
-        assert _resolve_lr_scheduler_name(_args(decay_lr=True)) == "linear"
 
 
 def test_warmup_cosine_warms_up_then_decays_to_min_lr():

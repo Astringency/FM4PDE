@@ -18,7 +18,7 @@ from models.unet import (
 )
 
 
-MODEL_PROFILE_CHOICES = ("recommended", "light", "base", "heavy", "legacy_base")
+MODEL_PROFILE_CHOICES = ("recommended", "light", "base", "heavy")
 
 MODEL_METADATA_KEYS = {
     "architecture_family",
@@ -54,11 +54,8 @@ MODEL_PARAMETER_KEYS = {
     "use_checkpoint",
     "num_heads",
     "num_head_channels",
-    "num_heads_upsample",
     "use_scale_shift_norm",
     "resblock_updown",
-    "use_new_attention_order",
-    "with_fourier_features",
     "with_value_fourier_features",
     "with_coordinate_fourier_features",
     "fourier_feature_start",
@@ -111,9 +108,7 @@ def _base_config(
     dropout: float = 0.05,
     channel_mult: tuple[int, ...] = (1, 2, 4),
     use_scale_shift_norm: bool = True,
-    use_new_attention_order: bool = True,
-    with_fourier_features: bool = False,
-    with_value_fourier_features: bool | None = None,
+    with_value_fourier_features: bool = False,
     with_coordinate_fourier_features: bool = False,
     coordinate_fourier_start: int = 0,
     coordinate_fourier_stop: int = 4,
@@ -125,11 +120,7 @@ def _base_config(
     architecture_profile: str = "recommended",
     notes: str | None = None,
 ) -> dict[str, Any]:
-    value_fourier_enabled = bool(
-        with_fourier_features
-        if with_value_fourier_features is None
-        else with_value_fourier_features or with_fourier_features
-    )
+    value_fourier_enabled = bool(with_value_fourier_features)
     coordinate_fourier_enabled = bool(with_coordinate_fourier_features)
     cfg: dict[str, Any] = {
         "in_channels": int(in_channels),
@@ -145,11 +136,8 @@ def _base_config(
         "use_checkpoint": False,
         "num_heads": 1,
         "num_head_channels": -1,
-        "num_heads_upsample": -1,
         "use_scale_shift_norm": bool(use_scale_shift_norm),
         "resblock_updown": False,
-        "use_new_attention_order": bool(use_new_attention_order),
-        "with_fourier_features": value_fourier_enabled,
         "with_value_fourier_features": value_fourier_enabled,
         "with_coordinate_fourier_features": coordinate_fourier_enabled,
         "fourier_feature_start": 6,
@@ -169,10 +157,7 @@ def _base_config(
         "fourier_feature_type": _fourier_feature_type(
             value_fourier_enabled, coordinate_fourier_enabled
         ),
-        "fourier_feature_notes": (
-            "with_fourier_features is a backward-compatible alias for value Fourier features; "
-            "coordinate Fourier features are controlled separately."
-        ),
+        "fourier_feature_notes": "Value and coordinate Fourier features are controlled independently.",
     }
     if notes:
         cfg["notes"] = notes
@@ -404,39 +389,6 @@ def _heavy_profile_config(pde: str, in_channels: int) -> dict[str, Any]:
     )
 
 
-def _legacy_base_config(in_channels: int, model_channels: int = 128, out_channels: int | None = None) -> dict[str, Any]:
-    return _base_config(
-        in_channels,
-        model_channels=model_channels,
-        out_channels=out_channels,
-        num_res_blocks=4,
-        attention_resolutions=(2,),
-        dropout=0.1,
-        channel_mult=(1, 2, 4),
-        use_scale_shift_norm=True,
-        use_new_attention_order=True,
-        with_value_fourier_features=False,
-        with_coordinate_fourier_features=False,
-        architecture_family="legacy_base",
-        architecture_profile="legacy_base",
-        notes="explicit legacy reproduction of the old shared _base_config",
-    )
-
-
-def _legacy_elliptic_config(in_channels: int = 2) -> dict[str, Any]:
-    cfg = _legacy_base_config(in_channels)
-    cfg.update(
-        {
-            "attention_resolutions": (32,),
-            "channel_mult": (1, 2, 2),
-            "use_scale_shift_norm": False,
-            "use_new_attention_order": False,
-            "notes": "explicit legacy reproduction of the old poisson/helmholtz elliptic config",
-        }
-    )
-    return cfg
-
-
 def _recommended_family(pde: str) -> str:
     if pde == "poisson":
         return "light_smooth"
@@ -557,32 +509,17 @@ def _build_profile_configs(profile: str) -> dict[str, dict[str, Any]]:
     }
 
 
-def _build_legacy_configs() -> dict[str, dict[str, Any]]:
-    configs = {
-        pde: _with_scalar_metadata(pde, _legacy_base_config(spec.img_channels))
-        for pde, spec in PDE_DATA_SPECS.items()
-    }
-    configs["poisson"] = _with_scalar_metadata("poisson", _legacy_elliptic_config(2))
-    configs["helmholtz"] = _with_scalar_metadata("helmholtz", _legacy_elliptic_config(2))
-    return configs
-
-
 MODEL_CONFIGS_RECOMMENDED = _build_recommended_configs()
 MODEL_CONFIGS_LIGHT = _build_profile_configs("light")
 MODEL_CONFIGS_BASE = _build_profile_configs("base")
 MODEL_CONFIGS_HEAVY = _build_profile_configs("heavy")
-MODEL_CONFIGS_LEGACY_BASE = _build_legacy_configs()
 
 MODEL_CONFIGS_BY_PROFILE: dict[str, dict[str, dict[str, Any]]] = {
     "recommended": MODEL_CONFIGS_RECOMMENDED,
     "light": MODEL_CONFIGS_LIGHT,
     "base": MODEL_CONFIGS_BASE,
     "heavy": MODEL_CONFIGS_HEAVY,
-    "legacy_base": MODEL_CONFIGS_LEGACY_BASE,
 }
-
-# Backwards-compatible registry name for callers/tests that enumerate PDE names.
-MODEL_CONFIGS = MODEL_CONFIGS_RECOMMENDED
 
 ARCHITECTURE_FAMILIES = {
     pde: cfg["architecture_family"] for pde, cfg in MODEL_CONFIGS_RECOMMENDED.items()
@@ -609,7 +546,7 @@ def get_model_config(
     if "out_channels" not in cfg or cfg["out_channels"] is None:
         cfg["out_channels"] = int(cfg["in_channels"])
     cfg["architecture_profile"] = profile
-    _normalize_fourier_aliases(cfg)
+    _normalize_fourier_config(cfg)
     _normalize_scalar_conditioning(cfg)
     if architecture in PDE_DATA_SPECS:
         if not cfg.get("scalar_conditioning", False):
@@ -638,20 +575,21 @@ def get_model_config_metadata(
 
 
 def model_config_metadata_from_config(config: Mapping[str, Any]) -> dict[str, Any]:
-    cfg = deepcopy(dict(config))
-    _normalize_fourier_aliases(cfg)
+    canonical_keys = MODEL_PARAMETER_KEYS | MODEL_METADATA_KEYS
+    cfg = {
+        key: deepcopy(value)
+        for key, value in config.items()
+        if key in canonical_keys
+    }
+    _normalize_fourier_config(cfg)
     _normalize_scalar_conditioning(cfg)
     _add_derived_fourier_metadata(cfg)
     return _jsonable_model_config(cfg)
 
 
-def _normalize_fourier_aliases(cfg: dict[str, Any]) -> None:
-    value_enabled = bool(
-        cfg.get("with_value_fourier_features", False)
-        or cfg.get("with_fourier_features", False)
-    )
+def _normalize_fourier_config(cfg: dict[str, Any]) -> None:
+    value_enabled = bool(cfg.get("with_value_fourier_features", False))
     coordinate_enabled = bool(cfg.get("with_coordinate_fourier_features", False))
-    cfg["with_fourier_features"] = value_enabled
     cfg["with_value_fourier_features"] = value_enabled
     cfg["with_coordinate_fourier_features"] = coordinate_enabled
     cfg.setdefault("fourier_feature_start", 6)
@@ -665,8 +603,7 @@ def _normalize_fourier_aliases(cfg: dict[str, Any]) -> None:
     cfg["fourier_feature_type"] = _fourier_feature_type(value_enabled, coordinate_enabled)
     cfg.setdefault(
         "fourier_feature_notes",
-        "with_fourier_features is a backward-compatible alias for value Fourier features; "
-        "coordinate Fourier features are controlled separately.",
+        "Value and coordinate Fourier features are controlled independently.",
     )
 
 
@@ -764,7 +701,7 @@ def instantiate_model(
             cfg["in_channels"] = int(in_channels)
         if out_channels is not None:
             cfg["out_channels"] = int(out_channels)
-        _normalize_fourier_aliases(cfg)
+        _normalize_fourier_config(cfg)
         _normalize_scalar_conditioning(cfg)
     else:
         cfg = get_model_config(

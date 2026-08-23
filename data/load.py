@@ -121,19 +121,15 @@ class PDEloader:
                 return candidate
         return candidates[0]
 
-    def _legacy_path(self, data_path, file_name):
+    def _resolve_data_file(self, data_path, file_name):
         path = Path(data_path).expanduser()
         if path.is_file():
             return path
         return self._pde_dir(data_path) / file_name
 
     @staticmethod
-    def _legacy_shard_indices(data_path, size, *, start):
-        """Return one index for an explicit file, or all requested directory shards.
-
-        Historically an explicit file path was returned once for every requested
-        shard, duplicating every sample before the train/validation split.
-        """
+    def _shard_indices(data_path, size, *, start):
+        """Return one index for an explicit file, or all requested directory shards."""
         if int(size) < 1:
             raise ValueError("size must be positive")
         count = 1 if Path(data_path).expanduser().is_file() else int(size)
@@ -159,8 +155,8 @@ class PDEloader:
     def _darcy_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
-            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+        for i in tqdm(self._shard_indices(data_path, size, start=1)):
+            file_path = self._resolve_data_file(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             with h5py.File(file_path, 'r') as file:
                 total = file["thresh_a_data"].shape[-1]
                 take = total if remaining is None else min(int(remaining), total)
@@ -179,8 +175,8 @@ class PDEloader:
     def _poisson_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
-            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+        for i in tqdm(self._shard_indices(data_path, size, start=1)):
+            file_path = self._resolve_data_file(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             loaded = scipy.io.loadmat(file_path, variable_names=["f_data", "phi_data"])
             take = loaded["f_data"].shape[0] if remaining is None else min(int(remaining), loaded["f_data"].shape[0])
             if take <= 0:
@@ -196,8 +192,8 @@ class PDEloader:
     def _helmholtz_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
-            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+        for i in tqdm(self._shard_indices(data_path, size, start=1)):
+            file_path = self._resolve_data_file(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             loaded = scipy.io.loadmat(file_path, variable_names=["f_data", "psi_data"])
             take = loaded["f_data"].shape[0] if remaining is None else min(int(remaining), loaded["f_data"].shape[0])
             if take <= 0:
@@ -213,8 +209,8 @@ class PDEloader:
     def _nsnonbounded_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
-            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128-10_{i}_new.mat")
+        for i in tqdm(self._shard_indices(data_path, size, start=1)):
+            file_path = self._resolve_data_file(data_path, f"{self.pde}_10000-128-128-10_{i}_new.mat")
             with h5py.File(file_path, 'r') as file:
                 total = file["w0"].shape[0]
                 take = total if remaining is None else min(int(remaining), total)
@@ -234,8 +230,8 @@ class PDEloader:
     def _burger_load(self, data_path, size=DEFAULT_TRAIN_SHARDS, max_samples=None):
         dataset = []
         remaining = max_samples
-        for i in tqdm(self._legacy_shard_indices(data_path, size, start=1)):
-            file_path = self._legacy_path(data_path, f"{self.pde}_10000-128-128_{i}.mat")
+        for i in tqdm(self._shard_indices(data_path, size, start=1)):
+            file_path = self._resolve_data_file(data_path, f"{self.pde}_10000-128-128_{i}.mat")
             output = scipy.io.loadmat(file_path, variable_names=["output"])["output"]
             take = output.shape[0] if remaining is None else min(int(remaining), output.shape[0])
             if take <= 0:
@@ -253,7 +249,6 @@ class PDEloader:
         data_path,
         size=DEFAULT_TRAIN_SHARDS,
         max_samples=None,
-        legacy_rd_files=False,
         rd_init_mode_filter=None,
     ):
         dataset = []
@@ -264,21 +259,17 @@ class PDEloader:
         self.extra_metadata = {}
         (
             file_paths,
-            selected_format,
-            candidate_formats,
             detected_init_modes,
             mixed_init_modes,
         ) = self._reaction_diffusion_paths(
             data_path,
             size=size,
-            legacy_rd_files=legacy_rd_files,
             rd_init_mode_filter=rd_init_mode_filter,
         )
         if not file_paths:
             raise FileNotFoundError(
                 f"No reaction_diffusion training HDF5 files found under {data_path}. "
-                "Expected new files named reaction_diffusion_*.h5; old "
-                "reaction_diffusion-128-128-* files are ignored unless legacy_rd_files=True."
+                "Expected files named reaction_diffusion_*.h5."
             )
         if mixed_init_modes and rd_init_mode_filter is None:
             warnings.warn(
@@ -350,8 +341,7 @@ class PDEloader:
             self.pde_params[name] = torch.tensor(values, dtype=torch.float32)
         self.pde_param_sources = param_sources
         self.extra_metadata = {
-            "selected_file_format": selected_format,
-            "candidate_file_formats": sorted(candidate_formats),
+            "selected_file_format": "reaction_diffusion_h5",
             "selected_files": [str(path) for path in file_paths],
             "file_paths": [str(path) for path in file_paths],
             "num_loaded_samples": int(len(data)),
@@ -372,40 +362,29 @@ class PDEloader:
         self,
         data_path,
         size=DEFAULT_TRAIN_SHARDS,
-        legacy_rd_files=False,
         rd_init_mode_filter=None,
     ):
         if rd_init_mode_filter not in {None, "grf", "iid"}:
             raise ValueError("rd_init_mode_filter must be None, 'grf', or 'iid'")
         path = Path(data_path).expanduser()
         if path.is_file():
-            selected_format = self._reaction_diffusion_file_format(path)
-            if selected_format == "legacy_rd" and not legacy_rd_files:
+            if not path.name.startswith("reaction_diffusion_"):
                 raise FileNotFoundError(
-                    f"{path} matches the legacy reaction-diffusion file naming scheme; "
-                    "pass legacy_rd_files=True to read legacy RD files explicitly."
+                    f"Reaction-diffusion files must use the reaction_diffusion_*.h5 naming scheme: {path}"
                 )
             init_mode = self._reaction_diffusion_init_mode_from_name(path)
             detected = [init_mode] if init_mode else []
-            if selected_format == "new_gen_rd" and rd_init_mode_filter is not None and init_mode != rd_init_mode_filter:
+            if rd_init_mode_filter is not None and init_mode != rd_init_mode_filter:
                 raise FileNotFoundError(
                     f"{path} has reaction-diffusion init_mode={init_mode!r}, "
                     f"which does not match rd_init_mode_filter={rd_init_mode_filter!r}"
                 )
-            return [path], selected_format, {selected_format}, detected, False
+            return [path], detected, False
 
         pde_dirs = []
         for candidate in (path, self._pde_dir(data_path)):
             if candidate not in pde_dirs:
                 pde_dirs.append(candidate)
-
-        candidate_formats = set()
-        legacy_paths = []
-        for pde_dir in pde_dirs:
-            legacy_paths = self._legacy_reaction_diffusion_paths(pde_dir, size)
-            if legacy_paths:
-                candidate_formats.add("legacy_rd")
-                break
 
         found_new_paths = []
         detected_init_modes: set[str] = set()
@@ -416,8 +395,6 @@ class PDEloader:
                 for file_path in pde_dir.glob("reaction_diffusion_*.h5")
                 if not file_path.name.startswith("reaction_diffusion_test_")
             )
-            if all_new_paths:
-                candidate_formats.add("new_gen_rd")
             detected_init_modes = {
                 mode
                 for file_path in all_new_paths
@@ -438,18 +415,9 @@ class PDEloader:
                 found_new_paths = new_paths
                 break
 
-        if legacy_rd_files and legacy_paths:
-            return legacy_paths, "legacy_rd", candidate_formats, sorted(detected_init_modes), mixed_init_modes
         if found_new_paths:
-            return found_new_paths, "new_gen_rd", candidate_formats, sorted(detected_init_modes), mixed_init_modes
-        return [], "", candidate_formats, sorted(detected_init_modes), mixed_init_modes
-
-    @staticmethod
-    def _reaction_diffusion_file_format(path):
-        name = path.name
-        if name.startswith(("reaction_diffusion-128-128-10_", "reaction_diffusion-128-128-100_")):
-            return "legacy_rd"
-        return "new_gen_rd"
+            return found_new_paths, sorted(detected_init_modes), mixed_init_modes
+        return [], sorted(detected_init_modes), mixed_init_modes
 
     @staticmethod
     def _reaction_diffusion_init_mode_from_name(path):
@@ -459,25 +427,6 @@ class PDEloader:
             return None
         mode = name[len(prefix) :].split("_", 1)[0]
         return mode if mode in {"grf", "iid"} else None
-
-    @staticmethod
-    def _legacy_reaction_diffusion_paths(pde_dir, size):
-        paths = []
-        for i in range(int(size or 0)):
-            for file_name in (
-                f"reaction_diffusion-128-128-10_{i}.h5",
-                f"reaction_diffusion-128-128-100_{i}.h5",
-            ):
-                file_path = pde_dir / file_name
-                if file_path.exists():
-                    paths.append(file_path)
-                    break
-        if paths:
-            return paths
-        globbed = sorted(pde_dir.glob("reaction_diffusion-128-128-*.h5"))
-        if size is not None:
-            globbed = globbed[: int(size)]
-        return globbed
 
     def _reaction_diffusion_sample_metadata(self, file, group, sample_index):
         params = {}
@@ -571,8 +520,8 @@ class PDEloader:
         sample_start = 0
         sample_count = 0
 
-        for i in self._legacy_shard_indices(data_path, size, start=0):
-            file_path = self._legacy_path(data_path, f"2d_swe_128_128_10_{i}.h5")
+        for i in self._shard_indices(data_path, size, start=0):
+            file_path = self._resolve_data_file(data_path, f"2d_swe_128_128_10_{i}.h5")
             file_param_names = set()
 
             with h5py.File(file_path, "r") as f:

@@ -7,34 +7,26 @@ torch = pytest.importorskip("torch")
 from sampling.config import AblationConfig, load_config
 from sampling.data import load_ground_truth
 from sampling.runner import run_from_config_path, run_single_ablation
+from sampling.sweep import expand_grid
 
-
-FORMAL_BASE_CONFIGS = {
-    "darcy": "darcy_both",
-    "poisson": "poisson_both",
-    "helmholtz": "helmholtz_both",
-    "burger": "burger_both",
-    "reaction_diffusion": "reaction_diffusion",
-    "shallow_water": "shallow_water",
-    "heat": "heat",
-    "wave": "wave",
-    "advection_diffusion": "advection_diffusion",
-    "steady_heat_conduction": "steady_heat_conduction",
-    "nsnonbounded": "nsnonbounded_both",
-}
 
 MAIN_CONFIG_PATHS = sorted(Path("configs/main").glob("*/*.yaml"))
+FORMAL_GRID = "configs/ablations/all_internal_ablation_grid.yaml"
 
 
-def test_formal_base_configs_disable_synthetic_fallback():
-    for config_name in FORMAL_BASE_CONFIGS.values():
-        cfg = load_config(f"configs/ablations/base/{config_name}.yaml")
+def _formal_configs():
+    jobs = expand_grid(FORMAL_GRID, selected_groups={"sampler_phase"})
+    return [load_config(path, overrides=overrides) for path, overrides in jobs[::8]]
+
+
+def test_formal_ablation_configs_disable_synthetic_fallback():
+    for cfg in _formal_configs():
         assert cfg.allow_synthetic_data is False
 
 
 def test_formal_data_paths_use_pde_named_directories():
-    for name, config_name in FORMAL_BASE_CONFIGS.items():
-        cfg = load_config(f"configs/ablations/base/{config_name}.yaml")
+    for cfg in _formal_configs():
+        name = cfg.pde
         path = Path(cfg.data_path)
         path_text = path.as_posix()
         assert "/pair_h5/" not in path_text
@@ -60,14 +52,11 @@ def test_main_task_data_paths_use_pde_named_directories():
             assert path.parent.name == expected_dir
 
 
-def test_formal_configs_reference_existing_data_configs():
-    config_paths = [
-        *(f"configs/ablations/base/{name}.yaml" for name in FORMAL_BASE_CONFIGS.values()),
-        *MAIN_CONFIG_PATHS,
-    ]
-    for config_path in config_paths:
-        cfg = load_config(config_path)
-        assert Path(cfg.data_config_path).is_file(), f"{config_path} references missing {cfg.data_config_path}"
+def test_formal_config_files_exist_and_load():
+    for config_path in MAIN_CONFIG_PATHS:
+        assert Path(config_path).is_file()
+        load_config(config_path)
+    assert list(_formal_configs())
 
 
 def test_load_ground_truth_missing_formal_data_raises(tmp_path):

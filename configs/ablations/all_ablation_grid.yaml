@@ -1,4 +1,5 @@
-base_config: configs/ablations/base/poisson_both.yaml
+suite_config: configs/ablations/formal_suite.yaml
+pdes: [poisson]
 
 groups:
   guidance_components:
@@ -34,7 +35,7 @@ groups:
       sampler_phase: [deterministic, stochastic]
     # x_next differentiates a different state and needs a larger observation
     # scale. This profile was paired on eight Poisson error quantiles; all
-    # other variants retain the main Poisson baseline from the base config.
+    # other variants retain the matching main Poisson task baseline.
     conditional_overrides:
       poisson_stochastic_xnext:
         when:
@@ -155,13 +156,7 @@ groups:
       noise_level: [0.0, 0.01, 0.05, 0.10]
 
   temporal_residual_mode:
-    base_configs:
-      - configs/ablations/base/heat.yaml
-      - configs/ablations/base/wave.yaml
-      - configs/ablations/base/advection_diffusion.yaml
-      - configs/ablations/base/reaction_diffusion.yaml
-      - configs/ablations/base/shallow_water.yaml
-      - configs/ablations/base/nsnonbounded_both.yaml
+    pdes: [heat, wave, advection_diffusion, reaction_diffusion, shallow_water, nsnonbounded]
     fixed:
       task: both
       guidance_components: obs_pde

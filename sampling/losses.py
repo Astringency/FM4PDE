@@ -123,12 +123,6 @@ def compute_guidance_losses(
             "the current model does not output the required intermediate time states, and observed ground-truth "
             "frames must not be mixed into PDE loss. Only Burgers supplies a full predicted time-space field."
         )
-    ic_mode = str(getattr(config, "initial_condition_mode", "auto"))
-    if ic_mode in {"observed_initial", "trajectory_initial", "endpoint_initial"}:
-        raise ValueError(
-            f"initial_condition_mode={ic_mode!r} is not allowed in sampling PDE loss because it would compare "
-            "a model output with an observed/ground-truth field. Put that constraint in observation loss instead."
-        )
     pde_params, excluded_field_params = prediction_only_pde_params(
         raw_pde_params,
         allow_sparse_near_endpoint=sparse_near_endpoint_exception_allowed,
@@ -136,14 +130,9 @@ def compute_guidance_losses(
     uses_sparse_near_endpoint_exception = (
         sparse_near_endpoint_exception_allowed and "near_endpoint_temporal" in pde_params
     )
-    if ic_mode == "auto":
-        # The predicted a/q0 field already participates in the PDE operator.
-        # It must not be compared with a hidden reference field as part of L_pde.
-        pde_params["initial_condition_mode"] = "none"
     loss_components: dict[str, Any | None] = {
         "interior": None,
         "boundary": None,
-        "initial": None,
         "endpoint": None,
         "interior_mask": None,
     }
@@ -188,7 +177,6 @@ def compute_guidance_losses(
         L_pde, pde_component_losses = _componentwise_pde_mse_loss(
             loss_components,
             bc_weight=float(getattr(config, "bc_weight", 1.0)),
-            ic_weight=float(getattr(config, "ic_weight", 1.0)),
             endpoint_weight=float(getattr(config, "endpoint_bc_weight", 1.0)),
             fallback_field=pde_field,
         )
@@ -212,11 +200,9 @@ def compute_guidance_losses(
         guidance_component_losses = {
             "interior": 0.0,
             "boundary": 0.0,
-            "initial": 0.0,
             "endpoint": 0.0,
             "total": 0.0,
             "bc_weight": float(getattr(config, "bc_weight", 1.0)),
-            "ic_weight": float(getattr(config, "ic_weight", 1.0)),
             "endpoint_weight": float(getattr(config, "endpoint_bc_weight", 1.0)),
         }
     pde_meta["guidance_component_losses"] = guidance_component_losses
@@ -327,17 +313,15 @@ def _componentwise_pde_mse_loss(
     components: dict[str, Any | None],
     *,
     bc_weight: float,
-    ic_weight: float,
     endpoint_weight: float,
     fallback_field: Any,
 ) -> tuple[Any, dict[str, float]]:
     interior = components.get("interior")
     boundary = components.get("boundary")
-    initial = components.get("initial")
     endpoint = components.get("endpoint")
     interior_mask = components.get("interior_mask")
 
-    if interior is None and boundary is None and initial is None and endpoint is None:
+    if interior is None and boundary is None and endpoint is None:
         loss = (
             _masked_residual_mse(fallback_field, interior_mask)
             if interior_mask is not None
@@ -346,17 +330,15 @@ def _componentwise_pde_mse_loss(
         return loss, {
             "interior": float(loss.detach().cpu()),
             "boundary": 0.0,
-            "initial": 0.0,
             "endpoint": 0.0,
             "total": float(loss.detach().cpu()),
             "bc_weight": float(bc_weight),
-            "ic_weight": float(ic_weight),
             "endpoint_weight": float(endpoint_weight),
         }
 
     reference = interior
     if reference is None:
-        for item in (boundary, initial, endpoint, fallback_field):
+        for item in (boundary, endpoint, fallback_field):
             if item is not None:
                 reference = item
                 break
@@ -365,19 +347,16 @@ def _componentwise_pde_mse_loss(
 
     L_int = _component_mse_or_zero(interior, reference, interior_mask)
     L_bc = _component_mse_or_zero(boundary, reference)
-    L_ic = _component_mse_or_zero(initial, reference)
     L_ep = _component_mse_or_zero(endpoint, reference)
 
-    total = L_int + float(bc_weight) * L_bc + float(ic_weight) * L_ic + float(endpoint_weight) * L_ep
+    total = L_int + float(bc_weight) * L_bc + float(endpoint_weight) * L_ep
 
     detached = {
         "interior": float(L_int.detach().cpu()),
         "boundary": float(L_bc.detach().cpu()),
-        "initial": float(L_ic.detach().cpu()),
         "endpoint": float(L_ep.detach().cpu()),
         "total": float(total.detach().cpu()),
         "bc_weight": float(bc_weight),
-        "ic_weight": float(ic_weight),
         "endpoint_weight": float(endpoint_weight),
     }
     return total, detached
@@ -436,15 +415,11 @@ def _pde_params_with_residual_options(pde_params: dict[str, Any] | None, config:
         "hermite_include_integral_residual",
         "hermite_integral_weight",
         "enforce_boundary_conditions",
-        "enforce_initial_conditions",
         "boundary_condition_mode",
-        "initial_condition_mode",
         "bc_weight",
-        "ic_weight",
         "endpoint_bc_weight",
         "boundary_residual_normalization",
         "allow_unknown_boundary_conditions",
-        "legacy_ignore_boundary",
         "ns_operator_mode",
         "coef_positive_mode",
         "coef_positive_floor",
@@ -536,7 +511,7 @@ def _component_norms(components: dict[str, Any] | None) -> dict[str, float]:
     import torch
 
     norms: dict[str, float] = {}
-    for name in ("interior", "boundary", "initial", "endpoint"):
+    for name in ("interior", "boundary", "endpoint"):
         value = None if components is None else components.get(name)
         if value is None:
             norms[name] = 0.0
@@ -561,43 +536,17 @@ def _compose_region_aware_pde_field(
     pde_field = residual_output.residual
     components = residual_output.components
     if components is None:
-        region = residual_region_mask(
-            config.pde_residual_region,
-            masks.coef,
-            masks.sol,
-            tuple(pde_field.shape),
-            task=getattr(config, "task", "both"),
-        )
-        if region is not None:
-            pde_field = pde_field * region
-        return (
-            pde_field,
-            region,
-            {
-                "component_norms": _component_norms(None),
-                "pde_residual_region_applied_to": "total_legacy",
-                "pde_residual_region": config.pde_residual_region,
-            },
-            {
-                "interior": pde_field,
-                "boundary": None,
-                "initial": None,
-                "endpoint": None,
-                "interior_mask": region,
-            },
-        )
+        raise ValueError("PDE residual output must provide named residual components")
 
     interior = components.get("interior")
     if interior is None:
         interior = pde_field
     boundary = components.get("boundary")
-    initial = components.get("initial")
     endpoint = components.get("endpoint")
 
     metadata: dict[str, Any] = {
         "pde_residual_region": config.pde_residual_region,
         "boundary_region_masked": False,
-        "initial_region_masked": False,
         "endpoint_region_masked": False,
     }
     interior_masked = interior
@@ -628,11 +577,10 @@ def _compose_region_aware_pde_field(
             }
         )
 
-    field = _append_components_for_logging(interior_masked, boundary, initial, endpoint)
+    field = _append_components_for_logging(interior_masked, boundary, endpoint)
     loss_components = {
         "interior": interior_masked,
         "boundary": boundary,
-        "initial": initial,
         "endpoint": endpoint,
         "interior_mask": interior_mask,
     }
@@ -642,12 +590,11 @@ def _compose_region_aware_pde_field(
     channels = {
         "interior_channels": int(interior_masked.shape[1]),
         "bc_channels": int(boundary.shape[1]) if boundary is not None else 0,
-        "ic_channels": int(initial.shape[1]) if initial is not None else 0,
         "endpoint_channels": int(endpoint.shape[1]) if endpoint is not None else 0,
         "total_channels": int(field.shape[1]),
     }
     metadata["residual_channels"] = channels
-    field_mask = _append_component_masks(interior_masked, interior_mask, boundary, initial, endpoint)
+    field_mask = _append_component_masks(interior_masked, interior_mask, boundary, endpoint)
     return field, field_mask, metadata, loss_components
 
 
@@ -655,7 +602,6 @@ def _append_component_masks(
     interior: Any,
     interior_mask: Any | None,
     boundary: Any | None,
-    initial: Any | None,
     endpoint: Any | None,
 ) -> Any | None:
     import torch
@@ -665,7 +611,7 @@ def _append_component_masks(
     parts = [
         torch.as_tensor(interior_mask, dtype=interior.dtype, device=interior.device).expand_as(interior)
     ]
-    for component in (boundary, initial, endpoint):
+    for component in (boundary, endpoint):
         if component is not None:
             parts.append(torch.ones_like(component))
     return torch.cat(parts, dim=1)
@@ -674,7 +620,6 @@ def _append_component_masks(
 def _append_components_for_logging(
     interior: Any,
     boundary: Any | None,
-    initial: Any | None,
     endpoint: Any | None,
 ) -> Any:
     import torch
@@ -682,8 +627,6 @@ def _append_components_for_logging(
     parts = [interior]
     if boundary is not None:
         parts.append(boundary)
-    if initial is not None:
-        parts.append(initial)
     if endpoint is not None:
         parts.append(endpoint)
     return torch.cat(parts, dim=1)

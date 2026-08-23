@@ -128,20 +128,5 @@ def generate_dataset(args: argparse.Namespace) -> Path:
     return path
 
 
-def process_batch(batch_start, batch_size):
-    """Backward-compatible helper used by older ad-hoc calls."""
-    args = argparse.Namespace(
-        out_dir=DEFAULT_OUT_DIR,
-        split="test",
-        total_samples=int(batch_size),
-        resolution=128,
-        tsteps=10,
-        T=1.0,
-        base_seed=int(batch_start),
-        overwrite=True,
-    )
-    return generate_dataset(args)
-
-
 if __name__ == "__main__":
     print(generate_dataset(parse_args()))

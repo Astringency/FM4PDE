@@ -7,6 +7,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from models.model_configs import get_model_config, get_model_config_metadata
+from data.transform import PDEStandardizer
 from training.load_and_save import save_model
 
 
@@ -47,7 +48,6 @@ def test_training_metadata_records_model_config():
     assert metadata["architecture_family"] == "temporal_endpoint_base"
     assert metadata["attention_resolutions"] == [16]
     assert metadata["channel_mult"] == [1, 2, 4]
-    assert metadata["with_fourier_features"] is False
     assert metadata["with_value_fourier_features"] is False
     assert metadata["with_coordinate_fourier_features"] is False
     assert metadata["scalar_conditioning"] is False
@@ -69,6 +69,7 @@ def test_checkpoint_payload_records_model_config(tmp_path):
         lr_schedule=None,
         loss_scaler=_DummyScaler(),
         final=True,
+        normalizer=PDEStandardizer.identity(2),
         data_shape=(1, 2, 4, 4),
         num_channels=2,
         model_profile="recommended",
@@ -89,6 +90,5 @@ def test_checkpoint_payload_records_model_config(tmp_path):
     assert checkpoint["model_config_metadata"]["architecture_family"] == "temporal_endpoint_base"
     assert checkpoint["model_config_metadata"]["attention_resolutions"] == [16]
     assert checkpoint["model_config_metadata"]["channel_mult"] == [1, 2, 4]
-    assert checkpoint["model_config_metadata"]["with_fourier_features"] is False
     assert checkpoint["model_config_metadata"]["with_value_fourier_features"] is False
     assert checkpoint["model_config_metadata"]["with_coordinate_fourier_features"] is False

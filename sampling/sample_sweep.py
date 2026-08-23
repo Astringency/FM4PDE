@@ -753,12 +753,12 @@ def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[
                 raise FileNotFoundError(
                     f"Configuration file does not exist for pde={pde}, task={task}: {config_path}"
                 )
-            base_config = load_config(config_path)
-            if base_config.pde != pde or base_config.task != task:
+            config = load_config(config_path)
+            if config.pde != pde or config.task != task:
                 raise ValueError(
                     f"Configuration identity mismatch in {config_path}: "
                     f"expected pde={pde}, task={task}; "
-                    f"found pde={base_config.pde}, task={base_config.task}"
+                    f"found pde={config.pde}, task={config.task}"
                 )
             for sampler in args.samplers:
                 for requested_sensor_mode in requested_sensor_modes:

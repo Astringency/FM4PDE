@@ -19,6 +19,13 @@ def test_cli_overrides():
     assert cfg.dry_run is True
 
 
+def test_runtime_metadata_is_not_serialized_as_input_config():
+    cfg = load_config("configs/ablations/smoke.yaml")
+    cfg.runtime_metadata["effective_guidance"] = "obs_only"
+
+    assert "runtime_metadata" not in cfg.asdict()
+
+
 def test_invalid_task_guidance_conflict():
     cfg = AblationConfig(task="forward", guidance_components="sol_obs_only")
     with pytest.raises(ValueError):
@@ -39,9 +46,9 @@ def test_residual_mode_validation():
     assert "hermite_bridge" in VALID_RESIDUAL_MODES
     assert "full_trajectory_fd" in VALID_RESIDUAL_MODES
 
-    alias = AblationConfig(residual_mode="two_time_level")
+    invalid = AblationConfig(residual_mode="two_time_level")
     with pytest.raises(ValueError, match="residual_mode"):
-        alias.validate()
+        invalid.validate()
 
     bad = AblationConfig(residual_mode="near_endpoint_temporal")
     with pytest.raises(ValueError, match="only supported for temporal endpoint PDEs"):
@@ -77,24 +84,17 @@ def test_sampling_rejects_residual_modes_that_require_ground_truth_time_fields()
     burger.validate()
 
 
-def test_sampling_rejects_ground_truth_initial_condition_modes():
-    for mode in ("observed_initial", "trajectory_initial", "endpoint_initial"):
-        config = AblationConfig(initial_condition_mode=mode)
-        with pytest.raises(ValueError, match="ground-truth field"):
-            config.validate()
-
-
 def test_model_profile_validation():
-    cfg = AblationConfig(model_profile="legacy_base")
+    cfg = AblationConfig(model_profile="recommended")
     cfg.validate()
 
-    bad = AblationConfig(model_profile="old_default")
+    bad = AblationConfig(model_profile="unsupported")
     with pytest.raises(ValueError, match="model_profile"):
         bad.validate()
 
 
-def test_load_config_rejects_old_schema(tmp_path):
-    path = tmp_path / "old.yaml"
+def test_load_config_rejects_unknown_fields(tmp_path):
+    path = tmp_path / "unknown.yaml"
     path.write_text(
         "data:\n"
         "  name: heat\n"
@@ -103,11 +103,11 @@ def test_load_config_rejects_old_schema(tmp_path):
         "model: {}\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="old data/generate/model schema"):
+    with pytest.raises(ValueError, match="Unknown config fields"):
         load_config(path)
 
 
-def test_deprecated_loss_type_is_rejected(tmp_path):
+def test_unknown_loss_field_is_rejected(tmp_path):
     path = tmp_path / "bad_loss.yaml"
     path.write_text(
         "pde: poisson\n"
@@ -117,13 +117,6 @@ def test_deprecated_loss_type_is_rejected(tmp_path):
     )
     with pytest.raises(ValueError, match="loss_type"):
         load_config(path)
-
-
-def test_deprecated_loss_type_extra_is_rejected():
-    cfg = AblationConfig()
-    cfg.extra["loss_type"] = "l2"
-    with pytest.raises(ValueError, match="loss_type"):
-        cfg.validate()
 
 
 def test_observation_guidance_reduction_is_explicit_and_named_in_ablation():
@@ -169,7 +162,7 @@ def test_removed_independent_near_endpoint_mask_config_is_rejected(tmp_path):
         "pde: heat\nresidual_mode: near_endpoint_temporal\nnum_near_endpoint_obs: 4\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="have been removed"):
+    with pytest.raises(ValueError, match="Unknown config fields"):
         load_config(path)
 
 

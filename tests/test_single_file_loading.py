@@ -6,7 +6,7 @@ scipy_io = pytest.importorskip("scipy.io")
 from data.load import PDEloader
 
 
-def test_explicit_legacy_file_is_loaded_once_even_when_size_requests_multiple_shards(tmp_path):
+def test_explicit_file_is_loaded_once_when_size_requests_multiple_shards(tmp_path):
     path = tmp_path / "poisson.mat"
     f_data = np.stack([np.full((4, 4), 1.0), np.full((4, 4), 2.0)]).astype(np.float32)
     phi_data = f_data * 10.0

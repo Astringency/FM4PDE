@@ -1,6 +1,5 @@
 pde: nsnonbounded
 task: inverse
-data_config_path: configs/main/inverse/nsnonbounded.yaml
 data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
 # data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
 loadby: h5py
@@ -23,15 +22,11 @@ pde_residual_region: full
 # residual_mode: hermite_bridge
 residual_mode: endpoint_secant
 enforce_boundary_conditions: false
-enforce_initial_conditions: false
 boundary_condition_mode: none
-initial_condition_mode: none
 bc_weight: 1.0
-ic_weight: 1.0
 endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: true
-legacy_ignore_boundary: false
 hermite_collocation_times: [0.25, 0.5, 0.75]
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0

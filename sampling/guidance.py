@@ -128,7 +128,7 @@ def compute_guidance_gradient(
 
     total = schedule.zeta_obs_a_t * grad_a + schedule.zeta_obs_u_t * grad_u + schedule.zeta_pde_t * grad_pde
     clip_scale = 1.0
-    if config.clip_mode in {"global_norm", "per_sample_norm"}:
+    if config.clip_mode == "global_norm":
         # A batch is a collection of independent inverse problems. Clipping
         # over the whole BCHW tensor would couple their sampling trajectories.
         total, clip_scale = _clip_per_sample(total, config.clip_threshold, True)

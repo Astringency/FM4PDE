@@ -43,11 +43,8 @@ class DiscreteUNetModel(nn.Module):
     use_checkpoint: bool = False
     num_heads: int = 1
     num_head_channels: int = -1
-    num_heads_upsample: int = -1
     use_scale_shift_norm: bool = False
     resblock_updown: bool = False
-    use_new_attention_order: bool = False
-    with_fourier_features: bool = False
 
     def __post_init__(self):
         super().__init__()
@@ -76,11 +73,8 @@ class DiscreteUNetModel(nn.Module):
             use_checkpoint=self.use_checkpoint,
             num_heads=self.num_heads,
             num_head_channels=self.num_head_channels,
-            num_heads_upsample=self.num_heads_upsample,
             use_scale_shift_norm=self.use_scale_shift_norm,
             resblock_updown=self.resblock_updown,
-            use_new_attention_order=self.use_new_attention_order,
-            with_fourier_features=self.with_fourier_features,
             ignore_time=True,
             input_projection=False,
         )

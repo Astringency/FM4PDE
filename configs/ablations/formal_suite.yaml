@@ -1,0 +1,53 @@
+# Shared source and runtime profile for formal ablation grids.
+# Algorithm/PDE/task defaults (including zeta) come from configs/main.
+main_config_root: configs/main
+default_task: both
+pdes:
+  - darcy
+  - poisson
+  - helmholtz
+  - nsnonbounded
+  - burger
+  - reaction_diffusion
+  - shallow_water
+  - heat
+  - wave
+  - advection_diffusion
+  - steady_heat_conduction
+
+# Burgers intentionally has only a both main config. Cross-task ablations may
+# still change the resolved task, but their inherited PDE/model settings come
+# from configs/main/both/burger.yaml.
+task_fallbacks:
+  burger: both
+
+common_overrides:
+  output_dir: outputs/ablations
+  allow_synthetic_data: false
+
+# Formal ablations always evaluate the held-out test files. These paths are the
+# only PDE-specific suite overrides; tuned guidance and sampler defaults remain
+# owned by configs/main/<task>/<pde>.yaml.
+pde_overrides:
+  darcy:
+    data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
+  poisson:
+    data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
+  helmholtz:
+    data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128.mat
+  nsnonbounded:
+    data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
+  burger:
+    data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128.mat
+  reaction_diffusion:
+    data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5
+  shallow_water:
+    data_path: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_1000-128-128-10.h5
+  heat:
+    data_path: /large_storage/zhangxf/PDEdata/heat/heat_test_1000-128-128.h5
+  wave:
+    data_path: /large_storage/zhangxf/PDEdata/wave/wave_test_1000-128-128.h5
+  advection_diffusion:
+    data_path: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_1000-128-128.h5
+  steady_heat_conduction:
+    data_path: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_1000-128-128.h5
