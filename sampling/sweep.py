@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import itertools
+import json
 from pathlib import Path
 from typing import Any
 
 from sampling.config import VALID_PDES, load_config, load_yaml_file, parse_cli_overrides
+from sampling.data import finalize_ground_truth_config
 from sampling.runner import run_single_ablation
+
+
+_RESUME_IGNORED_CONFIG_FIELDS = {
+    "device",
+    "empty_cache_each_step",
+    "output_dir",
+    "save_plots",
+}
 
 
 def expand_grid(
@@ -53,7 +64,10 @@ def expand_grid(
                     group_spec,
                     pde=base_pde,
                     task=requested_task,
+                    allow_missing="task" in params and "task" not in (global_overrides or {}),
                 )
+                if config_path is None:
+                    continue
                 _apply_conditional_overrides(
                     group_spec.get("conditional_overrides", []),
                     pde=base_pde,
@@ -75,6 +89,7 @@ def run_grid(
     selected_groups: set[str] | None = None,
     selected_pdes: set[str] | None = None,
     global_overrides: dict[str, Any] | None = None,
+    resume: bool = True,
 ) -> list[dict[str, Any]]:
     results = []
     jobs = expand_grid(
@@ -86,7 +101,22 @@ def run_grid(
     for config_path, overrides in jobs[:limit]:
         if dry_run:
             overrides["dry_run"] = True
-        cfg = load_config(config_path, overrides=overrides)
+        cfg = finalize_ground_truth_config(load_config(config_path, overrides=overrides))
+        if resume:
+            completed_run = find_matching_completed_run(cfg)
+            if completed_run is not None:
+                print(
+                    f"Skip completed: {cfg.pde}/{cfg.task}/{cfg.resolved_ablation_name()} "
+                    f"({completed_run})"
+                )
+                results.append(
+                    {
+                        "status": "skipped_completed",
+                        "run_dir": str(completed_run),
+                        "ablation_name": cfg.resolved_ablation_name(),
+                    }
+                )
+                continue
         results.append(run_single_ablation(cfg))
     return results
 
@@ -96,6 +126,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--grid", required=True, help="Sweep grid YAML.")
     parser.add_argument("--dry-run", action="store_true", help="Run with dry_run=true.")
     parser.add_argument("--list", action="store_true", help="Only list expanded jobs.")
+    parser.add_argument(
+        "--resume",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reuse a matching successful run (default: enabled).",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Limit number of jobs.")
     parser.add_argument("--group", action="append", default=[], help="Run or list only one group. Can be repeated.")
     parser.add_argument("--pde", action="append", default=[], help="Run or list only one PDE. Can be repeated.")
@@ -132,6 +168,7 @@ def main(argv: list[str] | None = None) -> None:
         selected_groups=selected_groups,
         selected_pdes=selected_pdes,
         global_overrides=global_overrides,
+        resume=args.resume,
     )
 
 
@@ -169,7 +206,7 @@ def _load_sweep_spec(grid_path: str) -> dict[str, Any]:
     for key, value in grid.items():
         if key == "suite_config":
             continue
-        if key in {"common_overrides", "pde_overrides", "task_fallbacks"}:
+        if key in {"common_overrides", "pde_overrides"}:
             inherited = merged.get(key, {})
             if not isinstance(inherited, dict) or not isinstance(value, dict):
                 raise ValueError(f"{key} must be a mapping")
@@ -221,7 +258,8 @@ def _resolve_main_config(
     *,
     pde: str,
     task: str,
-) -> str:
+    allow_missing: bool = False,
+) -> str | None:
     root_value = group_spec.get("main_config_root", spec.get("main_config_root"))
     if not root_value:
         raise ValueError("main_config_root is required when a grid uses main configs")
@@ -229,21 +267,63 @@ def _resolve_main_config(
     config_path = root / task / f"{pde}.yaml"
     if config_path.is_file():
         return str(config_path)
-
-    fallbacks = {
-        **_mapping(spec, "task_fallbacks"),
-        **_mapping(group_spec, "task_fallbacks"),
-    }
-    fallback = fallbacks.get(pde)
-    if isinstance(fallback, dict):
-        fallback = fallback.get(task)
-    if fallback:
-        fallback_path = root / str(fallback) / f"{pde}.yaml"
-        if fallback_path.is_file():
-            return str(fallback_path)
+    if allow_missing:
+        return None
     raise ValueError(
         f"Missing main config for pde={pde!r}, task={task!r}: {config_path}"
     )
+
+
+def find_matching_completed_run(config: Any) -> Path | None:
+    """Return the newest complete run with the same experiment-defining config."""
+    base = (
+        Path(config.output_dir)
+        / config.pde
+        / config.task
+        / config.resolved_ablation_name()
+    )
+    if not base.is_dir():
+        return None
+    expected = _resume_config(config.asdict())
+    for run_dir in sorted(base.iterdir(), reverse=True):
+        if run_dir.is_dir() and _is_matching_successful_run(run_dir, expected, config.batch_size):
+            return run_dir
+    return None
+
+
+def _is_matching_successful_run(
+    run_dir: Path,
+    expected_config: dict[str, Any],
+    expected_batch_size: int,
+) -> bool:
+    config_path = run_dir / "resolved_config.yaml"
+    metrics_path = run_dir / "metrics_final.json"
+    sample_path = run_dir / "metrics_per_sample.csv"
+    result_path = run_dir / "result.pt"
+    if not all(path.is_file() for path in (config_path, metrics_path, sample_path, result_path)):
+        return False
+    try:
+        existing_config = _resume_config(load_yaml_file(config_path))
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        with sample_path.open(newline="", encoding="utf-8") as handle:
+            sample_count = sum(1 for _ in csv.DictReader(handle))
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return False
+    if existing_config != expected_config:
+        return False
+    if metrics.get("status") != "ok" or metrics.get("pde_residual_status") == "error":
+        return False
+    if metrics.get("num_samples") not in (None, expected_batch_size):
+        return False
+    return sample_count == expected_batch_size
+
+
+def _resume_config(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in config.items()
+        if key not in _RESUME_IGNORED_CONFIG_FIELDS
+    }
 
 
 def _apply_conditional_overrides(

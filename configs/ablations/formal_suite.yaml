@@ -15,12 +15,6 @@ pdes:
   - advection_diffusion
   - steady_heat_conduction
 
-# Burgers intentionally has only a both main config. Cross-task ablations may
-# still change the resolved task, but their inherited PDE/model settings come
-# from configs/main/both/burger.yaml.
-task_fallbacks:
-  burger: both
-
 common_overrides:
   output_dir: outputs/ablations
   allow_synthetic_data: false

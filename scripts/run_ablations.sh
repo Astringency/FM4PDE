@@ -19,6 +19,7 @@ set -euo pipefail
 #   VIS            Save plots for completed jobs (default: false)
 #   DRY_RUN        Run the sampling runner in dry-run mode (default: false)
 #   PLAN_ONLY      List selected jobs without sampling (default: false)
+#   RESUME         Skip matching successful jobs already in OUTPUT_DIR (default: true)
 #   AGGREGATE      Aggregate successful jobs after sampling (default: true)
 # ============================================================================
 
@@ -34,6 +35,7 @@ OFFSET="${OFFSET:-0}"
 VIS="${VIS:-false}"
 DRY_RUN="${DRY_RUN:-false}"
 PLAN_ONLY="${PLAN_ONLY:-false}"
+RESUME="${RESUME:-true}"
 AGGREGATE="${AGGREGATE:-true}"
 
 ALL_GROUPS=(
@@ -96,6 +98,11 @@ ARGS+=(
     --override "offset=${OFFSET}"
     --override "save_plots=${VIS_OVERRIDE}"
 )
+if is_true "${RESUME}"; then
+    ARGS+=(--resume)
+else
+    ARGS+=(--no-resume)
+fi
 
 if is_true "${PLAN_ONLY}"; then
     exec python -u -m sampling.sweep "${ARGS[@]}" --list

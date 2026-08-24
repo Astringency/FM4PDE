@@ -1,4 +1,6 @@
 from collections import Counter
+import csv
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -6,8 +8,9 @@ import sys
 
 import pytest
 
-from sampling.config import load_config, load_yaml_file
-from sampling.sweep import expand_grid
+from sampling.config import dump_yaml, load_config, load_yaml_file
+from sampling.data import finalize_ground_truth_config
+from sampling.sweep import expand_grid, find_matching_completed_run
 
 
 GRID = "configs/ablations/all_internal_ablation_grid.yaml"
@@ -43,9 +46,10 @@ def test_formal_grid_has_exact_groups_and_job_counts():
     jobs = expand_grid(GRID)
     counts = Counter(params["ablation_group"] for _, params in jobs)
     expected = {group: count * len(ALL_PDES) for group, count in EXPECTED_PER_PDE.items()}
+    expected["guidance_components"] -= 8
     expected["temporal_residual_mode"] = 3 * len(TEMPORAL_PDES)
     assert counts == expected
-    assert len(jobs) == 1041
+    assert len(jobs) == 1033
     assert len(expand_grid(FOCUSED_GRID)) == 111
 
 
@@ -129,13 +133,14 @@ def test_poisson_ablations_inherit_task_specific_main_tuning():
     )
 
 
-def test_burger_cross_task_jobs_use_the_declared_both_fallback():
+def test_burger_has_only_both_task_jobs():
     jobs = expand_grid(
         GRID,
         selected_groups={"guidance_components"},
         selected_pdes={"burger"},
     )
-    assert {overrides["task"] for _, overrides in jobs} == {"both", "forward", "inverse"}
+    assert len(jobs) == 4
+    assert {overrides["task"] for _, overrides in jobs} == {"both"}
     assert {path for path, _ in jobs} == {"configs/main/both/burger.yaml"}
     assert {
         (
@@ -145,6 +150,47 @@ def test_burger_cross_task_jobs_use_the_declared_both_fallback():
         )
         for path, overrides in jobs
     } == {(0.0, 409600.0, 10.0)}
+
+
+def test_resume_reuses_only_matching_complete_successful_runs(tmp_path):
+    config_path, overrides = _jobs("guidance_components")[0]
+    overrides = {**overrides, "output_dir": str(tmp_path), "device": "cuda:1"}
+    cfg = finalize_ground_truth_config(load_config(config_path, overrides=overrides))
+    run_dir = (
+        tmp_path
+        / cfg.pde
+        / cfg.task
+        / cfg.resolved_ablation_name()
+        / "completed"
+    )
+    run_dir.mkdir(parents=True)
+    saved = cfg.asdict()
+    saved["device"] = "cuda:0"
+    (run_dir / "resolved_config.yaml").write_text(dump_yaml(saved), encoding="utf-8")
+    (run_dir / "metrics_final.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "pde_residual_status": "reliable",
+                "num_samples": cfg.batch_size,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "result.pt").write_bytes(b"result")
+    with (run_dir / "metrics_per_sample.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["sample_index"])
+        writer.writeheader()
+        writer.writerow({"sample_index": 0})
+
+    assert find_matching_completed_run(cfg) == run_dir
+
+    changed = finalize_ground_truth_config(load_config(config_path, overrides=overrides))
+    changed.zeta_pde += 1.0
+    assert find_matching_completed_run(changed) is None
+
+    (run_dir / "result.pt").unlink()
+    assert find_matching_completed_run(cfg) is None
 
 
 def test_time_discretization_is_three_independent_ablations():
