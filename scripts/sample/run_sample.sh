@@ -20,6 +20,8 @@ set -euo pipefail
 #   DEVICE           设备 (默认 cuda)
 #   OUTPUT_DIR       输出目录 (默认从配置读取)
 #   SAMPLE_SEED      随机种子 (默认 42)
+#   PDE_GUIDANCE_START_RATIO  PDE guidance 开始启用的 flow-time 比例 (默认从配置读取)
+#   PDE_GUIDANCE_RAMP_RATIO   PDE guidance 线性增至完整权重的 flow-time 区间 (默认从配置读取)
 #   CONFIG_DIR       任务配置根目录 (默认 configs/main；实际读取 <TASK>/<PDE>.yaml)
 #   DRY_RUN          仅校验不运行 (默认 false)
 #   VIS              采样后绘图 (默认 false)
@@ -66,6 +68,8 @@ OVERRIDES=(
 [[ -n "${NUM_OBS:-}" ]]     && OVERRIDES+=(--override "num_obs=${NUM_OBS}")
 [[ -n "${SENSOR_MODE:-}" ]] && OVERRIDES+=(--override "sensor_mode=${SENSOR_MODE}")
 [[ -n "${SAMPLE_SEED:-}" ]] && OVERRIDES+=(--override "sample_seed=${SAMPLE_SEED}")
+[[ -n "${PDE_GUIDANCE_START_RATIO:-}" ]] && OVERRIDES+=(--override "pde_guidance_start_ratio=${PDE_GUIDANCE_START_RATIO}")
+[[ -n "${PDE_GUIDANCE_RAMP_RATIO:-}" ]] && OVERRIDES+=(--override "pde_guidance_ramp_ratio=${PDE_GUIDANCE_RAMP_RATIO}")
 [[ -n "${OUTPUT_DIR:-}" ]]  && OVERRIDES+=(--override "output_dir=${OUTPUT_DIR}")
 
 # ── 运行 ──────────────────────────────────────────────────────────────────────

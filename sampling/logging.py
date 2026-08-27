@@ -59,6 +59,8 @@ def write_run_metadata(
             "zeta_obs_a": config.zeta_obs_a,
             "zeta_obs_u": config.zeta_obs_u,
             "zeta_pde": config.zeta_pde,
+            "pde_guidance_start_ratio": config.pde_guidance_start_ratio,
+            "pde_guidance_ramp_ratio": config.pde_guidance_ramp_ratio,
             "clip_mode": config.clip_mode,
             "clip_threshold": config.clip_threshold,
             "pde_residual_region": config.pde_residual_region,

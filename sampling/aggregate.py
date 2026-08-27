@@ -32,6 +32,8 @@ GROUP_DIMENSION_KEYS = [
     "zeta_obs_a",
     "zeta_obs_u",
     "zeta_pde",
+    "pde_guidance_start_ratio",
+    "pde_guidance_ramp_ratio",
     "num_steps",
     "time_grid",
     "step_method",
@@ -73,6 +75,8 @@ SUMMARY_METRICS = [
 ]
 
 CURVE_METRICS = [
+    "pde_guidance_factor",
+    "zeta_pde_t",
     "rel_l2_a",
     "rel_l2_u",
     "obs_rel_l2_a",
@@ -100,24 +104,134 @@ def aggregate_root(root: str | Path, output_dir: str | Path | None = None) -> di
     output_dir.mkdir(parents=True, exist_ok=True)
 
     raw_rows, curve_rows, sample_rows, sample_weighted_rows = _collect_rows(root)
+    latest_rows, excluded_rows = _select_latest_analysis_rows(raw_rows)
+    selected_run_dirs = {str(row.get("run_dir", "")) for row in latest_rows}
+    latest_curve_rows = [row for row in curve_rows if str(row.get("run_dir", "")) in selected_run_dirs]
+    latest_sample_rows = [row for row in sample_rows if str(row.get("run_dir", "")) in selected_run_dirs]
+    latest_sample_weighted_rows = [
+        row for row in sample_weighted_rows if str(row.get("run_dir", "")) in selected_run_dirs
+    ]
+
     raw_path = output_dir / "summary_all_raw.csv"
     grouped_path = output_dir / "summary_all_grouped.csv"
     run_grouped_path = output_dir / "summary_run_seed_grouped.csv"
     sample_raw_path = output_dir / "metrics_per_sample_all.csv"
     curves_path = output_dir / "curves_grouped.csv"
+    latest_path = output_dir / "summary_latest_unique.csv"
+    latest_grouped_path = output_dir / "summary_latest_grouped.csv"
+    latest_run_grouped_path = output_dir / "summary_latest_run_seed_grouped.csv"
+    latest_sample_path = output_dir / "metrics_per_sample_latest_unique.csv"
+    latest_curves_path = output_dir / "curves_latest_grouped.csv"
+    excluded_path = output_dir / "summary_excluded_runs.csv"
 
     _write_csv(raw_path, raw_rows)
     _write_csv(sample_raw_path, sample_rows)
     _write_csv(grouped_path, _aggregate_rows(sample_weighted_rows, SAMPLE_METRICS, GROUP_KEYS))
     _write_csv(run_grouped_path, _aggregate_rows(raw_rows, SUMMARY_METRICS, GROUP_KEYS))
     _write_csv(curves_path, _aggregate_rows(curve_rows, CURVE_METRICS, GROUP_KEYS + ["step"]))
+    _write_csv(latest_path, latest_rows)
+    _write_csv(latest_sample_path, latest_sample_rows)
+    _write_csv(latest_grouped_path, _aggregate_rows(latest_sample_weighted_rows, SAMPLE_METRICS, GROUP_KEYS))
+    _write_csv(latest_run_grouped_path, _aggregate_rows(latest_rows, SUMMARY_METRICS, GROUP_KEYS))
+    _write_csv(latest_curves_path, _aggregate_rows(latest_curve_rows, CURVE_METRICS, GROUP_KEYS + ["step"]))
+    _write_csv(excluded_path, excluded_rows)
     return {
         "raw": raw_path,
         "sample_raw": sample_raw_path,
         "grouped": grouped_path,
         "run_seed_grouped": run_grouped_path,
         "curves": curves_path,
+        "latest": latest_path,
+        "latest_sample_raw": latest_sample_path,
+        "latest_grouped": latest_grouped_path,
+        "latest_run_seed_grouped": latest_run_grouped_path,
+        "latest_curves": latest_curves_path,
+        "excluded": excluded_path,
     }
+
+
+def _select_latest_analysis_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Select one current, analysis-ready run for every ablation identity.
+
+    Historical raw outputs remain available in ``summary_all_raw.csv``.  The
+    current snapshot is keyed by PDE, task, and ablation name so repeated anchor
+    configurations in different ablation groups are intentionally preserved.
+    """
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[_ablation_run_key(row)].append(row)
+
+    selected: list[dict[str, Any]] = []
+    excluded: list[dict[str, Any]] = []
+    for key, group_rows in sorted(grouped.items()):
+        ready_rows = [row for row in group_rows if _is_analysis_ready_run(row)]
+        current = max(ready_rows, key=_row_recency) if ready_rows else None
+        if current is not None:
+            selected.append(current)
+
+        for row in group_rows:
+            if row is current:
+                continue
+            if current is None:
+                reason = "no_analysis_ready_run"
+            elif _is_analysis_ready_run(row):
+                reason = "superseded_by_newer_successful_run"
+            else:
+                reason = "not_analysis_ready"
+            excluded.append(
+                {
+                    "pde": key[0],
+                    "task": key[1],
+                    "ablation_name": key[2],
+                    "exclusion_reason": reason,
+                    "excluded_run_dir": row.get("run_dir", ""),
+                    "excluded_metrics_path": row.get("metrics_path", ""),
+                    "selected_run_dir": current.get("run_dir", "") if current is not None else "",
+                    "selected_metrics_path": current.get("metrics_path", "") if current is not None else "",
+                    "status": row.get("status", ""),
+                    "pde_residual_status": row.get("pde_residual_status", ""),
+                    "clip_threshold": row.get("clip_threshold", ""),
+                }
+            )
+
+    selected.sort(key=lambda row: _ablation_run_key(row))
+    excluded.sort(
+        key=lambda row: (
+            str(row.get("pde", "")),
+            str(row.get("task", "")),
+            str(row.get("ablation_name", "")),
+            str(row.get("excluded_run_dir", "")),
+        )
+    )
+    return selected, excluded
+
+
+def _ablation_run_key(row: dict[str, Any]) -> tuple[str, str, str]:
+    name = str(row.get("ablation_name", ""))
+    if not name:
+        name = str(row.get("run_dir", row.get("metrics_path", "")))
+    return str(row.get("pde", "")), str(row.get("task", "")), name
+
+
+def _row_recency(row: dict[str, Any]) -> tuple[int, str]:
+    metrics_path = Path(str(row.get("metrics_path", "")))
+    try:
+        modified_ns = metrics_path.stat().st_mtime_ns
+    except OSError:
+        modified_ns = 0
+    return modified_ns, str(row.get("run_dir", metrics_path))
+
+
+def _is_analysis_ready_run(row: dict[str, Any]) -> bool:
+    if not _is_successful_run(row):
+        return False
+    for metric in ("rel_l2_a", "rel_l2_u", "L_pde"):
+        value = _to_float(row.get(metric))
+        if value is None or not math.isfinite(value):
+            return False
+    return True
 
 
 def _collect_rows(
@@ -136,15 +250,19 @@ def _collect_rows(
         row["metrics_path"] = str(metrics_path)
         raw_rows.append(row)
         if _is_successful_run(metrics):
-            curve_rows.extend(_read_curve_rows(run_dir, config))
-            run_sample_rows = _read_sample_rows(run_dir, config)
+            curve_rows.extend(_read_curve_rows(run_dir, config, metrics))
+            run_sample_rows = _read_sample_rows(run_dir, config, metrics)
             if run_sample_rows:
                 sample_rows.extend(run_sample_rows)
                 sample_weighted_rows.extend(run_sample_rows)
     return raw_rows, curve_rows, sample_rows, sample_weighted_rows
 
 
-def _read_sample_rows(run_dir: Path, config: dict[str, Any]) -> list[dict[str, Any]]:
+def _read_sample_rows(
+    run_dir: Path,
+    config: dict[str, Any],
+    run_metrics: dict[str, Any],
+) -> list[dict[str, Any]]:
     path = run_dir / "metrics_per_sample.csv"
     if not path.exists():
         return []
@@ -153,6 +271,8 @@ def _read_sample_rows(run_dir: Path, config: dict[str, Any]) -> list[dict[str, A
         for sample in csv.DictReader(handle):
             row = _merge_config_metrics(config, sample)
             row["run_dir"] = str(run_dir)
+            row.setdefault("status", run_metrics.get("status", ""))
+            row.setdefault("pde_residual_status", run_metrics.get("pde_residual_status", ""))
             rows.append(row)
     return rows
 
@@ -176,7 +296,11 @@ def _merge_config_metrics(config: dict[str, Any], metrics: dict[str, Any]) -> di
     return row
 
 
-def _read_curve_rows(run_dir: Path, config: dict[str, Any]) -> list[dict[str, Any]]:
+def _read_curve_rows(
+    run_dir: Path,
+    config: dict[str, Any],
+    run_metrics: dict[str, Any],
+) -> list[dict[str, Any]]:
     path = run_dir / "metrics_step.jsonl"
     if not path.exists():
         return []
@@ -186,7 +310,11 @@ def _read_curve_rows(run_dir: Path, config: dict[str, Any]) -> list[dict[str, An
             if not line.strip():
                 continue
             metrics = json.loads(line)
-            rows.append(_merge_config_metrics(config, metrics))
+            row = _merge_config_metrics(config, metrics)
+            row["run_dir"] = str(run_dir)
+            row.setdefault("status", run_metrics.get("status", ""))
+            row.setdefault("pde_residual_status", run_metrics.get("pde_residual_status", ""))
+            rows.append(row)
     return rows
 
 

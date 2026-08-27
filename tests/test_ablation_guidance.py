@@ -85,6 +85,88 @@ def test_stochastic_guidance_scale_defaults_to_current_time():
     assert torch.allclose(updated, -0.4 * grad.grad_total)
 
 
+def test_pde_guidance_start_and_ramp_do_not_change_observation_weights():
+    cfg = AblationConfig(
+        task="both",
+        guidance_components="obs_pde",
+        zeta_obs_a=2.0,
+        zeta_obs_u=3.0,
+        zeta_pde=10.0,
+        pde_guidance_start_ratio=0.5,
+        pde_guidance_ramp_ratio=0.25,
+    )
+
+    before = make_zeta_schedule(cfg, torch.tensor(0.25), torch.tensor(0.26), torch.tensor(1.0))
+    halfway = make_zeta_schedule(cfg, torch.tensor(0.625), torch.tensor(0.635), torch.tensor(1.0))
+    after = make_zeta_schedule(cfg, torch.tensor(0.8), torch.tensor(0.81), torch.tensor(1.0))
+
+    assert before.zeta_obs_a_t.item() == pytest.approx(2.0)
+    assert before.zeta_obs_u_t.item() == pytest.approx(3.0)
+    assert before.zeta_pde_t.item() == pytest.approx(0.0)
+    assert before.metadata["pde_guidance_factor"] == pytest.approx(0.0)
+    assert halfway.zeta_pde_t.item() == pytest.approx(5.0)
+    assert halfway.metadata["pde_guidance_factor"] == pytest.approx(0.5)
+    assert after.zeta_pde_t.item() == pytest.approx(10.0)
+    assert after.metadata["pde_guidance_factor"] == pytest.approx(1.0)
+
+
+def test_zero_pde_ramp_is_a_hard_switch_and_default_preserves_old_behavior():
+    default_cfg = AblationConfig(zeta_pde=4.0)
+    default_schedule = make_zeta_schedule(
+        default_cfg, torch.tensor(0.0), torch.tensor(0.01), torch.tensor(1.0)
+    )
+    assert default_schedule.zeta_pde_t.item() == pytest.approx(4.0)
+
+    gated_cfg = AblationConfig(
+        zeta_pde=4.0,
+        pde_guidance_start_ratio=0.5,
+        pde_guidance_ramp_ratio=0.0,
+    )
+    before = make_zeta_schedule(gated_cfg, torch.tensor(0.499), torch.tensor(0.5), torch.tensor(1.0))
+    at_start = make_zeta_schedule(gated_cfg, torch.tensor(0.5), torch.tensor(0.51), torch.tensor(1.0))
+    assert before.zeta_pde_t.item() == pytest.approx(0.0)
+    assert at_start.zeta_pde_t.item() == pytest.approx(4.0)
+
+
+def test_pde_gradient_is_inactive_before_start_while_observation_gradient_remains_active():
+    cfg = AblationConfig(
+        task="both",
+        guidance_components="obs_pde",
+        zeta_obs_a=2.0,
+        zeta_pde=10.0,
+        pde_guidance_start_ratio=0.5,
+        clip_mode="none",
+    )
+    x = torch.ones(1, 2, 2, 2, requires_grad=True)
+    obs_loss = x[:, :1].square().mean()
+    pde_loss = x[:, 1:].square().mean()
+    zero = x.sum() * 0.0
+    losses = GuidanceLossOutput(
+        L_obs_a=obs_loss,
+        L_obs_u=zero,
+        L_pde=pde_loss,
+        obs_a_residual=x[:, :1],
+        obs_u_residual=x[:, 1:],
+        pde_residual=x[:, 1:],
+        clean_L_obs_a=obs_loss,
+        clean_L_obs_u=zero,
+        pde_residual_status="measured",
+        metadata={"enabled": {"obs_a": True, "obs_u": False, "pde": True}},
+    )
+    schedule = make_zeta_schedule(cfg, torch.tensor(0.25), torch.tensor(0.26), torch.tensor(1.0))
+
+    grad = compute_guidance_gradient(losses, x, schedule, cfg)
+
+    assert grad.metadata["scheduled_components_active"] == {
+        "obs_a": True,
+        "obs_u": False,
+        "pde": False,
+    }
+    assert torch.count_nonzero(grad.grad_pde).item() == 0
+    assert torch.count_nonzero(grad.grad_total[:, :1]).item() > 0
+    assert torch.count_nonzero(grad.grad_total[:, 1:]).item() == 0
+
+
 @pytest.mark.parametrize("clip_mode", ["none", "global_norm", "per_component_norm"])
 def test_guidance_gradient_is_independent_of_other_batch_samples(clip_mode):
     cfg = AblationConfig(

@@ -132,6 +132,26 @@ def test_observation_guidance_reduction_is_explicit_and_named_in_ablation():
         AblationConfig(obs_guidance_reduction="relative_l2").validate()
 
 
+def test_pde_guidance_gate_validation_and_ablation_name():
+    cfg = AblationConfig(
+        pde_guidance_start_ratio=0.5,
+        pde_guidance_ramp_ratio=0.1,
+    )
+    cfg.validate()
+    assert "pdegate-s0.5-r0.1" in cfg.resolved_ablation_name()
+    assert "pdegate" not in AblationConfig().resolved_ablation_name()
+
+    with pytest.raises(ValueError, match="pde_guidance_start_ratio"):
+        AblationConfig(pde_guidance_start_ratio=-0.1).validate()
+    with pytest.raises(ValueError, match="pde_guidance_ramp_ratio"):
+        AblationConfig(pde_guidance_ramp_ratio=1.1).validate()
+    with pytest.raises(ValueError, match="must be <= 1"):
+        AblationConfig(
+            pde_guidance_start_ratio=0.8,
+            pde_guidance_ramp_ratio=0.3,
+        ).validate()
+
+
 def test_residual_mode_changes_ablation_name():
     hermite = AblationConfig(residual_mode="hermite_bridge").resolved_ablation_name()
     secant = AblationConfig(residual_mode="endpoint_secant").resolved_ablation_name()

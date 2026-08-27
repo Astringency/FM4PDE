@@ -78,6 +78,38 @@ def test_aggregate_outputs_statistics(tmp_path):
     assert float(curves[0]["rel_l2_u_mean"]) == pytest.approx(3.0)
 
 
+def test_latest_outputs_exclude_superseded_runs_without_dropping_history(tmp_path):
+    _write_run(tmp_path, "run1", 1.0, 2.0)
+    _write_run(tmp_path, "run2", 3.0, 4.0)
+    # Make the intended current result deterministic even on coarse-mtime file systems.
+    metrics_path = tmp_path / "run2" / "metrics_final.json"
+    metrics_path.touch()
+
+    outputs = aggregate_root(tmp_path)
+
+    history = list(csv.DictReader(outputs["raw"].open(encoding="utf-8")))
+    latest = list(csv.DictReader(outputs["latest"].open(encoding="utf-8")))
+    excluded = list(csv.DictReader(outputs["excluded"].open(encoding="utf-8")))
+    latest_samples = list(csv.DictReader(outputs["latest_sample_raw"].open(encoding="utf-8")))
+    latest_sample_grouped = list(csv.DictReader(outputs["latest_grouped"].open(encoding="utf-8")))
+    latest_grouped = list(csv.DictReader(outputs["latest_run_seed_grouped"].open(encoding="utf-8")))
+    latest_curves = list(csv.DictReader(outputs["latest_curves"].open(encoding="utf-8")))
+
+    assert len(history) == 2
+    assert len(latest) == 1
+    assert latest[0]["run_dir"].endswith("run2")
+    assert len(excluded) == 1
+    assert excluded[0]["exclusion_reason"] == "superseded_by_newer_successful_run"
+    assert excluded[0]["excluded_run_dir"].endswith("run1")
+    assert len(latest_samples) == 1
+    assert latest_samples[0]["run_dir"].endswith("run2")
+    assert float(latest_sample_grouped[0]["rel_l2_a_mean"]) == pytest.approx(3.0)
+    assert float(latest_grouped[0]["rel_l2_a_mean"]) == pytest.approx(3.0)
+    assert int(latest_grouped[0]["rel_l2_a_n"]) == 1
+    assert len(latest_curves) == 1
+    assert float(latest_curves[0]["rel_l2_u_mean"]) == pytest.approx(4.0)
+
+
 def test_failed_pde_evaluations_remain_in_raw_output_but_are_not_aggregated(tmp_path):
     _write_run(tmp_path, "ok", 1.0, 2.0)
     _write_run(tmp_path, "failed", 100.0, 200.0)

@@ -60,13 +60,32 @@ def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSch
             factor = factor * float(config.obs_decay)
     else:
         raise ValueError(f"Unknown guidance_schedule={schedule!r}")
+    pde_factor = _pde_guidance_factor(config, t)
     return GuidanceSchedule(
         zeta_obs_a_t=zeta_a * factor,
         zeta_obs_u_t=zeta_u * factor,
-        zeta_pde_t=zeta_pde * factor,
+        zeta_pde_t=zeta_pde * factor * pde_factor,
         bt=bt,
-        metadata={"guidance_schedule": schedule, "factor": _scalar(factor)},
+        metadata={
+            "guidance_schedule": schedule,
+            "factor": _scalar(factor),
+            "pde_guidance_factor": _scalar(pde_factor),
+            "pde_guidance_start_ratio": float(config.pde_guidance_start_ratio),
+            "pde_guidance_ramp_ratio": float(config.pde_guidance_ramp_ratio),
+        },
     )
+
+
+def _pde_guidance_factor(config: Any, t: Any) -> Any:
+    """Gate PDE guidance by normalized flow time without changing observation guidance."""
+    import torch
+
+    progress = t.clamp(0.0, 1.0)
+    start = float(config.pde_guidance_start_ratio)
+    ramp = float(config.pde_guidance_ramp_ratio)
+    if ramp == 0.0:
+        return (progress >= start).to(dtype=progress.dtype)
+    return ((progress - start) / ramp).clamp(0.0, 1.0)
 
 
 def compute_guidance_gradient(
@@ -94,12 +113,15 @@ def compute_guidance_gradient(
     guidance_L_obs_a = losses.guidance_L_obs_a if losses.guidance_L_obs_a is not None else losses.L_obs_a
     guidance_L_obs_u = losses.guidance_L_obs_u if losses.guidance_L_obs_u is not None else losses.L_obs_u
     guidance_L_pde = losses.guidance_L_pde if losses.guidance_L_pde is not None else losses.L_pde
+    active_obs_a = bool(enabled["obs_a"] and _schedule_component_active(schedule.zeta_obs_a_t))
+    active_obs_u = bool(enabled["obs_u"] and _schedule_component_active(schedule.zeta_obs_u_t))
+    active_pde = bool(enabled["pde"] and _schedule_component_active(schedule.zeta_pde_t))
     grad_a = _grad_or_zero(
         guidance_L_obs_a,
         grad_target,
         zero,
-        retain_graph=bool(enabled["obs_u"] or enabled["pde"]),
-        enabled=bool(enabled["obs_a"]),
+        retain_graph=bool(active_obs_u or active_pde),
+        enabled=active_obs_a,
         component="obs_a",
         batch_scale=batch_scale,
     )
@@ -107,8 +129,8 @@ def compute_guidance_gradient(
         guidance_L_obs_u,
         grad_target,
         zero,
-        retain_graph=bool(enabled["pde"]),
-        enabled=bool(enabled["obs_u"]),
+        retain_graph=active_pde,
+        enabled=active_obs_u,
         component="obs_u",
         batch_scale=batch_scale,
     )
@@ -117,7 +139,7 @@ def compute_guidance_gradient(
         grad_target,
         zero,
         retain_graph=False,
-        enabled=bool(enabled["pde"]),
+        enabled=active_pde,
         component="pde",
         batch_scale=batch_scale,
     )
@@ -153,8 +175,19 @@ def compute_guidance_gradient(
             "grad_target_shape": list(grad_target.shape),
             "loss_gradient_batch_reduction": "sum_of_per_sample",
             "clip_scope": "per_sample",
+            "scheduled_components_active": {
+                "obs_a": active_obs_a,
+                "obs_u": active_obs_u,
+                "pde": active_pde,
+            },
         },
     )
+
+
+def _schedule_component_active(weight: Any) -> bool:
+    import torch
+
+    return bool(torch.any(torch.as_tensor(weight).detach() != 0).cpu())
 
 
 def apply_guidance_update(x_next: Any, gradient: GuidanceGradient, step_output: Any, schedule: GuidanceSchedule, config: Any) -> Any:

@@ -220,6 +220,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
                     "zeta_obs_u_t": _scalar(schedule.zeta_obs_u_t),
                     "zeta_pde_t": _scalar(schedule.zeta_pde_t),
                     "guidance_schedule_factor": _scalar(schedule.metadata.get("factor", 1.0)),
+                    "pde_guidance_factor": _scalar(schedule.metadata.get("pde_guidance_factor", 1.0)),
                     "bt": _scalar(schedule.bt),
                 }
             )

@@ -118,6 +118,8 @@ class AblationConfig:
     zeta_obs_a: float = 1.0
     zeta_obs_u: float = 1.0
     zeta_pde: float = 1.0
+    pde_guidance_start_ratio: float = 0.0
+    pde_guidance_ramp_ratio: float = 0.0
     stochastic_guidance_coeff: float = 0.1
     stochastic_guidance_time: str = "t"
     cfg_scale: float = 1.0
@@ -191,6 +193,14 @@ class AblationConfig:
             raise ValueError("coef_positive_floor must be positive")
         if not 0.0 <= self.switch_ratio <= 1.0:
             raise ValueError("switch_ratio must be in [0, 1]")
+        if not 0.0 <= self.pde_guidance_start_ratio <= 1.0:
+            raise ValueError("pde_guidance_start_ratio must be in [0, 1]")
+        if not 0.0 <= self.pde_guidance_ramp_ratio <= 1.0:
+            raise ValueError("pde_guidance_ramp_ratio must be in [0, 1]")
+        if self.pde_guidance_start_ratio + self.pde_guidance_ramp_ratio > 1.0 + 1e-12:
+            raise ValueError(
+                "pde_guidance_start_ratio + pde_guidance_ramp_ratio must be <= 1"
+            )
         if self.num_steps < 1:
             raise ValueError("num_steps must be positive")
         if self.batch_size < 1:
@@ -267,9 +277,17 @@ class AblationConfig:
         if phase.startswith("hybrid"):
             phase = f"{phase}_{self.switch_ratio:g}"
         reduction = "" if self.obs_guidance_reduction == "mse" else f"_obsred-{self.obs_guidance_reduction}"
+        pde_gate = (
+            ""
+            if self.pde_guidance_start_ratio == 0.0 and self.pde_guidance_ramp_ratio == 0.0
+            else (
+                f"_pdegate-s{self.pde_guidance_start_ratio:g}"
+                f"-r{self.pde_guidance_ramp_ratio:g}"
+            )
+        )
         return (
             f"{self.guidance_components}{reduction}_{self.loss_state}_{phase}_"
-            f"{self.guidance_schedule}_{self.clip_mode}{self.clip_threshold:g}_"
+            f"{self.guidance_schedule}{pde_gate}_{self.clip_mode}{self.clip_threshold:g}_"
             f"{self.sensor_mode}{self._sensor_budget()}_noise{self.noise_level:g}_"
             f"{self.time_grid}{self.num_steps}_{self.step_method}_"
             f"{self._short_residual_fragment()}_{self._short_bc_ic_fragment()}"
