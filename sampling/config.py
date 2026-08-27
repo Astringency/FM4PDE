@@ -118,7 +118,7 @@ class AblationConfig:
     zeta_obs_a: float = 1.0
     zeta_obs_u: float = 1.0
     zeta_pde: float = 1.0
-    pde_guidance_start_ratio: float = 0.0
+    pde_guidance_start_ratio: float = 0.8
     pde_guidance_ramp_ratio: float = 0.0
     stochastic_guidance_coeff: float = 0.1
     stochastic_guidance_time: str = "t"

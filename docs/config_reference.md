@@ -40,7 +40,7 @@
 | `zeta_obs_a` | `float` | `1.0` | 系数观测引导强度，越大越强制生成结果在观测点上拟合系数数据 |
 | `zeta_obs_u` | `float` | `1.0` | 解观测引导强度，越大越强制生成结果在观测点上拟合解数据 |
 | `zeta_pde` | `float` | `1.0` | PDE 残差引导强度，越大越强制生成结果满足物理方程 |
-| `pde_guidance_start_ratio` | `float` | `0.0` | PDE guidance 开始启用的归一化 flow time；此前仅保留 observation guidance。`0.0` 保持从第一步启用的旧行为 |
+| `pde_guidance_start_ratio` | `float` | `0.8` | PDE guidance 开始启用的归一化 flow time；此前仅保留 observation guidance。默认前 80% 仅使用 observation guidance；设为 `0.0` 可恢复从第一步启用 PDE 的旧行为 |
 | `pde_guidance_ramp_ratio` | `float` | `0.0` | PDE guidance 从 0 线性增长到完整 `zeta_pde` 所占的 flow-time 区间；`0.0` 表示在 start 位置直接开启。要求与 start 之和不大于 1 |
 | `guidance_schedule` | `str` | `constant` | 引导强度随时间变化策略：<br>`constant` — 全程恒定不变<br>`delta` — 集中在采样末期施加<br>`bt` — 与时间步长 `b_t` 相关<br>`cosine` — 余弦衰减/增长<br>`polynomial` — 多项式调度<br>`obs_decay` — 观测权重逐渐衰减 |
 | `gradient_target` | `str` | `current_state_chain_rule` | 梯度计算方式：`current_state_chain_rule`（链式法则通过当前状态）、`loss_state_direct`（直接对 loss_state 求导）、`next_state_direct`（仅允许与 `loss_state=x_next` 配合）；启用但断图会直接报错 |
@@ -54,12 +54,12 @@
 | `polynomial_power` | `float` | `2.0` | polynomial 调度模式的幂次 |
 | `cosine_mode` | `str` | `decay` | cosine 调度模式：`decay`（衰减）|
 
-例如，前 50% 仅使用 observation guidance，随后用 10% 的 flow time 将 PDE guidance 线性增至完整权重：
+默认配置在前 80% 仅使用 observation guidance，最后 20% 直接加入完整 PDE guidance：
 
 ```yaml
 guidance_components: obs_pde
-pde_guidance_start_ratio: 0.5
-pde_guidance_ramp_ratio: 0.1
+pde_guidance_start_ratio: 0.8
+pde_guidance_ramp_ratio: 0.0
 ```
 
 PDE gate 只作用于 `zeta_pde`，不会改变 `zeta_obs_a` 或 `zeta_obs_u`；其因子还会与现有 `guidance_schedule` 因子相乘。

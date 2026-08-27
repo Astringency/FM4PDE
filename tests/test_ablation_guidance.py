@@ -110,12 +110,26 @@ def test_pde_guidance_start_and_ramp_do_not_change_observation_weights():
     assert after.metadata["pde_guidance_factor"] == pytest.approx(1.0)
 
 
-def test_zero_pde_ramp_is_a_hard_switch_and_default_preserves_old_behavior():
+def test_zero_pde_ramp_is_a_hard_switch_and_default_starts_at_eighty_percent():
     default_cfg = AblationConfig(zeta_pde=4.0)
-    default_schedule = make_zeta_schedule(
-        default_cfg, torch.tensor(0.0), torch.tensor(0.01), torch.tensor(1.0)
+    default_before = make_zeta_schedule(
+        default_cfg, torch.tensor(0.799), torch.tensor(0.8), torch.tensor(1.0)
     )
-    assert default_schedule.zeta_pde_t.item() == pytest.approx(4.0)
+    default_at_start = make_zeta_schedule(
+        default_cfg, torch.tensor(0.8), torch.tensor(0.81), torch.tensor(1.0)
+    )
+    assert default_before.zeta_pde_t.item() == pytest.approx(0.0)
+    assert default_at_start.zeta_pde_t.item() == pytest.approx(4.0)
+
+    legacy_cfg = AblationConfig(
+        zeta_pde=4.0,
+        pde_guidance_start_ratio=0.0,
+        pde_guidance_ramp_ratio=0.0,
+    )
+    legacy_schedule = make_zeta_schedule(
+        legacy_cfg, torch.tensor(0.0), torch.tensor(0.01), torch.tensor(1.0)
+    )
+    assert legacy_schedule.zeta_pde_t.item() == pytest.approx(4.0)
 
     gated_cfg = AblationConfig(
         zeta_pde=4.0,

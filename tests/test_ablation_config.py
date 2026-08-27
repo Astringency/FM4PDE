@@ -139,7 +139,11 @@ def test_pde_guidance_gate_validation_and_ablation_name():
     )
     cfg.validate()
     assert "pdegate-s0.5-r0.1" in cfg.resolved_ablation_name()
-    assert "pdegate" not in AblationConfig().resolved_ablation_name()
+    assert "pdegate-s0.8-r0" in AblationConfig().resolved_ablation_name()
+    assert "pdegate" not in AblationConfig(
+        pde_guidance_start_ratio=0.0,
+        pde_guidance_ramp_ratio=0.0,
+    ).resolved_ablation_name()
 
     with pytest.raises(ValueError, match="pde_guidance_start_ratio"):
         AblationConfig(pde_guidance_start_ratio=-0.1).validate()

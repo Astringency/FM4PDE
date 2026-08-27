@@ -18,6 +18,8 @@ pdes:
 common_overrides:
   output_dir: outputs/ablations
   allow_synthetic_data: false
+  pde_guidance_start_ratio: 0.8
+  pde_guidance_ramp_ratio: 0.0
 
 # Formal ablations always evaluate the held-out test files. These paths are the
 # only PDE-specific suite overrides; tuned guidance and sampler defaults remain
