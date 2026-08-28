@@ -1,7 +1,8 @@
 pde: poisson
 task: both
-data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_10000-128-128_1.mat
-# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
+# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_10000-128-128_1.mat
+data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
+# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128-2.mat
 loadby: scipy
 coef_name: f_data
 solution_name: phi_data
@@ -11,6 +12,8 @@ img_channels: 2
 img_resolution: 128
 allow_synthetic_data: false
 guidance_components: obs_pde
+pde_guidance_start_ratio: 0.8
+pde_guidance_ramp_ratio: 0.0
 loss_state: endpoint
 gradient_target: current_state_chain_rule
 sampler_phase: stochastic
@@ -29,9 +32,10 @@ endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
 num_obs: 500
+# num_obs: 16384
 num_sensor_columns: 5
 sensor_mode: random
-shared_mask: false
+shared_mask: true
 mask_seed: 0
 noise_level: 0.0
 noise_seed: 0

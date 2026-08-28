@@ -45,7 +45,7 @@ cd "${ROOT_DIR}"
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 MAX_BATCH_SIZE="${MAX_BATCH_SIZE:-20}"
 PDE_LIST="${PDE_LIST:-poisson helmholtz darcy nsnonbounded}" # 
-TASK_LIST="${TASK_LIST:-forward inverse both}"
+TASK_LIST="${TASK_LIST:-forward inverse both}" # forward inverse both
 SAMPLER_LIST="${SAMPLER_LIST:-stochastic}" # deterministic hybrid_s2d
 SENSOR_MODE_LIST="${SENSOR_MODE_LIST:-random}"
 NUM_STEPS="${NUM_STEPS:-100}"

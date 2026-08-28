@@ -1,6 +1,6 @@
 pde: burger
 task: both
-data_path: /home/tat512/share/PDEdata/burgers/burger_test_10000-128-128.mat
+data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128.mat
 loadby: scipy
 coef_name: output
 solution_name: output
@@ -28,7 +28,7 @@ endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
 num_obs: 500
-num_sensor_columns: 16
+num_sensor_columns: 5
 sensor_mode: random
 # sensor_mode: sensor_column
 shared_mask: false
