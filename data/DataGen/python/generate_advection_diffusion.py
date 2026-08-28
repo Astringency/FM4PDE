@@ -8,6 +8,7 @@ try:
         PairH5Config,
         ensure_finite,
         format_float_range,
+        periodic_grf_parameters,
         periodic_wavenumbers,
         sample_periodic_grf,
     )
@@ -17,6 +18,7 @@ except ImportError:  # pragma: no cover
         PairH5Config,
         ensure_finite,
         format_float_range,
+        periodic_grf_parameters,
         periodic_wavenumbers,
         sample_periodic_grf,
     )
@@ -27,6 +29,9 @@ KAPPA_RANGE = (5e-4, 5e-3)
 
 
 def advection_diffusion_metadata(config: PairH5Config) -> dict[str, object]:
+    grf_smoothness, grf_tau = periodic_grf_parameters(
+        config, train_smoothness=3.2, train_tau=5.0
+    )
     return {
         "equation": "u_t + b_x u_x + b_y u_y = kappa * Delta u on [0,1]^2",
         "boundary_condition": "periodic",
@@ -35,6 +40,8 @@ def advection_diffusion_metadata(config: PairH5Config) -> dict[str, object]:
             "b_y": format_float_range(B_RANGE),
             "kappa": format_float_range(KAPPA_RANGE),
         },
+        "initial_grf_smoothness": grf_smoothness,
+        "initial_grf_tau": grf_tau,
         "hdf5_schema": {
             "input_data": "[N,1,H,W] u0",
             "output_data": "[N,1,H,W] uT",
@@ -61,13 +68,16 @@ def solve_advection_diffusion_chunk(global_ids: np.ndarray, config: PairH5Config
     bx_values = np.empty((n,), dtype=np.float64)
     by_values = np.empty((n,), dtype=np.float64)
     kappa_values = np.empty((n,), dtype=np.float64)
+    grf_smoothness, grf_tau = periodic_grf_parameters(
+        config, train_smoothness=3.2, train_tau=5.0
+    )
 
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
         bx = rng.uniform(*B_RANGE)
         by = rng.uniform(*B_RANGE)
         kappa = rng.uniform(*KAPPA_RANGE)
-        u0 = sample_periodic_grf(rng, s, smoothness=3.2, tau=5.0, scale=1.0)
+        u0 = sample_periodic_grf(rng, s, smoothness=grf_smoothness, tau=grf_tau, scale=1.0)
         coeff = np.fft.fft2(u0)
         phase = bx * kx + by * ky
         frames = [

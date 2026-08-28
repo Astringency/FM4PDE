@@ -133,6 +133,10 @@ class RadialDamBreak2D(Basic2DScenario):
         grav: float = 1.0,
         dam_radius: float = 0.5,
         inner_height: float = 2.0,
+        transition_width: float = 0.0,
+        boundary_roughness: float = 0.0,
+        boundary_mode: int = 0,
+        boundary_phase: float = 0.0,
     ):
         self.depthId = 0
         self.momentumId_x = 1
@@ -142,6 +146,10 @@ class RadialDamBreak2D(Basic2DScenario):
         self.ydim = ydim
         self.dam_radius = dam_radius
         self.inner_height = inner_height
+        self.transition_width = float(transition_width)
+        self.boundary_roughness = float(boundary_roughness)
+        self.boundary_mode = int(boundary_mode)
+        self.boundary_phase = float(boundary_phase)
         super().__init__()
         # self.state_getters['bathymetry'] = self.__get_bathymetry
 
@@ -184,9 +192,27 @@ class RadialDamBreak2D(Basic2DScenario):
         x = coords[:, 0]
         y = coords[:, 1]
         r = np.sqrt((x - x0) ** 2 + (y - y0) ** 2)
+        theta = np.arctan2(y - y0, x - x0)
+        boundary = self._boundary_radius(theta)
+        return self._depth_profile(r, boundary)
+
+    def _boundary_radius(self, theta):
+        if self.boundary_mode <= 0 or self.boundary_roughness == 0.0:
+            return self.dam_radius
+        modulation = self.boundary_roughness * np.cos(
+            self.boundary_mode * theta + self.boundary_phase
+        )
+        return self.dam_radius * (1.0 + modulation)
+
+    def _depth_profile(self, radius, boundary_radius):
         h_in = self.inner_height
         h_out = 1.0
-        return h_in * (r <= self.dam_radius) + h_out * (r > self.dam_radius)
+        if self.transition_width > 0.0:
+            inside_weight = 0.5 * (
+                1.0 - np.tanh((radius - boundary_radius) / self.transition_width)
+            )
+            return h_out + (h_in - h_out) * inside_weight
+        return h_in * (radius <= boundary_radius) + h_out * (radius > boundary_radius)
 
     @staticmethod
     def initial_momentum_x() -> torch.Tensor:
@@ -209,12 +235,10 @@ class RadialDamBreak2D(Basic2DScenario):
         y0 = 0.0
         X, Y = self.claw_state.p_centers
         r = np.sqrt((X - x0) ** 2 + (Y - y0) ** 2)
-        h_in = self.inner_height
-        h_out = 1.0
+        theta = np.arctan2(Y - y0, X - x0)
+        boundary = self._boundary_radius(theta)
 
-        self.claw_state.q[self.depthId, :, :] = h_in * (
-            r <= self.dam_radius
-        ) + h_out * (r > self.dam_radius)
+        self.claw_state.q[self.depthId, :, :] = self._depth_profile(r, boundary)
         self.claw_state.q[self.momentumId_x, :, :] = 0.0
         self.claw_state.q[self.momentumId_y, :, :] = 0.0
 

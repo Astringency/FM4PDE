@@ -7,10 +7,12 @@ function profile = get_generation_profile(pde, dataset_type)
     switch canonical_type
         case 'train'
             seed_offset = 0;
-        case 'easytest'
+        case 'id'
             seed_offset = 10000000;
-        case 'hardtest'
+        case 'smooth'
             seed_offset = 20000000;
+        case 'rough'
+            seed_offset = 30000000;
         otherwise
             error('Unsupported dataset type: %s', canonical_type);
     end
@@ -21,10 +23,13 @@ function profile = get_generation_profile(pde, dataset_type)
                 case 'train'
                     alpha = 2.0;
                     tau = 3.0;
-                case 'easytest'
+                case 'id'
+                    alpha = 2.0;
+                    tau = 3.0;
+                case 'smooth'
                     alpha = 3.0;
                     tau = 4.0;
-                case 'hardtest'
+                case 'rough'
                     alpha = 1.5;
                     tau = 5.0;
             end
@@ -39,10 +44,13 @@ function profile = get_generation_profile(pde, dataset_type)
                 case 'train'
                     alpha = 2.5;
                     tau = 7.0;
-                case 'easytest'
+                case 'id'
+                    alpha = 2.5;
+                    tau = 7.0;
+                case 'smooth'
                     alpha = 3.0;
                     tau = 6.5;
-                case 'hardtest'
+                case 'rough'
                     alpha = 1.5;
                     tau = 5.0;
             end
@@ -63,12 +71,14 @@ function canonical_type = canonicalize_dataset_type(dataset_type)
     switch dataset_type
         case 'train'
             canonical_type = 'train';
-        case {'easytest', 'easy', 'smooth', 'test'}
-            canonical_type = 'easytest';
+        case {'id', 'test'}
+            canonical_type = 'id';
+        case {'easytest', 'easy', 'smooth'}
+            canonical_type = 'smooth';
         case {'hardtest', 'hard', 'rough'}
-            canonical_type = 'hardtest';
+            canonical_type = 'rough';
         otherwise
-            error(['dataset_type must be train, easytest, or hardtest ' ...
-                   '(aliases: easy/smooth/test and hard/rough).']);
+            error(['dataset_type must be train, id, smooth, or rough ' ...
+                   '(legacy aliases easytest and hardtest are accepted).']);
     end
 end

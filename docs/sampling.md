@@ -10,7 +10,8 @@ Required data fields for formal runs:
 
 - `pde`
 - `task`
-- `data_path`
+- `data_paths` with `id`, `smooth`, and `rough` entries
+- `test_type` selecting one entry; `data_path` stores the resolved path
 - `loadby`
 - `coef_name`
 - `solution_name`
@@ -31,7 +32,7 @@ runtime profile and checkpoint architecture metadata in `run_metadata.json`.
 
 Heat, Wave, Advection-Diffusion, and Steady Heat Conduction use the endpoint pair HDF5 format exposed as `loadby: pair_h5`. The HDF5 dataset names remain `input_data` and `output_data`; those names are part of the disk format and do not imply any special code path.
 
-`pair_h5` is not a storage subdirectory. Formal data files are expected directly under `DATA_ROOT/<pde>/`, for example `PDEdata/heat/heat_test_1000-128-128.h5`.
+`pair_h5` is not a storage subdirectory. Formal data files are expected directly under `DATA_ROOT/<pde>/`, for example `PDEdata/heat/heat_test_10000-128-128_id.h5`. Use `--override test_type=id|smooth|rough`, or set `TEST_TYPE` when calling `scripts/sample/run_sample.sh`, to select the test distribution.
 
 Scalar or sample-level PDE parameters are loaded into `PDEGroundTruth.pde_params` and are not Flow Matching input channels:
 

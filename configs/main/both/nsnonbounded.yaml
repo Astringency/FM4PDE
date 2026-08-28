@@ -1,7 +1,11 @@
 pde: nsnonbounded
 task: both
-data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
-# data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
+test_type: id
+data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10_id.mat
+data_paths:
+  id: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10_id.mat
+  smooth: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10_smooth.mat
+  rough: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10_rough.mat
 loadby: h5py
 coef_name: w0
 solution_name: w

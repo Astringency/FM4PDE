@@ -28,6 +28,7 @@ OFFSET_LIST="${OFFSET_LIST:-0 1000}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
 SAMPLE_SEED="${SAMPLE_SEED:-0}"
 MASK_SEED_LIST="${MASK_SEED_LIST:-0}"
+TEST_TYPE="${TEST_TYPE:-id}"
 PLAN_ONLY="${PLAN_ONLY:-false}"
 RESUME="${RESUME:-true}"
 AGGREGATE="${AGGREGATE:-true}"
@@ -56,19 +57,24 @@ is_true() {
 
 data_path_for() {
     case "$1" in
-        darcy) echo "${PDE_DATA_ROOT}/darcy/darcy_test_10000-128-128.mat" ;;
-        poisson) echo "${PDE_DATA_ROOT}/poisson/poisson_test_10000-128-128.mat" ;;
-        helmholtz) echo "${PDE_DATA_ROOT}/helmholtz/helmholtz_test_10000-128-128.mat" ;;
-        nsnonbounded) echo "${PDE_DATA_ROOT}/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat" ;;
-        reaction_diffusion) echo "${PDE_DATA_ROOT}/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5" ;;
-        shallow_water) echo "${PDE_DATA_ROOT}/shallow_water/shallow_water_test_10000-128-128-10.h5" ;;
-        heat) echo "${PDE_DATA_ROOT}/heat/heat_test_10000-128-128.h5" ;;
-        wave) echo "${PDE_DATA_ROOT}/wave/wave_test_10000-128-128.h5" ;;
-        advection_diffusion) echo "${PDE_DATA_ROOT}/advection_diffusion/advection_diffusion_test_10000-128-128.h5" ;;
-        steady_heat_conduction) echo "${PDE_DATA_ROOT}/steady_heat_conduction/steady_heat_conduction_test_10000-128-128.h5" ;;
+        darcy) echo "${PDE_DATA_ROOT}/darcy/darcy_test_10000-128-128_${TEST_TYPE}.mat" ;;
+        poisson) echo "${PDE_DATA_ROOT}/poisson/poisson_test_10000-128-128_${TEST_TYPE}.mat" ;;
+        helmholtz) echo "${PDE_DATA_ROOT}/helmholtz/helmholtz_test_10000-128-128_${TEST_TYPE}.mat" ;;
+        nsnonbounded) echo "${PDE_DATA_ROOT}/nsnonbounded/nsnonbounded_test_10000-128-128-10_${TEST_TYPE}.mat" ;;
+        reaction_diffusion) echo "${PDE_DATA_ROOT}/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10_${TEST_TYPE}.h5" ;;
+        shallow_water) echo "${PDE_DATA_ROOT}/shallow_water/shallow_water_test_10000-128-128-10_${TEST_TYPE}.h5" ;;
+        heat) echo "${PDE_DATA_ROOT}/heat/heat_test_10000-128-128_${TEST_TYPE}.h5" ;;
+        wave) echo "${PDE_DATA_ROOT}/wave/wave_test_10000-128-128_${TEST_TYPE}.h5" ;;
+        advection_diffusion) echo "${PDE_DATA_ROOT}/advection_diffusion/advection_diffusion_test_10000-128-128_${TEST_TYPE}.h5" ;;
+        steady_heat_conduction) echo "${PDE_DATA_ROOT}/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_${TEST_TYPE}.h5" ;;
         *) echo "Unsupported PDE: $1" >&2; return 2 ;;
     esac
 }
+
+case "${TEST_TYPE}" in
+    id|smooth|rough) ;;
+    *) echo "TEST_TYPE must be one of: id, smooth, rough" >&2; exit 2 ;;
+esac
 
 emit_grid() {
     local obs_values="$1"
@@ -175,6 +181,7 @@ run_job() {
     if ! python -u -m sampling.runner \
         --config "${config_path}" \
         --override "data_path=${data_path}" \
+        --override "test_type=${TEST_TYPE}" \
         --override "output_dir=${job_root}" \
         --override "ablation_group=inverse_tuning_${STAGE}" \
         --override "task=inverse" \

@@ -92,7 +92,7 @@ def test_poisson_ablations_inherit_task_specific_main_tuning():
         assert path == f"configs/main/{task}/poisson.yaml"
         cfg = load_config(path, overrides=overrides)
         assert (cfg.zeta_obs_a, cfg.zeta_obs_u, cfg.zeta_pde) == expected_by_task[task]
-        assert cfg.data_path.endswith("/poisson/poisson_test_10000-128-128.mat")
+        assert cfg.data_path.endswith("/poisson/poisson_test_10000-128-128_id.mat")
 
     resolved = {}
     for path, overrides in _jobs("loss_state_by_sampler"):

@@ -1,8 +1,11 @@
 pde: poisson
 task: both
-# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_10000-128-128_1.mat
-data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
-# data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128-2.mat
+test_type: id
+data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_id.mat
+data_paths:
+  id: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_id.mat
+  smooth: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_smooth.mat
+  rough: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_rough.mat
 loadby: scipy
 coef_name: f_data
 solution_name: phi_data

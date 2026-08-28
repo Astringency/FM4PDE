@@ -12,26 +12,24 @@ import torch
 THIS_DIR = Path(__file__).resolve().parent
 if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
+DATAGEN_DIR = THIS_DIR.parent
+if str(DATAGEN_DIR) not in sys.path:
+    sys.path.insert(0, str(DATAGEN_DIR))
 
+from generation_profiles import (
+    DATASET_TYPE_ALIASES,
+    SEED_OFFSETS,
+    TEMPORAL_GRF_PROFILES,
+    canonical_dataset_type,
+)
 from no_bound_ns.ns_2d import navier_stokes_2d
 from no_bound_ns.random_fields import GaussianRF
 
 
 DEFAULT_OUT_DIR = Path("/large_storage/zhangxf/PDEdata/nsnonbounded")
 GENERATION_PROFILES = {
-    "train": {"alpha": 2.5, "tau": 7.0, "seed_offset": 0},
-    "easytest": {"alpha": 3.0, "tau": 6.5, "seed_offset": 10_000_000},
-    "hardtest": {"alpha": 1.5, "tau": 5.0, "seed_offset": 20_000_000},
-}
-TYPE_ALIASES = {
-    "train": "train",
-    "test": "easytest",
-    "easy": "easytest",
-    "smooth": "easytest",
-    "easytest": "easytest",
-    "hard": "hardtest",
-    "rough": "hardtest",
-    "hardtest": "hardtest",
+    name: {"alpha": values[0], "tau": values[1], "seed_offset": SEED_OFFSETS[name]}
+    for name, values in TEMPORAL_GRF_PROFILES.items()
 }
 
 
@@ -40,15 +38,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument(
         "--dataset-type",
-        choices=["train", "test", "easytest", "hardtest", "easy", "smooth", "hard", "rough"],
+        choices=sorted(DATASET_TYPE_ALIASES),
         default=None,
-        help="GRF distribution profile. Use train, easytest (smooth), or hardtest (rough).",
+        help="Distribution profile: train, id, smooth, or rough.",
     )
     parser.add_argument(
         "--split",
         choices=["train", "test"],
         default=None,
-        help="Legacy alias: train maps to train and test maps to easytest.",
+        help="Legacy alias: train maps to train and test maps to id.",
     )
     parser.add_argument("--total-samples", type=int, default=1000)
     parser.add_argument(
@@ -72,21 +70,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return build_parser().parse_args(argv)
 
 
-def canonical_dataset_type(dataset_type: str) -> str:
-    try:
-        return TYPE_ALIASES[str(dataset_type).lower()]
-    except KeyError as exc:
-        raise ValueError(
-            "dataset type must be train, easytest, or hardtest "
-            "(aliases: test/easy/smooth and hard/rough)"
-        ) from exc
-
-
 def resolve_dataset_type(args: argparse.Namespace) -> str:
     requested_type = getattr(args, "dataset_type", None)
     legacy_split = getattr(args, "split", None)
     if requested_type is None and legacy_split is None:
-        return "easytest"
+        return "id"
     if requested_type is None:
         return canonical_dataset_type(legacy_split)
     resolved = canonical_dataset_type(requested_type)
@@ -119,12 +107,14 @@ def _output_path(
     record_steps: int,
     file_index: int,
 ) -> Path:
-    if dataset_type is None and split == "test":
-        return out_dir / f"nsnonbounded_test_{sample_count}-{resolution}-{resolution}-{record_steps}.mat"
-    resolved_type = canonical_dataset_type(dataset_type or split or "easytest")
-    stem = f"nsnonbounded_{resolved_type}_{sample_count}-{resolution}-{resolution}-{record_steps}"
+    resolved_type = canonical_dataset_type(dataset_type or split or "id")
     if resolved_type == "train":
-        stem += f"_{file_index + 1}"
+        stem = (
+            f"nsnonbounded_{sample_count}-{resolution}-{resolution}-{record_steps}_"
+            f"{file_index + 1}_new"
+        )
+    else:
+        stem = f"nsnonbounded_test_{sample_count}-{resolution}-{resolution}-{record_steps}_{resolved_type}"
     return out_dir / f"{stem}.mat"
 
 
@@ -142,12 +132,13 @@ def generate_file(
     viscosity: float,
     seed_offset: int,
     overwrite: bool,
-) -> None:
+) -> bool:
     if path.exists():
         if overwrite:
             path.unlink()
         else:
-            raise FileExistsError(f"{path} exists; pass --overwrite to replace it")
+            print(f"Skipping existing nsnonbounded file: {path}", flush=True)
+            return False
 
     dataset_type = canonical_dataset_type(dataset_type)
     profile = GENERATION_PROFILES[dataset_type]
@@ -197,6 +188,7 @@ def generate_file(
         h5.create_dataset("vx", data=sol_vx.detach().cpu().numpy().astype("float32"), dtype="float32")
         h5.create_dataset("vy", data=sol_vy.detach().cpu().numpy().astype("float32"), dtype="float32")
         h5.create_dataset("t", data=sol_t.detach().cpu().numpy().astype("float32"), dtype="float32")
+    return True
 
 
 def generate_dataset(args: argparse.Namespace) -> list[Path]:
@@ -206,7 +198,7 @@ def generate_dataset(args: argparse.Namespace) -> list[Path]:
         samples_per_file = args.total_samples if dataset_type != "train" else 10000
     if dataset_type != "train" and int(samples_per_file) != int(args.total_samples):
         raise ValueError(
-            "test split writes one file for both easytest and hardtest; "
+            "each id, smooth, or rough test split writes one file; "
             "omit --samples-per-file or set it equal to --total-samples"
         )
     counts = _sample_counts(args.total_samples, samples_per_file)

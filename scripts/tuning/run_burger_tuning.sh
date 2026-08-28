@@ -19,7 +19,12 @@ cd "${ROOT_DIR}"
 
 CONFIG_PATH="${CONFIG_PATH:-configs/main/both/burger.yaml}"
 PDE_DATA_ROOT="${PDE_DATA_ROOT:-${HOME}/share/PDEdata}"
-DATA_PATH="${DATA_PATH:-${PDE_DATA_ROOT}/burgers/burger_test_10000-128-128.mat}"
+TEST_TYPE="${TEST_TYPE:-id}"
+case "${TEST_TYPE}" in
+    id|smooth|rough) ;;
+    *) echo "TEST_TYPE must be one of: id, smooth, rough" >&2; exit 2 ;;
+esac
+DATA_PATH="${DATA_PATH:-${PDE_DATA_ROOT}/burgers/burger_test_10000-128-128_${TEST_TYPE}.mat}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-outputs/pretrained/formal/burger/260625-150439-burger-batch4-epoch300-accum8-float32/fm4burger.pth}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/tuning/burger}"
 STAGE="${STAGE:-screen}"
@@ -122,7 +127,7 @@ cache_file() {
 }
 
 if [[ -n "${CACHE_DIR}" ]] && ! is_true "${PLAN_ONLY}"; then
-    cached_data="${CACHE_DIR}/burger_test_10000-128-128.mat"
+    cached_data="${CACHE_DIR}/burger_test_10000-128-128_${TEST_TYPE}.mat"
     cached_checkpoint_dir="${CACHE_DIR}/checkpoint"
     cached_checkpoint="${cached_checkpoint_dir}/fm4burger.pth"
     cache_file "${DATA_PATH}" "${cached_data}"
@@ -159,6 +164,7 @@ run_job() {
         python -u -m sampling.runner
         --config "${CONFIG_PATH}"
         --override "data_path=${DATA_PATH}"
+        --override "test_type=${TEST_TYPE}"
         --override "checkpoint_path=${CHECKPOINT_PATH}"
         --override "output_dir=${job_root}"
         --override "ablation_group=burger_${STAGE}"

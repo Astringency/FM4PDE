@@ -15,6 +15,7 @@ try:
         ensure_finite,
         format_float_range,
         neumann_eigenvalues,
+        periodic_grf_parameters,
         periodic_wavenumbers,
         sample_periodic_grf,
     )
@@ -25,6 +26,7 @@ except ImportError:  # pragma: no cover
         ensure_finite,
         format_float_range,
         neumann_eigenvalues,
+        periodic_grf_parameters,
         periodic_wavenumbers,
         sample_periodic_grf,
     )
@@ -34,6 +36,9 @@ ALPHA_RANGE = (5e-4, 5e-3)
 
 
 def heat_metadata(config: PairH5Config) -> dict[str, object]:
+    grf_smoothness, grf_tau = periodic_grf_parameters(
+        config, train_smoothness=3.2, train_tau=5.0
+    )
     return {
         "equation": "u_t = alpha * Delta u on [0,1]^2",
         "boundary_condition": config.bc,
@@ -41,6 +46,8 @@ def heat_metadata(config: PairH5Config) -> dict[str, object]:
         "alpha_mode": config.extra.get("alpha_mode", "random"),
         "alpha_random": config.extra.get("alpha_mode", "random") == "random",
         "fixed_alpha": float(config.extra.get("alpha", 1e-3)),
+        "initial_grf_smoothness": grf_smoothness,
+        "initial_grf_tau": grf_tau,
         "hdf5_schema": {
             "input_data": "[N,1,H,W] u0",
             "output_data": "[N,1,H,W] uT",
@@ -68,6 +75,9 @@ def solve_heat_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResul
         raise ValueError(f"Unsupported alpha_mode={alpha_mode!r}")
     fixed_alpha = float(config.extra.get("alpha", 1e-3))
     alpha = np.empty((n,), dtype=np.float64)
+    grf_smoothness, grf_tau = periodic_grf_parameters(
+        config, train_smoothness=3.2, train_tau=5.0
+    )
 
     if config.bc == "periodic":
         _, _, ksq = periodic_wavenumbers(s)
@@ -81,7 +91,7 @@ def solve_heat_chunk(global_ids: np.ndarray, config: PairH5Config) -> ChunkResul
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
         alpha_i = rng.uniform(*ALPHA_RANGE) if alpha_mode == "random" else fixed_alpha
-        u0 = sample_periodic_grf(rng, s, smoothness=3.2, tau=5.0, scale=1.0)
+        u0 = sample_periodic_grf(rng, s, smoothness=grf_smoothness, tau=grf_tau, scale=1.0)
         alpha[local_idx] = alpha_i
         input_data[local_idx, 0] = u0
         if config.bc == "periodic":

@@ -153,7 +153,7 @@ def future_train_path(out_root: Path, pde: str, args: argparse.Namespace) -> Pat
 
 
 def future_test_path(out_root: Path, pde: str, args: argparse.Namespace) -> Path:
-    return out_root / pde / f"{pde}_test_{args.n_test}-{args.resolution}-{args.resolution}.h5"
+    return out_root / pde / f"{pde}_test_{args.n_test}-{args.resolution}-{args.resolution}_id.h5"
 
 
 def canonical_reaction_diffusion_init_mode(init_mode: str) -> str:
@@ -236,11 +236,11 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
     k_react = 3e-3
     train_path = (
         pde_dir
-        / f"reaction_diffusion_{init_mode}_{args.n_train}-{args.resolution}-{args.resolution}-T{args.T:g}-steps{args.n_save_steps}.h5"
+        / f"reaction_diffusion_{init_mode}_{args.n_train}-{args.resolution}-{args.resolution}-T{args.T:g}-steps{args.n_save_steps}_1.h5"
     )
     test_path = (
         pde_dir
-        / f"reaction_diffusion_test_{init_mode}_{args.n_test}-{args.resolution}-{args.resolution}-T{args.T:g}-steps{args.n_save_steps}.h5"
+        / f"reaction_diffusion_test_{init_mode}_{args.n_test}-{args.resolution}-{args.resolution}-T{args.T:g}-steps{args.n_save_steps}_id.h5"
     )
     for path, split, count, base_seed in (
         (train_path, "train", args.n_train, TRAIN_BASE_SEED),
@@ -251,6 +251,7 @@ def generate_reaction_diffusion(out_root: Path, args: argparse.Namespace) -> dic
         with h5py.File(path, "w") as h5:
             h5.attrs["pde_name"] = "reaction_diffusion"
             h5.attrs["split"] = split
+            h5.attrs["dataset_type"] = "train" if split == "train" else "id"
             h5.attrs["n_samples"] = count
             h5.attrs["resolution"] = f"{args.resolution}x{args.resolution}"
             h5.attrs["n_time"] = rd_tdim
@@ -349,8 +350,9 @@ def generate_shallow_water(out_root: Path, args: argparse.Namespace) -> dict[str
     except Exception as exc:
         return write_error(pde_dir, "shallow_water", "missing_clawpack_dependency", exc)
 
-    train_path = pde_dir / f"shallow_water_{args.n_train}-{args.resolution}-{args.resolution}-{args.n_time}.h5"
-    test_path = pde_dir / f"shallow_water_test_{args.n_test}-{args.resolution}-{args.resolution}-{args.n_time}.h5"
+    tsteps = args.n_time - 1
+    train_path = pde_dir / f"2d_swe_{args.resolution}_{args.resolution}_{tsteps}_0.h5"
+    test_path = pde_dir / f"shallow_water_test_{args.n_test}-{args.resolution}-{args.resolution}-{tsteps}_id.h5"
     for path, split, count, base_seed in (
         (train_path, "train", args.n_train, TRAIN_BASE_SEED),
         (test_path, "test", args.n_test, TEST_BASE_SEED),
@@ -360,6 +362,7 @@ def generate_shallow_water(out_root: Path, args: argparse.Namespace) -> dict[str
         with h5py.File(path, "w") as h5:
             h5.attrs["pde_name"] = "shallow_water_radial_dam_break"
             h5.attrs["split"] = split
+            h5.attrs["dataset_type"] = "train" if split == "train" else "id"
             h5.attrs["n_samples"] = count
             h5.attrs["resolution"] = f"{args.resolution}x{args.resolution}"
             h5.attrs["n_time"] = args.n_time
@@ -428,11 +431,11 @@ def generate_nsnonbounded(out_root: Path, args: argparse.Namespace) -> dict[str,
         raise ValueError("--n-time must be at least 2 for nsnonbounded")
 
     train_path = pde_dir / f"nsnonbounded_{args.n_train}-{args.resolution}-{args.resolution}-{record_steps}_1_new.mat"
-    test_path = pde_dir / f"nsnonbounded_test_{args.n_test}-{args.resolution}-{args.resolution}-{record_steps}.mat"
+    test_path = pde_dir / f"nsnonbounded_test_{args.n_test}-{args.resolution}-{args.resolution}-{record_steps}_id.mat"
 
     for path, split, count, base_seed, alpha, tau in (
         (train_path, "train", args.n_train, TRAIN_BASE_SEED, 2.5, 7.0),
-        (test_path, "test", args.n_test, TEST_BASE_SEED, 3.0, 6.5),
+        (test_path, "test", args.n_test, TEST_BASE_SEED, 2.5, 7.0),
     ):
         if path.exists():
             path.unlink()
@@ -457,6 +460,7 @@ def generate_nsnonbounded(out_root: Path, args: argparse.Namespace) -> dict[str,
         with h5py.File(path, "w") as h5:
             h5.attrs["pde_name"] = "nsnonbounded"
             h5.attrs["split"] = split
+            h5.attrs["dataset_type"] = "train" if split == "train" else "id"
             h5.attrs["n_samples"] = int(count)
             h5.attrs["resolution"] = f"{s}x{s}"
             h5.attrs["record_steps"] = int(record_steps)

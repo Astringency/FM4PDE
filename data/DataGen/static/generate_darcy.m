@@ -1,6 +1,6 @@
-function output_path = generate_darcy(dataset_type, N, S, out_root, seed, overwrite)
+function output_path = generate_darcy(dataset_type, N, S, out_root, seed, overwrite, shard_id)
     if nargin < 1
-        error('dataset_type is required: train, easytest, or hardtest');
+        error('dataset_type is required: train, id, smooth, or rough');
     end
     if nargin < 2 || isempty(N)
         N = 10000;
@@ -19,6 +19,9 @@ function output_path = generate_darcy(dataset_type, N, S, out_root, seed, overwr
     if nargin < 6 || isempty(overwrite)
         overwrite = false;
     end
+    if nargin < 7 || isempty(shard_id)
+        shard_id = 1;
+    end
     rng(seed, 'twister');
 
     dataset_type = profile.dataset_type;
@@ -30,10 +33,15 @@ function output_path = generate_darcy(dataset_type, N, S, out_root, seed, overwr
     if ~exist(output_dir, 'dir')
         mkdir(output_dir);
     end
-    output_path = fullfile(output_dir, sprintf( ...
-        'darcy_%s_%d-%d-%d.mat', dataset_type, N, S, S));
+    if strcmp(dataset_type, 'train')
+        output_name = sprintf('darcy_%d-%d-%d_%d.mat', N, S, S, shard_id);
+    else
+        output_name = sprintf('darcy_test_%d-%d-%d_%s.mat', N, S, S, dataset_type);
+    end
+    output_path = fullfile(output_dir, output_name);
     if exist(output_path, 'file') && ~overwrite
-        error('Output already exists: %s. Enable overwrite to replace it.', output_path);
+        fprintf('Skipping existing Darcy file: %s\n', output_path);
+        return;
     end
     
         % Preallocate arrays to store the generated data
@@ -81,6 +89,6 @@ function output_path = generate_darcy(dataset_type, N, S, out_root, seed, overwr
     
     save(output_path, 'lognorm_a_data', 'thresh_a_data', 'lognorm_p_data', ...
         'thresh_p_data', 'dataset_type', 'grf_alpha', 'grf_tau', ...
-        'generation_seed', '-v7.3');
+        'generation_seed', 'shard_id', '-v7.3');
     fprintf('\nSaved Darcy %s data to %s\n', dataset_type, output_path);
 end

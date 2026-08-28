@@ -18,32 +18,9 @@ pdes:
 common_overrides:
   output_dir: outputs/ablations
   allow_synthetic_data: false
+  test_type: id
   pde_guidance_start_ratio: 0.8
   pde_guidance_ramp_ratio: 0.0
 
-# Formal ablations always evaluate the held-out test files. These paths are the
-# only PDE-specific suite overrides; tuned guidance and sampler defaults remain
-# owned by configs/main/<task>/<pde>.yaml.
-pde_overrides:
-  darcy:
-    data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128.mat
-  poisson:
-    data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128.mat
-  helmholtz:
-    data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128.mat
-  nsnonbounded:
-    data_path: /large_storage/zhangxf/PDEdata/nsnonbounded/nsnonbounded_test_10000-128-128-10.mat
-  burger:
-    data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128.mat
-  reaction_diffusion:
-    data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5
-  shallow_water:
-    data_path: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_1000-128-128-10.h5
-  heat:
-    data_path: /large_storage/zhangxf/PDEdata/heat/heat_test_1000-128-128.h5
-  wave:
-    data_path: /large_storage/zhangxf/PDEdata/wave/wave_test_1000-128-128.h5
-  advection_diffusion:
-    data_path: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_1000-128-128.h5
-  steady_heat_conduction:
-    data_path: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_1000-128-128.h5
+# The selected path comes from data_paths in configs/main/<task>/<pde>.yaml.
+# Override test_type on the sweep CLI to evaluate smooth or rough OOD data.

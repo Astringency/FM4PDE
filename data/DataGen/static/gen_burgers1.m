@@ -1,6 +1,6 @@
-function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, overwrite)
+function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, overwrite, shard_id)
     if nargin < 1
-        error('dataset_type is required: train, easytest, or hardtest');
+        error('dataset_type is required: train, id, smooth, or rough');
     end
     if nargin < 2 || isempty(N)
         N = 10000;
@@ -22,6 +22,9 @@ function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, o
     if nargin < 7 || isempty(overwrite)
         overwrite = false;
     end
+    if nargin < 8 || isempty(shard_id)
+        shard_id = 1;
+    end
     rng(seed, 'twister');
 
     dataset_type = profile.dataset_type;
@@ -35,10 +38,16 @@ function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, o
     if ~exist(output_dir, 'dir')
         mkdir(output_dir);
     end
-    output_path = fullfile(output_dir, sprintf( ...
-        'burger_%s_%d-%d-%d.mat', dataset_type, N, s, steps + 1));
+    if strcmp(dataset_type, 'train')
+        output_name = sprintf('burger_%d-%d-%d_%d.mat', N, s, steps + 1, shard_id);
+    else
+        output_name = sprintf('burger_test_%d-%d-%d_%s.mat', ...
+            N, s, steps + 1, dataset_type);
+    end
+    output_path = fullfile(output_dir, output_name);
     if exist(output_path, 'file') && ~overwrite
-        error('Output already exists: %s. Enable overwrite to replace it.', output_path);
+        fprintf('Skipping existing Burgers file: %s\n', output_path);
+        return;
     end
 
     input = zeros(N, s);
@@ -70,6 +79,6 @@ function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, o
 
     save(output_path, 'output', 'input', 'tspan', 'dataset_type', ...
         'grf_gamma', 'grf_tau', 'grf_sigma', 'generation_seed', ...
-        'viscosity');
+        'viscosity', 'shard_id');
     fprintf('\nSaved Burgers %s data to %s\n', dataset_type, output_path);
 end

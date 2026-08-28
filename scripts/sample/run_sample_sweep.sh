@@ -26,6 +26,7 @@ set -euo pipefail
 #   SENSOR_MODE_LIST     Space-separated modes (default: random)
 #   NUM_STEPS            Sampling steps (default: 100)
 #   NUM_OBS              Sparse observations (default: 500)
+#   TEST_TYPE           Test distribution: id / smooth / rough (default: id)
 #   OUTPUT_DIR           Artifact root (default: outputs/MAIN1000_100)
 #   CONFIG_DIR           Main config root (default: configs/main; reads <task>/<pde>.yaml)
 #   DEVICE               Device used when DEVICE_LIST is unset (default: cuda)
@@ -50,6 +51,7 @@ SAMPLER_LIST="${SAMPLER_LIST:-stochastic}" # deterministic hybrid_s2d
 SENSOR_MODE_LIST="${SENSOR_MODE_LIST:-random}"
 NUM_STEPS="${NUM_STEPS:-100}"
 NUM_OBS="${NUM_OBS:-500}"
+TEST_TYPE="${TEST_TYPE:-id}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/MAIN1000_100_TRAIN}"
 CONFIG_DIR="${CONFIG_DIR:-configs/main}"
 DEVICE="${DEVICE:-cuda}"
@@ -76,6 +78,7 @@ ARGS=(
     --max-batch-size "${MAX_BATCH_SIZE}"
     --num-steps "${NUM_STEPS}"
     --num-obs "${NUM_OBS}"
+    --test-type "${TEST_TYPE}"
     --output-dir "${OUTPUT_DIR}"
     --config-dir "${CONFIG_DIR}"
     --max-parallel-tasks "${MAX_PARALLEL_TASKS}"

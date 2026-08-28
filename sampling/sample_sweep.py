@@ -111,6 +111,7 @@ class SweepOptions:
     progress_interval: float
     sample_seed: int | None
     devices: tuple[str, ...]
+    test_type: str = "id"
 
 
 class SweepRunner:
@@ -163,6 +164,7 @@ class SweepRunner:
                     "max_batch_size": self.options.max_batch_size,
                     "num_steps": self.options.num_steps,
                     "num_obs": self.options.num_obs,
+                    "test_type": self.options.test_type,
                     "experiments": [
                         {
                             "pde": item.pde,
@@ -205,7 +207,8 @@ class SweepRunner:
         self.console.print("[bold]FM4PDE resumable sampling sweep[/bold]")
         self.console.print(
             f"mode={mode}  workers={self.worker_count}  resume={self.options.resume}  "
-            f"samples={self.options.num_samples}/experiment  batch<={self.options.max_batch_size}"
+            f"samples={self.options.num_samples}/experiment  batch<={self.options.max_batch_size}  "
+            f"test_type={self.options.test_type}"
         )
         self.console.print(
             f"output={self.options.output_dir}  state={self.state_dir}  "
@@ -394,6 +397,7 @@ class SweepRunner:
                 "OUTPUT_DIR": str(self.options.output_dir),
                 "CONFIG_DIR": str(self.options.config_dir),
                 "DEVICE": state.device,
+                "TEST_TYPE": self.options.test_type,
                 "VIS": "true" if self.options.vis else "false",
                 "DRY_RUN": "true" if self.options.dry_run else "false",
                 "FM4PDE_SWEEP_PROGRESS_FILE": str(progress_file),
@@ -772,6 +776,7 @@ def build_experiments(args: argparse.Namespace) -> tuple[list[Experiment], list[
                         "num_obs": args.num_obs,
                         "output_dir": args.output_dir,
                         "device": args.devices[0],
+                        "test_type": getattr(args, "test_type", "id"),
                         "save_plots": args.vis,
                         "dry_run": args.dry_run,
                     }
@@ -876,6 +881,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-parallel-tasks", type=int, default=2)
     parser.add_argument("--progress-interval", type=float, default=1.0)
     parser.add_argument("--sample-seed", type=int, default=None)
+    parser.add_argument("--test-type", choices=["id", "smooth", "rough"], default="id")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--plan-only", action="store_true")
     add_bool_arg(parser, "parallel", False, "run PDE/task/sensor groups concurrently")
@@ -921,6 +927,7 @@ def main(argv: list[str] | None = None) -> int:
         progress_interval=args.progress_interval,
         sample_seed=args.sample_seed,
         devices=tuple(args.devices),
+        test_type=args.test_type,
     )
     runner = SweepRunner(options, experiments, groups)
     try:

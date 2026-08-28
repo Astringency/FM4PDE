@@ -52,6 +52,46 @@ def test_main_task_data_paths_use_pde_named_directories():
             assert path.parent.name == expected_dir
 
 
+def test_each_generated_pde_config_selects_id_smooth_and_rough_paths():
+    for config_path in MAIN_CONFIG_PATHS:
+        if config_path.stem == "heat_fixed":
+            continue
+        default_cfg = load_config(config_path)
+        assert default_cfg.test_type == "id"
+        assert set(default_cfg.data_paths) == {"id", "smooth", "rough"}
+        for test_type in ("id", "smooth", "rough"):
+            cfg = load_config(config_path, overrides={"test_type": test_type})
+            assert cfg.data_path == cfg.data_paths[test_type]
+            assert cfg.data_path.endswith(f"_{test_type}.mat") or cfg.data_path.endswith(
+                f"_{test_type}.h5"
+            )
+
+
+def test_explicit_data_path_override_takes_priority_over_type_mapping(tmp_path):
+    selected = tmp_path / "custom_test_file.mat"
+    cfg = load_config(
+        "configs/main/both/poisson.yaml",
+        overrides={"data_path": str(selected), "test_type": "rough"},
+    )
+
+    assert cfg.data_path == str(selected)
+    assert cfg.test_type == "rough"
+    assert cfg.data_paths == {}
+
+
+def test_formal_sweep_can_select_rough_test_data():
+    path, overrides = expand_grid(
+        FORMAL_GRID,
+        selected_groups={"sampler_phase"},
+        selected_pdes={"poisson"},
+        global_overrides={"test_type": "rough"},
+    )[0]
+    cfg = load_config(path, overrides=overrides)
+
+    assert cfg.test_type == "rough"
+    assert cfg.data_path.endswith("/poisson/poisson_test_10000-128-128_rough.mat")
+
+
 def test_formal_config_files_exist_and_load():
     for config_path in MAIN_CONFIG_PATHS:
         assert Path(config_path).is_file()

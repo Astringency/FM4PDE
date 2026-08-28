@@ -29,7 +29,7 @@ def test_pair_h5_split_test_plans_only_test_file(tmp_path):
     planned = files_with_splits(config)
 
     assert [(split, path.name) for _, _, _, split, path in planned] == [
-        ("test", "heat_test_4-16-16.h5")
+        ("test", "heat_test_4-16-16_id.h5")
     ]
 
 
@@ -49,7 +49,7 @@ def test_generate_pair_h5s_split_test_dry_run_has_no_train_file(tmp_path):
     ]
     result = subprocess.run(cmd, cwd=ROOT, check=True, text=True, capture_output=True)
 
-    assert "heat_test_4-128-128.h5" in result.stdout
+    assert "heat_test_4-128-128_id.h5" in result.stdout
     assert "heat_10000-128-128_1.h5" not in result.stdout
 
 
@@ -63,7 +63,7 @@ def test_nsnonbounded_test_output_path_is_parameterized(tmp_path):
         file_index=0,
     )
 
-    assert path.name == "nsnonbounded_test_10000-128-128-10.mat"
+    assert path.name == "nsnonbounded_test_10000-128-128-10_id.mat"
 
 
 def test_nsnonbounded_test_split_rejects_multiple_test_files(tmp_path):
@@ -95,7 +95,7 @@ def test_shallow_water_test_output_path_is_parameterized(tmp_path):
         tsteps=10,
     )
 
-    assert path.name == "shallow_water_test_10000-128-128-10.h5"
+    assert path.name == "shallow_water_test_10000-128-128-10_id.h5"
 
 
 def test_time_dependent_generators_expose_split_help():

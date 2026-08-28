@@ -77,6 +77,11 @@ OFFSET="${OFFSET:-0}"
 GUIDANCE_COMPONENTS="${GUIDANCE_COMPONENTS:-obs_pde}"
 RESIDUAL_MODE="${RESIDUAL_MODE:-auto}"
 MODEL_PROFILE="${MODEL_PROFILE:-recommended}"
+TEST_TYPE="${TEST_TYPE:-id}"
+case "${TEST_TYPE}" in
+  id|smooth|rough) ;;
+  *) echo "TEST_TYPE must be one of: id, smooth, rough" >&2; exit 2 ;;
+esac
 
 CONDA_ENV="${CONDA_ENV:-fm4pde}"
 PYTHON_BIN="${PYTHON_BIN:-}"
@@ -114,6 +119,7 @@ echo "data_root: ${DATA_ROOT}"
 echo "device: ${DEVICE}"
 echo "epochs: ${EPOCHS}"
 echo "model_profile: ${MODEL_PROFILE}"
+echo "test_type: ${TEST_TYPE}"
 echo "output_root: ${OUTPUT_ROOT}"
 
 # Force a single-process check run by default. This avoids accidental SLURM or
@@ -147,37 +153,37 @@ config_for_pde() {
 test_data_patterns_for_pde() {
   case "$1" in
     darcy)
-      printf '%s\n' "darcy_test_*.mat" "*darcy*test*.mat"
+      printf '%s\n' "darcy_test_*_${TEST_TYPE}.mat"
       ;;
     poisson)
-      printf '%s\n' "poisson_test_*.mat" "*poisson*test*.mat"
+      printf '%s\n' "poisson_test_*_${TEST_TYPE}.mat"
       ;;
     helmholtz)
-      printf '%s\n' "helmholtz_test_*.mat" "*helmholtz*test*.mat"
+      printf '%s\n' "helmholtz_test_*_${TEST_TYPE}.mat"
       ;;
     nsnonbounded)
-      printf '%s\n' "nsnonbounded_test_*.mat" "*nsnonbounded*test*.mat" "nsnonbounded_*-*-*-*.mat"
+      printf '%s\n' "nsnonbounded_test_*_${TEST_TYPE}.mat"
       ;;
     burger)
-      printf '%s\n' "burger_test_*.mat" "burgers_test_*.mat" "*burger*test*.mat"
+      printf '%s\n' "burger_test_*_${TEST_TYPE}.mat"
       ;;
     reaction_diffusion)
-      printf '%s\n' "reaction_diffusion_test_*.h5" "*reaction_diffusion*test*.h5"
+      printf '%s\n' "reaction_diffusion_test_*_${TEST_TYPE}.h5"
       ;;
     shallow_water)
-      printf '%s\n' "shallow_water_test_*.h5" "swe_test_*.h5" "2d_swe_test_*.h5" "*shallow*water*test*.h5" "*swe*test*.h5"
+      printf '%s\n' "shallow_water_test_*_${TEST_TYPE}.h5"
       ;;
     heat)
-      printf '%s\n' "heat_test_*.h5" "heat_fixed_test_*.h5" "*heat*test*.h5"
+      printf '%s\n' "heat_test_*_${TEST_TYPE}.h5"
       ;;
     wave)
-      printf '%s\n' "wave_test_*.h5" "*wave*test*.h5"
+      printf '%s\n' "wave_test_*_${TEST_TYPE}.h5"
       ;;
     advection_diffusion)
-      printf '%s\n' "advection_diffusion_test_*.h5" "*advection*diffusion*test*.h5"
+      printf '%s\n' "advection_diffusion_test_*_${TEST_TYPE}.h5"
       ;;
     steady_heat_conduction)
-      printf '%s\n' "steady_heat_conduction_test_*.h5" "*steady*heat*conduction*test*.h5"
+      printf '%s\n' "steady_heat_conduction_test_*_${TEST_TYPE}.h5"
       ;;
     *)
       printf '%s\n' "*${1}*test*"
@@ -236,7 +242,13 @@ test_data_override_for_pde() {
     printf '%s\n' "${discovered}"
     return
   fi
-  config_data_path="$(awk -F': ' '/^data_path:/ {print $2; exit}' "${config}" | tr -d '"' || true)"
+  config_data_path="$(
+    awk -F': ' -v wanted="  ${TEST_TYPE}" '$1 == wanted {print $2; exit}' "${config}" \
+      | tr -d '"' || true
+  )"
+  if [[ -z "${config_data_path}" ]]; then
+    config_data_path="$(awk -F': ' '/^data_path:/ {print $2; exit}' "${config}" | tr -d '"' || true)"
+  fi
   if [[ -n "${config_data_path}" && "${DATA_ROOT}" != "${DEFAULT_DATA_ROOT}" && "${config_data_path}" == "${DEFAULT_DATA_ROOT}"* ]]; then
     printf '%s\n' "${config_data_path/${DEFAULT_DATA_ROOT}/${DATA_ROOT}}"
     return
@@ -337,6 +349,7 @@ run_one_pde() {
     --override "offset=${OFFSET}"
     --override "guidance_components=${GUIDANCE_COMPONENTS}"
     --override "model_profile=${MODEL_PROFILE}"
+    --override "test_type=${TEST_TYPE}"
     --override "allow_synthetic_data=false"
   )
   if [[ "${RESIDUAL_MODE}" != "auto" ]]; then

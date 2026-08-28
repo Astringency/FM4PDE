@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import sys
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,12 @@ from typing import Any, Callable
 import h5py
 import numpy as np
 from tqdm import tqdm
+
+DATAGEN_DIR = Path(__file__).resolve().parent.parent
+if str(DATAGEN_DIR) not in sys.path:
+    sys.path.insert(0, str(DATAGEN_DIR))
+
+from generation_profiles import canonical_dataset_type, seed_offset, shifted_periodic_grf_parameters
 
 
 TRAIN_BASE_SEED = 0
@@ -31,6 +38,7 @@ class PairH5Config:
     n_val: int = 0
     n_test: int = 1_000
     split: str = "both"
+    dataset_type: str = "id"
     train_shards: int = 5
     samples_per_shard: int | None = None
     n_time: int = 11
@@ -109,13 +117,19 @@ def add_common_arguments(parser: Any) -> None:
         default="both",
         help="Which split(s) to generate. train includes optional validation; test writes only the test file.",
     )
+    parser.add_argument(
+        "--dataset-type",
+        choices=["train", "id", "smooth", "rough", "test", "easytest", "hardtest"],
+        default=None,
+        help="Test distribution profile; training shards always use the train profile.",
+    )
     parser.add_argument("--train-shards", type=int, default=5)
     parser.add_argument("--samples-per-shard", type=int, default=None)
     parser.add_argument("--n-time", type=int, default=11)
     parser.add_argument("--T", type=float, default=1.0)
     parser.add_argument("--base-seed-train", type=int, default=TRAIN_BASE_SEED)
     parser.add_argument("--base-seed-val", type=int, default=5_000_000)
-    parser.add_argument("--base-seed-test", type=int, default=TEST_BASE_SEED)
+    parser.add_argument("--base-seed-test", type=int, default=None)
     parser.add_argument("--chunk-size", type=int, default=128)
     parser.add_argument("--compression", choices=["lzf", "gzip", "none"], default="lzf")
     parser.add_argument("--compression-level", type=int, default=4)
@@ -131,6 +145,13 @@ def add_common_arguments(parser: Any) -> None:
 
 
 def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None) -> PairH5Config:
+    requested_type = getattr(args, "dataset_type", None)
+    default_type = "train" if args.split == "train" else "id"
+    dataset_type = canonical_dataset_type(requested_type or default_type)
+    if args.split == "train" and dataset_type != "train":
+        raise ValueError("training files require dataset_type='train'")
+    if args.split in {"both", "test"} and dataset_type == "train":
+        raise ValueError("test files cannot use dataset_type='train'")
     if args.recfno_split and args.split == "both" and args.n_train == 50_000 and args.n_val == 0 and args.n_test == 1_000:
         args.n_train = 4_000
         args.n_val = 1_000
@@ -157,13 +178,20 @@ def namespace_to_config(args: Any, pde: str, extra: dict[str, Any] | None = None
         n_val=args.n_val,
         n_test=args.n_test,
         split=args.split,
+        dataset_type=dataset_type,
         train_shards=args.train_shards,
         samples_per_shard=samples_per_shard,
         n_time=args.n_time,
         T=args.T,
         base_seed_train=args.base_seed_train,
         base_seed_val=args.base_seed_val,
-        base_seed_test=args.base_seed_test,
+        base_seed_test=(
+            TEST_BASE_SEED
+            if dataset_type == "train" and getattr(args, "base_seed_test", None) is None
+            else seed_offset(dataset_type)
+            if getattr(args, "base_seed_test", None) is None
+            else args.base_seed_test
+        ),
         chunk_size=args.chunk_size,
         compression=None if args.compression == "none" else args.compression,
         compression_level=args.compression_level,
@@ -212,6 +240,7 @@ def generate_dataset(config: PairH5Config, solver: SolverFn, metadata: dict[str,
 def validate_config(config: PairH5Config) -> None:
     if config.split not in {"both", "train", "test"}:
         raise ValueError("split must be one of: both, train, test")
+    canonical_dataset_type(config.dataset_type)
     if config.resolution <= 1:
         raise ValueError("resolution must be > 1")
     if config.n_time < 2:
@@ -228,12 +257,16 @@ def validate_config(config: PairH5Config) -> None:
         raise ValueError("n_train or n_val must be positive when split='train'")
     if config.split == "both" and config.n_train < 1 and config.n_val < 1 and config.n_test < 1:
         raise ValueError("at least one split must have a positive sample count")
-    if config.base_seed_train == config.base_seed_test:
+    has_train = config.split in {"both", "train"} and config.n_train > 0
+    has_test = config.split in {"both", "test"} and config.n_test > 0
+    if has_train and has_test and config.base_seed_train == config.base_seed_test:
         raise ValueError("train and test base seeds must differ")
     train_seed_end = config.base_seed_train + max(config.n_train - 1, 0)
     val_seed_end = config.base_seed_val + max(config.n_val - 1, 0)
     test_seed_end = config.base_seed_test + max(config.n_test - 1, 0)
-    if ranges_overlap(config.base_seed_train, train_seed_end, config.base_seed_test, test_seed_end):
+    if has_train and has_test and ranges_overlap(
+        config.base_seed_train, train_seed_end, config.base_seed_test, test_seed_end
+    ):
         raise ValueError("train/test seed ranges overlap")
     if config.n_val:
         if ranges_overlap(config.base_seed_train, train_seed_end, config.base_seed_val, val_seed_end):
@@ -259,7 +292,12 @@ def files_with_splits(config: PairH5Config) -> list[tuple[int, int, int, str, Pa
         val_path = pde_dir / f"{config.pde}_val_{config.n_val}-{config.resolution}-{config.resolution}.h5"
         files.append((0, config.n_val, 0, "val", val_path))
     if config.split in {"both", "test"} and config.n_test:
-        test_path = pde_dir / f"{config.pde}_test_{config.n_test}-{config.resolution}-{config.resolution}.h5"
+        test_type = canonical_dataset_type(config.dataset_type)
+        if test_type == "train":
+            raise ValueError("test files cannot use dataset_type='train'")
+        test_path = pde_dir / (
+            f"{config.pde}_test_{config.n_test}-{config.resolution}-{config.resolution}_{test_type}.h5"
+        )
         files.append((0, config.n_test, 0, "test", test_path))
     return files
 
@@ -270,6 +308,7 @@ def print_plan(config: PairH5Config, files: list[Path]) -> None:
             {
                 "pde": config.pde,
                 "split": config.split,
+                "dataset_type": config.dataset_type,
                 "resolution": config.resolution,
                 "n_train": config.n_train,
                 "n_test": config.n_test,
@@ -294,9 +333,10 @@ def write_h5_shard(
     base_seed: int,
     solver: SolverFn,
     metadata: dict[str, Any],
-) -> None:
+) -> bool:
     if path.exists() and not config.overwrite:
-        raise FileExistsError(f"{path} exists; pass --overwrite to replace it")
+        print(f"Skipping existing {config.pde} file: {path}")
+        return False
     if path.exists():
         path.unlink()
 
@@ -316,7 +356,8 @@ def write_h5_shard(
         desc = f"{config.pde} {split} shard {shard_id}" if split == "train" else f"{config.pde} test"
         for sl in tqdm(list(iterator), desc=desc):
             global_ids = sample_ids[sl]
-            solver_config = replace(config, base_seed_train=base_seed)
+            active_type = "train" if split == "train" else canonical_dataset_type(config.dataset_type)
+            solver_config = replace(config, base_seed_train=base_seed, dataset_type=active_type)
             result = solver(global_ids, solver_config)
             result = cast_chunk_result(result, config.dtype)
             n_chunk = sl.stop - sl.start
@@ -355,6 +396,7 @@ def write_h5_shard(
             seed_end=int(seeds[-1]) if len(seeds) else int(base_seed),
             metadata=metadata,
         )
+    return True
 
 
 def create_main_datasets(h5: h5py.File, n_samples: int, result: ChunkResult, config: PairH5Config) -> dict[str, h5py.Dataset]:
@@ -431,6 +473,7 @@ def write_attrs(
         "resolution": f"{config.resolution}x{config.resolution}",
         "n_samples": n_samples,
         "split": split,
+        "dataset_type": "train" if split == "train" else canonical_dataset_type(config.dataset_type),
         "shard_id": shard_id,
         "sample_id_start": sample_id_start,
         "sample_id_end": sample_id_end,
@@ -515,6 +558,19 @@ def sample_periodic_grf(
     field = np.fft.ifft2(np.fft.fft2(white) * spectral_filter).real
     field = normalize_field(field)
     return (scale * field).astype(np.float64)
+
+
+def periodic_grf_parameters(
+    config: PairH5Config,
+    *,
+    train_smoothness: float,
+    train_tau: float,
+) -> tuple[float, float]:
+    return shifted_periodic_grf_parameters(
+        config.dataset_type,
+        train_smoothness=train_smoothness,
+        train_tau=train_tau,
+    )
 
 
 def normalize_field(field: np.ndarray) -> np.ndarray:

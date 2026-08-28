@@ -1,6 +1,6 @@
-function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root, seed, overwrite)
+function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root, seed, overwrite, shard_id)
     if nargin < 1
-        error('dataset_type is required: train, easytest, or hardtest');
+        error('dataset_type is required: train, id, smooth, or rough');
     end
     if nargin < 2 || isempty(N)
         N = 10000;
@@ -22,6 +22,9 @@ function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root,
     if nargin < 7 || isempty(overwrite)
         overwrite = false;
     end
+    if nargin < 8 || isempty(shard_id)
+        shard_id = 1;
+    end
     rng(seed, 'twister');
 
     dataset_type = profile.dataset_type;
@@ -33,10 +36,15 @@ function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root,
     if ~exist(output_dir, 'dir')
         mkdir(output_dir);
     end
-    output_path = fullfile(output_dir, sprintf( ...
-        'helmholtz_%s_%d-%d-%d-k%g.mat', dataset_type, N, S, S, k));
+    if strcmp(dataset_type, 'train')
+        output_name = sprintf('helmholtz_%d-%d-%d_%d.mat', N, S, S, shard_id);
+    else
+        output_name = sprintf('helmholtz_test_%d-%d-%d_%s.mat', N, S, S, dataset_type);
+    end
+    output_path = fullfile(output_dir, output_name);
     if exist(output_path, 'file') && ~overwrite
-        error('Output already exists: %s. Enable overwrite to replace it.', output_path);
+        fprintf('Skipping existing Helmholtz file: %s\n', output_path);
+        return;
     end
 
         f_data = zeros(N, S, S);
@@ -79,6 +87,6 @@ function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root,
         end
 
     save(output_path, 'f_data', 'psi_data', 'dataset_type', 'grf_alpha', ...
-        'grf_tau', 'generation_seed', 'k');
+        'grf_tau', 'generation_seed', 'shard_id', 'k');
     fprintf('\nSaved Helmholtz %s data to %s\n', dataset_type, output_path);
 end

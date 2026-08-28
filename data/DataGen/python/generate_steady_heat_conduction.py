@@ -14,6 +14,8 @@ try:
 except ImportError:  # pragma: no cover
     from common import ChunkResult, PairH5Config, ensure_finite, format_float_range
 
+from generation_profiles import STEADY_HEAT_SOURCE_SIGMA_PROFILES, canonical_dataset_type
+
 
 UD_RANGE = (288.0, 308.0)
 SOURCE_COUNT_RANGE = (1, 4)
@@ -23,6 +25,7 @@ LAMBDA_MIN = 0.1
 
 
 def steady_heat_conduction_metadata(config: PairH5Config) -> dict[str, object]:
+    sigma_range = source_sigma_range(config)
     return {
         "equation": "-div(lambda(u) grad u) = f, lambda(u)=1+0.05*(u-298)",
         "boundary_condition": "bottom Dirichlet u=u_D; top/left/right zero Neumann",
@@ -30,7 +33,7 @@ def steady_heat_conduction_metadata(config: PairH5Config) -> dict[str, object]:
             "u_D": format_float_range(UD_RANGE),
             "n_sources": {"min": SOURCE_COUNT_RANGE[0], "max": SOURCE_COUNT_RANGE[1]},
             "source_amplitude": format_float_range(SOURCE_AMPLITUDE_RANGE),
-            "source_sigma": format_float_range(SOURCE_SIGMA_RANGE),
+            "source_sigma": format_float_range(sigma_range),
         },
         "recfno_style": True,
         "time_dependent": False,
@@ -69,7 +72,7 @@ def solve_steady_heat_conduction_chunk(global_ids: np.ndarray, config: PairH5Con
 
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
-        f, params = sample_heat_sources(rng, s)
+        f, params = sample_heat_sources(rng, s, sigma_range=source_sigma_range(config))
         u_d = rng.uniform(*UD_RANGE)
         result = solve_nonlinear_heat(f, u_d, config)
         input_data[local_idx, 0] = f
@@ -111,7 +114,16 @@ def solve_steady_heat_conduction_chunk(global_ids: np.ndarray, config: PairH5Con
     )
 
 
-def sample_heat_sources(rng: np.random.Generator, resolution: int) -> tuple[np.ndarray, dict[str, np.ndarray | int]]:
+def source_sigma_range(config: PairH5Config) -> tuple[float, float]:
+    return STEADY_HEAT_SOURCE_SIGMA_PROFILES[canonical_dataset_type(config.dataset_type)]
+
+
+def sample_heat_sources(
+    rng: np.random.Generator,
+    resolution: int,
+    *,
+    sigma_range: tuple[float, float] = SOURCE_SIGMA_RANGE,
+) -> tuple[np.ndarray, dict[str, np.ndarray | int]]:
     x = np.linspace(0.0, 1.0, resolution)
     y = np.linspace(0.0, 1.0, resolution)
     xx, yy = np.meshgrid(x, y, indexing="ij")
@@ -119,7 +131,7 @@ def sample_heat_sources(rng: np.random.Generator, resolution: int) -> tuple[np.n
     xs = rng.uniform(0.15, 0.85, size=n_sources)
     ys = rng.uniform(0.15, 0.90, size=n_sources)
     amps = rng.uniform(*SOURCE_AMPLITUDE_RANGE, size=n_sources)
-    sigmas = rng.uniform(*SOURCE_SIGMA_RANGE, size=n_sources)
+    sigmas = rng.uniform(*sigma_range, size=n_sources)
     f = np.zeros((resolution, resolution), dtype=np.float64)
     for x0, y0, amp, sigma in zip(xs, ys, amps, sigmas):
         r2 = (xx - x0) ** 2 + (yy - y0) ** 2
@@ -225,4 +237,3 @@ def nonlinear_residual(u: np.ndarray, conductivity: np.ndarray, f: np.ndarray) -
                 accum += face * (u[i, j] - u[ni, nj])
             residual[i - 1, j - 1] = accum - f[i, j]
     return residual
-

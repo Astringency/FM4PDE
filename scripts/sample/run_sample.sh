@@ -15,6 +15,7 @@ set -euo pipefail
 #   SENSOR_MODE      观测模式；未设置时使用配置文件值
 #   BATCH_SIZE       批量大小 (默认 1)
 #   OFFSET           样本偏移 (默认 0)
+#   TEST_TYPE        测试数据类型: id / smooth / rough (默认 id)
 #   NUM_STEPS        采样步数 (默认从配置读取)
 #   NUM_OBS          观测点数 (默认从配置读取)
 #   DEVICE           设备 (默认 cuda)
@@ -37,11 +38,20 @@ BATCH_SIZE="${BATCH_SIZE:-1}"
 OFFSET="${OFFSET:-0}"
 DEVICE="${DEVICE:-cuda}"
 CONFIG_DIR="${CONFIG_DIR:-configs/main}"
+TEST_TYPE="${TEST_TYPE:-id}"
 
 case "${TASK}" in
     both|forward|inverse) ;;
     *)
         echo "TASK 必须是 both、forward 或 inverse，当前值: ${TASK}" >&2
+        exit 2
+        ;;
+esac
+
+case "${TEST_TYPE}" in
+    id|smooth|rough) ;;
+    *)
+        echo "TEST_TYPE 必须是 id、smooth 或 rough，当前值: ${TEST_TYPE}" >&2
         exit 2
         ;;
 esac
@@ -61,6 +71,7 @@ OVERRIDES=(
     --override "batch_size=${BATCH_SIZE}"
     --override "offset=${OFFSET}"
     --override "device=${DEVICE}"
+    --override "test_type=${TEST_TYPE}"
 )
 
 # 仅在显式设置时覆盖 (否则用配置文件的值)
@@ -83,6 +94,7 @@ echo "  pde:      ${PDE}"
 echo "  task:     ${TASK}"
 echo "  sampler:  ${SAMPLER_PHASE}"
 echo "  sensor:   ${SENSOR_MODE:-config default}"
+echo "  test:     ${TEST_TYPE}"
 echo "  device:   ${DEVICE}"
 echo "  batch:    ${BATCH_SIZE}"
 

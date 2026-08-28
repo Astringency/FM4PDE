@@ -1,6 +1,11 @@
 pde: reaction_diffusion
 task: forward
-data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10.h5
+test_type: id
+data_path: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10_id.h5
+data_paths:
+  id: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10_id.h5
+  smooth: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10_smooth.h5
+  rough: /large_storage/zhangxf/PDEdata/reaction_diffusion/reaction_diffusion_test_grf_10000-128-128-T1-steps10_rough.h5
 loadby: rd
 coef_name: a
 solution_name: u

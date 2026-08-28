@@ -12,6 +12,7 @@ try:
         finite_difference_periodic_laplacian,
         format_float_range,
         n_internal_steps_for_cfl,
+        periodic_grf_parameters,
         periodic_wavenumbers,
         sample_periodic_grf,
     )
@@ -23,6 +24,7 @@ except ImportError:  # pragma: no cover
         finite_difference_periodic_laplacian,
         format_float_range,
         n_internal_steps_for_cfl,
+        periodic_grf_parameters,
         periodic_wavenumbers,
         sample_periodic_grf,
     )
@@ -34,6 +36,12 @@ C_RANGE = (0.75, 1.25)
 def wave_metadata(config: PairH5Config) -> dict[str, object]:
     variable_c = bool(config.extra.get("variable_c", False))
     c_mode = config.extra.get("c_mode", "fixed")
+    u0_smoothness, u0_tau = periodic_grf_parameters(
+        config, train_smoothness=5.0, train_tau=3.0
+    )
+    v0_smoothness, v0_tau = periodic_grf_parameters(
+        config, train_smoothness=5.5, train_tau=3.5
+    )
     return {
         "equation": "u_tt = c(x,y)^2 * Delta u on [0,1]^2",
         "boundary_condition": "periodic",
@@ -43,6 +51,10 @@ def wave_metadata(config: PairH5Config) -> dict[str, object]:
         "c_mode": c_mode,
         "c_random": c_mode == "random",
         "fixed_c": float(config.extra.get("c", 1.0)),
+        "u0_grf_smoothness": u0_smoothness,
+        "u0_grf_tau": u0_tau,
+        "v0_grf_smoothness": v0_smoothness,
+        "v0_grf_tau": v0_tau,
         "hdf5_schema": {
             "input_data": "[N,2,H,W] u0,v0",
             "output_data": "[N,2,H,W] uT,vT",
@@ -80,12 +92,22 @@ def solve_wave_constant_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
         raise ValueError(f"Unsupported c_mode={c_mode!r}")
     fixed_c = float(config.extra.get("c", 1.0))
     c_values = np.empty((n,), dtype=np.float64)
+    u0_smoothness, u0_tau = periodic_grf_parameters(
+        config, train_smoothness=5.0, train_tau=3.0
+    )
+    v0_smoothness, v0_tau = periodic_grf_parameters(
+        config, train_smoothness=5.5, train_tau=3.5
+    )
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
         c = rng.uniform(*C_RANGE) if c_mode == "random" else fixed_c
         c_values[local_idx] = c
-        u0 = sample_periodic_grf(rng, s, smoothness=5.0, tau=3.0, scale=0.5)
-        v0 = sample_periodic_grf(rng, s, smoothness=5.5, tau=3.5, scale=0.1) if random_v0 else np.zeros_like(u0)
+        u0 = sample_periodic_grf(rng, s, smoothness=u0_smoothness, tau=u0_tau, scale=0.5)
+        v0 = (
+            sample_periodic_grf(rng, s, smoothness=v0_smoothness, tau=v0_tau, scale=0.1)
+            if random_v0
+            else np.zeros_like(u0)
+        )
         u0_hat = np.fft.fft2(u0)
         v0_hat = np.fft.fft2(v0)
         frames = []
@@ -143,13 +165,30 @@ def solve_wave_variable_c_chunk(global_ids: np.ndarray, config: PairH5Config) ->
     dt_used = np.empty((n,), dtype=np.float64)
 
     random_v0 = bool(config.extra.get("random_v0", False))
+    u0_smoothness, u0_tau = periodic_grf_parameters(
+        config, train_smoothness=5.0, train_tau=3.0
+    )
+    v0_smoothness, v0_tau = periodic_grf_parameters(
+        config, train_smoothness=5.5, train_tau=3.5
+    )
+    c_smoothness, c_tau = periodic_grf_parameters(
+        config, train_smoothness=4.0, train_tau=4.0
+    )
     for local_idx, sample_id in enumerate(global_ids):
         rng = np.random.default_rng(config.base_seed_train + int(sample_id))
-        u = sample_periodic_grf(rng, s, smoothness=5.0, tau=3.0, scale=0.5)
-        v = sample_periodic_grf(rng, s, smoothness=5.5, tau=3.5, scale=0.1) if random_v0 else np.zeros_like(u)
+        u = sample_periodic_grf(rng, s, smoothness=u0_smoothness, tau=u0_tau, scale=0.5)
+        v = (
+            sample_periodic_grf(rng, s, smoothness=v0_smoothness, tau=v0_tau, scale=0.1)
+            if random_v0
+            else np.zeros_like(u)
+        )
         u0 = u.copy()
         v0 = v.copy()
-        c_field = np.clip(1.0 + 0.15 * sample_periodic_grf(rng, s, smoothness=4.0, tau=4.0), C_RANGE[0], C_RANGE[1])
+        c_field = np.clip(
+            1.0 + 0.15 * sample_periodic_grf(rng, s, smoothness=c_smoothness, tau=c_tau),
+            C_RANGE[0],
+            C_RANGE[1],
+        )
         dx = 1.0 / s
         steps_total = n_internal_steps_for_cfl(config.T, s, float(np.max(c_field)), cfl=0.25)
         dt = config.T / steps_total

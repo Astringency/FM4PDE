@@ -73,6 +73,9 @@ VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "per
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
 VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm"}
+VALID_TEST_TYPES = {"id", "smooth", "rough"}
+
+
 @dataclass
 class AblationConfig:
     pde: str = "poisson"
@@ -144,6 +147,8 @@ class AblationConfig:
     hermite_include_integral_residual: bool = True
     hermite_integral_weight: float = 1.0
     data_path: str = ""
+    data_paths: dict[str, str] = field(default_factory=dict)
+    test_type: str = "id"
     offset: int = 0
     img_channels: int = 2
     img_resolution: int = 128
@@ -162,6 +167,7 @@ class AblationConfig:
     runtime_metadata: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     def validate(self) -> None:
+        self.resolve_test_data_path()
         self.residual_mode = normalize_residual_mode(self.residual_mode)
         checks = [
             ("pde", self.pde, VALID_PDES),
@@ -187,6 +193,10 @@ class AblationConfig:
         for name, value, allowed in checks:
             if value not in allowed:
                 raise ValueError(f"{name}={value!r} is invalid; expected one of {sorted(allowed)}")
+        if self.test_type not in VALID_TEST_TYPES:
+            raise ValueError(
+                f"test_type={self.test_type!r} is invalid; expected one of {sorted(VALID_TEST_TYPES)}"
+            )
         if self.coef_positive_mode not in {"none", "softplus", "clamp_min", "floor", "binary"}:
             raise ValueError(f"coef_positive_mode={self.coef_positive_mode!r} is invalid")
         if self.coef_positive_floor <= 0:
@@ -269,6 +279,22 @@ class AblationConfig:
                 f"pde_residual_region={self.pde_residual_region!r} is undefined for task='unconditional'"
             )
         validate_task_guidance(self.task, self.guidance_components)
+
+    def resolve_test_data_path(self) -> str:
+        if not self.data_paths:
+            return self.data_path
+        unknown = sorted(set(self.data_paths).difference(VALID_TEST_TYPES))
+        if unknown:
+            raise ValueError(f"Unknown data_paths test types: {', '.join(unknown)}")
+        missing = sorted(VALID_TEST_TYPES.difference(self.data_paths))
+        if missing:
+            raise ValueError(f"data_paths is missing test types: {', '.join(missing)}")
+        if self.test_type not in VALID_TEST_TYPES:
+            raise ValueError(
+                f"test_type={self.test_type!r} is invalid; expected one of {sorted(VALID_TEST_TYPES)}"
+            )
+        self.data_path = str(self.data_paths[self.test_type])
+        return self.data_path
 
     def resolved_ablation_name(self) -> str:
         if self.ablation_name:
@@ -357,8 +383,15 @@ def load_config(path: str | os.PathLike[str], overrides: dict[str, Any] | None =
     if unknown:
         raise ValueError(f"Unknown config fields: {', '.join(unknown)}")
     cfg = AblationConfig(**raw)
-    for key, value in (overrides or {}).items():
+    normalized_overrides = {
+        key.replace("-", "_"): value for key, value in (overrides or {}).items()
+    }
+    for key, value in normalized_overrides.items():
         set_config_value(cfg, key, value)
+    if "data_path" in normalized_overrides and "data_paths" not in normalized_overrides:
+        # An explicit file path is a complete override.  Do not let the
+        # per-test-type mapping replace it during validation.
+        cfg.data_paths = {}
     cfg.validate()
     return cfg
 

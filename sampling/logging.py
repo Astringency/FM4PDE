@@ -38,6 +38,7 @@ def write_run_metadata(
         "git_commit": git_commit_hash(),
         "checkpoint_path": config.checkpoint_path,
         "data_path": config.data_path,
+        "test_type": config.test_type,
         "pde": config.pde,
         "task": config.task,
         "channel_names": ground_truth_metadata.get("channel_names", []),
