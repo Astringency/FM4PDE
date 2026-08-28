@@ -1,31 +1,51 @@
-function generate_poisson_dataset(N, S)
-    % Default arguments
-    % for round = 1:5
-    for round = 6
-        rng(10000000 + round, "twister");
-        if nargin < 1
-            N = 10000; % Number of generations
-        end
-        if nargin < 2
-            S = 128; % Resolution
-        end
+function output_path = generate_poisson(dataset_type, N, S, out_root, seed, overwrite)
+    if nargin < 1
+        error('dataset_type is required: train, easytest, or hardtest');
+    end
+    if nargin < 2 || isempty(N)
+        N = 10000;
+    end
+    if nargin < 3 || isempty(S)
+        S = 128;
+    end
+    if nargin < 4 || isempty(out_root)
+        out_root = '/large_storage/zhangxf/PDEdata';
+    end
+
+    profile = get_generation_profile('poisson', dataset_type);
+    if nargin < 5 || isempty(seed)
+        seed = profile.seed_offset;
+    end
+    if nargin < 6 || isempty(overwrite)
+        overwrite = false;
+    end
+    rng(seed, 'twister');
+
+    dataset_type = profile.dataset_type;
+    grf_alpha = profile.alpha;
+    grf_tau = profile.tau;
+    generation_seed = seed;
+
+    output_dir = fullfile(char(out_root), 'poisson');
+    if ~exist(output_dir, 'dir')
+        mkdir(output_dir);
+    end
+    output_path = fullfile(output_dir, sprintf( ...
+        'poisson_%s_%d-%d-%d.mat', dataset_type, N, S, S));
+    if exist(output_path, 'file') && ~overwrite
+        error('Output already exists: %s. Enable overwrite to replace it.', output_path);
+    end
     
         % Preallocate arrays
         f_data = zeros(N, S, S);
         phi_data = zeros(N, S, S);
     
-        % Parameters for GRF
-        % alpha = 2;
-        % tau = 3;
-        alpha = 3;
-        tau = 4;
-
         t0 = tic;
         updateEvery = max(1, floor(N / 100));
     
         for i = 1:N
             % Generate the coefficient f using GRF
-            f = GRF(alpha, tau, S);
+            f = GRF(grf_alpha, grf_tau, S);
             
             % Solve the Poisson equation for phi
             phi = solve_poisson(f, S);
@@ -43,15 +63,9 @@ function generate_poisson_dataset(N, S)
             end
         end
     
-        % Save the dataset
-        if ~exist('/large_storage/zhangxf/PDEdata/poisson', 'dir')
-            mkdir('/large_storage/zhangxf/PDEdata/poisson');
-        end
-        % filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_%d-%d-%d_%d.mat', N, S, S, round);
-        % filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_%d-%d-%d_test.mat', N, S, S);
-        filename = sprintf('/large_storage/zhangxf/PDEdata/poisson/poisson_test_%d-%d-%d.mat', N, S, S);
-        save(filename, 'f_data', 'phi_data');
-    end
+    save(output_path, 'f_data', 'phi_data', 'dataset_type', 'grf_alpha', ...
+        'grf_tau', 'generation_seed');
+    fprintf('\nSaved Poisson %s data to %s\n', dataset_type, output_path);
 end
 
 function phi = solve_poisson(f, S)

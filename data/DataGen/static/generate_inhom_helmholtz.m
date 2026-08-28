@@ -1,18 +1,44 @@
-function generateHelmholtztestData(N, S, k)
-% function generateHelmholtztestData(N, S)
-    % for round = 1:5
-    for round = 6
-        rng(10000000 + round, "twister");
-    % for k = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        if nargin < 1
-            N = 10000; % Default number of generations
-        end
-        if nargin < 2
-            S = 128; % Default resolution
-        end
-        if nargin < 3
-            k = 1; % Default k
-        end
+function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root, seed, overwrite)
+    if nargin < 1
+        error('dataset_type is required: train, easytest, or hardtest');
+    end
+    if nargin < 2 || isempty(N)
+        N = 10000;
+    end
+    if nargin < 3 || isempty(S)
+        S = 128;
+    end
+    if nargin < 4 || isempty(k)
+        k = 1;
+    end
+    if nargin < 5 || isempty(out_root)
+        out_root = '/large_storage/zhangxf/PDEdata';
+    end
+
+    profile = get_generation_profile('helmholtz', dataset_type);
+    if nargin < 6 || isempty(seed)
+        seed = profile.seed_offset;
+    end
+    if nargin < 7 || isempty(overwrite)
+        overwrite = false;
+    end
+    rng(seed, 'twister');
+
+    dataset_type = profile.dataset_type;
+    grf_alpha = profile.alpha;
+    grf_tau = profile.tau;
+    generation_seed = seed;
+
+    output_dir = fullfile(char(out_root), 'helmholtz');
+    if ~exist(output_dir, 'dir')
+        mkdir(output_dir);
+    end
+    output_path = fullfile(output_dir, sprintf( ...
+        'helmholtz_%s_%d-%d-%d-k%g.mat', dataset_type, N, S, S, k));
+    if exist(output_path, 'file') && ~overwrite
+        error('Output already exists: %s. Enable overwrite to replace it.', output_path);
+    end
+
         f_data = zeros(N, S, S);
         psi_data = zeros(N, S, S);
         
@@ -28,17 +54,11 @@ function generateHelmholtztestData(N, S, k)
         L(S, :) = 0; L(S, S) = 1; 
         L_full = kron(speye(S), L) + kron(L, speye(S));
         
-        % Parameters for GRF
-        % alpha = 2;
-        % tau = 3;
-        alpha = 3;
-        tau = 4;
-        
         t0 = tic;
-        updateEvery = max(1, floor(N / 1));
+        updateEvery = max(1, floor(N / 100));
         
         for i = 1:N
-            f = GRF(alpha, tau, S);
+            f = GRF(grf_alpha, grf_tau, S);
             f_data(i, :, :) = f;
             f(1, :) = 0; f(S, :) = 0; f(:, 1) = 0; f(:, S) = 0;
             
@@ -58,14 +78,7 @@ function generateHelmholtztestData(N, S, k)
             end
         end
 
-        % Save the dataset
-        if ~exist('/large_storage/zhangxf/PDEdata/helmholtz', 'dir')
-            mkdir('/large_storage/zhangxf/PDEdata/helmholtz');
-        end
-        % filename = sprintf('/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_%d-%d-%d_%d.mat', N, S, S, round);
-        % filename = sprintf('/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_%d-%d-%d_test.mat', N, S, S);
-        filename = sprintf('/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_%d-%d-%d.mat', N, S, S);
-        % filename = sprintf('/large_storage/zhangxf/PDEdata/helmholtz/helmholtz_%d-%d-%d_k%d.mat', N, S, S, k);
-        save(filename, 'f_data', 'psi_data');
-    end
+    save(output_path, 'f_data', 'psi_data', 'dataset_type', 'grf_alpha', ...
+        'grf_tau', 'generation_seed', 'k');
+    fprintf('\nSaved Helmholtz %s data to %s\n', dataset_type, output_path);
 end

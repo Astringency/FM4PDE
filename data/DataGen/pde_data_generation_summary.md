@@ -11,6 +11,39 @@
 - 随样本变化的物理参数（如 `alpha,b_x,b_y,kappa`）必须从样本 dataset/attrs 读取；缺失时不得用任意常数静默替代。
 - 参数解析优先级为：样本 dataset > sample/group attrs > root attrs > 显式 `generator_profile`。`split=train|test` 本身不能唯一确定历史生成器版本。
 
+## 五个核心方程的统一生成入口
+
+Poisson、Helmholtz、Darcy、non-bounded Navier-Stokes 和 Burgers 统一通过下面的脚本生成，不再通过修改或取消 MATLAB 注释来切换分布：
+
+```bash
+# 默认生成五个方程，每个方程 10000 个样本、空间分辨率 128
+bash data/DataGen/static/gen_pde.sh train
+bash data/DataGen/static/gen_pde.sh easytest
+bash data/DataGen/static/gen_pde.sh hardtest
+
+# 只生成指定方程，并覆盖已有目标文件
+bash data/DataGen/static/gen_pde.sh hardtest \
+  --pdes poisson,helmholtz,darcy \
+  --samples 10000 \
+  --overwrite
+
+# NS 和 Burgers 的小规模粗糙测试集
+bash data/DataGen/static/gen_pde.sh hardtest \
+  --pdes nsnonbounded,burgers \
+  --samples 1000 \
+  --device cuda:0
+```
+
+三类数据使用的 GRF 参数为：
+
+| 类型 | Poisson / Helmholtz / Darcy `(alpha,tau)` | NS `(alpha,tau)` | Burgers `(gamma,tau)` | 默认 seed offset |
+|---|---:|---:|---:|---:|
+| `train` | `(2.0,3.0)` | `(2.5,7.0)` | `(2.5,7.0)` | `0` |
+| `easytest`（平滑） | `(3.0,4.0)` | `(3.0,6.5)` | `(3.0,6.5)` | `10000000` |
+| `hardtest`（粗糙） | `(1.5,5.0)` | `(1.5,5.0)` | `(1.5,5.0)` | `20000000` |
+
+`easy/smooth/test` 是 `easytest` 的别名，`hard/rough` 是 `hardtest` 的别名。输出文件名包含规范化后的数据类型，例如 `poisson_hardtest_10000-128-128.mat`。文件内同时保存 `dataset_type`、GRF 参数和 `generation_seed`；NS 使用 HDF5 attrs 保存这些元数据。可先添加 `--dry-run` 检查完整配置而不生成数据。
+
 ## 只生成 test 数据
 
 统一 endpoint-pair HDF5 入口支持只生成 test split：
@@ -46,7 +79,7 @@ Non-bounded Navier-Stokes 和 shallow-water 也提供参数化 test-only CLI：
 
 ```bash
 python data/DataGen/time_dependent/gen_nbns.py \
-  --split test \
+  --dataset-type easytest \
   --total-samples 10000 \
   --resolution 128 \
   --device cuda:0 \
@@ -65,7 +98,7 @@ python data/DataGen/time_dependent/gen_swe.py \
   $$-\nabla\cdot(a(x,y)\nabla p(x,y)) = 1,\quad (x,y)\in[0,1]^2.$$
 - 初边值条件：系数场 `a` 由 GRF threshold 得到；压力满足齐次 Dirichlet 边界 `p=0`。
 - 生成代码：`data/DataGen/static/generate_darcy.m`，依赖 `GRF.m` 和 `solve_gwf.m`。存储的 `a,p` 位于单元中心；`solve_gwf.m` 先用 MATLAB `interp2(...,'spline')` 把 `a` 和 `f` 映射到包含端点的节点网格，在节点网格上用面系数算术平均组装守恒离散算子并施加 `p=0`，求解后再用同一类 spline 映射回单元中心。PDE residual 必须重建这套 spline→节点算子→spline 布局，不能直接在存储网格上套中心差分。
-- 磁盘格式：`darcy/darcy_10000-128-128_i.mat`，HDF5/MATLAB v7.3 key 为 `thresh_a_data`、`thresh_p_data`，形状通常为 `[H,W,N]`。
+- 磁盘格式：新入口写为 `darcy/darcy_{train|easytest|hardtest}_N-S-S.mat`，HDF5/MATLAB v7.3 key 包括 `thresh_a_data`、`thresh_p_data` 和生成配置元数据，场形状通常为 `[H,W,N]`。
 - FM4PDE 读入：`[a,p]`，即 `[N,2,H,W]`；物理量为渗透/扩散系数 `a` 和压力 `p`。
 
 ## 2. Poisson
@@ -74,7 +107,7 @@ python data/DataGen/time_dependent/gen_swe.py \
   $$\Delta\phi(x,y)=f(x,y),\quad (x,y)\in[0,1]^2.$$
 - 初边值条件：源项 `f` 从 GRF 采样；齐次 Dirichlet 边界 `phi=0`。
 - 生成代码：`data/DataGen/static/generate_poisson.m`，MATLAB 五点差分线性系统。
-- 磁盘格式：`poisson/poisson_10000-128-128_i.mat`，key 为 `f_data`、`phi_data`，形状 `[N,H,W]`。
+- 磁盘格式：新入口写为 `poisson/poisson_{train|easytest|hardtest}_N-S-S.mat`，key 为 `f_data`、`phi_data` 和生成配置元数据，场形状 `[N,H,W]`。
 - FM4PDE 读入：`[f,phi]`，即 `[N,2,H,W]`；物理量为源项 `f` 和势场 `phi`。
 
 ## 3. Helmholtz
@@ -82,7 +115,7 @@ python data/DataGen/time_dependent/gen_swe.py \
 - 生成器实际方程：
   $$(\Delta+k^2)\psi(x,y)=f(x,y),\quad (x,y)\in[0,1]^2.$$
 - 生成代码：`data/DataGen/static/generate_inhom_helmholtz.m`，默认固定波数 `k=1`。代码先修改一维矩阵 `L` 的首末行，再构造 `kron(I,L)+kron(L,I)`；它没有把完整二维边界行替换成单位行，因此生成数据并不严格满足通常意义的二维齐次 Dirichlet `psi=0`。当前 residual 按该 Kronecker 线性系统（并把 RHS 边界置零）精确复现，不再额外叠加与生成数据矛盾的 `psi=0` loss。
-- 磁盘格式：`helmholtz/helmholtz_10000-128-128_i.mat`，key 为 `f_data`、`psi_data`，形状 `[N,H,W]`。
+- 磁盘格式：新入口写为 `helmholtz/helmholtz_{train|easytest|hardtest}_N-S-S-kK.mat`，key 为 `f_data`、`psi_data`、`k` 和生成配置元数据，场形状 `[N,H,W]`。
 - FM4PDE 读入：`[f,psi]`，即 `[N,2,H,W]`；物理量为源项 `f`、波场 `psi` 和生成侧固定参数 `k`。
 
 ## 4. Non-bounded Navier-Stokes
@@ -91,8 +124,8 @@ python data/DataGen/time_dependent/gen_swe.py \
   $$\partial_t\omega+u\partial_x\omega+v\partial_y\omega=\nu\Delta\omega+f(x,y),\quad \nu=10^{-3}.$$
   速度由流函数恢复，固定 forcing 为 `0.1*(sin(2*pi*(x+y))+cos(2*pi*(x+y)))`。
 - 初边值条件：初始涡量 `w0` 从二维 GRF 采样；空间采用周期谱方法。
-- 生成代码：`data/DataGen/time_dependent/gen_nbns.py`，依赖 `no_bound_ns/ns_2d.py` 和 `no_bound_ns/random_fields.py`；时间 `T=1`，内部求解步长 `solver_dt=1e-4`，记录 `10` 个正时间快照。`w` 不包含初值，full trajectory 必须拼成 `[w0,w(t_1),...,w(t_10)]` 共 11 帧；快照差分间隔是 `0.1`，绝不能使用 attrs 中的内部 `dt=1e-4`。train 初值 GRF 为 `alpha=2.5,tau=7.0`，test 为 `alpha=3.0,tau=6.5`，PDE 系数和 forcing 相同。
-- 磁盘格式：train 为 `nsnonbounded/nsnonbounded_10000-128-128-10_i_new.mat`，test 为 `nsnonbounded/nsnonbounded_test_1000-128-128-10.mat`；key 包括 `w0`、`w`、`vx0`、`vy0`、`vx`、`vy`、`t`。
+- 生成代码：`data/DataGen/time_dependent/gen_nbns.py`，依赖 `no_bound_ns/ns_2d.py` 和 `no_bound_ns/random_fields.py`；时间 `T=1`，内部求解步长 `solver_dt=1e-4`，记录 `10` 个正时间快照。`w` 不包含初值，full trajectory 必须拼成 `[w0,w(t_1),...,w(t_10)]` 共 11 帧；快照差分间隔是 `0.1`，绝不能使用 attrs 中的内部 `dt=1e-4`。三种初值分布见统一配置表，PDE 系数和 forcing 保持相同。
+- 磁盘格式：新入口写为 `nsnonbounded/nsnonbounded_TYPE_N-S-S-STEPS[_SHARD].mat`；key 包括 `w0`、`w`、`vx0`、`vy0`、`vx`、`vy`、`t`，attrs 包括 `dataset_type`、`grf_alpha` 和 `grf_tau`。
 - FM4PDE 读入：当前训练 loader 取 `[w0,wT]`，即 `[N,2,H,W]`；物理量为初始涡量和终态涡量，速度场只作为磁盘附加量保存。
 
 ## 5. Burgers
@@ -100,8 +133,8 @@ python data/DataGen/time_dependent/gen_swe.py \
 - 公式：
   $$\partial_tu+\frac12\partial_x(u^2)=\nu\partial_{xx}u,\quad x\in[0,1],\quad \nu=0.01.$$
 - 初边值条件：一维周期边界；初值 `u0` 从周期 GRF 采样。
-- 生成代码：`data/DataGen/static/gen_burgers1.m` 和 `burgers1.m`，MATLAB/Chebfun `spin` 时间推进。代码设置 `steps=127`，但 `tspan=linspace(0,1,steps+1)`，因此真实输出有 128 帧（包含初值和终值），相邻快照 `dt=1/127`。空间为 128 个不重复周期点，`dx=1/128`；输出组织为 `128 x 128` 的 time×space 时空图。预分配的第二维为 127，但循环写入第 128 帧时 MATLAB 自动扩容。
-- 磁盘格式：train 为 `burgers/burger_10000-128-128_i.mat`，test 为 `burgers/burger_test_1000-128-128_1.mat`；key 为 `output`，形状 `[N,128,128]`。
+- 生成代码：`data/DataGen/static/gen_burgers1.m` 和 `burgers1.m`，MATLAB/Chebfun `spin` 时间推进。默认 `steps=127` 且 `tspan=linspace(0,1,steps+1)`，因此输出有 128 帧（包含初值和终值），相邻快照 `dt=1/127`。空间为 128 个不重复周期点，`dx=1/128`；输出组织为 `128 x 128` 的 time×space 时空图。三种初值分布见统一配置表，`sigma=tau^(gamma-0.5)` 以延续训练分布原有的幅值归一化规则。
+- 磁盘格式：新入口写为 `burgers/burger_{train|easytest|hardtest}_N-X-T.mat`；key 为 `output`、`input`、`tspan` 和生成配置元数据，`output` 形状 `[N,T,X]`。
 - FM4PDE 读入：`[u]`，即 `[N,1,128,128]`；采样端当前把同一时空场作为 coef/sol 单通道状态处理。
 
 ## 6. Reaction-Diffusion
