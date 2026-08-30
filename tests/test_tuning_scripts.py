@@ -1,6 +1,14 @@
 import os
 import subprocess
 
+from scripts.tuning.run_hard_inverse_tuning import (
+    _resume_status_matches,
+    _status_matches_analysis_plan,
+    analysis_path,
+    candidates_for,
+    chunk_plan,
+    select_winners,
+)
 from scripts.tuning.select_inverse_params import select_rows
 
 
@@ -157,3 +165,142 @@ def test_inverse_selector_rejects_incomplete_configs_and_ranks_robust_error():
     selected = select_rows(rows, expected_n=4, top_k=2)
 
     assert [row["zeta_obs_u"] for row in selected] == ["2", "1"]
+
+
+def test_hard_inverse_grid_brackets_the_previous_upper_boundary():
+    poisson = {row["candidate"]: row for row in candidates_for("poisson")}
+    ns = {row["candidate"]: row for row in candidates_for("nsnonbounded")}
+
+    assert poisson["obs_octuple"]["zeta_obs_u"] == 8 * poisson["baseline"]["zeta_obs_u"]
+    assert poisson["obs_16x"]["zeta_obs_u"] == 16 * poisson["baseline"]["zeta_obs_u"]
+    assert poisson["obs_64x"]["zeta_obs_u"] == 64 * poisson["baseline"]["zeta_obs_u"]
+    assert poisson["obs_only"]["zeta_pde"] == 0.0
+    assert ns["obs_quadruple"]["zeta_obs_u"] == 4 * ns["baseline"]["zeta_obs_u"]
+    assert ns["clip_double"]["clip_threshold"] == 2 * ns["baseline"]["clip_threshold"]
+
+
+def test_hard_inverse_chunking_and_scoped_analysis_paths(tmp_path):
+    assert chunk_plan(10, 4) == [(0, 4), (4, 4), (8, 2)]
+    assert analysis_path(tmp_path, "selected_params", ["poisson"]) == (
+        tmp_path / "selected_params_poisson.csv"
+    )
+    assert analysis_path(
+        tmp_path,
+        "selected_params",
+        ["nsnonbounded", "poisson", "darcy", "helmholtz"],
+    ) == (tmp_path / "selected_params.csv")
+
+
+def test_hard_inverse_resume_rejects_changed_or_unprovable_jobs(tmp_path):
+    metrics_path = tmp_path / "metrics.csv"
+    metrics_path.write_text("rel_l2_a\n0.5\n", encoding="utf-8")
+    signature = {
+        "phase": "tune",
+        "split": "tune",
+        "pde": "poisson",
+        "candidate": "baseline",
+        "test_type": "id",
+        "offset": 0,
+        "batch_size": 4,
+        "source_batch_size": 4,
+        "source_indices": [0, 1, 2, 3],
+        "zeta_obs_u": 360_000_000.0,
+        "zeta_pde": 0.3,
+        "clip_threshold": 50.0,
+        "num_steps": 100,
+        "checkpoint": {"path": "checkpoint", "size": 1, "mtime_ns": 1},
+        "data": {"path": "data", "size": 1, "mtime_ns": 1},
+    }
+    exact = {"status": "ok", "job_signature": signature}
+    assert _resume_status_matches(exact, signature, metrics_path=metrics_path)
+
+    changed = {**signature, "num_steps": 200}
+    assert not _resume_status_matches(exact, changed, metrics_path=metrics_path)
+
+    legacy = {"status": "ok", **{key: value for key, value in signature.items() if key not in {
+        "source_batch_size", "source_indices", "checkpoint", "data"
+    }}}
+    assert _resume_status_matches(legacy, signature, metrics_path=metrics_path)
+    chunked = {**signature, "source_batch_size": 10}
+    assert not _resume_status_matches(legacy, chunked, metrics_path=metrics_path)
+
+
+def test_hard_inverse_analysis_excludes_prior_pilots_and_ambiguous_chunks():
+    signed = {
+        "job_signature": {"source_batch_size": 10, "num_steps": 100},
+        "offset": 0,
+        "batch_size": 10,
+        "num_steps": 100,
+    }
+    assert _status_matches_analysis_plan(signed, source_batch_size=10, num_steps=100)
+    assert not _status_matches_analysis_plan(signed, source_batch_size=4, num_steps=100)
+    assert not _status_matches_analysis_plan(signed, source_batch_size=10, num_steps=200)
+
+    legacy_full_batch = {"offset": 0, "batch_size": 4, "num_steps": 100}
+    legacy_chunk = {"offset": 0, "batch_size": 2, "num_steps": 100}
+    assert _status_matches_analysis_plan(
+        legacy_full_batch, source_batch_size=4, num_steps=100
+    )
+    assert not _status_matches_analysis_plan(
+        legacy_chunk, source_batch_size=4, num_steps=100
+    )
+
+
+def test_hard_inverse_winner_respects_per_distribution_guardrails():
+    def row(candidate, robust, residual, solution, *, rough_residual=None):
+        result = {
+            "pde": "poisson",
+            "candidate": candidate,
+            "robust_score": robust,
+            "pde_residual_norm_mean": residual,
+            "rel_l2_u_mean": solution,
+        }
+        for test_type in ("id", "smooth", "rough"):
+            result[f"pde_residual_norm_mean_{test_type}"] = residual
+            result[f"rel_l2_u_mean_{test_type}"] = solution
+        if rough_residual is not None:
+            result["pde_residual_norm_mean_rough"] = rough_residual
+        return result
+
+    summaries = [
+        row("baseline", 1.0, 1.0, 1.0),
+        row("hidden_rough_regression", 0.3, 1.1, 0.8, rough_residual=1.3),
+        row("unsafe_residual", 0.4, 1.3, 0.8),
+        row("unsafe_solution", 0.5, 0.9, 1.1),
+        row("eligible", 0.6, 1.2, 1.0),
+    ]
+    winner = select_winners(summaries, ["poisson"])[0]
+
+    assert winner["candidate"] == "eligible"
+    assert winner["passes_guardrails"] is True
+
+
+def test_hard_inverse_a100_plan_splits_pdes_between_servers():
+    server_zero = _run_plan(
+        "scripts/tuning/run_hard_inverse_a100.sh",
+        {"SERVER_RANK": "0", "PLAN_ONLY": "true"},
+    )
+    server_one = _run_plan(
+        "scripts/tuning/run_hard_inverse_a100.sh",
+        {"SERVER_RANK": "1", "PLAN_ONLY": "true"},
+    )
+
+    # The A100 launcher prints a shell-escaped COMMAND rather than per-job PLAN rows.
+    assert server_zero == []
+    assert server_one == []
+    output_zero = subprocess.run(
+        ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
+        check=True,
+        text=True,
+        capture_output=True,
+        env={**os.environ, "SERVER_RANK": "0", "PLAN_ONLY": "true"},
+    ).stdout
+    output_one = subprocess.run(
+        ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
+        check=True,
+        text=True,
+        capture_output=True,
+        env={**os.environ, "SERVER_RANK": "1", "PLAN_ONLY": "true"},
+    ).stdout
+    assert "--pdes poisson\\,helmholtz" in output_zero
+    assert "--pdes darcy\\,nsnonbounded" in output_one

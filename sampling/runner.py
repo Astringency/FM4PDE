@@ -26,7 +26,10 @@ from sampling.state import SplitState, standardized_to_physical_state
 from sampling.time_grid import affine_coefficients, make_time_grid, scheduler_coefficients
 
 
-def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
+def run_single_ablation(
+    config: AblationConfig,
+    checkpoint_bundle: tuple[Any, Any, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     config = finalize_ground_truth_config(config)
     config.validate()
     _disable_unreliable_pde_guidance(config)
@@ -99,7 +102,7 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
         net = _ZeroVelocityModel()
         normalizer = _identity_normalizer(gt)
         checkpoint_payload: dict[str, Any] = {}
-    else:
+    elif checkpoint_bundle is None:
         net, normalizer, checkpoint_payload = load_fm4pde_checkpoint_bundle(
             config.checkpoint_path,
             config.pde,
@@ -107,6 +110,8 @@ def run_single_ablation(config: AblationConfig) -> dict[str, Any]:
             wrap=True,
             model_profile=config.model_profile,
         )
+    else:
+        net, normalizer, checkpoint_payload = checkpoint_bundle
     checkpoint_metadata = _checkpoint_metadata(checkpoint_payload)
     scalar_extra, scalar_conditioning_metadata = _scalar_conditioning_for_sampling(
         checkpoint_payload=checkpoint_payload,

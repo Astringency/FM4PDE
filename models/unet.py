@@ -259,7 +259,7 @@ class ResBlock(TimestepBlock):
             self._forward,
             (x, emb),
             self.parameters(),
-            self.use_checkpoint and self.training,
+            self.use_checkpoint and torch.is_grad_enabled(),
         )
 
     def _forward(self, x, emb):
@@ -320,7 +320,7 @@ class AttentionBlock(nn.Module):
             self._forward,
             (x,),
             self.parameters(),
-            self.use_checkpoint and self.training,
+            self.use_checkpoint and torch.is_grad_enabled(),
         )
 
     def _forward(self, x):
