@@ -33,6 +33,7 @@ from data.scalar_conditioning import (
     standardize_scalar_conditioning,
 )
 from data.specs import get_pde_spec
+from data.training_manifest import load_training_file_manifest
 from data.transform import PDEStandardizer
 from models.model_configs import (
     get_model_config,
@@ -189,6 +190,18 @@ def main(args):
     cudnn.benchmark = True
 
     pde_names = args.dataset.split("-")
+    train_files_by_pde = None
+    if getattr(args, "train_data_config", None):
+        train_files_by_pde = load_training_file_manifest(
+            args.train_data_config,
+            data_root=args.data_path,
+            pde_names=pde_names,
+        )
+        logger.info(
+            "Using explicit training files from %s: %s",
+            args.train_data_config,
+            {name: [str(path) for path in paths] for name, paths in train_files_by_pde.items()},
+        )
     (
         data,
         label,
@@ -204,6 +217,7 @@ def main(args):
         max_train_samples=args.max_train_samples,
         rd_init_mode_filter=args.rd_init_mode_filter,
         seed=args.seed,
+        train_files_by_pde=train_files_by_pde,
     )
     num_channels = int(data.shape[1])
     requested_scalar_conditioning_params = _normalize_scalar_conditioning_params(
@@ -775,6 +789,10 @@ def _build_data_metadata(
         "pde_data_specs": specs,
         "data_path": args.data_path,
         "data_size": args.data_size,
+        "train_data_config": getattr(args, "train_data_config", None),
+        "training_data_selection": (
+            "explicit_manifest" if getattr(args, "train_data_config", None) else "automatic"
+        ),
         "max_train_samples": args.max_train_samples,
         "data_shape": [int(dim) for dim in data.shape],
         "num_channels": int(data.shape[1]),
@@ -897,6 +915,7 @@ def _load_training_data(
     data_size: int = 5,
     max_train_samples: int | None = None,
     rd_init_mode_filter: str | None = None,
+    train_files_by_pde: dict[str, list[str | Path]] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
     dataset_list = []
     label_list = []
@@ -906,11 +925,14 @@ def _load_training_data(
 
     for pde_name in pde_names:
         logger.info(f">>> Initializing Dataset: {pde_name} <<<")
-        pde_loader = PDEloader(pde_name)
-        load_kwargs = {"size": data_size, "max_samples": max_train_samples}
-        if pde_name == "reaction_diffusion" and rd_init_mode_filter is not None:
-            load_kwargs["rd_init_mode_filter"] = rd_init_mode_filter
-        dataset, label = pde_loader.load_data(data_path, **load_kwargs)
+        dataset, label, pde_loader = _load_pde_training_dataset(
+            pde_name=pde_name,
+            data_path=data_path,
+            data_size=data_size,
+            max_train_samples=max_train_samples,
+            rd_init_mode_filter=rd_init_mode_filter,
+            train_files_by_pde=train_files_by_pde,
+        )
         if dataset.ndim != 4:
             raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
         channel_counts[pde_name] = int(dataset.shape[1])
@@ -945,6 +967,7 @@ def _load_training_and_validation_data(
     max_train_samples: int | None = None,
     rd_init_mode_filter: str | None = None,
     seed: int = 0,
+    train_files_by_pde: dict[str, list[str | Path]] | None = None,
 ) -> tuple[
     torch.Tensor,
     torch.Tensor,
@@ -967,11 +990,14 @@ def _load_training_and_validation_data(
 
     for pde_name in pde_names:
         logger.info(f">>> Initializing Dataset: {pde_name} <<<")
-        pde_loader = PDEloader(pde_name)
-        load_kwargs = {"size": data_size, "max_samples": max_train_samples}
-        if pde_name == "reaction_diffusion" and rd_init_mode_filter is not None:
-            load_kwargs["rd_init_mode_filter"] = rd_init_mode_filter
-        dataset, label = pde_loader.load_data(data_path, **load_kwargs)
+        dataset, label, pde_loader = _load_pde_training_dataset(
+            pde_name=pde_name,
+            data_path=data_path,
+            data_size=data_size,
+            max_train_samples=max_train_samples,
+            rd_init_mode_filter=rd_init_mode_filter,
+            train_files_by_pde=train_files_by_pde,
+        )
         if dataset.ndim != 4:
             raise ValueError(f"{pde_name} loader returned non-BCHW data: {tuple(dataset.shape)}")
         loader_meta = pde_loader.metadata()
@@ -1037,6 +1063,36 @@ def _load_training_and_validation_data(
     )
 
 
+def _load_pde_training_dataset(
+    *,
+    pde_name: str,
+    data_path: str,
+    data_size: int,
+    max_train_samples: int | None,
+    rd_init_mode_filter: str | None,
+    train_files_by_pde: dict[str, list[str | Path]] | None,
+) -> tuple[torch.Tensor, torch.Tensor, PDEloader]:
+    pde_loader = PDEloader(pde_name)
+    load_kwargs: dict[str, Any] = {"max_samples": max_train_samples}
+    if pde_name == "reaction_diffusion" and rd_init_mode_filter is not None:
+        load_kwargs["rd_init_mode_filter"] = rd_init_mode_filter
+
+    if train_files_by_pde is None:
+        dataset, label = pde_loader.load_data(data_path, size=data_size, **load_kwargs)
+        return dataset, label, pde_loader
+
+    if pde_name not in train_files_by_pde:
+        raise ValueError(f"Explicit training data has no file list for requested PDE {pde_name!r}")
+    file_paths = train_files_by_pde[pde_name]
+    logger.info(
+        "Loading %d explicitly selected training file(s) for %s; --data_size is ignored",
+        len(file_paths),
+        pde_name,
+    )
+    dataset, label = pde_loader.load_data_files(file_paths, **load_kwargs)
+    return dataset, label, pde_loader
+
+
 def _train_val_split_indices(
     num_samples: int,
     seed: int,
@@ -1076,6 +1132,11 @@ def _slice_loader_metadata(metadata: dict[str, Any], indices: torch.Tensor) -> d
     sliced = dict(metadata or {})
     count = int(indices.numel())
     index = indices.detach().cpu().long()
+    original_count = (
+        int(metadata.get("num_loaded_samples") or 0)
+        if isinstance(metadata, dict)
+        else 0
+    )
     if isinstance(sliced.get("pde_params"), dict):
         sliced["pde_params"] = {
             name: _slice_sample_aligned_value(value, index)
@@ -1084,7 +1145,11 @@ def _slice_loader_metadata(metadata: dict[str, Any], indices: torch.Tensor) -> d
     extra = sliced.get("extra_metadata")
     if isinstance(extra, dict):
         sliced["extra_metadata"] = {
-            name: _slice_sample_aligned_value(value, index)
+            name: (
+                _slice_sample_aligned_value(value, index)
+                if _is_sample_aligned_extra_value(name, value, original_count)
+                else value
+            )
             for name, value in extra.items()
         }
     sliced["num_loaded_samples"] = count
@@ -1092,6 +1157,27 @@ def _slice_loader_metadata(metadata: dict[str, Any], indices: torch.Tensor) -> d
     if isinstance(extra, dict):
         sliced.setdefault("extra_metadata", {})["num_loaded_samples"] = count
     return sliced
+
+
+def _is_sample_aligned_extra_value(name: str, value: Any, sample_count: int) -> bool:
+    if name in {
+        "channel_names",
+        "configured_files",
+        "detected_init_modes",
+        "file_paths",
+        "per_file_metadata",
+        "selected_files",
+    }:
+        return False
+    if sample_count < 1:
+        return False
+    if isinstance(value, torch.Tensor):
+        return value.ndim > 0 and int(value.shape[0]) == sample_count
+    if isinstance(value, np.ndarray):
+        return value.ndim > 0 and int(value.shape[0]) == sample_count
+    if isinstance(value, (list, tuple)):
+        return len(value) == sample_count
+    return False
 
 
 def _slice_sample_aligned_value(value: Any, indices: torch.Tensor) -> Any:

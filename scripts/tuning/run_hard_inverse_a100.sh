@@ -23,6 +23,8 @@ NUM_STEPS="${NUM_STEPS:-100}"
 DEVICE="${DEVICE:-cuda:0}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 PLAN_ONLY="${PLAN_ONLY:-false}"
+CANDIDATE_SET="${CANDIDATE_SET:-initial}"
+ANALYSIS_LABEL="${ANALYSIS_LABEL:-}"
 
 if [[ -n "${PDE_LIST:-}" ]]; then
     selected_pdes="${PDE_LIST}"
@@ -40,6 +42,11 @@ case "${PHASE}" in
     *) echo "PHASE must be tune, holdout, all, or analyze" >&2; exit 2 ;;
 esac
 
+case "${CANDIDATE_SET}" in
+    initial|refined) ;;
+    *) echo "CANDIDATE_SET must be initial or refined" >&2; exit 2 ;;
+esac
+
 manifest="${ARTIFACT_ROOT}/hard_samples.csv"
 if [[ ! -f "${manifest}" ]]; then
     echo "Missing ${manifest}. Run scripts/tuning/prepare_hard_inverse_samples.py first." >&2
@@ -54,6 +61,8 @@ for pde in "${pdes[@]}"; do
         holdout="${ARTIFACT_ROOT}/subsets/holdout/${pde}_${test_type}.mat"
         if [[ ! -f "${subset}" || ! -f "${holdout}" ]]; then
             echo "Missing hard-sample subsets for ${pde}/${test_type}." >&2
+            echo "The binary subsets are ignored by git. Copy/extract hard_inverse_inputs.tar.gz," >&2
+            echo "or run scripts/tuning/prepare_hard_inverse_samples.py on this server." >&2
             exit 2
         fi
     done
@@ -74,12 +83,16 @@ command=(
     --samples-per-test-type "${SAMPLES_PER_TEST_TYPE}"
     --num-steps "${NUM_STEPS}"
     --device "${DEVICE}"
+    --candidate-set "${CANDIDATE_SET}"
     "${microbatch_args[@]}"
 )
+if [[ -n "${ANALYSIS_LABEL}" ]]; then
+    command+=(--analysis-label "${ANALYSIS_LABEL}")
+fi
 
-printf 'A100 hard tuning: rank=%s pdes=%s phase=%s samples/test=%s steps=%s device=%s\n' \
+printf 'A100 hard tuning: rank=%s pdes=%s phase=%s candidates=%s samples/test=%s steps=%s device=%s\n' \
     "${SERVER_RANK:-custom}" "${selected_pdes}" "${PHASE}" \
-    "${SAMPLES_PER_TEST_TYPE}" "${NUM_STEPS}" "${DEVICE}"
+    "${CANDIDATE_SET}" "${SAMPLES_PER_TEST_TYPE}" "${NUM_STEPS}" "${DEVICE}"
 printf 'COMMAND'
 printf ' %q' "${command[@]}"
 printf '\n'

@@ -9,6 +9,12 @@ from scripts.tuning.run_hard_inverse_tuning import (
     chunk_plan,
     select_winners,
 )
+from scripts.tuning.prepare_balanced_sampling_samples import _select_strata
+from scripts.tuning.run_balanced_sampling_tuning import (
+    _scope_stats as balanced_scope_stats,
+    analysis_path as balanced_analysis_path,
+    candidates_for as balanced_candidates_for,
+)
 from scripts.tuning.select_inverse_params import select_rows
 
 
@@ -179,6 +185,119 @@ def test_hard_inverse_grid_brackets_the_previous_upper_boundary():
     assert ns["clip_double"]["clip_threshold"] == 2 * ns["baseline"]["clip_threshold"]
 
 
+def test_hard_inverse_refined_grid_targets_observed_frontiers():
+    poisson = {row["candidate"]: row for row in candidates_for("poisson", "refined")}
+    helmholtz = {row["candidate"]: row for row in candidates_for("helmholtz", "refined")}
+    darcy = {row["candidate"]: row for row in candidates_for("darcy", "refined")}
+    ns = {row["candidate"]: row for row in candidates_for("nsnonbounded", "refined")}
+
+    assert poisson["obs_12x"]["zeta_obs_u"] == 12 * poisson["baseline"]["zeta_obs_u"]
+    assert helmholtz["obs_24x"]["zeta_obs_u"] == 24 * helmholtz["baseline"]["zeta_obs_u"]
+    assert darcy["obs_64x_clip100"]["clip_threshold"] == 100.0
+    assert darcy["obs_64x_clip100_pde2x"]["zeta_pde"] == 2 * darcy["baseline"]["zeta_pde"]
+    assert ns["clip_150"]["clip_threshold"] == 150.0
+    assert ns["obs_half_clip100"]["zeta_obs_u"] == ns["baseline"]["zeta_obs_u"] / 2
+
+
+def test_balanced_grid_covers_all_tasks_and_prior_inverse_frontiers():
+    for pde in ("poisson", "helmholtz", "darcy", "nsnonbounded"):
+        for task in ("both", "forward", "inverse"):
+            candidates = balanced_candidates_for(pde, task)
+            assert candidates[0]["candidate"] == "baseline"
+            assert len({candidate["candidate"] for candidate in candidates}) == len(candidates)
+
+    poisson_inverse = {
+        row["candidate"]: row for row in balanced_candidates_for("poisson", "inverse")
+    }
+    darcy_inverse = {
+        row["candidate"]: row for row in balanced_candidates_for("darcy", "inverse")
+    }
+    ns_inverse = {
+        row["candidate"]: row for row in balanced_candidates_for("nsnonbounded", "inverse")
+    }
+    assert poisson_inverse["obs_14x"]["zeta_obs_u"] == 14 * poisson_inverse["baseline"]["zeta_obs_u"]
+    assert darcy_inverse["obs_64x_clip100"]["clip_threshold"] == 100.0
+    assert ns_inverse["clip_125"]["clip_threshold"] == 125.0
+
+
+def test_balanced_sample_selection_is_disjoint_and_deterministic():
+    rows = [
+        {
+            "sample_id": str(index),
+            "rel_l2_a": str(index + 1),
+            "rel_l2_u": str(200 - index),
+        }
+        for index in range(100)
+    ]
+    first = _select_strata(
+        rows,
+        pde="poisson",
+        task="forward",
+        test_type="id",
+        tail_count=4,
+        random_count=8,
+    )
+    second = _select_strata(
+        rows,
+        pde="poisson",
+        task="forward",
+        test_type="id",
+        tail_count=4,
+        random_count=8,
+    )
+    assert [(item[0], item[2]["sample_id"]) for item in first] == [
+        (item[0], item[2]["sample_id"]) for item in second
+    ]
+    assert len(first) == len({item[2]["sample_id"] for item in first}) == 16
+    assert [item[2]["sample_id"] for item in first if item[0] == "hard"] == [
+        "0",
+        "1",
+        "2",
+        "3",
+    ]
+
+
+def test_balanced_both_scope_requires_both_sides_to_improve():
+    baseline = [
+        {
+            "test_type": "id",
+            "subset_index": index,
+            "rel_l2_a": 1.0,
+            "rel_l2_u": 1.0,
+            "pde_residual_norm": 1.0,
+        }
+        for index in range(2)
+    ]
+    candidate = [
+        {
+            **row,
+            "rel_l2_a": 0.8,
+            "rel_l2_u": 1.1 if index == 0 else 0.9,
+        }
+        for index, row in enumerate(baseline)
+    ]
+    stats = balanced_scope_stats(candidate, baseline, "both")
+    assert stats["primary_mean_ratio"] == 1.0
+    assert stats["primary_win_rate"] == 0.5
+
+
+def test_balanced_analysis_paths_scope_distributed_servers_and_tasks(tmp_path):
+    assert balanced_analysis_path(
+        tmp_path,
+        "selected_params",
+        ["poisson", "helmholtz"],
+        ["both", "forward", "inverse"],
+        "round3",
+    ) == tmp_path / "selected_params_poisson_helmholtz_round3.csv"
+    assert balanced_analysis_path(
+        tmp_path,
+        "selected_params",
+        ["poisson"],
+        ["inverse"],
+        "round3",
+    ) == tmp_path / "selected_params_poisson_inverse_round3.csv"
+
+
 def test_hard_inverse_chunking_and_scoped_analysis_paths(tmp_path):
     assert chunk_plan(10, 4) == [(0, 4), (4, 4), (8, 2)]
     assert analysis_path(tmp_path, "selected_params", ["poisson"]) == (
@@ -189,6 +308,9 @@ def test_hard_inverse_chunking_and_scoped_analysis_paths(tmp_path):
         "selected_params",
         ["nsnonbounded", "poisson", "darcy", "helmholtz"],
     ) == (tmp_path / "selected_params.csv")
+    assert analysis_path(tmp_path, "selected_params", ["poisson"], "round2") == (
+        tmp_path / "selected_params_poisson_round2.csv"
+    )
 
 
 def test_hard_inverse_resume_rejects_changed_or_unprovable_jobs(tmp_path):
@@ -304,3 +426,19 @@ def test_hard_inverse_a100_plan_splits_pdes_between_servers():
     ).stdout
     assert "--pdes poisson\\,helmholtz" in output_zero
     assert "--pdes darcy\\,nsnonbounded" in output_one
+
+    refined = subprocess.run(
+        ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
+        check=True,
+        text=True,
+        capture_output=True,
+        env={
+            **os.environ,
+            "SERVER_RANK": "0",
+            "PLAN_ONLY": "true",
+            "CANDIDATE_SET": "refined",
+            "ANALYSIS_LABEL": "round2",
+        },
+    ).stdout
+    assert "--candidate-set refined" in refined
+    assert "--analysis-label round2" in refined

@@ -234,6 +234,16 @@ def get_args_parser():
         help="Number of training shards/files to read per PDE.",
     )
     parser.add_argument(
+        "--train_data_config",
+        default=None,
+        type=str,
+        help=(
+            "Optional YAML manifest that explicitly lists training files. Relative file names "
+            "are resolved against --data_path. When omitted, the existing automatic file "
+            "discovery and --data_size behavior is preserved."
+        ),
+    )
+    parser.add_argument(
         "--max_train_samples",
         default=None,
         type=int,

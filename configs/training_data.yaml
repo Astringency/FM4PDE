@@ -1,0 +1,83 @@
+# Explicit formal training-data manifest.
+#
+# Every path is relative to --data_path. These names match the default outputs
+# of data/DataGen/gen_pde.sh: five training shards with 10,000 samples each.
+# Only the entry for the PDE(s) selected by --dataset is resolved and loaded.
+
+train_files:
+  darcy:
+    - darcy/darcy_10000-128-128_1.mat
+    - darcy/darcy_10000-128-128_2.mat
+    - darcy/darcy_10000-128-128_3.mat
+    - darcy/darcy_10000-128-128_4.mat
+    - darcy/darcy_10000-128-128_5.mat
+
+  poisson:
+    - poisson/poisson_10000-128-128_1.mat
+    - poisson/poisson_10000-128-128_2.mat
+    - poisson/poisson_10000-128-128_3.mat
+    - poisson/poisson_10000-128-128_4.mat
+    - poisson/poisson_10000-128-128_5.mat
+
+  helmholtz:
+    - helmholtz/helmholtz_10000-128-128_1.mat
+    - helmholtz/helmholtz_10000-128-128_2.mat
+    - helmholtz/helmholtz_10000-128-128_3.mat
+    - helmholtz/helmholtz_10000-128-128_4.mat
+    - helmholtz/helmholtz_10000-128-128_5.mat
+
+  nsnonbounded:
+    - nsnonbounded/nsnonbounded_10000-128-128-10_1_new.mat
+    - nsnonbounded/nsnonbounded_10000-128-128-10_2_new.mat
+    - nsnonbounded/nsnonbounded_10000-128-128-10_3_new.mat
+    - nsnonbounded/nsnonbounded_10000-128-128-10_4_new.mat
+    - nsnonbounded/nsnonbounded_10000-128-128-10_5_new.mat
+
+  burger:
+    - burgers/burger_10000-128-128_1.mat
+    - burgers/burger_10000-128-128_2.mat
+    - burgers/burger_10000-128-128_3.mat
+    - burgers/burger_10000-128-128_4.mat
+    - burgers/burger_10000-128-128_5.mat
+
+  reaction_diffusion:
+    - reaction_diffusion/reaction_diffusion_grf_10000-128-128-T1-steps10_1.h5
+    - reaction_diffusion/reaction_diffusion_grf_10000-128-128-T1-steps10_2.h5
+    - reaction_diffusion/reaction_diffusion_grf_10000-128-128-T1-steps10_3.h5
+    - reaction_diffusion/reaction_diffusion_grf_10000-128-128-T1-steps10_4.h5
+    - reaction_diffusion/reaction_diffusion_grf_10000-128-128-T1-steps10_5.h5
+
+  shallow_water:
+    - shallow_water/2d_swe_128_128_10_0.h5
+    - shallow_water/2d_swe_128_128_10_1.h5
+    - shallow_water/2d_swe_128_128_10_2.h5
+    - shallow_water/2d_swe_128_128_10_3.h5
+    - shallow_water/2d_swe_128_128_10_4.h5
+
+  heat:
+    - heat/heat_10000-128-128_1.h5
+    - heat/heat_10000-128-128_2.h5
+    - heat/heat_10000-128-128_3.h5
+    - heat/heat_10000-128-128_4.h5
+    - heat/heat_10000-128-128_5.h5
+
+  wave:
+    - wave/wave_10000-128-128_1.h5
+    - wave/wave_10000-128-128_2.h5
+    - wave/wave_10000-128-128_3.h5
+    - wave/wave_10000-128-128_4.h5
+    - wave/wave_10000-128-128_5.h5
+
+  advection_diffusion:
+    - advection_diffusion/advection_diffusion_10000-128-128_1.h5
+    - advection_diffusion/advection_diffusion_10000-128-128_2.h5
+    - advection_diffusion/advection_diffusion_10000-128-128_3.h5
+    - advection_diffusion/advection_diffusion_10000-128-128_4.h5
+    - advection_diffusion/advection_diffusion_10000-128-128_5.h5
+
+  steady_heat_conduction:
+    - steady_heat_conduction/steady_heat_conduction_10000-128-128_1.h5
+    - steady_heat_conduction/steady_heat_conduction_10000-128-128_2.h5
+    - steady_heat_conduction/steady_heat_conduction_10000-128-128_3.h5
+    - steady_heat_conduction/steady_heat_conduction_10000-128-128_4.h5
+    - steady_heat_conduction/steady_heat_conduction_10000-128-128_5.h5

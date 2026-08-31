@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import statistics
 import subprocess
 import sys
@@ -37,8 +38,80 @@ MAX_PDE_RESIDUAL_RATIO = 1.25
 MAX_SOLUTION_ERROR_RATIO = 1.05
 
 
-def candidates_for(pde: str) -> list[dict[str, Any]]:
+def candidates_for(pde: str, candidate_set: str = "initial") -> list[dict[str, Any]]:
     base = BASELINES[pde]
+    if candidate_set == "refined":
+        if pde == "poisson":
+            return [
+                {"candidate": "baseline", **base},
+                {"candidate": "obs_10x", **base, "zeta_obs_u": base["zeta_obs_u"] * 10.0},
+                {"candidate": "obs_12x", **base, "zeta_obs_u": base["zeta_obs_u"] * 12.0},
+                {"candidate": "obs_14x", **base, "zeta_obs_u": base["zeta_obs_u"] * 14.0},
+            ]
+        if pde == "helmholtz":
+            return [
+                {"candidate": "baseline", **base},
+                {"candidate": "obs_20x", **base, "zeta_obs_u": base["zeta_obs_u"] * 20.0},
+                {"candidate": "obs_24x", **base, "zeta_obs_u": base["zeta_obs_u"] * 24.0},
+                {"candidate": "obs_28x", **base, "zeta_obs_u": base["zeta_obs_u"] * 28.0},
+            ]
+        if pde == "darcy":
+            return [
+                {"candidate": "baseline", **base},
+                {
+                    "candidate": "obs_32x_clip75",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] * 32.0,
+                    "clip_threshold": 75.0,
+                },
+                {
+                    "candidate": "obs_32x_clip100",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] * 32.0,
+                    "clip_threshold": 100.0,
+                },
+                {
+                    "candidate": "obs_64x_clip75",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] * 64.0,
+                    "clip_threshold": 75.0,
+                },
+                {
+                    "candidate": "obs_64x_clip100",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] * 64.0,
+                    "clip_threshold": 100.0,
+                },
+                {
+                    "candidate": "obs_64x_clip100_pde2x",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] * 64.0,
+                    "zeta_pde": base["zeta_pde"] * 2.0,
+                    "clip_threshold": 100.0,
+                },
+            ]
+        if pde == "nsnonbounded":
+            return [
+                {"candidate": "baseline", **base},
+                {"candidate": "clip_125", **base, "clip_threshold": 125.0},
+                {"candidate": "clip_150", **base, "clip_threshold": 150.0},
+                {"candidate": "clip_200", **base, "clip_threshold": 200.0},
+                {
+                    "candidate": "obs_half_clip100",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] / 2.0,
+                    "clip_threshold": 100.0,
+                },
+                {
+                    "candidate": "obs_double_clip100",
+                    **base,
+                    "zeta_obs_u": base["zeta_obs_u"] * 2.0,
+                    "clip_threshold": 100.0,
+                },
+            ]
+        raise ValueError(f"Unsupported PDE for refined candidates: {pde}")
+    if candidate_set != "initial":
+        raise ValueError(f"Unknown candidate set: {candidate_set}")
     if pde == "nsnonbounded":
         return [
             {"candidate": "obs_half", **base, "zeta_obs_u": base["zeta_obs_u"] / 2.0},
@@ -132,10 +205,14 @@ def chunk_plan(sample_count: int, microbatch: int) -> list[tuple[int, int]]:
     return [(offset, min(microbatch, sample_count - offset)) for offset in range(0, sample_count, microbatch)]
 
 
-def analysis_path(root: Path, stem: str, pdes: list[str]) -> Path:
+def analysis_path(root: Path, stem: str, pdes: list[str], label: str = "") -> Path:
     """Keep partial/distributed analyses from overwriting one another."""
     selected = [pde for pde in PDES if pde in set(pdes)]
     suffix = "" if selected == list(PDES) else "_" + "_".join(selected)
+    if label:
+        if re.fullmatch(r"[A-Za-z0-9_-]+", label) is None:
+            raise ValueError(f"Invalid analysis label: {label!r}")
+        suffix += "_" + label
     return root / f"{stem}{suffix}.csv"
 
 
@@ -511,6 +588,7 @@ def analyze_tune(
     pdes: list[str],
     sample_count: int,
     num_steps: int,
+    analysis_label: str = "",
 ) -> list[dict[str, Any]]:
     rows = [
         row for row in collect_phase_rows(
@@ -522,11 +600,11 @@ def analyze_tune(
         )
         if row["pde"] in pdes and int(row["subset_index"]) < sample_count
     ]
-    write_csv(analysis_path(root, "tune_per_sample", pdes), rows)
+    write_csv(analysis_path(root, "tune_per_sample", pdes, analysis_label), rows)
     summaries = summarize_tune(rows, pdes, sample_count)
     winners = select_winners(summaries, pdes)
-    write_csv(analysis_path(root, "tune_summary", pdes), summaries)
-    selected_path = analysis_path(root, "selected_params", pdes)
+    write_csv(analysis_path(root, "tune_summary", pdes, analysis_label), summaries)
+    selected_path = analysis_path(root, "selected_params", pdes, analysis_label)
     write_csv(selected_path, winners)
     selected_path.with_suffix(".json").write_text(json.dumps(winners, indent=2), encoding="utf-8")
     for row in winners:
@@ -555,6 +633,7 @@ def analyze_holdout(
     sample_count: int,
     num_steps: int,
     winners: list[dict[str, Any]],
+    analysis_label: str = "",
 ) -> None:
     rows = [
         row for row in collect_phase_rows(
@@ -566,7 +645,7 @@ def analyze_holdout(
         )
         if row["pde"] in pdes and int(row["subset_index"]) < sample_count
     ]
-    write_csv(analysis_path(root, "holdout_per_sample", pdes), rows)
+    write_csv(analysis_path(root, "holdout_per_sample", pdes, analysis_label), rows)
     lookup = {
         (row["pde"], row["candidate"], row["test_type"], row["subset_index"]): row
         for row in rows
@@ -629,7 +708,7 @@ def analyze_holdout(
         )
         for row in comparisons[pde_start:]:
             row["validated_across_test_types"] = validated
-    write_csv(analysis_path(root, "holdout_comparison", pdes), comparisons)
+    write_csv(analysis_path(root, "holdout_comparison", pdes, analysis_label), comparisons)
     for row in comparisons:
         if row["test_type"] == "all":
             print(
@@ -655,6 +734,7 @@ def run_phase(
     resume: bool,
     winners: list[dict[str, Any]] | None = None,
     in_process: bool = True,
+    candidate_set: str = "initial",
 ) -> None:
     winner_map = {} if winners is None else {row["pde"]: candidate_from_winner(row) for row in winners}
     for pde in pdes:
@@ -669,7 +749,7 @@ def run_phase(
                 str(checkpoint), pde, device=torch.device(device), wrap=True
             )
         if phase == "tune":
-            candidates = candidates_for(pde)
+            candidates = candidates_for(pde, candidate_set)
             split = "tune"
         else:
             winner = winner_map[pde]
@@ -720,6 +800,8 @@ def main() -> None:
     parser.add_argument("--microbatch", action="append", default=[], help="Override as pde=N")
     parser.add_argument("--no-resume", action="store_true")
     parser.add_argument("--subprocess", action="store_true", help="Reload the checkpoint in an isolated process per job")
+    parser.add_argument("--candidate-set", choices=("initial", "refined"), default="initial")
+    parser.add_argument("--analysis-label", default="")
     args = parser.parse_args()
     if args.samples_per_test_type < 1 or args.samples_per_test_type > 10:
         parser.error("--samples-per-test-type must be in [1, 10]")
@@ -742,6 +824,7 @@ def main() -> None:
             device=args.device,
             resume=not args.no_resume,
             in_process=not args.subprocess,
+            candidate_set=args.candidate_set,
         )
     winners = analyze_tune(
         root,
@@ -749,6 +832,7 @@ def main() -> None:
         pdes,
         args.samples_per_test_type,
         args.num_steps,
+        args.analysis_label,
     )
     if args.phase in {"holdout", "all"}:
         run_phase(
@@ -762,6 +846,7 @@ def main() -> None:
             resume=not args.no_resume,
             winners=winners,
             in_process=not args.subprocess,
+            candidate_set=args.candidate_set,
         )
         analyze_holdout(
             root,
@@ -770,6 +855,7 @@ def main() -> None:
             args.samples_per_test_type,
             args.num_steps,
             winners,
+            args.analysis_label,
         )
     elif args.phase == "analyze" and any((root / "runs" / "holdout").rglob("job.json")):
         analyze_holdout(
@@ -779,6 +865,7 @@ def main() -> None:
             args.samples_per_test_type,
             args.num_steps,
             winners,
+            args.analysis_label,
         )
 
 

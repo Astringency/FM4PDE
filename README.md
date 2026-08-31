@@ -411,6 +411,31 @@ python train.py \
 
 The selected scalar names and train-set mean/std are written to `data_metadata.json` and checkpoint `data_metadata`. Periodic eval and sampling derive runtime scalar values from the current validation/test ground-truth `pde_params`, standardize them with the checkpoint/train statistics, and pass them through `extra["scalar_conditioning"]`.
 
+Training files can optionally be selected explicitly with a YAML manifest. Relative
+file names are resolved against `--data_path`; absolute file names are used directly.
+One manifest can contain entries for every PDE:
+
+```yaml
+train_files:
+  heat:
+    - heat/heat_10000-128-128_0.h5
+    - heat/heat_10000-128-128_1.h5
+  poisson:
+    - poisson/poisson_10000-128-128_1.mat
+```
+
+```bash
+python train.py \
+  --dataset heat \
+  --data_path /large_storage/zhangxf/PDEdata/ \
+  --train_data_config configs/training_data.yaml
+```
+
+For a single-PDE run, `train_files` may be a list directly. The manifest file order
+is preserved, `--max_train_samples` caps the combined files, and `--data_size` is
+ignored because the file set is explicit. If `--train_data_config` is omitted,
+training keeps the existing automatic discovery and `--data_size` behavior.
+
 ## Data Generation
 
 Endpoint pair HDF5 generation:

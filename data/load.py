@@ -13,6 +13,88 @@ from data.specs import get_pde_spec
 
 DEFAULT_TRAIN_SHARDS = 5
 
+_SAMPLE_ALIGNED_EXTRA_KEYS = {
+    "sample_id",
+    "sample_seed",
+    "init_mode",
+    "boundary_condition",
+}
+_EXPLICIT_EXTRA_SKIP_KEYS = {
+    "configured_files",
+    "data_selection",
+    "file_paths",
+    "num_loaded_samples",
+    "selected_file_format",
+    "selected_files",
+}
+
+
+def _merge_explicit_extra_metadata(chunks):
+    entries = [
+        (chunk_loader.extra_metadata or {}, int(data.shape[0]), str(file_path))
+        for chunk_loader, data, _labels, file_path in chunks
+    ]
+    keys = sorted(
+        set().union(*(set(metadata) for metadata, _count, _path in entries))
+        - _EXPLICIT_EXTRA_SKIP_KEYS
+    )
+    merged = {}
+    per_file = {}
+    for key in keys:
+        values = [metadata.get(key) for metadata, _count, _path in entries]
+        present = [key in metadata for metadata, _count, _path in entries]
+        if key in _SAMPLE_ALIGNED_EXTRA_KEYS and all(present):
+            aligned = [
+                _sample_aligned_list(value, count)
+                for value, (_metadata, count, _path) in zip(values, entries)
+            ]
+            if all(value is not None for value in aligned):
+                merged[key] = [item for value in aligned for item in value]
+                continue
+        plain_values = [_metadata_to_plain(value) for value in values]
+        if all(present) and all(value == plain_values[0] for value in plain_values[1:]):
+            merged[key] = plain_values[0]
+            continue
+        per_file[key] = [
+            {"file_path": path, "value": plain_value if is_present else None}
+            for plain_value, is_present, (_metadata, _count, path) in zip(
+                plain_values,
+                present,
+                entries,
+            )
+        ]
+    if per_file:
+        merged["per_file_metadata"] = per_file
+    return merged
+
+
+def _sample_aligned_list(value, count):
+    if isinstance(value, torch.Tensor):
+        if value.ndim > 0 and int(value.shape[0]) == int(count):
+            return value.detach().cpu().tolist()
+        return None
+    if isinstance(value, np.ndarray):
+        if value.ndim > 0 and int(value.shape[0]) == int(count):
+            return value.tolist()
+        return None
+    if isinstance(value, (list, tuple)) and len(value) == int(count):
+        return [_metadata_to_plain(item) for item in value]
+    return None
+
+
+def _metadata_to_plain(value):
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().tolist()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, dict):
+        return {str(key): _metadata_to_plain(child) for key, child in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_metadata_to_plain(child) for child in value]
+    return value
+
 
 class TensorDataset(Dataset):
     def __init__(self, data, labels, scalar_conditioning=None):
@@ -80,6 +162,135 @@ class PDEloader:
         if return_metadata:
             return data, label, self.metadata()
         return data, label
+
+    def load_data_files(self, file_paths, *, max_samples=None, return_metadata=False, **kwargs):
+        """Load an explicit ordered list of files for this PDE.
+
+        Each file goes through the existing single-file loader, so file-format
+        validation remains identical to the default directory-discovery path.
+        ``max_samples`` is applied across the complete list, not per file.
+        """
+
+        configured_paths = [Path(path).expanduser().resolve() for path in file_paths]
+        if not configured_paths:
+            raise ValueError(f"Explicit training file list for {self.pde!r} must not be empty")
+        if max_samples is not None and int(max_samples) < 1:
+            raise ValueError("max_samples must be positive when loading explicit files")
+
+        chunks = []
+        loaded_paths = []
+        loaded_samples = 0
+        for file_path in configured_paths:
+            if not file_path.is_file():
+                raise FileNotFoundError(f"Explicit training data file does not exist: {file_path}")
+            remaining = None if max_samples is None else int(max_samples) - loaded_samples
+            if remaining is not None and remaining <= 0:
+                break
+
+            chunk_loader = PDEloader(self.pde)
+            data, labels = chunk_loader.load_data(
+                file_path,
+                size=1,
+                max_samples=remaining,
+                **kwargs,
+            )
+            if int(data.shape[0]) == 0:
+                continue
+            chunks.append((chunk_loader, data, labels, file_path))
+            loaded_paths.append(file_path)
+            loaded_samples += int(data.shape[0])
+
+        if not chunks:
+            raise ValueError(f"No samples were loaded from explicit files for PDE {self.pde!r}")
+
+        self._merge_explicit_file_metadata(
+            chunks,
+            configured_paths=configured_paths,
+            loaded_paths=loaded_paths,
+            loaded_samples=loaded_samples,
+        )
+        data = torch.cat([chunk[1] for chunk in chunks], dim=0).to(torch.float32)
+        labels = torch.cat([chunk[2] for chunk in chunks], dim=0).to(torch.long)
+        if return_metadata:
+            return data, labels, self.metadata()
+        return data, labels
+
+    def _merge_explicit_file_metadata(
+        self,
+        chunks,
+        *,
+        configured_paths,
+        loaded_paths,
+        loaded_samples,
+    ):
+        expected_param_names = set(chunks[0][0].pde_params)
+        for chunk_loader, _data, _labels, file_path in chunks[1:]:
+            param_names = set(chunk_loader.pde_params)
+            if param_names != expected_param_names:
+                raise ValueError(
+                    "Explicit training files must provide the same sample-level PDE parameters; "
+                    f"expected {sorted(expected_param_names)}, got {sorted(param_names)} in {file_path}"
+                )
+
+        self.pde_params = {
+            name: torch.cat(
+                [
+                    torch.as_tensor(chunk_loader.pde_params[name]).reshape(-1)
+                    for chunk_loader, *_rest in chunks
+                ],
+                dim=0,
+            ).to(torch.float32)
+            for name in sorted(expected_param_names)
+        }
+        self.pde_param_sources = {}
+        for name in sorted(expected_param_names):
+            sources = [
+                chunk_loader.pde_param_sources.get(name, "unknown")
+                for chunk_loader, *_rest in chunks
+            ]
+            self.pde_param_sources[name] = (
+                sources[0] if all(source == sources[0] for source in sources) else "mixed"
+            )
+
+        self.pde_param_slices = []
+        sample_offset = 0
+        for chunk_loader, data, _labels, file_path in chunks:
+            chunk_count = int(data.shape[0])
+            if chunk_loader.pde_param_slices:
+                for item in chunk_loader.pde_param_slices:
+                    adjusted = dict(item)
+                    adjusted["start"] = int(item.get("start", 0)) + sample_offset
+                    adjusted["stop"] = int(item.get("stop", chunk_count)) + sample_offset
+                    self.pde_param_slices.append(adjusted)
+            else:
+                self.pde_param_slices.append(
+                    {
+                        "file_path": str(file_path),
+                        "start": sample_offset,
+                        "stop": sample_offset + chunk_count,
+                        "params": tuple(sorted(expected_param_names)),
+                    }
+                )
+            sample_offset += chunk_count
+
+        self.extra_metadata = _merge_explicit_extra_metadata(chunks)
+        formats = [chunk[0].extra_metadata.get("selected_file_format") for chunk in chunks]
+        nonempty_formats = [value for value in formats if value is not None]
+        if nonempty_formats:
+            self.extra_metadata["selected_file_format"] = (
+                nonempty_formats[0]
+                if all(value == nonempty_formats[0] for value in nonempty_formats)
+                else "mixed"
+            )
+        self.extra_metadata.update(
+            {
+                "data_selection": "explicit_manifest",
+                "configured_files": [str(path) for path in configured_paths],
+                "selected_files": [str(path) for path in loaded_paths],
+                "file_paths": [str(path) for path in loaded_paths],
+                "num_loaded_samples": int(loaded_samples),
+            }
+        )
 
     def metadata(self):
         pde_param_summary = {}

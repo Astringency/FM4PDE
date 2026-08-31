@@ -18,6 +18,7 @@ set -euo pipefail
 #   PDE_LIST="heat wave nsnonbounded" NPROC_PER_NODE=2 bash scripts/train/run_train.sh
 #   EPOCHS=300 TARGET_EFFECTIVE_BATCH=64 OUTPUT_DIR=outputs/pretrained/formal bash scripts/train/run_train.sh
 #   MAX_TRAIN_SAMPLES=1024 DATA_SIZE=1 bash scripts/train/run_train.sh
+#   PDE=heat TRAIN_DATA_CONFIG=configs/training_data.yaml bash scripts/train/run_train.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
@@ -29,6 +30,7 @@ OUTPUT_DIR="${OUTPUT_DIR%/}"
 LOG_DIR="${LOG_DIR:-${OUTPUT_DIR}/logs}"
 EPOCHS="${EPOCHS:-300}"
 DATA_SIZE="${DATA_SIZE:-5}"
+TRAIN_DATA_CONFIG="${TRAIN_DATA_CONFIG:-}"
 MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-}"
 TARGET_EFFECTIVE_BATCH="${TARGET_EFFECTIVE_BATCH:-64}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
@@ -176,6 +178,7 @@ echo "eval_frequency: ${EVAL_FREQUENCY}"
 echo "scalar_conditioning_params: ${SCALAR_CONDITIONING_PARAMS:-<disabled>}"
 echo "default_nproc_per_node: ${NPROC_DEFAULT}"
 echo "target_effective_batch: ${TARGET_EFFECTIVE_BATCH}"
+echo "train_data_config: ${TRAIN_DATA_CONFIG:-<automatic discovery>}"
 
 run_train() {
   local index="$1"
@@ -221,6 +224,9 @@ run_train() {
   fi
   if [[ -n "${MAX_TRAIN_SAMPLES}" ]]; then
     extra_args+=(--max_train_samples "${MAX_TRAIN_SAMPLES}")
+  fi
+  if [[ -n "${TRAIN_DATA_CONFIG}" ]]; then
+    extra_args+=(--train_data_config "${TRAIN_DATA_CONFIG}")
   fi
   if [[ "${SAVE_FULL_PDE_PARAMS}" == "1" ]]; then
     extra_args+=(--save_full_pde_params)

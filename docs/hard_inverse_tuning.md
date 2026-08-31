@@ -49,6 +49,16 @@ The compact tune/holdout files are approximately 1.3 MB each. Copy
 `hard_samples.csv`, `subsets/`, and the repository/checkpoints to both A100
 servers if they do not share storage.
 
+The prepared inputs can also be transferred as one archive. From the repository
+root on each server, extract it with:
+
+```bash
+tar -xzf artifacts/hard_inverse_inputs.tar.gz
+```
+
+Because `subsets/` contains generated binary data, it is intentionally ignored
+by git and will not appear after a plain clone or pull.
+
 ## Run on two A100 80 GB servers
 
 On server 0:
@@ -117,6 +127,36 @@ PDE_LIST=poisson,helmholtz,darcy,nsnonbounded PHASE=analyze \
 
 If storage is independent, keep the two scoped result bundles or copy the
 server-1 `runs/` subdirectories into server 0 before the combined analysis.
+
+## Refined second-round sweep
+
+After the initial 10+10 hard-sample run, use the refined candidate set to probe
+the observed frontiers without rerunning completed candidate names. Poisson
+tests 10x/12x/14x observation guidance, Helmholtz tests 20x/24x/28x, Darcy
+crosses 32x/64x guidance with clip thresholds 75/100, and non-bounded NS tests
+clip thresholds 125/150/200 plus two observation/clip interactions.
+
+If results should live directly under `outputs/artifacts`, run:
+
+```bash
+SERVER_RANK=0 \
+ARTIFACT_ROOT=outputs/artifacts/inverse_hard_tuning \
+CANDIDATE_SET=refined \
+ANALYSIS_LABEL=round2 \
+bash scripts/tuning/run_hard_inverse_a100.sh
+
+SERVER_RANK=1 \
+ARTIFACT_ROOT=outputs/artifacts/inverse_hard_tuning \
+CANDIDATE_SET=refined \
+ANALYSIS_LABEL=round2 \
+bash scripts/tuning/run_hard_inverse_a100.sh
+```
+
+The existing `runs/` tree and first-round summaries are preserved. New
+candidate jobs are added under the same `runs/{tune,holdout}/...` hierarchy;
+round-two summaries have names such as
+`selected_params_poisson_helmholtz_round2.csv` and
+`holdout_comparison_darcy_nsnonbounded_round2.csv`.
 
 ## Local Poisson pilot
 
