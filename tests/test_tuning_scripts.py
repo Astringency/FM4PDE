@@ -15,6 +15,15 @@ from scripts.tuning.run_balanced_sampling_tuning import (
     analysis_path as balanced_analysis_path,
     candidates_for as balanced_candidates_for,
 )
+from scripts.tuning.run_six_pde_sampling_tuning import (
+    CANDIDATE_FIELDS as SIX_PDE_CANDIDATE_FIELDS,
+    PDES as SIX_PDES,
+    TASKS as SIX_PDE_TASKS,
+    baseline_for as six_pde_baseline_for,
+    candidates_for as six_pde_candidates_for,
+    select_tune_winners as select_six_pde_tune_winners,
+    summarize_tune as summarize_six_pde_tune,
+)
 from scripts.tuning.select_inverse_params import select_rows
 
 
@@ -127,6 +136,106 @@ def test_inverse_tuning_refine_default_plan_has_96_jobs():
         "helmholtz",
         "nsnonbounded",
     }
+
+
+def test_six_pde_tuning_plan_is_available_without_data_or_checkpoints(tmp_path):
+    lines = _run_plan(
+        "scripts/tuning/run_six_pde_sampling_tuning.sh",
+        {
+            "PROFILE": "quick",
+            "PDE_LIST": "heat",
+            "TASK_LIST": "forward",
+            "DEVICE_LIST": "cuda:0",
+            "MAX_PARALLEL_TASKS": "1",
+            "OUTPUT_DIR": str(tmp_path / "unused"),
+        },
+    )
+
+    assert len(lines) == 2
+    assert "pde=heat task=forward candidates=7 tune_jobs=7" in lines[0]
+    assert "holdout_jobs_at_most=2" in lines[1]
+    assert not (tmp_path / "unused").exists()
+
+
+def test_six_pde_candidate_grids_cover_all_equations_tasks_and_sampler_families():
+    for pde in SIX_PDES:
+        for task in SIX_PDE_TASKS:
+            candidates = six_pde_candidates_for(pde, task, "standard")
+            by_name = {candidate["candidate"]: candidate for candidate in candidates}
+            assert candidates[0]["candidate"] == "baseline"
+            assert len(by_name) == len(candidates)
+            assert {"deterministic", "hybrid_s2d", "geometric_grid", "midpoint"} <= set(
+                by_name
+            )
+            if task == "forward":
+                assert all(
+                    candidate["zeta_obs_u"] == 0.0
+                    for candidate in candidates
+                    if candidate["candidate"] != "baseline"
+                )
+            elif task == "inverse":
+                assert all(
+                    candidate["zeta_obs_a"] == 0.0
+                    for candidate in candidates
+                    if candidate["candidate"] != "baseline"
+                )
+            if pde == "steady_heat_conduction":
+                assert "near_endpoint" not in by_name
+            else:
+                assert by_name["near_endpoint"]["residual_mode"] == "near_endpoint_temporal"
+
+
+def test_six_pde_winner_rejects_incomplete_and_auxiliary_regression():
+    pde = "heat"
+    task = "forward"
+    base = dict(six_pde_baseline_for(pde, task))
+    candidates = [
+        base,
+        {**base, "candidate": "good"},
+        {**base, "candidate": "unsafe_auxiliary"},
+        {**base, "candidate": "incomplete"},
+    ]
+    rows = []
+    for candidate in candidates:
+        name = candidate["candidate"]
+        for test_index, test_type in enumerate(("id", "rough")):
+            for index in range(2):
+                if name == "incomplete" and test_type == "rough" and index == 1:
+                    continue
+                rel_u = {
+                    "baseline": 1.0,
+                    "good": 0.6,
+                    "unsafe_auxiliary": 0.4,
+                    "incomplete": 0.1,
+                }[name]
+                rows.append(
+                    {
+                        "pde": pde,
+                        "task": task,
+                        "candidate": name,
+                        "test_type": test_type,
+                        "sample_offset": test_index * 2 + index,
+                        "rel_l2_a": 1.2 if name == "unsafe_auxiliary" else 1.0,
+                        "rel_l2_u": rel_u,
+                        "pde_residual_norm": 1.0,
+                    }
+                )
+
+    summaries = summarize_six_pde_tune(
+        rows,
+        pdes=[pde],
+        tasks=[task],
+        candidate_map={(pde, task): candidates},
+        test_types=["id", "rough"],
+        expected_n=4,
+    )
+    by_name = {row["candidate"]: row for row in summaries}
+    winner = select_six_pde_tune_winners(summaries, [pde], [task])[0]
+
+    assert set(SIX_PDE_CANDIDATE_FIELDS) <= set(by_name["good"])
+    assert "incomplete" not in by_name
+    assert by_name["unsafe_auxiliary"]["passes_guardrails"] is False
+    assert winner["candidate"] == "good"
 
 
 def test_inverse_selector_rejects_incomplete_configs_and_ranks_robust_error():
