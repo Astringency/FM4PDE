@@ -46,8 +46,8 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Provisional inverse/random tuning winner; 4 unique test samples over offsets 0 and 1000.
+# Round3 holdout-validated candidate: obs_24x.
 zeta_obs_a: 0.0
-zeta_obs_u: 320000000.0
+zeta_obs_u: 7680000000.0
 zeta_pde: 0.03
 k: 1

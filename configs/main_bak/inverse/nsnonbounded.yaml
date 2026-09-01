@@ -23,7 +23,7 @@ guidance_schedule: constant
 pde_guidance_start_ratio: 0.8
 pde_guidance_ramp_ratio: 0.0
 clip_mode: global_norm
-clip_threshold: 100.0
+clip_threshold: 50.0
 pde_residual_region: full
 # residual_mode: hermite_bridge
 residual_mode: endpoint_secant
@@ -50,7 +50,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Round3 holdout-validated candidate: clip_100.
+# Provisional inverse/random tuning winner; 4 unique test samples over offsets 0 and 1000.
 zeta_obs_a: 0.0
 zeta_obs_u: 240000.0
 zeta_pde: 0.3

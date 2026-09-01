@@ -46,8 +46,8 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Round3 holdout-validated candidate: both_obs_1p25x.
-zeta_obs_a: 25000.0
-zeta_obs_u: 100000000.0
+# Untuned both baseline retained separately from inverse tuning.
+zeta_obs_a: 20000.0
+zeta_obs_u: 80000000.0
 zeta_pde: 0.1
 k: 1

@@ -1,0 +1,55 @@
+pde: shallow_water
+task: both
+test_type: id
+data_path: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_id.h5
+data_paths:
+  id: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_id.h5
+  smooth: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_smooth.h5
+  rough: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_rough.h5
+loadby: swe
+coef_name: init
+solution_name: final
+checkpoint_path: outputs/pretrained/formal/shallow_water/260712-120347-shallow_water-batch2-epoch300-accum16-float32/fm4shallow_water.pth
+output_dir: outputs/ablations
+img_channels: 6
+img_resolution: 128
+allow_synthetic_data: false
+guidance_components: obs_pde
+loss_state: endpoint
+gradient_target: current_state_chain_rule
+sampler_phase: stochastic
+switch_ratio: 0.5
+guidance_schedule: constant
+pde_guidance_start_ratio: 0.8
+pde_guidance_ramp_ratio: 0.0
+clip_mode: global_norm
+clip_threshold: 10000000000.0
+pde_residual_region: full
+residual_mode: hermite_bridge
+enforce_boundary_conditions: true
+boundary_condition_mode: open
+bc_weight: 1.0
+endpoint_bc_weight: 1.0
+boundary_residual_normalization: sqrt_grid_over_mask
+allow_unknown_boundary_conditions: false
+hermite_collocation_times: [0.25, 0.5, 0.75]
+hermite_include_integral_residual: true
+hermite_integral_weight: 1.0
+num_obs: 500
+num_sensor_columns: 5
+sensor_mode: random
+shared_mask: false
+mask_seed: 0
+noise_level: 0.0
+noise_seed: 0
+time_grid: uniform
+num_steps: 100
+step_method: euler
+batch_size: 1
+sample_seed: 0
+device: cpu
+dtype: float32
+# Untuned both baseline retained separately from inverse tuning.
+zeta_obs_a: 200000.0
+zeta_obs_u: 200000.0
+zeta_pde: 10.0

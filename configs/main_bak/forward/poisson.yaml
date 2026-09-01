@@ -1,15 +1,15 @@
-pde: helmholtz
-task: both
+pde: poisson
+task: forward
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_id.mat
+data_path: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_id.mat
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_id.mat
-  smooth: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_smooth.mat
-  rough: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_rough.mat
+  id: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_id.mat
+  smooth: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_smooth.mat
+  rough: /large_storage/zhangxf/PDEdata/poisson/poisson_test_10000-128-128_rough.mat
 loadby: scipy
 coef_name: f_data
-solution_name: psi_data
-checkpoint_path: outputs/pretrained/formal/helmholtz/260625-150653-helmholtz-batch4-epoch300-accum8-float32/fm4helmholtz.pth
+solution_name: phi_data
+checkpoint_path: outputs/pretrained/formal/poisson/260621-104344-poisson-batch4-epoch300-accum8-float32/fm4poisson.pth
 output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128
@@ -46,8 +46,7 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Round3 holdout-validated candidate: both_obs_1p25x.
-zeta_obs_a: 25000.0
-zeta_obs_u: 100000000.0
+# Untuned forward baseline retained separately from inverse tuning.
+zeta_obs_a: 50000.0
+zeta_obs_u: 90000000.0
 zeta_pde: 0.1
-k: 1

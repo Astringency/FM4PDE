@@ -84,7 +84,7 @@ def test_poisson_ablations_inherit_task_specific_main_tuning():
     expected_by_task = {
         "both": (50000.0, 90000000.0, 0.1),
         "forward": (50000.0, 90000000.0, 0.1),
-        "inverse": (0.0, 360000000.0, 0.3),
+        "inverse": (0.0, 5760000000.0, 0.3),
     }
     guidance_jobs = _jobs("guidance_components")
     for path, overrides in guidance_jobs:
@@ -128,7 +128,7 @@ def test_poisson_ablations_inherit_task_specific_main_tuning():
     )
     assert all(path == "configs/main/inverse/poisson.yaml" for path, _ in forced_task)
     assert all(
-        load_config(path, overrides=overrides).zeta_obs_u == 360000000.0
+        load_config(path, overrides=overrides).zeta_obs_u == 5760000000.0
         for path, overrides in forced_task
     )
 
