@@ -43,13 +43,14 @@ mask_seed: 0
 noise_level: 0.0
 noise_seed: 0
 time_grid: uniform
+time_grid_eta: 0.4
 num_steps: 100
 step_method: euler
 batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Provisional inverse/random tuning winner; 4 unique test samples over offsets 0 and 1000.
+# Standard six-PDE holdout rejected the numerically tied obs_high candidate; baseline retained.
 zeta_obs_a: 0.0
 zeta_obs_u: 100000.0
 zeta_pde: 0.0

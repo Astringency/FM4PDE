@@ -48,6 +48,7 @@ PDES = (
 TASKS = ("both", "forward", "inverse")
 TEST_TYPES = ("id", "smooth", "rough")
 PROFILES = ("quick", "standard", "thorough")
+CANDIDATE_SETS = ("broad", "refined")
 
 DATA_TEMPLATES = {
     "advection_diffusion": "advection_diffusion/advection_diffusion_test_10000-128-128_{test_type}.h5",
@@ -153,6 +154,33 @@ def safe_ratio(value: float, baseline: float) -> float:
     return value / baseline
 
 
+def _parse_distribution_weights(value: str, test_types: list[str]) -> dict[str, float]:
+    """Parse ``id=1,smooth=1,rough=2`` and require every selected split."""
+    weights: dict[str, float] = {}
+    for item in value.replace(" ", ",").split(","):
+        if not item:
+            continue
+        try:
+            name, raw_weight = item.split("=", 1)
+            weight = float(raw_weight)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid distribution weight: {item!r}") from exc
+        name = name.strip()
+        if name not in TEST_TYPES or not math.isfinite(weight) or weight <= 0.0:
+            raise ValueError(f"Invalid distribution weight: {item!r}")
+        if name in weights:
+            raise ValueError(f"Duplicate distribution weight: {name!r}")
+        weights[name] = weight
+    missing = [name for name in test_types if name not in weights]
+    extra = [name for name in weights if name not in test_types]
+    if missing or extra:
+        raise ValueError(
+            "Distribution weights must match selected test types exactly; "
+            f"missing={missing}, extra={extra}"
+        )
+    return weights
+
+
 def _parse_names(value: str, allowed: tuple[str, ...], label: str) -> list[str]:
     selected = [item.strip() for item in value.replace(" ", ",").split(",") if item.strip()]
     invalid = [item for item in selected if item not in allowed]
@@ -227,8 +255,127 @@ def _candidate_signature(candidate: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(candidate[field] for field in CANDIDATE_FIELDS)
 
 
-def candidates_for(pde: str, task: str, profile: str = "standard") -> list[dict[str, Any]]:
+def _scaled_active_observations(
+    candidate: dict[str, Any], task: str, factor: float
+) -> dict[str, float]:
+    updates: dict[str, float] = {}
+    if task in {"forward", "both"}:
+        updates["zeta_obs_a"] = float(candidate["zeta_obs_a"]) * factor
+    if task in {"inverse", "both"}:
+        updates["zeta_obs_u"] = float(candidate["zeta_obs_u"]) * factor
+    return updates
+
+
+def refined_candidates_for(pde: str, task: str) -> list[dict[str, Any]]:
+    """Generate a compact, numerically conservative grid around the main config.
+
+    The first sweep already identified the useful sampler family for each
+    equation/task.  This grid therefore changes one local factor at a time and
+    adds one conservative combined candidate instead of repeating the original
+    coarse cross-family screen.
+    """
+    center = dict(baseline_for(pde, task))
+
+    def variant(name: str, **updates: Any) -> dict[str, Any]:
+        return {**center, "candidate": f"refine_{name}", **updates}
+
+    candidates: list[dict[str, Any]] = [center]
+    for label, factor in (("obs_x0p5", 0.5), ("obs_x2", 2.0)):
+        candidates.append(variant(label, **_scaled_active_observations(center, task, factor)))
+
+    if task == "both":
+        candidates.extend(
+            [
+                variant("obs_a_x2", zeta_obs_a=float(center["zeta_obs_a"]) * 2.0),
+                variant("obs_u_x2", zeta_obs_u=float(center["zeta_obs_u"]) * 2.0),
+            ]
+        )
+
+    center_pde = float(center["zeta_pde"])
+    pde_anchor = float(PDE_LEVELS[pde][1])
+    candidates.append(variant("pde_off", zeta_pde=0.0))
+    candidates.append(
+        variant("pde_low", zeta_pde=0.25 * (center_pde if center_pde > 0.0 else pde_anchor))
+    )
+    candidates.extend(
+        [
+            variant("clip20", clip_mode="global_norm", clip_threshold=20.0),
+            variant(
+                "late_pde",
+                pde_guidance_start_ratio=0.9,
+                pde_guidance_ramp_ratio=0.05,
+            ),
+        ]
+    )
+
+    phase = str(center["sampler_phase"])
+    if phase == "hybrid_s2d":
+        candidates.extend(
+            [
+                variant("switch0p25", switch_ratio=0.25),
+                variant("stochastic", sampler_phase="stochastic"),
+            ]
+        )
+    else:
+        candidates.extend(
+            [
+                variant("hybrid0p25", sampler_phase="hybrid_s2d", switch_ratio=0.25),
+                variant("hybrid0p5", sampler_phase="hybrid_s2d", switch_ratio=0.5),
+            ]
+        )
+
+    if str(center["time_grid"]) == "geometric":
+        candidates.append(variant("grid_eta0p2", time_grid_eta=0.2))
+    else:
+        candidates.append(
+            variant("geometric_eta0p2", time_grid="geometric", time_grid_eta=0.2)
+        )
+
+    alternate_step = "euler" if str(center["step_method"]) == "midpoint" else "midpoint"
+    candidates.append(variant(alternate_step, step_method=alternate_step))
+    if pde in TEMPORAL_ENDPOINT_PDES:
+        alternate_residual = (
+            "hermite_bridge"
+            if str(center["residual_mode"]) == "near_endpoint_temporal"
+            else "near_endpoint_temporal"
+        )
+        candidates.append(variant("alternate_residual", residual_mode=alternate_residual))
+
+    conservative_pde = 0.25 * (center_pde if center_pde > 0.0 else pde_anchor)
+    candidates.append(
+        variant(
+            "conservative",
+            **_scaled_active_observations(center, task, 0.5),
+            zeta_pde=conservative_pde,
+            clip_mode="global_norm",
+            clip_threshold=20.0,
+            pde_guidance_start_ratio=0.9,
+            pde_guidance_ramp_ratio=0.05,
+        )
+    )
+
+    deduplicated: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for candidate in candidates:
+        signature = _candidate_signature(candidate)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        deduplicated.append(candidate)
+    return deduplicated
+
+
+def candidates_for(
+    pde: str,
+    task: str,
+    profile: str = "standard",
+    candidate_set: str = "broad",
+) -> list[dict[str, Any]]:
     """Return a compact, PDE-scaled bundle grid with the exact baseline first."""
+    if candidate_set == "refined":
+        return refined_candidates_for(pde, task)
+    if candidate_set != "broad":
+        raise ValueError(f"Unknown candidate_set={candidate_set!r}")
     low_obs, mid_obs, high_obs = OBS_LEVELS[pde]
     low_pde, mid_pde, high_pde = PDE_LEVELS[pde]
     candidates = [
@@ -455,6 +602,7 @@ def run_job(
     checkpoint: Path,
     device: str,
     resume: bool,
+    retry_non_finite: bool,
     checkpoint_bundle: tuple[Any, Any, dict[str, Any]],
 ) -> dict[str, Any]:
     name = str(candidate["candidate"])
@@ -504,6 +652,7 @@ def run_job(
                 artifacts_valid = (
                     len(prior_rows) == batch_size
                     and all(_row_metrics_are_finite(row) for row in prior_rows)
+                    and _final_losses_are_finite(prior_final)
                     and prior_final.get("status") == "ok"
                 )
             except (json.JSONDecodeError, OSError):
@@ -516,6 +665,18 @@ def run_job(
             print(
                 f"SKIP {phase} {pde}/{task} {name} {test_type} "
                 f"offset={offset} batch={batch_size}",
+                flush=True,
+            )
+            return status
+        if (
+            not retry_non_finite
+            and status.get("status") == "failed"
+            and status.get("failure_kind") == "non_finite_metrics"
+            and status.get("job_signature") == signature
+        ):
+            print(
+                f"SKIP known-nonfinite {phase} {pde}/{task} {name} "
+                f"{test_type} offset={offset}",
                 flush=True,
             )
             return status
@@ -577,12 +738,31 @@ def run_job(
     finite = len(valid_rows) == batch_size and all(
         _row_metrics_are_finite(row) for row in valid_rows
     )
+    finite_losses = _final_losses_are_finite(final_payload)
     runner_ok = final_payload.get("status") == "ok"
+    normalized_error = error_message.lower()
+    numerical_error = any(
+        marker in normalized_error
+        for marker in ("non-finite", "nonfinite", "nan", "infinity", "overflow")
+    )
+    if returncode != 0:
+        failure_kind = "non_finite_metrics" if numerical_error else "runner_exception"
+    elif not metrics_path.is_file() or not final_path.is_file():
+        failure_kind = "missing_artifacts"
+    elif not finite or not finite_losses:
+        failure_kind = "non_finite_metrics"
+    elif not runner_ok:
+        failure_kind = f"runner_status_{final_payload.get('status', 'missing')}"
+    else:
+        failure_kind = ""
     status = {
-        "status": "ok" if returncode == 0 and runner_ok and finite else "failed",
+        "status": (
+            "ok" if returncode == 0 and runner_ok and finite and finite_losses else "failed"
+        ),
         "runner_status": final_payload.get("status", "missing"),
         "returncode": returncode,
         "error_message": error_message,
+        "failure_kind": failure_kind,
         "phase": phase,
         "profile": profile,
         "pde": pde,
@@ -624,6 +804,16 @@ def _row_metrics_are_finite(row: dict[str, str]) -> bool:
         return False
 
 
+def _final_losses_are_finite(payload: dict[str, Any]) -> bool:
+    try:
+        return all(
+            math.isfinite(float(payload[field]))
+            for field in ("L_obs_a", "L_obs_u", "L_pde")
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
@@ -634,7 +824,11 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
         return
-    fields = list(rows[0])
+    # Some candidates cannot be paired with a complete baseline and therefore
+    # omit the derived ``overall_*`` and per-distribution ratio fields.  Build
+    # the schema from every row so their position in the list cannot make CSV
+    # serialization fail after a long tuning run.
+    fields = list(dict.fromkeys(field for row in rows for field in row))
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -692,11 +886,23 @@ def collect_rows(
         ):
             continue
         metrics_path = Path(str(status.get("metrics_path", "")))
+        final_path = Path(str(status.get("final_path", "")))
         if not metrics_path.is_file():
             fallback = _find_artifact(status_path.parent, "metrics_per_sample.csv")
             if fallback is None:
                 continue
             metrics_path = fallback
+        if not final_path.is_file():
+            fallback = _find_artifact(status_path.parent, "metrics_final.json")
+            if fallback is None:
+                continue
+            final_path = fallback
+        try:
+            final_metrics = json.loads(final_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not _final_losses_are_finite(final_metrics):
+            continue
         parameters = signature.get("parameters", {})
         for row in read_csv(metrics_path):
             if not _row_metrics_are_finite(row):
@@ -717,11 +923,76 @@ def collect_rows(
                     "rel_l2_a": float(row["rel_l2_a"]),
                     "rel_l2_u": float(row["rel_l2_u"]),
                     "pde_residual_norm": float(row["pde_residual_norm"]),
+                    # The runner evaluates losses as a batch mean.  Repeating
+                    # that value on each member keeps weighting correct because
+                    # every tuning job uses the same batch size.
+                    "obs_loss_a_batch_mean": float(final_metrics["L_obs_a"]),
+                    "obs_loss_u_batch_mean": float(final_metrics["L_obs_u"]),
+                    "pde_loss_batch_mean": float(final_metrics["L_pde"]),
                     **{field: parameters[field] for field in CANDIDATE_FIELDS},
                     "metrics_path": str(metrics_path.resolve()),
                 },
             )
     return [collected[key][1] for key in sorted(collected)]
+
+
+def collect_failures(
+    root: Path,
+    *,
+    phase: str,
+    profile: str,
+    pdes: list[str],
+    tasks: list[str],
+    allowed_candidates: dict[tuple[str, str], set[str]],
+    test_types: list[str],
+    offsets: list[int],
+    batch_size: int,
+    num_steps: int,
+) -> list[dict[str, Any]]:
+    """Return an inspectable inventory of failed jobs in the active plan."""
+    failures: list[dict[str, Any]] = []
+    phase_root = root / "runs" / phase / profile
+    if not phase_root.is_dir():
+        return failures
+    for status_path in sorted(phase_root.rglob("job.json")):
+        try:
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        pde = str(status.get("pde", ""))
+        task = str(status.get("task", ""))
+        candidate = str(status.get("candidate", ""))
+        test_type = str(status.get("test_type", ""))
+        offset = int(status.get("offset", -1))
+        if (
+            status.get("status") != "failed"
+            or pde not in pdes
+            or task not in tasks
+            or candidate not in allowed_candidates.get((pde, task), set())
+            or test_type not in test_types
+            or offset not in offsets
+            or int(status.get("batch_size", -1)) != batch_size
+            or int(status.get("num_steps", -1)) != num_steps
+        ):
+            continue
+        failures.append(
+            {
+                "phase": phase,
+                "profile": profile,
+                "pde": pde,
+                "task": task,
+                "candidate": candidate,
+                "test_type": test_type,
+                "offset": offset,
+                "batch_size": batch_size,
+                "failure_kind": status.get("failure_kind", "legacy_unclassified"),
+                "runner_status": status.get("runner_status", ""),
+                "error_message": status.get("error_message", ""),
+                "log_path": status.get("log_path", ""),
+                "status_path": str(status_path.resolve()),
+            }
+        )
+    return failures
 
 
 def _primary_values(rows: list[dict[str, Any]], task: str) -> list[float]:
@@ -752,6 +1023,12 @@ def _scope_ratios(
     bu = [float(row["rel_l2_u"]) for row in baselines]
     cp = [float(row["pde_residual_norm"]) for row in candidates]
     bp = [float(row["pde_residual_norm"]) for row in baselines]
+    coa = [float(row.get("obs_loss_a_batch_mean", row["rel_l2_a"])) for row in candidates]
+    boa = [float(row.get("obs_loss_a_batch_mean", row["rel_l2_a"])) for row in baselines]
+    cou = [float(row.get("obs_loss_u_batch_mean", row["rel_l2_u"])) for row in candidates]
+    bou = [float(row.get("obs_loss_u_batch_mean", row["rel_l2_u"])) for row in baselines]
+    cpl = [float(row.get("pde_loss_batch_mean", row["pde_residual_norm"])) for row in candidates]
+    bpl = [float(row.get("pde_loss_batch_mean", row["pde_residual_norm"])) for row in baselines]
     if task == "forward":
         auxiliary_ratio = safe_ratio(statistics.fmean(ca), statistics.fmean(ba))
     elif task == "inverse":
@@ -775,10 +1052,31 @@ def _scope_ratios(
         "rel_l2_a_mean_ratio": safe_ratio(statistics.fmean(ca), statistics.fmean(ba)),
         "rel_l2_u_mean_ratio": safe_ratio(statistics.fmean(cu), statistics.fmean(bu)),
         "pde_residual_ratio": safe_ratio(statistics.fmean(cp), statistics.fmean(bp)),
+        "obs_loss_a_ratio": safe_ratio(statistics.fmean(coa), statistics.fmean(boa)),
+        "obs_loss_u_ratio": safe_ratio(statistics.fmean(cou), statistics.fmean(bou)),
+        "pde_loss_ratio": safe_ratio(statistics.fmean(cpl), statistics.fmean(bpl)),
         "auxiliary_error_ratio": auxiliary_ratio,
         "candidate_primary_mean": statistics.fmean(candidate_primary),
         "baseline_primary_mean": statistics.fmean(baseline_primary),
     }
+
+
+def _distribution_weighted_score(
+    rows: list[dict[str, Any]],
+    task: str,
+    test_types: list[str],
+    distribution_weights: dict[str, float],
+) -> float:
+    weighted_total = 0.0
+    total_weight = 0.0
+    for test_type in test_types:
+        values = _primary_values(_filter_test(rows, test_type), task)
+        if not values:
+            return math.inf
+        weight = distribution_weights[test_type]
+        weighted_total += weight * robust_score(values)
+        total_weight += weight
+    return weighted_total / total_weight
 
 
 def _filter_test(rows: list[dict[str, Any]], test_type: str) -> list[dict[str, Any]]:
@@ -793,7 +1091,9 @@ def summarize_tune(
     candidate_map: dict[tuple[str, str], list[dict[str, Any]]],
     test_types: list[str],
     expected_n: int,
+    distribution_weights: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
+    distribution_weights = distribution_weights or {name: 1.0 for name in test_types}
     grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         grouped[(str(row["pde"]), str(row["task"]), str(row["candidate"]))].append(row)
@@ -811,6 +1111,18 @@ def summarize_tune(
                 rel_a = [float(row["rel_l2_a"]) for row in candidate_rows]
                 rel_u = [float(row["rel_l2_u"]) for row in candidate_rows]
                 pde_values = [float(row["pde_residual_norm"]) for row in candidate_rows]
+                obs_loss_a = [
+                    float(row.get("obs_loss_a_batch_mean", row["rel_l2_a"]))
+                    for row in candidate_rows
+                ]
+                obs_loss_u = [
+                    float(row.get("obs_loss_u_batch_mean", row["rel_l2_u"]))
+                    for row in candidate_rows
+                ]
+                pde_loss = [
+                    float(row.get("pde_loss_batch_mean", row["pde_residual_norm"]))
+                    for row in candidate_rows
+                ]
                 summary: dict[str, Any] = {
                     "pde": pde,
                     "task": task,
@@ -820,10 +1132,18 @@ def summarize_tune(
                     "primary_mean": statistics.fmean(primary),
                     "primary_p90": percentile(primary, 0.9),
                     "primary_max": max(primary),
-                    "selection_score": robust_score(primary),
+                    "selection_score": _distribution_weighted_score(
+                        candidate_rows, task, test_types, distribution_weights
+                    ),
+                    "distribution_weights": ",".join(
+                        f"{name}={distribution_weights[name]:g}" for name in test_types
+                    ),
                     "rel_l2_a_mean": statistics.fmean(rel_a),
                     "rel_l2_u_mean": statistics.fmean(rel_u),
                     "pde_residual_mean": statistics.fmean(pde_values),
+                    "obs_loss_a_mean": statistics.fmean(obs_loss_a),
+                    "obs_loss_u_mean": statistics.fmean(obs_loss_u),
+                    "pde_loss_mean": statistics.fmean(pde_loss),
                     "baseline_complete": baseline_complete,
                     "passes_guardrails": True,
                 }
@@ -882,10 +1202,10 @@ def select_tune_winners(
 
 
 def _candidate_map(
-    pdes: list[str], tasks: list[str], profile: str
+    pdes: list[str], tasks: list[str], profile: str, candidate_set: str
 ) -> dict[tuple[str, str], list[dict[str, Any]]]:
     return {
-        (pde, task): candidates_for(pde, task, profile)
+        (pde, task): candidates_for(pde, task, profile, candidate_set)
         for pde in pdes
         for task in tasks
     }
@@ -901,13 +1221,27 @@ def analyze_tune(
     offsets: list[int],
     batch_size: int,
     num_steps: int,
+    candidate_set: str = "broad",
+    distribution_weights: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
-    candidate_map = _candidate_map(pdes, tasks, profile)
+    candidate_map = _candidate_map(pdes, tasks, profile, candidate_set)
     allowed = {
         key: {str(candidate["candidate"]) for candidate in candidates}
         for key, candidates in candidate_map.items()
     }
     rows = collect_rows(
+        root,
+        phase="tune",
+        profile=profile,
+        pdes=pdes,
+        tasks=tasks,
+        allowed_candidates=allowed,
+        test_types=test_types,
+        offsets=offsets,
+        batch_size=batch_size,
+        num_steps=num_steps,
+    )
+    failures = collect_failures(
         root,
         phase="tune",
         profile=profile,
@@ -927,9 +1261,11 @@ def analyze_tune(
         candidate_map=candidate_map,
         test_types=test_types,
         expected_n=expected_n,
+        distribution_weights=distribution_weights,
     )
     winners = select_tune_winners(summaries, pdes, tasks)
     write_csv(_analysis_path(root, "tune_per_sample", pdes, tasks, profile), rows)
+    write_csv(_analysis_path(root, "stability_failures", pdes, tasks, profile), failures)
     write_csv(_analysis_path(root, "tune_summary", pdes, tasks, profile), summaries)
     selected_csv = _analysis_path(root, "selected_params", pdes, tasks, profile)
     write_csv(selected_csv, winners)
@@ -1078,6 +1414,9 @@ def analyze_holdout(
                         "holdout_primary_robust_ratio": overall["primary_robust_ratio"],
                         "holdout_primary_mean_ratio": overall["primary_mean_ratio"],
                         "holdout_pde_residual_ratio": overall["pde_residual_ratio"],
+                        "holdout_obs_loss_a_ratio": overall["obs_loss_a_ratio"],
+                        "holdout_obs_loss_u_ratio": overall["obs_loss_u_ratio"],
+                        "holdout_pde_loss_ratio": overall["pde_loss_ratio"],
                     }
                 )
             recommendations.append(recommendation)
@@ -1130,6 +1469,8 @@ def run_phase(
     device: str,
     resume: bool,
     winners: list[dict[str, Any]] | None = None,
+    candidate_set: str = "broad",
+    retry_non_finite: bool = True,
 ) -> int:
     import torch
     from sampling.model_io import load_fm4pde_checkpoint_bundle
@@ -1148,7 +1489,7 @@ def run_phase(
         )
         for task in tasks:
             if phase == "tune":
-                candidates = candidates_for(pde, task, profile)
+                candidates = candidates_for(pde, task, profile, candidate_set)
             else:
                 winner = selected[(pde, task)]
                 candidates = [dict(baseline_for(pde, task))]
@@ -1174,6 +1515,7 @@ def run_phase(
                             checkpoint=checkpoint,
                             device=device,
                             resume=resume,
+                            retry_non_finite=retry_non_finite,
                             checkpoint_bundle=bundle,
                         )
                         failures += status["status"] != "ok"
@@ -1197,11 +1539,13 @@ def print_plan(
     batch_size: int,
     num_steps: int,
     device: str,
+    candidate_set: str = "broad",
+    distribution_weights: dict[str, float] | None = None,
 ) -> None:
     tune_jobs = 0
     for pde in pdes:
         for task in tasks:
-            count = len(candidates_for(pde, task, profile))
+            count = len(candidates_for(pde, task, profile, candidate_set))
             jobs = count * len(test_types) * len(tune_offsets)
             tune_jobs += jobs
             print(
@@ -1211,7 +1555,9 @@ def print_plan(
             )
     holdout_jobs = len(pdes) * len(tasks) * 2 * len(test_types) * len(holdout_offsets)
     print(
-        f"PLAN SUMMARY phase={phase} profile={profile} steps={num_steps} batch={batch_size} "
+        f"PLAN SUMMARY phase={phase} profile={profile} candidate_set={candidate_set} "
+        f"distribution_weights={distribution_weights or {name: 1.0 for name in test_types}} "
+        f"steps={num_steps} batch={batch_size} "
         f"samples_per_job={batch_size} tune_jobs={tune_jobs} "
         f"holdout_jobs_at_most={holdout_jobs}",
         flush=True,
@@ -1248,9 +1594,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="all",
     )
     parser.add_argument("--profile", choices=PROFILES, default="standard")
+    parser.add_argument("--candidate-set", choices=CANDIDATE_SETS, default="broad")
     parser.add_argument("--pdes", default=",".join(PDES))
     parser.add_argument("--tasks", default=",".join(TASKS))
     parser.add_argument("--test-types", default="")
+    parser.add_argument(
+        "--distribution-weights",
+        default="",
+        help="Per-split selection weights, for example id=1,smooth=1,rough=2",
+    )
     parser.add_argument("--tune-offsets", default="")
     parser.add_argument("--holdout-offsets", default="")
     parser.add_argument("--batch-size", type=int, default=0)
@@ -1262,6 +1614,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--data-root", type=Path, default=Path.home() / "share" / "PDEdata"
     )
     parser.add_argument("--no-resume", action="store_true")
+    parser.add_argument(
+        "--skip-known-nonfinite",
+        action="store_true",
+        help="Do not rerun a deterministic job already classified as NaN/Inf",
+    )
     parser.add_argument("--plan-only", action="store_true")
     return parser
 
@@ -1273,6 +1630,11 @@ def main(argv: list[str] | None = None) -> int:
         pdes = _parse_names(args.pdes, PDES, "PDE")
         tasks = _parse_names(args.tasks, TASKS, "task")
         test_types, tune_offsets, holdout_offsets, batch_size = _resolved_profile_values(args)
+        distribution_weights = (
+            _parse_distribution_weights(args.distribution_weights, test_types)
+            if args.distribution_weights
+            else {name: 1.0 for name in test_types}
+        )
     except ValueError as exc:
         parser.error(str(exc))
     if batch_size < 1 or args.num_steps < 1:
@@ -1291,6 +1653,8 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=batch_size,
             num_steps=args.num_steps,
             device=args.device,
+            candidate_set=args.candidate_set,
+            distribution_weights=distribution_weights,
         )
         return 0
     if args.phase == "prepare":
@@ -1317,6 +1681,8 @@ def main(argv: list[str] | None = None) -> int:
             data_root=data_root,
             device=args.device,
             resume=not args.no_resume,
+            candidate_set=args.candidate_set,
+            retry_non_finite=not args.skip_known_nonfinite,
         )
         winners = analyze_tune(
             root,
@@ -1327,6 +1693,8 @@ def main(argv: list[str] | None = None) -> int:
             offsets=tune_offsets,
             batch_size=batch_size,
             num_steps=args.num_steps,
+            candidate_set=args.candidate_set,
+            distribution_weights=distribution_weights,
         )
     if args.phase in {"holdout", "all"}:
         if winners is None:
@@ -1339,6 +1707,8 @@ def main(argv: list[str] | None = None) -> int:
                 offsets=tune_offsets,
                 batch_size=batch_size,
                 num_steps=args.num_steps,
+                candidate_set=args.candidate_set,
+                distribution_weights=distribution_weights,
             )
         failures += run_phase(
             root,
@@ -1356,6 +1726,8 @@ def main(argv: list[str] | None = None) -> int:
             device=args.device,
             resume=not args.no_resume,
             winners=winners,
+            candidate_set=args.candidate_set,
+            retry_non_finite=not args.skip_known_nonfinite,
         )
         analyze_holdout(
             root,
@@ -1379,6 +1751,8 @@ def main(argv: list[str] | None = None) -> int:
             offsets=tune_offsets,
             batch_size=batch_size,
             num_steps=args.num_steps,
+            candidate_set=args.candidate_set,
+            distribution_weights=distribution_weights,
         )
         holdout_root = root / "runs" / "holdout" / args.profile
         if args.phase == "analyze" and holdout_root.is_dir():

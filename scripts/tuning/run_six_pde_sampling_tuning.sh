@@ -23,12 +23,15 @@ PDE_LIST="${PDE_LIST:-advection_diffusion reaction_diffusion steady_heat_conduct
 TASK_LIST="${TASK_LIST:-both forward inverse}"
 DEVICE_LIST="${DEVICE_LIST:-cuda:0}"
 PROFILE="${PROFILE:-standard}"
+CANDIDATE_SET="${CANDIDATE_SET:-broad}"
+DISTRIBUTION_WEIGHTS="${DISTRIBUTION_WEIGHTS:-}"
 PHASE="${PHASE:-all}"
 NUM_STEPS="${NUM_STEPS:-100}"
 SAMPLE_SEED="${SAMPLE_SEED:-0}"
 MASK_SEED="${MASK_SEED:-0}"
 PLAN_ONLY="${PLAN_ONLY:-false}"
 RESUME="${RESUME:-true}"
+SKIP_KNOWN_NONFINITE="${SKIP_KNOWN_NONFINITE:-false}"
 
 # Optional space-separated overrides. Empty means use the selected profile.
 TEST_TYPE_LIST="${TEST_TYPE_LIST:-}"
@@ -71,12 +74,17 @@ fi
 COMMON_ARGS=(
     --root "${OUTPUT_DIR}"
     --profile "${PROFILE}"
+    --candidate-set "${CANDIDATE_SET}"
     --tasks "$(join_comma "${TASKS[@]}")"
     --data-root "${PDE_DATA_ROOT}"
     --num-steps "${NUM_STEPS}"
     --sample-seed "${SAMPLE_SEED}"
     --mask-seed "${MASK_SEED}"
 )
+
+if [[ -n "${DISTRIBUTION_WEIGHTS}" ]]; then
+    COMMON_ARGS+=(--distribution-weights "${DISTRIBUTION_WEIGHTS}")
+fi
 
 if [[ -n "${TEST_TYPE_LIST}" ]]; then
     read -r -a TEST_TYPES <<< "${TEST_TYPE_LIST}"
@@ -95,6 +103,9 @@ if [[ -n "${BATCH_SIZE}" ]]; then
 fi
 if ! is_true "${RESUME}"; then
     COMMON_ARGS+=(--no-resume)
+fi
+if is_true "${SKIP_KNOWN_NONFINITE}"; then
+    COMMON_ARGS+=(--skip-known-nonfinite)
 fi
 
 ALL_PDES="$(join_comma "${PDES[@]}")"

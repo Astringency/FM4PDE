@@ -1,3 +1,4 @@
+import csv
 import os
 import subprocess
 
@@ -21,8 +22,12 @@ from scripts.tuning.run_six_pde_sampling_tuning import (
     TASKS as SIX_PDE_TASKS,
     baseline_for as six_pde_baseline_for,
     candidates_for as six_pde_candidates_for,
+    _final_losses_are_finite as six_pde_final_losses_are_finite,
+    _parse_distribution_weights as parse_six_pde_distribution_weights,
+    refined_candidates_for as six_pde_refined_candidates_for,
     select_tune_winners as select_six_pde_tune_winners,
     summarize_tune as summarize_six_pde_tune,
+    write_csv as write_six_pde_csv,
 )
 from scripts.tuning.select_inverse_params import select_rows
 
@@ -164,9 +169,18 @@ def test_six_pde_candidate_grids_cover_all_equations_tasks_and_sampler_families(
             by_name = {candidate["candidate"]: candidate for candidate in candidates}
             assert candidates[0]["candidate"] == "baseline"
             assert len(by_name) == len(candidates)
-            assert {"deterministic", "hybrid_s2d", "geometric_grid", "midpoint"} <= set(
-                by_name
+            # A newly promoted main baseline can be identical to one of these
+            # named candidates, in which case candidates_for intentionally
+            # deduplicates the redundant job.  Check family coverage by the
+            # effective parameters instead of requiring every historical name.
+            assert any(
+                candidate["sampler_phase"] == "deterministic" for candidate in candidates
             )
+            assert any(
+                candidate["sampler_phase"] == "hybrid_s2d" for candidate in candidates
+            )
+            assert any(candidate["time_grid"] == "geometric" for candidate in candidates)
+            assert any(candidate["step_method"] == "midpoint" for candidate in candidates)
             if task == "forward":
                 assert all(
                     candidate["zeta_obs_u"] == 0.0
@@ -183,6 +197,55 @@ def test_six_pde_candidate_grids_cover_all_equations_tasks_and_sampler_families(
                 assert "near_endpoint" not in by_name
             else:
                 assert by_name["near_endpoint"]["residual_mode"] == "near_endpoint_temporal"
+
+
+def test_six_pde_refined_grid_is_local_task_aware_and_deduplicated():
+    for pde in SIX_PDES:
+        for task in SIX_PDE_TASKS:
+            baseline = six_pde_baseline_for(pde, task)
+            candidates = six_pde_refined_candidates_for(pde, task)
+            signatures = {
+                tuple(candidate[field] for field in SIX_PDE_CANDIDATE_FIELDS)
+                for candidate in candidates
+            }
+
+            assert candidates[0]["candidate"] == "baseline"
+            assert len(signatures) == len(candidates)
+            assert any(candidate["candidate"] == "refine_conservative" for candidate in candidates)
+            if task == "forward":
+                assert all(candidate["zeta_obs_u"] == baseline["zeta_obs_u"] for candidate in candidates)
+            elif task == "inverse":
+                assert all(candidate["zeta_obs_a"] == baseline["zeta_obs_a"] for candidate in candidates)
+
+
+def test_six_pde_distribution_weights_and_final_loss_validation():
+    assert parse_six_pde_distribution_weights(
+        "id=1 smooth=1 rough=2", ["id", "smooth", "rough"]
+    ) == {"id": 1.0, "smooth": 1.0, "rough": 2.0}
+    assert six_pde_final_losses_are_finite(
+        {"L_obs_a": 0.1, "L_obs_u": 0.2, "L_pde": 3.0}
+    )
+    assert not six_pde_final_losses_are_finite(
+        {"L_obs_a": 0.1, "L_obs_u": float("nan"), "L_pde": 3.0}
+    )
+
+
+def test_six_pde_refine_plan_uses_rough_weighted_local_search(tmp_path):
+    lines = _run_plan(
+        "scripts/tuning/run_six_pde_sampling_refine.sh",
+        {
+            "PDE_LIST": "heat",
+            "TASK_LIST": "forward",
+            "DEVICE_LIST": "cuda:0",
+            "MAX_PARALLEL_TASKS": "1",
+            "OUTPUT_DIR": str(tmp_path / "unused"),
+        },
+    )
+
+    assert len(lines) == 2
+    assert "candidate_set=refined" in lines[1]
+    assert "'rough': 2.0" in lines[1]
+    assert not (tmp_path / "unused").exists()
 
 
 def test_six_pde_winner_rejects_incomplete_and_auxiliary_regression():
@@ -236,6 +299,25 @@ def test_six_pde_winner_rejects_incomplete_and_auxiliary_regression():
     assert "incomplete" not in by_name
     assert by_name["unsafe_auxiliary"]["passes_guardrails"] is False
     assert winner["candidate"] == "good"
+
+
+def test_six_pde_csv_writer_unions_fields_from_heterogeneous_rows(tmp_path):
+    destination = tmp_path / "summary.csv"
+
+    write_six_pde_csv(
+        destination,
+        [
+            {"candidate": "unpaired", "score": 0.5},
+            {"candidate": "paired", "score": 0.7, "overall_primary_mean_ratio": 0.9},
+        ],
+    )
+
+    with destination.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows == [
+        {"candidate": "unpaired", "score": "0.5", "overall_primary_mean_ratio": ""},
+        {"candidate": "paired", "score": "0.7", "overall_primary_mean_ratio": "0.9"},
+    ]
 
 
 def test_inverse_selector_rejects_incomplete_configs_and_ranks_robust_error():
