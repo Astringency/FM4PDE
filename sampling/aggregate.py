@@ -65,6 +65,8 @@ SUMMARY_METRICS = [
     "rel_l2_u",
     "obs_rel_l2_a",
     "obs_rel_l2_u",
+    "L_obs_a",
+    "L_obs_u",
     "clean_L_obs_a",
     "clean_L_obs_u",
     "L_pde",
@@ -81,6 +83,8 @@ CURVE_METRICS = [
     "rel_l2_u",
     "obs_rel_l2_a",
     "obs_rel_l2_u",
+    "L_obs_a",
+    "L_obs_u",
     "clean_L_obs_a",
     "clean_L_obs_u",
     "L_pde",
@@ -95,6 +99,36 @@ SAMPLE_METRICS = [
     "obs_rel_l2_a",
     "obs_rel_l2_u",
     "pde_residual_norm",
+]
+
+# Stable, explicit reporting contract for every selected ablation run.  Keep
+# coefficient and solution metrics separate: task-specific rankings may use a
+# derived score, but that score must not replace the underlying measurements.
+ABLATION_REPORT_COLUMNS = [
+    "pde",
+    "task",
+    "ablation_group",
+    "ablation_name",
+    "sample_seed",
+    "guidance_components",
+    "loss_state",
+    "sampler_phase",
+    "switch_ratio",
+    "time_grid",
+    "num_steps",
+    "step_method",
+    "sensor_mode",
+    "num_obs",
+    "noise_level",
+    "residual_mode",
+    "resolved_residual_mode",
+    "rel_l2_a",
+    "rel_l2_u",
+    "L_obs_a",
+    "L_obs_u",
+    "L_pde",
+    "run_dir",
+    "metrics_path",
 ]
 
 
@@ -123,6 +157,7 @@ def aggregate_root(root: str | Path, output_dir: str | Path | None = None) -> di
     latest_sample_path = output_dir / "metrics_per_sample_latest_unique.csv"
     latest_curves_path = output_dir / "curves_latest_grouped.csv"
     excluded_path = output_dir / "summary_excluded_runs.csv"
+    report_metrics_path = output_dir / "ablation_report_metrics.csv"
 
     _write_csv(raw_path, raw_rows)
     _write_csv(sample_raw_path, sample_rows)
@@ -135,6 +170,11 @@ def aggregate_root(root: str | Path, output_dir: str | Path | None = None) -> di
     _write_csv(latest_run_grouped_path, _aggregate_rows(latest_rows, SUMMARY_METRICS, GROUP_KEYS))
     _write_csv(latest_curves_path, _aggregate_rows(latest_curve_rows, CURVE_METRICS, GROUP_KEYS + ["step"]))
     _write_csv(excluded_path, excluded_rows)
+    _write_csv(
+        report_metrics_path,
+        _ablation_report_rows(latest_rows),
+        fieldnames=ABLATION_REPORT_COLUMNS,
+    )
     return {
         "raw": raw_path,
         "sample_raw": sample_raw_path,
@@ -147,6 +187,7 @@ def aggregate_root(root: str | Path, output_dir: str | Path | None = None) -> di
         "latest_run_seed_grouped": latest_run_grouped_path,
         "latest_curves": latest_curves_path,
         "excluded": excluded_path,
+        "report_metrics": report_metrics_path,
     }
 
 
@@ -227,11 +268,19 @@ def _row_recency(row: dict[str, Any]) -> tuple[int, str]:
 def _is_analysis_ready_run(row: dict[str, Any]) -> bool:
     if not _is_successful_run(row):
         return False
-    for metric in ("rel_l2_a", "rel_l2_u", "L_pde"):
+    for metric in ("rel_l2_a", "rel_l2_u", "L_obs_a", "L_obs_u", "L_pde"):
         value = _to_float(row.get(metric))
         if value is None or not math.isfinite(value):
             return False
     return True
+
+
+def _ablation_report_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Project selected runs onto the stakeholder-facing metric contract."""
+    return [
+        {column: row.get(column, "") for column in ABLATION_REPORT_COLUMNS}
+        for row in sorted(rows, key=_ablation_run_key)
+    ]
 
 
 def _collect_rows(
@@ -430,12 +479,17 @@ def _read_config(path: Path) -> dict[str, Any]:
     return load_yaml_file(path)
 
 
-def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_csv(
+    path: Path,
+    rows: list[dict[str, Any]],
+    *,
+    fieldnames: list[str] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         path.write_text("", encoding="utf-8")
         return
-    keys = sorted({key for row in rows for key in row})
+    keys = fieldnames or sorted({key for row in rows for key in row})
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=keys)
         writer.writeheader()

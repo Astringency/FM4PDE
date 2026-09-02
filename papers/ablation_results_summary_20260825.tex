@@ -21,6 +21,8 @@
 \newcommand{\Ebal}{E_{\mathrm{bal}}}
 \newcommand{\relA}{\mathrm{RelL2}_a}
 \newcommand{\relU}{\mathrm{RelL2}_u}
+\newcommand{\Lobsa}{L_{\mathrm{obs},a}}
+\newcommand{\Lobsu}{L_{\mathrm{obs},u}}
 \newcommand{\Lpde}{L_{\mathrm{PDE}}}
 \newcommand{\hsd}{\texttt{hybrid\_s2d}}
 \newcommand{\hds}{\texttt{hybrid\_d2s}}
@@ -166,18 +168,28 @@ joint runs.
 \subsection{Metrics and comparison rules}
 \label{sec:metrics}
 
-The two primary reconstruction metrics are the coefficient-field error
-\(\relA\) and solution-field error \(\relU\), both measured as mean
-per-sample relative \(L_2\) error.  For joint Poisson and Navier--Stokes runs,
-we define the balanced reconstruction score
+Every reported configuration contains five primitive metrics: coefficient-field
+relative error \(\relA\), solution-field relative error \(\relU\), coefficient
+observation loss \(\Lobsa\), solution observation loss \(\Lobsu\), and PDE loss
+\(\Lpde\).  The relative errors are mean per-sample relative \(L_2\) errors;
+the observation losses are the final unweighted masked MSE values against the
+actual observations, including configured observation noise.  Clean-target
+observation losses remain available in the aggregate files as diagnostics.
+
+For ranking joint Poisson and Navier--Stokes runs only, we define the balanced
+reconstruction index
 \begin{equation}
   \Ebal = \frac{\relA + \relU}{2}.
   \label{eq:balanced}
 \end{equation}
 For forward and inverse tasks, the target score is \(\relU\) and \(\relA\),
 respectively.  For Burgers, the target score is the single-channel relative
-error.  Equal weighting in Equation~\ref{eq:balanced} is an analysis
-convention rather than a new training objective.
+error.  Equal weighting in Equation~\ref{eq:balanced} is an analysis convention
+rather than a new training objective, and the index never replaces the
+separately reported \(a\)- and \(u\)-field errors.  The complete one-row-per-run
+reporting view is \path{ablation_report_metrics.csv}; its stable metric columns
+are \texttt{rel\_l2\_a}, \texttt{rel\_l2\_u}, \texttt{L\_obs\_a},
+\texttt{L\_obs\_u}, and \texttt{L\_pde}.
 
 The reported \(\Lpde\) is used as a physical-consistency diagnostic only
 when the residual definition is unchanged.  It must not be compared directly
@@ -198,25 +210,50 @@ term to observation guidance produces only a small forward-task improvement
 for Navier--Stokes and no consistent improvement elsewhere.
 
 \begin{table}[t]
-\caption{Target reconstruction error for the guidance-component ablation.
-For joint Poisson and Navier--Stokes runs the target is \(\Ebal\); for
-forward and inverse runs it is \(\relU\) and \(\relA\), respectively.}
+\caption{Complete primitive metrics for the guidance-component ablation.
+NS denotes non-bounded Navier--Stokes.  Observation losses are reported for
+both fields even when the task gate activates only one of them.}
 \label{tab:guidance}
 \centering
-\small
-\begin{tabular}{llrrrr}
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrr}
 \toprule
-Problem & Task & No guide & PDE only & Obs. only & Obs.+PDE \\
+Problem & Task & Guidance & \(\relA\) & \(\relU\) & \(\Lobsa\) & \(\Lobsu\) & \(\Lpde\) \\
 \midrule
-Poisson & Forward & 0.63615 & 0.63629 & \textbf{0.05674} & 0.05679 \\
-Poisson & Inverse & 0.70633 & 0.70647 & 0.18429 & \textbf{0.18428} \\
-Poisson & Joint & 0.67124 & 0.67133 & \textbf{0.06614} & 0.06614 \\
-Burgers & Joint & 1.08051 & 1.06139 & 0.01611 & \textbf{0.01609} \\
-Navier--Stokes & Forward & 0.99728 & 0.99727 & 0.12402 & \textbf{0.12268} \\
-Navier--Stokes & Inverse & 1.20948 & 1.20952 & \textbf{0.34245} & 0.34623 \\
-Navier--Stokes & Joint & 1.10338 & 1.10333 & \textbf{0.15757} & 0.15758 \\
+Poisson & Forward & No guide & 0.706328 & 0.636149 & 0.0475036 & $8.30383\!\times\!10^{-6}$ & 0.00501552 \\
+Poisson & Forward & PDE only & 0.706371 & 0.636293 & 0.0475095 & $8.30763\!\times\!10^{-6}$ & 0.00501407 \\
+Poisson & Forward & Obs. only & 0.104347 & 0.0567385 & 0.000759209 & $7.49590\!\times\!10^{-8}$ & 0.00493408 \\
+Poisson & Forward & Obs.+PDE & 0.104354 & 0.0567902 & 0.000759369 & $7.50893\!\times\!10^{-8}$ & 0.00492117 \\
+Poisson & Inverse & No guide & 0.706328 & 0.636149 & 0.0475036 & $8.30383\!\times\!10^{-6}$ & 0.00501552 \\
+Poisson & Inverse & PDE only & 0.706474 & 0.636608 & 0.0475234 & $8.31597\!\times\!10^{-6}$ & 0.00499225 \\
+Poisson & Inverse & Obs. only & 0.184290 & 0.0400967 & 0.00369552 & $3.34923\!\times\!10^{-8}$ & 0.00495474 \\
+Poisson & Inverse & Obs.+PDE & 0.184284 & 0.0400938 & 0.00369519 & $3.34877\!\times\!10^{-8}$ & 0.00493661 \\
+Poisson & Joint & No guide & 0.706328 & 0.636149 & 0.0475036 & $8.30383\!\times\!10^{-6}$ & 0.00501552 \\
+Poisson & Joint & PDE only & 0.706365 & 0.636290 & 0.0475089 & $8.30756\!\times\!10^{-6}$ & 0.00501193 \\
+Poisson & Joint & Obs. only & 0.0987497 & 0.0335385 & 0.000674767 & $2.47046\!\times\!10^{-8}$ & 0.00486790 \\
+Poisson & Joint & Obs.+PDE & 0.0987495 & 0.0335390 & 0.000674772 & $2.47065\!\times\!10^{-8}$ & 0.00485743 \\
+\midrule
+Burgers & Joint & No guide & 1.08051 & 1.08051 & 0.109369 & 0.106683 & 0.000746940 \\
+Burgers & Joint & PDE only & 1.06139 & 1.06139 & 0.105655 & 0.103229 & 0.000643136 \\
+Burgers & Joint & Obs. only & 0.0161125 & 0.0161125 & $2.20532\!\times\!10^{-5}$ & $2.04047\!\times\!10^{-5}$ & 0.00304960 \\
+Burgers & Joint & Obs.+PDE & 0.0160872 & 0.0160872 & $2.19834\!\times\!10^{-5}$ & $2.03668\!\times\!10^{-5}$ & 0.00298843 \\
+\midrule
+NS & Forward & No guide & 1.20948 & 0.997277 & 0.0549511 & 0.0441466 & 0.00243790 \\
+NS & Forward & PDE only & 1.20948 & 0.997271 & 0.0549515 & 0.0441461 & 0.00243838 \\
+NS & Forward & Obs. only & 0.214954 & 0.124017 & 0.00138949 & 0.000725228 & 0.00276624 \\
+NS & Forward & Obs.+PDE & 0.213913 & 0.122684 & 0.00138016 & 0.000716983 & 0.00271786 \\
+NS & Inverse & No guide & 1.20948 & 0.997277 & 0.0549511 & 0.0441466 & 0.00243790 \\
+NS & Inverse & PDE only & 1.20952 & 0.997295 & 0.0549539 & 0.0441498 & 0.00243765 \\
+NS & Inverse & Obs. only & 0.342449 & 0.206961 & 0.00473021 & 0.00162207 & 0.00273852 \\
+NS & Inverse & Obs.+PDE & 0.346227 & 0.209956 & 0.00484030 & 0.00166886 & 0.00273813 \\
+NS & Joint & No guide & 1.20948 & 0.997277 & 0.0549511 & 0.0441466 & 0.00243790 \\
+NS & Joint & PDE only & 1.20943 & 0.997223 & 0.0549473 & 0.0441453 & 0.00243845 \\
+NS & Joint & Obs. only & 0.199914 & 0.115232 & 0.00111870 & 0.000584215 & 0.00277407 \\
+NS & Joint & Obs.+PDE & 0.199993 & 0.115158 & 0.00112182 & 0.000581448 & 0.00277131 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 The result does not imply that the PDE term is intrinsically useless.  It
@@ -250,23 +287,30 @@ Navier--Stokes obtains its best reconstruction from cosine + \hsd{}, with a
 32.0\% score reduction and a 13.9-fold residual increase.
 
 \begin{table}[t]
-\caption{Best sampler-phase and time-grid results.  ``Residual ratio'' is
-\(\Lpde\) divided by the observation+PDE stochastic reference residual.}
+\caption{Primitive metrics for the stochastic reference and the settings
+selected by the sampler-phase and time-grid ranking indices.}
 \label{tab:sampling-best}
 \centering
-\small
-\begin{tabular}{lrrrrr}
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrr}
 \toprule
-& Reference & \multicolumn{2}{c}{Best phase sweep} &
-\multicolumn{2}{c}{Best grid sweep} \\
-\cmidrule(lr){3-4}\cmidrule(lr){5-6}
-Problem & Score & Score (change) & Residual ratio & Score (change) & Residual ratio \\
+Problem & Source & Setting & \(\relA\) & \(\relU\) & \(\Lobsa\) & \(\Lobsu\) & \(\Lpde\) \\
 \midrule
-Poisson & 0.06614 & 0.05047 ($-23.7\%$) & 165.6 & 0.05453 ($-17.6\%$) & 5.59 \\
-Burgers & 0.01609 & 0.00542 ($-66.3\%$) & 2.23 & 0.00552 ($-65.7\%$) & 0.91 \\
-Navier--Stokes & 0.15758 & 0.13419 ($-14.8\%$) & 2.42 & 0.10711 ($-32.0\%$) & 13.91 \\
+Poisson & Reference & Stochastic & 0.0987495 & 0.0335390 & 0.000674772 & $2.47065\!\times\!10^{-8}$ & 0.00485743 \\
+Poisson & Phase & \hsd{}, 0.2 & 0.0858454 & 0.0151030 & 0.000580406 & $4.34068\!\times\!10^{-9}$ & 0.804162 \\
+Poisson & Grid & Cosine + \hsd{} & 0.0895861 & 0.0194788 & 0.000569167 & $8.42302\!\times\!10^{-9}$ & 0.0271510 \\
+\midrule
+Burgers & Reference & Stochastic & 0.0160872 & 0.0160872 & $2.19834\!\times\!10^{-5}$ & $2.03668\!\times\!10^{-5}$ & 0.00298843 \\
+Burgers & Phase & \hsd{}, 0.2 & 0.00541692 & 0.00541692 & $2.81017\!\times\!10^{-6}$ & $2.75459\!\times\!10^{-6}$ & 0.00667524 \\
+Burgers & Grid & Cosine + \hsd{} & 0.00552473 & 0.00552473 & $3.12696\!\times\!10^{-6}$ & $2.08008\!\times\!10^{-6}$ & 0.00273157 \\
+\midrule
+Navier--Stokes & Reference & Stochastic & 0.199993 & 0.115158 & 0.00112182 & 0.000581448 & 0.00277131 \\
+Navier--Stokes & Phase & \hsd{}, 0.5 & 0.183344 & 0.0850448 & 0.000875568 & 0.000297114 & 0.00669611 \\
+Navier--Stokes & Grid & Cosine + \hsd{} & 0.156057 & 0.0581717 & 0.000575255 & 0.000126354 & 0.0385353 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 \begin{figure}[t]
@@ -301,8 +345,8 @@ Navier--Stokes & 0.15758 & 0.13419 ($-14.8\%$) & 2.42 & 0.10711 ($-32.0\%$) & 13
 reference for each PDE.  Values below one indicate an accuracy improvement.
 Within each PDE, the bars from left to right show the reference, best phase
 sweep, and best grid sweep.
-The figure summarizes reconstruction only; Table~\ref{tab:sampling-best}
-shows that several improvements carry a physical-residual penalty.}
+The figure is a ranking visualization only; Table~\ref{tab:sampling-best}
+reports both field errors and all loss components separately.}
 \label{fig:sampling-normalized}
 \end{figure}
 
@@ -414,21 +458,23 @@ observation+PDE differences---are therefore not statistically distinguishable
 under the available replication.
 
 \begin{table}[t]
-\caption{Five-seed stability of the reference configuration.  The target
-score is \(\Ebal\) for Poisson and Navier--Stokes and the single-channel
-relative error for Burgers.  Standard deviations are sample standard
-deviations.}
+\caption{Five-seed stability of the reference configuration.  Each cell is
+mean $\pm$ sample standard deviation; no balanced score replaces the two
+field-level errors.}
 \label{tab:stability}
 \centering
-\begin{tabular}{lrrrr}
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrr}
 \toprule
-Problem & Target mean & Target std. & Target CV & \(\Lpde\) CV \\
+Problem & \(\relA\) & \(\relU\) & \(\Lobsa\) & \(\Lobsu\) & \(\Lpde\) \\
 \midrule
-Poisson & 0.07223 & 0.00900 & 12.46\% & 49.02\% \\
-Burgers & 0.01458 & 0.00220 & 15.07\% & 15.61\% \\
-Navier--Stokes & 0.15756 & 0.00323 & 2.05\% & 6.53\% \\
+Poisson & $0.10555\!\pm\!0.00598$ & $0.03890\!\pm\!0.01442$ & $7.80\!\times\!10^{-4}\!\pm\!1.10\!\times\!10^{-4}$ & $3.45\!\times\!10^{-8}\!\pm\!2.72\!\times\!10^{-8}$ & $0.003744\!\pm\!0.001836$ \\
+Burgers & $0.01458\!\pm\!0.00220$ & $0.01458\!\pm\!0.00220$ & $1.89\!\times\!10^{-5}\!\pm\!5.63\!\times\!10^{-6}$ & $1.51\!\times\!10^{-5}\!\pm\!3.77\!\times\!10^{-6}$ & $0.003354\!\pm\!0.000523$ \\
+Navier--Stokes & $0.19816\!\pm\!0.00415$ & $0.11696\!\pm\!0.00357$ & $0.001082\!\pm\!0.000096$ & $0.000577\!\pm\!0.000014$ & $0.003056\!\pm\!0.000199$ \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 Every one of the 274 selected records has finite final metrics, but 57
@@ -532,82 +578,35 @@ needed for a defensible final configuration.
 \section{Complete Group-Level Summary}
 \label{app:complete}
 
-Tables~\ref{tab:poisson-groups}--\ref{tab:ns-groups} summarize every ablation
-group in the deduplicated snapshot.  The best and worst columns use the target
-score defined in Section~\ref{sec:metrics}; stability rows compare the five
-individual seeds rather than a tunable design choice.  Exact run-level values
-for all 274 configurations are available in
-\path{summary_latest_unique.csv}.
+The complete group-level report is emitted as
+\path{ablation_report_metrics.csv}.  It contains one selected row for every
+\((\mathrm{PDE},\mathrm{task},\texttt{ablation\_name})\) identity, including
+all 274 currently completed configurations.  Unlike the previous appendix,
+it does not collapse \(\relA\) and \(\relU\) into a target score and does not
+omit the observation losses.  Table~\ref{tab:report-contract} defines its
+stable metric contract; configuration columns and source paths accompany
+these values in the CSV.
 
 \begin{table}[t]
-\caption{Poisson group-level summary.}
-\label{tab:poisson-groups}
+\caption{Required columns in the complete ablation reporting view.}
+\label{tab:report-contract}
 \centering
-\small
-\begin{tabularx}{\textwidth}{Y r Y r r}
+\begin{tabular}{lll}
 \toprule
-Group & Runs & Best setting & Best & Worst \\
+CSV column & Symbol & Definition \\
 \midrule
-Guidance components & 12 & Obs. only (joint) & 0.06614 & 0.67133 \\
-Loss state $\times$ sampler & 6 & Endpoint, stochastic & 0.06614 & $2.56\!\times\!10^4$ \\
-Sampler phase & 8 & \hsd{}, ratio 0.2 & 0.05047 & $2.56\!\times\!10^4$ \\
-Time grid $\times$ sampler & 12 & Cosine + \hsd{} & 0.05453 & $5.35\!\times\!10^5$ \\
-Steps $\times$ sampler & 28 & Stochastic, 2000 & 0.05953 & $2.59\!\times\!10^5$ \\
-Integrator $\times$ sampler & 8 & Stochastic, Euler & 0.06615 & $5.57\!\times\!10^4$ \\
-Observation count & 5 & 1000 & 0.06578 & 6.62697 \\
-Observation layout & 5 & Random & 0.06614 & 1.15015 \\
-Observation noise & 4 & 0 & 0.06614 & 0.06907 \\
-Stability seeds & 5 & Seed 4 & 0.06551 & 0.08690 \\
+\texttt{rel\_l2\_a} & \(\relA\) & Coefficient-field relative \(L_2\) error \\
+\texttt{rel\_l2\_u} & \(\relU\) & Solution-field relative \(L_2\) error \\
+\texttt{L\_obs\_a} & \(\Lobsa\) & Final masked observation MSE for \(a\) \\
+\texttt{L\_obs\_u} & \(\Lobsu\) & Final masked observation MSE for \(u\) \\
+\texttt{L\_pde} & \(\Lpde\) & Final evaluation PDE loss \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
 
-\begin{table}[t]
-\caption{Burgers group-level summary.}
-\label{tab:burger-groups}
-\centering
-\small
-\begin{tabularx}{\textwidth}{Y r Y r r}
-\toprule
-Group & Runs & Best setting & Best & Worst \\
-\midrule
-Guidance components & 4 & Obs.+PDE & 0.01609 & 1.08051 \\
-Loss state $\times$ sampler & 6 & Endpoint, stochastic & 0.01609 & 2626.42 \\
-Sampler phase & 8 & \hsd{}, ratio 0.2 & 0.00542 & 2626.42 \\
-Time grid $\times$ sampler & 12 & Cosine + \hsd{} & 0.00552 & 2626.42 \\
-Steps $\times$ sampler & 28 & Stochastic, 1000 & 0.00815 & $2.63\!\times\!10^4$ \\
-Integrator $\times$ sampler & 8 & \hsd{}, Euler & 0.01114 & 2626.78 \\
-Observation count & 5 & 500 & 0.01609 & 0.03330 \\
-Observation layout & 5 & Fixed & 0.00592 & 0.01652 \\
-Observation noise & 4 & 0 & 0.01609 & 0.02636 \\
-Stability seeds & 5 & Seed 4 & 0.01080 & 0.01616 \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{table}[t]
-\caption{Non-bounded Navier--Stokes group-level summary.}
-\label{tab:ns-groups}
-\centering
-\small
-\begin{tabularx}{\textwidth}{Y r Y r r}
-\toprule
-Group & Runs & Best setting & Best & Worst \\
-\midrule
-Guidance components & 12 & Obs. only (joint) & 0.15757 & 1.10338 \\
-Loss state $\times$ sampler & 6 & Endpoint, stochastic & 0.15751 & $1.36\!\times\!10^5$ \\
-Sampler phase & 8 & \hsd{}, ratio 0.5 & 0.13419 & $1.36\!\times\!10^5$ \\
-Time grid $\times$ sampler & 12 & Cosine + \hsd{} & 0.10711 & $1.36\!\times\!10^5$ \\
-Steps $\times$ sampler & 28 & \hsd{}, 100 & 0.13453 & $1.36\!\times\!10^6$ \\
-Integrator $\times$ sampler & 8 & \hsd{}, midpoint & 0.13279 & $4.83\!\times\!10^5$ \\
-Observation count & 5 & 500 & 0.15806 & 2.02748 \\
-Observation layout & 5 & Grid & 0.15542 & 0.85413 \\
-Observation noise & 4 & 0.01 & 0.15637 & 0.15887 \\
-Temporal residual & 3 & Near-endpoint & 0.15783 & 2.07821 \\
-Stability seeds & 5 & Seed 1 & 0.15320 & 0.16210 \\
-\bottomrule
-\end{tabularx}
-\end{table}
+For repeated configurations, \path{summary_latest_run_seed_grouped.csv}
+reports mean, sample standard deviation, standard error, 95\% interval
+half-width, median, p90, minimum, and maximum separately for all five fields.
 
 \section{Data Quality and Reproducibility Artifacts}
 \label{app:artifacts}
@@ -616,8 +615,12 @@ The analysis is backed by the following files in \path{outputs/ablations}:
 \begin{itemize}
   \item \path{summary_all_raw.csv}: all 355 historical final records;
   \item \path{summary_latest_unique.csv}: the 274-record analysis snapshot;
+  \item Complete reporting view with separate \(\relA\), \(\relU\),
+        \(\Lobsa\), \(\Lobsu\), and \(\Lpde\):
+        \path{ablation_report_metrics.csv};
   \item \path{summary_excluded_runs.csv}: the 81 superseded records and their replacements;
-  \item \path{summary_latest_run_seed_grouped.csv}: grouped run-level statistics;
+  \item \path{summary_latest_run_seed_grouped.csv}: grouped run-level
+        statistics for the same five primitive metrics;
   \item \path{metrics_per_sample_latest_unique.csv}: per-sample current records; and
   \item \path{curves_latest_grouped.csv}: step-level curves restricted to selected runs.
 \end{itemize}

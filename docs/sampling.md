@@ -225,6 +225,14 @@ Aggregate:
 python -m sampling.aggregate outputs/ablations --output-dir outputs/ablations
 ```
 
+Aggregation writes `ablation_report_metrics.csv` as the stable ablation-report
+view.  It contains one selected row per `(pde, task, ablation_name)` and always
+reports `rel_l2_a`, `rel_l2_u`, `L_obs_a`, `L_obs_u`, and `L_pde` as separate
+columns.  `summary_latest_run_seed_grouped.csv` reports the mean, standard
+deviation, standard error, 95% interval half-width, median, p90, minimum, and
+maximum for the same five metrics.  A task-specific or balanced score may be
+used for ranking, but it does not replace these component metrics in reports.
+
 Each run writes `resolved_config.yaml`, `run_metadata.json`, `metrics_step.jsonl`, `metrics_final.json`, `curves.csv`, `summary.csv`, `result.pt`, and `masks.pt`.
 
 For batched sampling, relative L2 errors are computed independently for each sample and then averaged. The per-sample values are retained in the matching `*_per_sample` fields. PDE residual norms use the mean of per-sample RMS values.

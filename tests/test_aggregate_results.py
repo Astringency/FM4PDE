@@ -37,6 +37,8 @@ def _write_run(root, name, rel_l2_a, rel_l2_u, config_updates=None):
         "rel_l2_u": rel_l2_u,
         "obs_rel_l2_a": rel_l2_a,
         "obs_rel_l2_u": rel_l2_u,
+        "L_obs_a": rel_l2_a + 0.1,
+        "L_obs_u": rel_l2_u + 0.2,
         "clean_L_obs_a": rel_l2_a,
         "clean_L_obs_u": rel_l2_u,
         "L_pde": 0.5,
@@ -61,7 +63,9 @@ def test_aggregate_outputs_statistics(tmp_path):
     outputs = aggregate_root(tmp_path)
 
     grouped = list(csv.DictReader(outputs["grouped"].open(encoding="utf-8")))
+    run_grouped = list(csv.DictReader(outputs["run_seed_grouped"].open(encoding="utf-8")))
     assert len(grouped) == 1
+    assert len(run_grouped) == 1
     row = grouped[0]
     assert float(row["rel_l2_a_mean"]) == pytest.approx(2.0)
     assert float(row["rel_l2_a_std"]) == pytest.approx(2**0.5)
@@ -72,6 +76,9 @@ def test_aggregate_outputs_statistics(tmp_path):
     assert float(row["rel_l2_a_p90"]) == pytest.approx(2.8)
     assert float(row["rel_l2_a_min"]) == pytest.approx(1.0)
     assert float(row["rel_l2_a_max"]) == pytest.approx(3.0)
+    assert float(run_grouped[0]["L_obs_a_mean"]) == pytest.approx(2.1)
+    assert float(run_grouped[0]["L_obs_u_mean"]) == pytest.approx(3.2)
+    assert float(run_grouped[0]["L_pde_mean"]) == pytest.approx(0.5)
 
     curves = list(csv.DictReader(outputs["curves"].open(encoding="utf-8")))
     assert len(curves) == 1
@@ -94,6 +101,7 @@ def test_latest_outputs_exclude_superseded_runs_without_dropping_history(tmp_pat
     latest_sample_grouped = list(csv.DictReader(outputs["latest_grouped"].open(encoding="utf-8")))
     latest_grouped = list(csv.DictReader(outputs["latest_run_seed_grouped"].open(encoding="utf-8")))
     latest_curves = list(csv.DictReader(outputs["latest_curves"].open(encoding="utf-8")))
+    report_metrics = list(csv.DictReader(outputs["report_metrics"].open(encoding="utf-8")))
 
     assert len(history) == 2
     assert len(latest) == 1
@@ -108,6 +116,38 @@ def test_latest_outputs_exclude_superseded_runs_without_dropping_history(tmp_pat
     assert int(latest_grouped[0]["rel_l2_a_n"]) == 1
     assert len(latest_curves) == 1
     assert float(latest_curves[0]["rel_l2_u_mean"]) == pytest.approx(4.0)
+    assert len(report_metrics) == 1
+    assert list(report_metrics[0]) == [
+        "pde",
+        "task",
+        "ablation_group",
+        "ablation_name",
+        "sample_seed",
+        "guidance_components",
+        "loss_state",
+        "sampler_phase",
+        "switch_ratio",
+        "time_grid",
+        "num_steps",
+        "step_method",
+        "sensor_mode",
+        "num_obs",
+        "noise_level",
+        "residual_mode",
+        "resolved_residual_mode",
+        "rel_l2_a",
+        "rel_l2_u",
+        "L_obs_a",
+        "L_obs_u",
+        "L_pde",
+        "run_dir",
+        "metrics_path",
+    ]
+    assert float(report_metrics[0]["rel_l2_a"]) == pytest.approx(3.0)
+    assert float(report_metrics[0]["rel_l2_u"]) == pytest.approx(4.0)
+    assert float(report_metrics[0]["L_obs_a"]) == pytest.approx(3.1)
+    assert float(report_metrics[0]["L_obs_u"]) == pytest.approx(4.2)
+    assert float(report_metrics[0]["L_pde"]) == pytest.approx(0.5)
 
 
 def test_failed_pde_evaluations_remain_in_raw_output_but_are_not_aggregated(tmp_path):

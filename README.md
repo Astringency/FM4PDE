@@ -184,6 +184,18 @@ AGGREGATE=true \
   bash scripts/sample/run_sample_sweep_burger.sh
 ```
 
+For full observations on the four non-Burgers `MAIN1000_100_TEST` equations
+across `id`, `rough`, and `smooth`, use the dedicated wrapper.  At the current
+`128 x 128` resolution it sets `NUM_OBS=16384`, runs all three tasks, excludes
+Burgers, and writes `outputs/MAIN1000_100_TEST_FULL_<test_type>`:
+
+```bash
+bash scripts/sample/run_sample_sweep_full.sh
+```
+
+Preview all three plans without sampling with
+`PLAN_ONLY=true bash scripts/sample/run_sample_sweep_full.sh`.
+
 Together, these stochastic-only commands create 12 non-Burgers PDE/task
 experiments plus two Burgers sensor-mode experiments, or 14,000 sample results.
 The current default `SAMPLER_LIST` is `stochastic`, so these are also the
@@ -318,6 +330,9 @@ outputs/MAIN1000/.sample_sweeps/<configuration-fingerprint>/
 After a successful sweep, aggregation writes files such as
 `summary_all_raw.csv`, `summary_all_grouped.csv`,
 `metrics_per_sample_all.csv`, and `curves_grouped.csv` under `OUTPUT_DIR`.
+For ablation reporting, `ablation_report_metrics.csv` is the compact
+one-row-per-selected-run view and keeps `rel_l2_a`, `rel_l2_u`, `L_obs_a`,
+`L_obs_u`, and `L_pde` in separate columns.
 
 ### Ablation sweep
 
