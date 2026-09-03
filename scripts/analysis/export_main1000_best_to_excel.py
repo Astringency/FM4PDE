@@ -534,7 +534,7 @@ def _write_notes_sheet(wb: Workbook, source_path: Path, generated_at: str) -> No
         ("重要限制", "SMOOTH 的 darcy/helmholtz/nsnonbounded/poisson inverse baseline 使用的 zeta 参数与 ID/ROUGH 不一致，跨 TEST 比较改善幅度时需谨慎。"),
         ("Residual 提醒", "替换依据仅为任务主指标；18 个替换项中有 11 个 PDE residual 上升，已在摘要和审计页完整保留。"),
         ("主数据源", str(source_path)),
-        ("原始聚合", "outputs/MAIN1000_100_TEST_{id,rough,smooth}{,_tuned1}/summary_all_grouped.csv"),
+        ("原始聚合", "outputs/main/MAIN1000_100_TEST_{id,rough,smooth}{,_tuned1}/summary_all_grouped.csv"),
         ("生成时间", generated_at),
     ]
     header_row = 4

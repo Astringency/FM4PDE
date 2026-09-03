@@ -1,6 +1,7 @@
 import csv
 import os
 import subprocess
+from pathlib import Path
 
 from scripts.tuning.run_hard_inverse_tuning import (
     _resume_status_matches,
@@ -588,48 +589,38 @@ def test_hard_inverse_winner_respects_per_distribution_guardrails():
     assert winner["passes_guardrails"] is True
 
 
-def test_hard_inverse_a100_plan_splits_pdes_between_servers():
-    server_zero = _run_plan(
-        "scripts/tuning/run_hard_inverse_a100.sh",
-        {"SERVER_RANK": "0", "PLAN_ONLY": "true"},
-    )
-    server_one = _run_plan(
-        "scripts/tuning/run_hard_inverse_a100.sh",
-        {"SERVER_RANK": "1", "PLAN_ONLY": "true"},
-    )
+def test_hard_inverse_a100_plan_splits_pdes_between_servers(tmp_path: Path):
+    artifact_root = tmp_path / "inverse_hard_tuning"
+    (artifact_root / "hard_samples.csv").parent.mkdir(parents=True)
+    (artifact_root / "hard_samples.csv").touch()
+    for split in ("tune", "holdout"):
+        for pde in ("poisson", "helmholtz", "darcy", "nsnonbounded"):
+            for test_type in ("id", "smooth", "rough"):
+                subset = artifact_root / "subsets" / split / f"{pde}_{test_type}.mat"
+                subset.parent.mkdir(parents=True, exist_ok=True)
+                subset.touch()
 
-    # The A100 launcher prints a shell-escaped COMMAND rather than per-job PLAN rows.
-    assert server_zero == []
-    assert server_one == []
-    output_zero = subprocess.run(
-        ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
-        check=True,
-        text=True,
-        capture_output=True,
-        env={**os.environ, "SERVER_RANK": "0", "PLAN_ONLY": "true"},
-    ).stdout
-    output_one = subprocess.run(
-        ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
-        check=True,
-        text=True,
-        capture_output=True,
-        env={**os.environ, "SERVER_RANK": "1", "PLAN_ONLY": "true"},
-    ).stdout
+    def run_plan(**updates: str) -> str:
+        return subprocess.run(
+            ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
+            check=True,
+            text=True,
+            capture_output=True,
+            env={
+                **os.environ,
+                "ARTIFACT_ROOT": str(artifact_root),
+                "PLAN_ONLY": "true",
+                **updates,
+            },
+        ).stdout
+
+    output_zero = run_plan(SERVER_RANK="0")
+    output_one = run_plan(SERVER_RANK="1")
     assert "--pdes poisson\\,helmholtz" in output_zero
     assert "--pdes darcy\\,nsnonbounded" in output_one
 
-    refined = subprocess.run(
-        ["bash", "scripts/tuning/run_hard_inverse_a100.sh"],
-        check=True,
-        text=True,
-        capture_output=True,
-        env={
-            **os.environ,
-            "SERVER_RANK": "0",
-            "PLAN_ONLY": "true",
-            "CANDIDATE_SET": "refined",
-            "ANALYSIS_LABEL": "round2",
-        },
-    ).stdout
+    refined = run_plan(
+        SERVER_RANK="0", CANDIDATE_SET="refined", ANALYSIS_LABEL="round2"
+    )
     assert "--candidate-set refined" in refined
     assert "--analysis-label round2" in refined

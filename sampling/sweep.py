@@ -19,6 +19,14 @@ _RESUME_IGNORED_CONFIG_FIELDS = {
     "save_plots",
 }
 
+_BACKWARD_COMPATIBLE_CONFIG_DEFAULTS = {
+    "deterministic_endpoint_mode": "single_step",
+    "deterministic_rollout_checkpoint": False,
+    "deterministic_bt_mode": "legacy",
+    "deterministic_guidance_coeff": 1.0,
+    "deterministic_bt_max_scale": 0.1,
+}
+
 
 def expand_grid(
     grid_path: str,
@@ -319,9 +327,12 @@ def _is_matching_successful_run(
 
 
 def _resume_config(config: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(config)
+    for key, value in _BACKWARD_COMPATIBLE_CONFIG_DEFAULTS.items():
+        normalized.setdefault(key, value)
     return {
         key: value
-        for key, value in config.items()
+        for key, value in normalized.items()
         if key not in _RESUME_IGNORED_CONFIG_FIELDS
     }
 

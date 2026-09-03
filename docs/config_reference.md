@@ -77,6 +77,11 @@ PDE gate 只作用于 `zeta_pde`，不会改变 `zeta_obs_a` 或 `zeta_obs_u`；
 | `time_grid_eta` | `float` | `0.4` | geometric 网格的中心偏移参数 |
 | `num_steps` | `int` | `100` | 采样总步数（对应 `run_sample.sh` 中的 `NUM_STEPS` 环境变量） |
 | `step_method` | `str` | `euler` | ODE/SDE 积分方法：`euler`（Euler-Maruyama）、`midpoint`（中点法） |
+| `deterministic_endpoint_mode` | `str` | `single_step` | 确定性阶段的 endpoint prediction：`single_step` 用当前速度一步外推到 1；`rollout` 从当前时刻沿剩余原始时间网格无引导积分到 1。两者的 obs/PDE loss 均由 `loss_state: endpoint` 控制在 endpoint 上计算 |
+| `deterministic_rollout_checkpoint` | `bool` | `false` | rollout endpoint 是否对内部模型调用启用 gradient checkpoint；节省显存但增加反向重算时间 |
+| `deterministic_bt_mode` | `str` | `legacy` | 确定性 guidance 对 CondOT `b_t=(1-t)/t` 的处理：`legacy`、`zero_at_t0`、`t_next`、`clipped`、`clipped_zero_at_t0`、`stochastic_like`、`capped_stochastic_like`；`clipped_zero_at_t0` 将首步严格置零并截断后续早期大值，`capped_stochastic_like` 使用 `min(max_scale, coeff*(1-t))` 兼顾有限首步和非退化尾部 |
+| `deterministic_guidance_coeff` | `float` | `1.0` | 上述确定性 guidance update scale 的统一乘数 |
+| `deterministic_bt_max_scale` | `float` | `0.1` | `clipped*` 模式对乘系数前 `b_t * delta_t` 的上限；`capped_stochastic_like` 模式中则是最终 update scale 上限 |
 
 ---
 
@@ -140,7 +145,6 @@ PDE 残差通过计算生成轨迹上物理方程的约束来指导采样。不�
 | `dry_run` | `bool` | `false` | 仅校验配置不加载模型推理 |
 | `empty_cache_each_step` | `bool` | `false` | 每步清空 CUDA 缓存（显存紧张时使用） |
 | `ablation_name` | `str` | `""` | 自定义运行名称（留空则由系统根据参数自动生成） |
-| `extra` | `dict` | `{}` | 额外自定义参数字典，如 `det_guidance_stoch_scale: true` 等非标准配置项 |
 
 ---
 
@@ -158,8 +162,8 @@ configs/
 │
 └── ablations/
     ├── formal_suite.yaml          # 正式消融公共覆盖和测试集路径
-    ├── all_internal_ablation_grid.yaml # 11 种 PDE 的正式消融网格（1041 jobs）
-    ├── all_ablation_grid.yaml     # Poisson 聚焦网格 + 时间 PDE residual（111 jobs）
+    ├── all_internal_ablation_grid.yaml # 11 种 PDE 的正式消融网格（1060 jobs）
+    ├── all_ablation_grid.yaml     # Poisson 聚焦网格 + 时间 PDE residual（138 jobs）
     ├── smoke.yaml                 # 冒烟测试
     └── main_*.yaml                # 新方案的分主题消融配置
 ```
@@ -225,6 +229,8 @@ python -m sampling.runner \
 - 采样阶段：确定性、随机，以及 D→S/S→D 在 `0.2/0.5/0.8` 的切换。
 - 时间离散：网格、步数、积分方法三个独立组，各自跨四种采样阶段。
 - 观测设置：稀疏度、布局、噪声三个独立组，固定 `both + stochastic`。
+- 确定性 endpoint / `b_t`：先在 Poisson 上以相同 checkpoint、样本、mask、步数和 zeta
+  比较一步外推与逐步 rollout，并对多种 `b_t` 处理做消融（含 stochastic 基准，共 27 组）。
 - 时间 residual：六种时间 PDE 上比较 `endpoint_secant`、`hermite_bridge`、
   `near_endpoint_temporal`，统一使用 500 个观测点。
 - 稳定性：固定 `offset=0` 和 `noise_seed=0`，配对使用五组 sample/mask seeds。

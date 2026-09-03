@@ -104,6 +104,8 @@ def step_metrics(
         "t_next": _scalar(step_output.t_next),
         "phase": step_output.phase,
         "loss_state": step_output.loss_state,
+        "endpoint_prediction_mode": getattr(step_output, "endpoint_prediction_mode", "single_step"),
+        "endpoint_model_evaluations": getattr(step_output, "endpoint_model_evaluations", 1),
         "wall_time": wall_time,
         "L_obs_a": _scalar(eval_losses.L_obs_a),
         "L_obs_u": _scalar(eval_losses.L_obs_u),
@@ -201,6 +203,7 @@ def step_metrics(
                 "clip_scope": gradient.metadata.get("clip_scope", ""),
                 "guidance_update_scale": gradient.metadata.get("guidance_update_scale", 0.0),
                 "stochastic_guidance_time": gradient.metadata.get("stochastic_guidance_time", ""),
+                "deterministic_bt_mode": gradient.metadata.get("deterministic_bt_mode", ""),
             }
         )
     else:
@@ -215,6 +218,7 @@ def step_metrics(
                 "clip_scope": "",
                 "guidance_update_scale": 0.0,
                 "stochastic_guidance_time": "",
+                "deterministic_bt_mode": "",
             }
         )
     return row

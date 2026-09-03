@@ -200,3 +200,26 @@ def test_sensor_column_has_separate_explicit_budget():
 def test_next_state_direct_requires_x_next_loss_state():
     with pytest.raises(ValueError, match="loss_state='x_next'"):
         AblationConfig(loss_state="endpoint", gradient_target="next_state_direct").validate()
+
+
+def test_deterministic_endpoint_and_bt_controls_validate_and_name_runs():
+    cfg = AblationConfig(
+        deterministic_endpoint_mode="rollout",
+        deterministic_rollout_checkpoint=True,
+        deterministic_bt_mode="clipped",
+        deterministic_guidance_coeff=0.1,
+        deterministic_bt_max_scale=0.03,
+    )
+    cfg.validate()
+    name = cfg.resolved_ablation_name()
+    assert "detep-rollout" in name
+    assert "bt-clipped-c0.1-max0.03" in name
+
+    with pytest.raises(ValueError, match="deterministic_endpoint_mode"):
+        AblationConfig(deterministic_endpoint_mode="direct").validate()
+    with pytest.raises(ValueError, match="deterministic_bt_mode"):
+        AblationConfig(deterministic_bt_mode="unbounded").validate()
+    with pytest.raises(ValueError, match="deterministic_guidance_coeff"):
+        AblationConfig(deterministic_guidance_coeff=-0.1).validate()
+    with pytest.raises(ValueError, match="deterministic_bt_max_scale"):
+        AblationConfig(deterministic_bt_max_scale=0.0).validate()

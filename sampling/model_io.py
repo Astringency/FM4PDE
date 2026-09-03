@@ -100,6 +100,10 @@ def load_fm4pde_checkpoint_bundle(
             f"inference_weight={selected_inference_weight}."
         ) from exc
 
+    # Sampling differentiates losses with respect to the current state, never
+    # with respect to model weights. Freezing parameters keeps rollout-endpoint
+    # graphs substantially smaller without changing input gradients.
+    model.requires_grad_(False)
     model = model.to(device)
     model.eval()
     normalizer = PDEStandardizer.from_state_dict(payload["normalizer"])

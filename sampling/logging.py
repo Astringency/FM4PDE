@@ -81,6 +81,11 @@ def write_run_metadata(
             "time_grid": config.time_grid,
             "num_steps": config.num_steps,
             "step_method": config.step_method,
+            "deterministic_endpoint_mode": config.deterministic_endpoint_mode,
+            "deterministic_rollout_checkpoint": config.deterministic_rollout_checkpoint,
+            "deterministic_bt_mode": config.deterministic_bt_mode,
+            "deterministic_guidance_coeff": config.deterministic_guidance_coeff,
+            "deterministic_bt_max_scale": config.deterministic_bt_max_scale,
         },
         "sensor": {
             "num_obs": config.num_obs,

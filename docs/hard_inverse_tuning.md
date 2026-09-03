@@ -5,7 +5,7 @@
 This workflow targets inverse coefficient recovery for Poisson, Helmholtz,
 Darcy, and non-bounded Navier-Stokes. These are the four equations with a
 complete, finite 1,000-sample inverse group in each of
-`MAIN1000_100_TEST_{id,smooth,rough}`.
+`outputs/main/MAIN1000_100_TEST_{id,smooth,rough}`.
 
 For every `(test_type, PDE)` group, `prepare_hard_inverse_samples.py` ranks the
 1,000 records by coefficient relative L2 error (`rel_l2_a`) and keeps the worst

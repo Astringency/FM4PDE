@@ -39,6 +39,15 @@ class LabelScalarVelocity:
         return torch.ones_like(x) * (10.0 * label + scalar)
 
 
+class StateVelocity:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, x, t):
+        self.calls += 1
+        return x
+
+
 def test_choose_loss_state_selects_expected_tensor():
     x_cur = torch.ones(1, 1, 2, 2)
     x_next = x_cur + 1
@@ -124,3 +133,48 @@ def test_sampler_step_passes_model_extra_to_velocity_calls(phase, step_method, e
 
     assert len(net.extras) == expected_calls
     assert all(extra is model_extra for extra in net.extras)
+
+
+@pytest.mark.parametrize("use_checkpoint", [False, True])
+def test_deterministic_rollout_uses_original_grid_and_retains_endpoint_gradient(use_checkpoint):
+    net = StateVelocity()
+    x_cur = torch.ones(1, 1, 2, 2, requires_grad=True)
+    grid = torch.tensor([0.0, 0.5, 1.0])
+    out = sampler_step(
+        net=net,
+        x_cur=x_cur,
+        t=grid[0],
+        t_next=grid[1],
+        phase="deterministic",
+        step_method="euler",
+        loss_state="endpoint",
+        deterministic_endpoint_mode="rollout",
+        deterministic_endpoint_time_grid=grid,
+        deterministic_rollout_checkpoint=use_checkpoint,
+    )
+
+    assert torch.allclose(out.x_raw_next, 1.5 * x_cur)
+    assert torch.allclose(out.x_endpoint, 2.25 * x_cur)
+    assert out.x_loss_state is out.x_endpoint
+    assert out.endpoint_prediction_mode == "rollout"
+    assert out.endpoint_model_evaluations == 2
+    gradient = torch.autograd.grad(out.x_endpoint.square().sum(), x_cur)[0]
+    assert torch.allclose(gradient, torch.full_like(x_cur, 10.125))
+    # The forward endpoint uses exactly two evaluations. Depending on whether
+    # autograd saved enough intermediates, non-reentrant checkpoint may or may
+    # not need additional recomputation during this deliberately simple test.
+    assert net.calls >= 2
+
+
+def test_deterministic_rollout_requires_remaining_time_grid():
+    with pytest.raises(ValueError, match="remaining sampling time grid"):
+        sampler_step(
+            net=StateVelocity(),
+            x_cur=torch.ones(1, 1, 2, 2),
+            t=torch.tensor(0.0),
+            t_next=torch.tensor(0.5),
+            phase="deterministic",
+            step_method="euler",
+            loss_state="endpoint",
+            deterministic_endpoint_mode="rollout",
+        )

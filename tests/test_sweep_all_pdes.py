@@ -47,10 +47,11 @@ def test_formal_grid_has_exact_groups_and_job_counts():
     counts = Counter(params["ablation_group"] for _, params in jobs)
     expected = {group: count * len(ALL_PDES) for group, count in EXPECTED_PER_PDE.items()}
     expected["guidance_components"] -= 8
+    expected["deterministic_endpoint_bt"] = 27
     expected["temporal_residual_mode"] = 3 * len(TEMPORAL_PDES)
     assert counts == expected
-    assert len(jobs) == 1033
-    assert len(expand_grid(FOCUSED_GRID)) == 111
+    assert len(jobs) == 1060
+    assert len(expand_grid(FOCUSED_GRID)) == 138
 
 
 def test_guidance_components_cross_tasks_and_components():
@@ -78,6 +79,41 @@ def test_loss_state_and_sampler_phase_matrices():
         ("hybrid_s2d", 0.5),
         ("hybrid_s2d", 0.8),
     }
+
+
+def test_poisson_deterministic_endpoint_bt_matrix_is_paired_and_endpoint_guided():
+    jobs = _jobs("deterministic_endpoint_bt")
+    assert len(jobs) == 27
+    assert {path for path, _ in jobs} == {"configs/main/both/poisson.yaml"}
+    assert all(
+        params["task"] == "both"
+        and params["guidance_components"] == "obs_pde"
+        and params["loss_state"] == "endpoint"
+        and params["time_grid"] == "uniform"
+        and params["num_steps"] == 100
+        for _, params in jobs
+    )
+    assert sum(params["sampler_phase"] == "stochastic" for _, params in jobs) == 1
+    deterministic = [params for _, params in jobs if params["sampler_phase"] == "deterministic"]
+    for mode in ("single_step", "rollout"):
+        variants = [params for params in deterministic if params["deterministic_endpoint_mode"] == mode]
+        assert len(variants) == {"single_step": 11, "rollout": 15}[mode]
+        assert {params["deterministic_bt_mode"] for params in variants} == {
+            "legacy", "zero_at_t0", "t_next", "clipped", "clipped_zero_at_t0",
+            "stochastic_like", "capped_stochastic_like"
+        }
+        assert all(
+            params["deterministic_rollout_checkpoint"] is (mode == "rollout")
+            for params in variants
+        )
+        capped = [
+            params for params in variants
+            if params["deterministic_bt_mode"] == "capped_stochastic_like"
+        ]
+        assert len(capped) == {"single_step": 2, "rollout": 5}[mode]
+        assert {params["zeta_pde"] for params in capped} == {0.1, 3.0}
+        expected_caps = {0.0075} if mode == "single_step" else {0.001, 0.003, 0.005}
+        assert {params["deterministic_bt_max_scale"] for params in capped} == expected_caps
 
 
 def test_poisson_ablations_inherit_task_specific_main_tuning():
@@ -166,6 +202,14 @@ def test_resume_reuses_only_matching_complete_successful_runs(tmp_path):
     run_dir.mkdir(parents=True)
     saved = cfg.asdict()
     saved["device"] = "cuda:0"
+    for field in (
+        "deterministic_endpoint_mode",
+        "deterministic_rollout_checkpoint",
+        "deterministic_bt_mode",
+        "deterministic_guidance_coeff",
+        "deterministic_bt_max_scale",
+    ):
+        saved.pop(field)
     (run_dir / "resolved_config.yaml").write_text(dump_yaml(saved), encoding="utf-8")
     (run_dir / "metrics_final.json").write_text(
         json.dumps(
@@ -312,6 +356,7 @@ def test_topic_grids_match_focused_grid_subsets():
         },
         "configs/ablations/main_temporal_residual.yaml": {"temporal_residual_mode"},
         "configs/ablations/main_statistics_stability.yaml": {"statistics_stability"},
+        "configs/ablations/main_deterministic_endpoint_bt.yaml": {"deterministic_endpoint_bt"},
     }
     for topic_file, groups in topic_files.items():
         topic = expand_grid(topic_file)

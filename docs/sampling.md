@@ -186,7 +186,7 @@ PLAN_ONLY=true \
 
 `--pde`, `--group`, and `--override key=value` may each be repeated. Unknown
 PDEs/groups and filters that select no jobs fail before sampling. The formal
-grid has 1,041 jobs across 11 PDEs; the Poisson-focused grid has 111 jobs.
+grid has 1,060 jobs across 11 PDEs; the Poisson-focused grid has 138 jobs.
 
 Formal experiment groups and per-PDE variant counts are:
 
@@ -201,6 +201,7 @@ Formal experiment groups and per-PDE variant counts are:
 | `sensor_sparsity` | 5 |
 | `sensor_mode` | 5 |
 | `noise_robustness` | 4 |
+| `deterministic_endpoint_bt` | 27, Poisson first (one stochastic anchor, 11 single-step variants, 15 rollout variants) |
 | `temporal_residual_mode` | 3, on six temporal endpoint PDEs |
 | `statistics_stability` | 5 |
 
@@ -210,6 +211,19 @@ hybrid directions at `0.2`, `0.5`, and `0.8`. Temporal residual comparison uses
 `endpoint_secant`, `hermite_bridge`, and `near_endpoint_temporal` with a shared
 500-observation budget. `auto` is omitted because it resolves to Hermite, while
 full-trajectory modes are not valid endpoint-model approximations.
+
+`deterministic_endpoint_bt` holds the Poisson checkpoint, dataset samples,
+observation masks, 100-step uniform Euler grid, loss components, and observation
+zeta values fixed. It compares a one-step endpoint extrapolation with an unguided,
+differentiable rollout over the original remaining time intervals. Both compute
+observation and PDE losses on the endpoint prediction. The matrix includes the
+historical singular scale, a zero-guidance first step, evaluating the CondOT
+coefficient at `t_next`, clipping `b_t * delta_t`, clipping with a strictly
+zero first step, and a stochastic-like
+`(1-t)` scale. A capped stochastic-like variant keeps the early update finite
+while retaining the stochastic-shaped late tail; its finalists compare Poisson
+`zeta_pde=0.1` and `3.0`. Rollout rows enable gradient checkpointing by default
+because their cost is quadratic in the number of sampling steps.
 
 Formal sweep grids use `configs/ablations/formal_suite.yaml`. The suite selects
 `configs/main/<task>/<pde>.yaml` after each task matrix value is expanded, so

@@ -37,6 +37,11 @@ GROUP_DIMENSION_KEYS = [
     "num_steps",
     "time_grid",
     "step_method",
+    "deterministic_endpoint_mode",
+    "deterministic_rollout_checkpoint",
+    "deterministic_bt_mode",
+    "deterministic_guidance_coeff",
+    "deterministic_bt_max_scale",
     "clip_mode",
     "clip_threshold",
     "pde_residual_region",
@@ -79,6 +84,8 @@ SUMMARY_METRICS = [
 CURVE_METRICS = [
     "pde_guidance_factor",
     "zeta_pde_t",
+    "guidance_update_scale",
+    "endpoint_model_evaluations",
     "rel_l2_a",
     "rel_l2_u",
     "obs_rel_l2_a",
@@ -117,6 +124,10 @@ ABLATION_REPORT_COLUMNS = [
     "time_grid",
     "num_steps",
     "step_method",
+    "deterministic_endpoint_mode",
+    "deterministic_bt_mode",
+    "deterministic_guidance_coeff",
+    "deterministic_bt_max_scale",
     "sensor_mode",
     "num_obs",
     "noise_level",
@@ -130,6 +141,13 @@ ABLATION_REPORT_COLUMNS = [
     "run_dir",
     "metrics_path",
 ]
+
+
+def collect_ablation_report_rows(root: str | Path) -> list[dict[str, Any]]:
+    """Collect the latest analysis-ready row for every ablation run identity."""
+    raw_rows, _, _, _ = _collect_rows(Path(root))
+    latest_rows, _ = _select_latest_analysis_rows(raw_rows)
+    return _ablation_report_rows(latest_rows)
 
 
 def aggregate_root(root: str | Path, output_dir: str | Path | None = None) -> dict[str, Path]:

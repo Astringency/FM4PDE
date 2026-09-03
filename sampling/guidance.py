@@ -194,14 +194,14 @@ def apply_guidance_update(x_next: Any, gradient: GuidanceGradient, step_output: 
     scale = _update_scale(step_output.phase, step_output.t, step_output.t_next, step_output.step_size, schedule.bt, config)
     gradient.metadata["guidance_update_scale"] = _scalar(scale)
     gradient.metadata["stochastic_guidance_time"] = getattr(config, "stochastic_guidance_time", "t")
+    gradient.metadata["deterministic_bt_mode"] = getattr(config, "deterministic_bt_mode", "legacy")
     return x_next - scale * gradient.grad_total
 
 
 def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
-    # Allow deterministic phase to use stochastic-like guidance scale via config flag.
-    # This avoids the bt=(1-t)/t singularity at t→0 in CondOT velocity parameterization.
-    det_use_stoch = bool(getattr(config, "extra", {}).get("det_guidance_stoch_scale", False))
-    if (config.guidance_schedule == "bt" or phase == "deterministic") and not det_use_stoch:
+    if phase == "deterministic":
+        return _deterministic_update_scale(t, t_next, step_size, bt, config)
+    if config.guidance_schedule == "bt":
         return bt * step_size
     time_name = getattr(config, "stochastic_guidance_time", "t")
     if time_name == "t":
@@ -211,6 +211,50 @@ def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, conf
     else:
         raise ValueError("stochastic_guidance_time must be 't' or 't_next'")
     return float(config.stochastic_guidance_coeff) * (1.0 - time_value).clamp_min(0.0)
+
+
+def _deterministic_update_scale(t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
+    """Return a finite, explicitly configured deterministic guidance scale.
+
+    ``legacy`` preserves historical behavior.  The other modes are ablation
+    choices for the CondOT ``b_t=(1-t)/t`` boundary singularity.
+    """
+    import torch
+
+    mode = getattr(config, "deterministic_bt_mode", "legacy")
+    coeff = float(getattr(config, "deterministic_guidance_coeff", 1.0))
+    raw = bt * step_size
+    if mode == "legacy":
+        scale = raw
+    elif mode == "zero_at_t0":
+        scale = torch.where(t <= 0.0, torch.zeros_like(raw), raw)
+    elif mode == "t_next":
+        safe_t_next = t_next.clamp_min(1e-6)
+        scale = ((1.0 - safe_t_next).clamp_min(0.0) / safe_t_next) * step_size
+    elif mode in {"clipped", "clipped_zero_at_t0"}:
+        maximum = torch.as_tensor(
+            float(getattr(config, "deterministic_bt_max_scale", 0.1)),
+            dtype=raw.dtype,
+            device=raw.device,
+        )
+        scale = torch.minimum(raw, maximum)
+        if mode == "clipped_zero_at_t0":
+            scale = torch.where(t <= 0.0, torch.zeros_like(scale), scale)
+    elif mode == "stochastic_like":
+        scale = (1.0 - t).clamp_min(0.0)
+    elif mode == "capped_stochastic_like":
+        maximum = torch.as_tensor(
+            float(getattr(config, "deterministic_bt_max_scale", 0.1)),
+            dtype=raw.dtype,
+            device=raw.device,
+        )
+        # Here max_scale is the final trust-region cap, while coeff controls
+        # the stochastic-shaped tail. Return directly to avoid multiplying
+        # coeff twice below.
+        return torch.minimum(coeff * (1.0 - t).clamp_min(0.0), maximum)
+    else:
+        raise ValueError(f"Unknown deterministic_bt_mode={mode!r}")
+    return coeff * scale
 
 
 def _grad_or_zero(

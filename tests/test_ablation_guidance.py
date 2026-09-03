@@ -3,7 +3,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from sampling.config import AblationConfig
-from sampling.guidance import apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
+from sampling.guidance import _update_scale, apply_guidance_update, compute_guidance_gradient, make_zeta_schedule
 from sampling.losses import GuidanceLossOutput, compute_guidance_losses, guidance_component_flags
 from sampling.masks import PairMasks
 from sampling.runner import _disable_unreliable_pde_guidance
@@ -83,6 +83,66 @@ def test_stochastic_guidance_scale_defaults_to_current_time():
     assert grad.metadata["stochastic_guidance_time"] == "t"
     assert grad.metadata["guidance_update_scale"] == pytest.approx(0.4)
     assert torch.allclose(updated, -0.4 * grad.grad_total)
+
+
+@pytest.mark.parametrize(
+    "mode,coeff,max_scale,expected",
+    [
+        ("legacy", 1.0, 0.1, 9999.99),
+        ("zero_at_t0", 1.0, 0.1, 0.0),
+        ("t_next", 1.0, 0.1, 0.99),
+        ("clipped", 1.0, 0.1, 0.1),
+        ("clipped", 1.0, 0.03, 0.03),
+        ("clipped_zero_at_t0", 1.0, 0.03, 0.0),
+        ("stochastic_like", 0.1, 0.1, 0.1),
+        ("capped_stochastic_like", 0.1, 0.0075, 0.0075),
+    ],
+)
+def test_deterministic_bt_modes_regularize_the_t0_update(mode, coeff, max_scale, expected):
+    cfg = AblationConfig(
+        deterministic_bt_mode=mode,
+        deterministic_guidance_coeff=coeff,
+        deterministic_bt_max_scale=max_scale,
+    )
+    scale = _update_scale(
+        "deterministic",
+        torch.tensor(0.0),
+        torch.tensor(0.01),
+        torch.tensor(0.01),
+        torch.tensor(999999.0),
+        cfg,
+    )
+    assert float(scale) == pytest.approx(expected, rel=1e-5)
+
+
+def test_zero_at_t0_only_disables_the_singular_first_update():
+    cfg = AblationConfig(deterministic_bt_mode="zero_at_t0", deterministic_guidance_coeff=0.1)
+    scale = _update_scale(
+        "deterministic",
+        torch.tensor(0.01),
+        torch.tensor(0.02),
+        torch.tensor(0.01),
+        torch.tensor(99.0),
+        cfg,
+    )
+    assert float(scale) == pytest.approx(0.099)
+
+
+def test_capped_stochastic_like_recovers_the_stochastic_tail():
+    cfg = AblationConfig(
+        deterministic_bt_mode="capped_stochastic_like",
+        deterministic_guidance_coeff=0.1,
+        deterministic_bt_max_scale=0.0075,
+    )
+    scale = _update_scale(
+        "deterministic",
+        torch.tensor(0.99),
+        torch.tensor(1.0),
+        torch.tensor(0.01),
+        torch.tensor(0.010101),
+        cfg,
+    )
+    assert float(scale) == pytest.approx(0.001)
 
 
 def test_pde_guidance_start_and_ramp_do_not_change_observation_weights():

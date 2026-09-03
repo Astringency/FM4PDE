@@ -166,7 +166,12 @@ def select_samples(
 ) -> list[dict[str, Any]]:
     manifest: list[dict[str, Any]] = []
     for test_type in TEST_TYPES:
-        metrics_path = results_root / f"MAIN1000_100_TEST_{test_type}" / "metrics_per_sample_all.csv"
+        metrics_path = (
+            results_root
+            / "main"
+            / f"MAIN1000_100_TEST_{test_type}"
+            / "metrics_per_sample_all.csv"
+        )
         if not metrics_path.is_file():
             raise FileNotFoundError(metrics_path)
         formal_groups = _read_formal_groups(metrics_path)

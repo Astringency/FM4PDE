@@ -55,7 +55,7 @@ run_sweep() {
 }
 
 for test_type in ${TEST_TYPE_LIST}; do
-    output_dir="outputs/MAIN1000_100_TEST_${test_type}_${OUTPUT_SUFFIX}"
+    output_dir="outputs/main/MAIN1000_100_TEST_${test_type}_${OUTPUT_SUFFIX}"
 
     echo "[$(date '+%F %T')] Starting ${test_type} inverse settings -> ${output_dir}"
     run_sweep \

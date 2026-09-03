@@ -187,6 +187,9 @@ def run_single_ablation(
                 model_extra=model_extra,
                 stochastic_noise_source_batch_size=config.initial_noise_source_batch_size,
                 stochastic_noise_source_indices=config.initial_noise_source_indices or None,
+                deterministic_endpoint_mode=config.deterministic_endpoint_mode,
+                deterministic_endpoint_time_grid=grid[step:],
+                deterministic_rollout_checkpoint=config.deterministic_rollout_checkpoint,
             )
             phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
             losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
@@ -268,6 +271,8 @@ def run_single_ablation(
                         "x_loss_state": step_out.x_loss_state.detach().cpu(),
                         "phase": step_out.phase,
                         "loss_state": step_out.loss_state,
+                        "endpoint_prediction_mode": step_out.endpoint_prediction_mode,
+                        "endpoint_model_evaluations": step_out.endpoint_model_evaluations,
                         "t": _scalar(step_out.t),
                         "t_next": _scalar(step_out.t_next),
                         "step_size": _scalar(step_out.step_size),

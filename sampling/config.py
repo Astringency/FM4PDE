@@ -58,6 +58,16 @@ VALID_PDE_REGIONS = {
 VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
+VALID_DETERMINISTIC_ENDPOINT_MODES = {"single_step", "rollout"}
+VALID_DETERMINISTIC_BT_MODES = {
+    "legacy",
+    "zero_at_t0",
+    "t_next",
+    "clipped",
+    "clipped_zero_at_t0",
+    "stochastic_like",
+    "capped_stochastic_like",
+}
 VALID_STOCHASTIC_GUIDANCE_TIMES = {"t", "t_next"}
 VALID_RESIDUAL_MODES = {
     "auto",
@@ -108,6 +118,11 @@ class AblationConfig:
     time_grid: str = "uniform"
     num_steps: int = 100
     step_method: str = "euler"
+    deterministic_endpoint_mode: str = "single_step"
+    deterministic_rollout_checkpoint: bool = False
+    deterministic_bt_mode: str = "legacy"
+    deterministic_guidance_coeff: float = 1.0
+    deterministic_bt_max_scale: float = 0.1
 
     batch_size: int = 1
     sample_seed: int = 42
@@ -183,6 +198,12 @@ class AblationConfig:
             ("sensor_mode", self.sensor_mode, VALID_SENSOR_MODES),
             ("time_grid", self.time_grid, VALID_TIME_GRIDS),
             ("step_method", self.step_method, VALID_STEP_METHODS),
+            (
+                "deterministic_endpoint_mode",
+                self.deterministic_endpoint_mode,
+                VALID_DETERMINISTIC_ENDPOINT_MODES,
+            ),
+            ("deterministic_bt_mode", self.deterministic_bt_mode, VALID_DETERMINISTIC_BT_MODES),
             ("stochastic_guidance_time", self.stochastic_guidance_time, VALID_STOCHASTIC_GUIDANCE_TIMES),
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
             ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
@@ -213,6 +234,10 @@ class AblationConfig:
             )
         if self.num_steps < 1:
             raise ValueError("num_steps must be positive")
+        if self.deterministic_guidance_coeff < 0:
+            raise ValueError("deterministic_guidance_coeff must be non-negative")
+        if self.deterministic_bt_max_scale <= 0:
+            raise ValueError("deterministic_bt_max_scale must be positive")
         if self.batch_size < 1:
             raise ValueError("batch_size must be positive")
         if self.num_obs < 0:
@@ -311,9 +336,34 @@ class AblationConfig:
                 f"-r{self.pde_guidance_ramp_ratio:g}"
             )
         )
+        deterministic = ""
+        if (
+            self.deterministic_endpoint_mode != "single_step"
+            or self.deterministic_bt_mode != "legacy"
+            or self.deterministic_guidance_coeff != 1.0
+            or (
+                self.deterministic_bt_mode in {
+                    "clipped",
+                    "clipped_zero_at_t0",
+                    "capped_stochastic_like",
+                }
+                and self.deterministic_bt_max_scale != 0.1
+            )
+        ):
+            deterministic = (
+                f"_detep-{self.deterministic_endpoint_mode}"
+                f"-bt-{self.deterministic_bt_mode}"
+                f"-c{self.deterministic_guidance_coeff:g}"
+            )
+            if self.deterministic_bt_mode in {
+                "clipped",
+                "clipped_zero_at_t0",
+                "capped_stochastic_like",
+            }:
+                deterministic += f"-max{self.deterministic_bt_max_scale:g}"
         return (
             f"{self.guidance_components}{reduction}_{self.loss_state}_{phase}_"
-            f"{self.guidance_schedule}{pde_gate}_{self.clip_mode}{self.clip_threshold:g}_"
+            f"{self.guidance_schedule}{pde_gate}{deterministic}_{self.clip_mode}{self.clip_threshold:g}_"
             f"{self.sensor_mode}{self._sensor_budget()}_noise{self.noise_level:g}_"
             f"{self.time_grid}{self.num_steps}_{self.step_method}_"
             f"{self._short_residual_fragment()}_{self._short_bc_ic_fragment()}"

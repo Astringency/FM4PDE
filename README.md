@@ -187,7 +187,7 @@ AGGREGATE=true \
 For full observations on the four non-Burgers `MAIN1000_100_TEST` equations
 across `id`, `rough`, and `smooth`, use the dedicated wrapper.  At the current
 `128 x 128` resolution it sets `NUM_OBS=16384`, runs all three tasks, excludes
-Burgers, and writes `outputs/MAIN1000_100_TEST_FULL_<test_type>`:
+Burgers, and writes `outputs/main/MAIN1000_100_TEST_FULL_<test_type>`:
 
 ```bash
 bash scripts/sample/run_sample_sweep_full.sh
@@ -334,9 +334,17 @@ For ablation reporting, `ablation_report_metrics.csv` is the compact
 one-row-per-selected-run view and keeps `rel_l2_a`, `rel_l2_u`, `L_obs_a`,
 `L_obs_u`, and `L_pde` in separate columns.
 
+Create the concise Excel summaries under `outputs/summary` with:
+
+```bash
+python scripts/summary.py                  # main and ablations
+python scripts/summary.py --exp main       # main only
+python scripts/summary.py --exp ablations  # ablations only
+```
+
 ### Ablation sweep
 
-The formal ablation grid contains 1,041 jobs across all 11 PDEs. Select PDEs
+The formal ablation grid contains 1,060 jobs across all 11 PDEs. Select PDEs
 and experiment groups either through the Python entrypoint or the shell wrapper:
 
 ```bash
@@ -356,14 +364,16 @@ PLAN_ONLY=true \
 The formal groups are `guidance_components`, `loss_state_by_sampler`,
 `sampler_phase`, `time_grid_by_sampler`, `num_steps_by_sampler`,
 `step_method_by_sampler`, `sensor_sparsity`, `sensor_mode`,
-`noise_robustness`, `temporal_residual_mode`, and `statistics_stability`.
-The first ten non-temporal groups expand over all 11 PDEs. Temporal residual
+`noise_robustness`, `deterministic_endpoint_bt`, `temporal_residual_mode`, and
+`statistics_stability`. The `deterministic_endpoint_bt` group is initially
+scoped to Poisson so its conclusions can be validated before transfer. The
+remaining non-temporal groups expand over all 11 PDEs. Temporal residual
 comparison is scoped to Heat, Wave, Advection-Diffusion, Reaction-Diffusion,
 Shallow Water, and Non-bounded Navier-Stokes.
 
 Time grid, step count, and integration method are deliberately independent
 ablations rather than one large Cartesian product. The Poisson-focused grid in
-`configs/ablations/all_ablation_grid.yaml` contains 111 jobs, including the 18
+`configs/ablations/all_ablation_grid.yaml` contains 138 jobs, including the 18
 temporal-PDE residual jobs. `endpoint_secant`, `hermite_bridge`, and
 `near_endpoint_temporal` all use the same 500-point endpoint observation budget.
 The near-endpoint mode additionally requires saved near-endpoint frames or a

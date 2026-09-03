@@ -48,6 +48,7 @@ ALL_GROUPS=(
     sensor_sparsity
     sensor_mode
     noise_robustness
+    deterministic_endpoint_bt
     temporal_residual_mode
     statistics_stability
 )

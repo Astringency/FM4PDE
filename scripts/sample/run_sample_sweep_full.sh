@@ -18,7 +18,7 @@ set -euo pipefail
 #   TEST_TYPE_LIST       Space-separated test distributions (default: id rough smooth)
 #   NUM_SAMPLES          Samples per PDE/task (default: 1000)
 #   NUM_OBS              Observations per active field (default: 16384)
-#   OUTPUT_ROOT          Parent output directory (default: outputs)
+#   OUTPUT_ROOT          Parent output directory (default: outputs/main)
 #   OUTPUT_TAG           Output directory prefix (default: MAIN1000_100_TEST_FULL)
 #   OUTPUT_SUFFIX        Optional suffix after the test type (default: empty)
 #   DEVICE_LIST          Devices passed to run_sample_sweep.sh (default: cuda:0 cuda:1)
@@ -53,7 +53,7 @@ NUM_STEPS="${NUM_STEPS:-100}"
 NUM_OBS="${NUM_OBS:-16384}"
 SAMPLE_SEED="${SAMPLE_SEED:-0}"
 CONFIG_DIR="${CONFIG_DIR:-configs/main}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/main}"
 OUTPUT_TAG="${OUTPUT_TAG:-MAIN1000_100_TEST_FULL}"
 OUTPUT_SUFFIX="${OUTPUT_SUFFIX:-}"
 DEVICE_LIST="${DEVICE_LIST:-cuda:0 cuda:1}"

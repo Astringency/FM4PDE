@@ -138,6 +138,7 @@ def collect_results(outputs_root: Path) -> list[dict[str, Any]]:
             suffix = "" if variant == "baseline" else "_tuned1"
             source = (
                 outputs_root
+                / "main"
                 / f"MAIN1000_100_TEST_{test_type}{suffix}"
                 / "summary_all_grouped.csv"
             )
@@ -401,7 +402,7 @@ def build_artifact(
                 "ORDER BY test_type, pde, task, sensor_mode"
             ),
             "tables_used": [
-                f"outputs/MAIN1000_100_TEST_{test_type}{suffix}/summary_all_grouped.csv"
+                f"outputs/main/MAIN1000_100_TEST_{test_type}{suffix}/summary_all_grouped.csv"
                 for test_type in TEST_TYPES
                 for suffix in ("", "_tuned1")
             ],

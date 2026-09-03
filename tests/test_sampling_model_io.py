@@ -64,6 +64,7 @@ def test_checkpoint_model_config_is_used_for_sampling(tmp_path):
     assert payload["selected_model_profile"] == "unit_test_profile"
     assert payload["selected_architecture_family"] == "unit_test_family"
     assert payload["runtime_requested_model_profile"] == "unit_test_profile"
+    assert all(not parameter.requires_grad for parameter in wrapped.model.parameters())
 
 
 def test_sampling_model_io_derives_canonical_fourier_metadata(tmp_path):

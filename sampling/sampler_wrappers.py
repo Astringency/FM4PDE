@@ -18,6 +18,8 @@ class SamplerStepOutput:
     step_size: Any
     phase: str
     loss_state: str
+    endpoint_prediction_mode: str
+    endpoint_model_evaluations: int
     wall_time: float
 
 
@@ -44,13 +46,27 @@ def sampler_step(
     model_extra: dict[str, Any] | None = None,
     stochastic_noise_source_batch_size: int | None = None,
     stochastic_noise_source_indices: list[int] | None = None,
+    deterministic_endpoint_mode: str = "single_step",
+    deterministic_endpoint_time_grid: Any | None = None,
+    deterministic_rollout_checkpoint: bool = False,
 ) -> SamplerStepOutput:
     import torch
 
     start = time.time()
     step_size = t_next - t
     if phase == "deterministic":
-        x_endpoint, x_next = _deterministic_step(net, x_cur, t, step_size, step_method, model_extra)
+        x_endpoint, x_next, endpoint_model_evaluations = _deterministic_step(
+            net,
+            x_cur,
+            t,
+            step_size,
+            step_method,
+            model_extra,
+            endpoint_mode=deterministic_endpoint_mode,
+            endpoint_time_grid=deterministic_endpoint_time_grid,
+            rollout_checkpoint=deterministic_rollout_checkpoint,
+        )
+        endpoint_prediction_mode = deterministic_endpoint_mode
     elif phase == "stochastic":
         x_endpoint, x_next = _stochastic_step(
             net,
@@ -64,6 +80,8 @@ def sampler_step(
             stochastic_noise_source_batch_size=stochastic_noise_source_batch_size,
             stochastic_noise_source_indices=stochastic_noise_source_indices,
         )
+        endpoint_prediction_mode = "single_step"
+        endpoint_model_evaluations = 1 if step_method == "euler" else 2
     else:
         raise ValueError(f"Unknown phase={phase!r}")
 
@@ -79,6 +97,8 @@ def sampler_step(
         step_size=step_size,
         phase=phase,
         loss_state=normalized_loss_state,
+        endpoint_prediction_mode=endpoint_prediction_mode,
+        endpoint_model_evaluations=endpoint_model_evaluations,
         wall_time=time.time() - start,
     )
 
@@ -104,19 +124,117 @@ def _deterministic_step(
     step_size: Any,
     method: str,
     model_extra: dict[str, Any] | None,
-) -> tuple[Any, Any]:
+    *,
+    endpoint_mode: str,
+    endpoint_time_grid: Any | None,
+    rollout_checkpoint: bool,
+) -> tuple[Any, Any, int]:
+    if endpoint_mode == "rollout":
+        return _deterministic_rollout_endpoint(
+            net,
+            x_cur,
+            endpoint_time_grid,
+            method,
+            model_extra,
+            use_checkpoint=rollout_checkpoint,
+        )
+    if endpoint_mode != "single_step":
+        raise ValueError(f"Unsupported deterministic_endpoint_mode={endpoint_mode!r}")
     if method == "euler":
         v = _call_velocity_model(net, x_cur, t, model_extra)
         x_endpoint = endpoint_from_velocity(x_cur, v, t)
-        return x_endpoint, x_cur + v * step_size
+        return x_endpoint, x_cur + v * step_size, 1
     if method == "midpoint":
         v = _call_velocity_model(net, x_cur, t, model_extra)
         t_mid = t + 0.5 * step_size
         x_mid = x_cur + 0.5 * step_size * v
         v_mid = _call_velocity_model(net, x_mid, t_mid, model_extra)
         x_endpoint = endpoint_from_velocity(x_mid, v_mid, t_mid)
-        return x_endpoint, x_cur + step_size * v_mid
+        return x_endpoint, x_cur + step_size * v_mid, 2
     raise ValueError(f"Unsupported step_method={method!r}")
+
+
+def _deterministic_rollout_endpoint(
+    net: Any,
+    x_cur: Any,
+    time_grid: Any | None,
+    method: str,
+    model_extra: dict[str, Any] | None,
+    *,
+    use_checkpoint: bool,
+) -> tuple[Any, Any, int]:
+    """Integrate the unguided ODE from the current grid point to ``t=1``.
+
+    The first interval produces the raw sampler update.  Continuing through
+    the remaining intervals produces the endpoint used by observation and PDE
+    losses.  The entire rollout remains connected to ``x_cur`` so endpoint
+    guidance can use the current-state chain rule.
+    """
+    if time_grid is None or int(time_grid.numel()) < 2:
+        raise ValueError(
+            "deterministic_endpoint_mode='rollout' requires the remaining sampling time grid"
+        )
+    state = x_cur
+    x_next = None
+    evaluations = 0
+    for index in range(int(time_grid.numel()) - 1):
+        t_cur = time_grid[index]
+        t_next = time_grid[index + 1]
+        state, count = _unguided_deterministic_interval(
+            net,
+            state,
+            t_cur,
+            t_next - t_cur,
+            method,
+            model_extra,
+            use_checkpoint=use_checkpoint,
+        )
+        evaluations += count
+        if x_next is None:
+            x_next = state
+    if x_next is None:
+        raise RuntimeError("deterministic endpoint rollout did not advance any interval")
+    return state, x_next, evaluations
+
+
+def _unguided_deterministic_interval(
+    net: Any,
+    x_cur: Any,
+    t: Any,
+    step_size: Any,
+    method: str,
+    model_extra: dict[str, Any] | None,
+    *,
+    use_checkpoint: bool,
+) -> tuple[Any, int]:
+    if method == "euler":
+        v = _rollout_velocity(net, x_cur, t, model_extra, use_checkpoint)
+        return x_cur + step_size * v, 1
+    if method == "midpoint":
+        v = _rollout_velocity(net, x_cur, t, model_extra, use_checkpoint)
+        t_mid = t + 0.5 * step_size
+        x_mid = x_cur + 0.5 * step_size * v
+        v_mid = _rollout_velocity(net, x_mid, t_mid, model_extra, use_checkpoint)
+        return x_cur + step_size * v_mid, 2
+    raise ValueError(f"Unsupported step_method={method!r}")
+
+
+def _rollout_velocity(
+    net: Any,
+    x: Any,
+    t: Any,
+    model_extra: dict[str, Any] | None,
+    use_checkpoint: bool,
+) -> Any:
+    if not use_checkpoint or not getattr(x, "requires_grad", False):
+        return _call_velocity_model(net, x, t, model_extra)
+    from torch.utils.checkpoint import checkpoint
+
+    return checkpoint(
+        lambda state: _call_velocity_model(net, state, t, model_extra),
+        x,
+        use_reentrant=False,
+    )
 
 
 def _stochastic_step(
