@@ -9,11 +9,16 @@ set -euo pipefail
 #   PDE_LIST="poisson heat" bash scripts/run_ablations.sh \
 #     guidance_components time_grid_by_sampler
 #   PDE_LIST="poisson" PLAN_ONLY=true bash scripts/run_ablations.sh sampler_phase
+#   PARALLEL=true MAX_PARALLEL_TASKS=2 DEVICE_LIST="cuda:0 cuda:1" \
+#     bash scripts/run_ablations.sh
 #
 # Environment variables:
 #   PDE_LIST       Space-separated PDEs (default: all 11 formal PDEs)
 #   OUTPUT_DIR     Artifact and aggregate output root (default: outputs/ablations)
 #   DEVICE         Runtime device override (default: cuda)
+#   DEVICE_LIST    Devices assigned round-robin to concurrent tasks (default: DEVICE)
+#   PARALLEL       Run independent ablation tasks concurrently (default: false)
+#   MAX_PARALLEL_TASKS  Maximum concurrent ablation tasks (default: 2)
 #   BATCH_SIZE     Samples in each ablation job (default: 1)
 #   OFFSET         Shared dataset offset override (default: 0)
 #   VIS            Save plots for completed jobs (default: false)
@@ -30,6 +35,9 @@ GRID="configs/ablations/all_internal_ablation_grid.yaml"
 PDE_LIST="${PDE_LIST:-darcy poisson helmholtz nsnonbounded burger reaction_diffusion shallow_water heat wave advection_diffusion steady_heat_conduction}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/ablations}"
 DEVICE="${DEVICE:-cuda}"
+DEVICE_LIST="${DEVICE_LIST:-${DEVICE}}"
+PARALLEL="${PARALLEL:-false}"
+MAX_PARALLEL_TASKS="${MAX_PARALLEL_TASKS:-2}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
 OFFSET="${OFFSET:-0}"
 VIS="${VIS:-false}"
@@ -71,12 +79,24 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo ""
     echo "Select PDEs with PDE_LIST, for example:"
     echo '  PDE_LIST="poisson heat" PLAN_ONLY=true bash scripts/run_ablations.sh guidance_components'
+    echo ""
+    echo "Run tasks concurrently, for example:"
+    echo '  PARALLEL=true MAX_PARALLEL_TASKS=2 DEVICE_LIST="cuda:0 cuda:1" bash scripts/run_ablations.sh'
     exit 0
 fi
 
 read -r -a PDES <<< "${PDE_LIST}"
+read -r -a DEVICES <<< "${DEVICE_LIST}"
 if [[ ${#PDES[@]} -eq 0 ]]; then
     echo "PDE_LIST must select at least one PDE" >&2
+    exit 2
+fi
+if [[ ${#DEVICES[@]} -eq 0 ]]; then
+    echo "DEVICE_LIST must select at least one device" >&2
+    exit 2
+fi
+if ! [[ "${MAX_PARALLEL_TASKS}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "MAX_PARALLEL_TASKS must be a positive integer" >&2
     exit 2
 fi
 
@@ -93,12 +113,19 @@ for group in "$@"; do
     ARGS+=(--group "${group}")
 done
 ARGS+=(
+    --max-parallel-tasks "${MAX_PARALLEL_TASKS}"
+    --devices "${DEVICES[@]}"
     --override "output_dir=${OUTPUT_DIR}"
     --override "device=${DEVICE}"
     --override "batch_size=${BATCH_SIZE}"
     --override "offset=${OFFSET}"
     --override "save_plots=${VIS_OVERRIDE}"
 )
+if is_true "${PARALLEL}"; then
+    ARGS+=(--parallel)
+else
+    ARGS+=(--no-parallel)
+fi
 if is_true "${RESUME}"; then
     ARGS+=(--resume)
 else

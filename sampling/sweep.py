@@ -4,6 +4,15 @@ import argparse
 import csv
 import itertools
 import json
+import os
+import queue
+import signal
+import subprocess
+import sys
+import threading
+import time
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +39,202 @@ _BACKWARD_COMPATIBLE_CONFIG_DEFAULTS = {
     "deterministic_correction_max_rms": 0.0,
     "deterministic_numerical_guard": True,
 }
+
+
+@dataclass(frozen=True)
+class ParallelJobResult:
+    index: int
+    label: str
+    device: str
+    return_code: int
+    log_path: Path
+    elapsed_seconds: float
+
+
+class ParallelSweepRunner:
+    """Run independent ablation jobs in isolated, device-bound processes."""
+
+    def __init__(
+        self,
+        jobs: list[tuple[str, dict[str, Any]]],
+        *,
+        devices: tuple[str, ...],
+        max_parallel_tasks: int,
+        dry_run: bool,
+        resume: bool,
+        output_dir: Path,
+    ) -> None:
+        if not devices:
+            raise ValueError("devices must contain at least one device")
+        if max_parallel_tasks < 1:
+            raise ValueError("max_parallel_tasks must be positive")
+        self.jobs = jobs
+        self.devices = devices
+        self.max_parallel_tasks = min(max_parallel_tasks, len(jobs))
+        self.dry_run = dry_run
+        self.resume = resume
+        self.output_dir = output_dir
+        self.run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+        self.logs_dir = output_dir / ".ablation_sweeps" / self.run_id / "logs"
+        self.stop_event = threading.Event()
+        self.processes: set[subprocess.Popen[str]] = set()
+        self.process_lock = threading.Lock()
+        self.device_slots: queue.Queue[str] = queue.Queue()
+        slot_count = max(self.max_parallel_tasks, len(devices))
+        for index in range(slot_count):
+            self.device_slots.put(devices[index % len(devices)])
+
+    def run(self) -> int:
+        if not self.jobs:
+            return 0
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        print(
+            "FM4PDE parallel ablation sweep: "
+            f"jobs={len(self.jobs)} workers={self.max_parallel_tasks} "
+            f"devices={', '.join(self.devices)}"
+        )
+        print(f"Task logs: {self.logs_dir}")
+        if self.max_parallel_tasks > len(set(self.devices)):
+            print(
+                "Warning: concurrent task slots exceed unique devices; "
+                "some devices will run more than one task."
+            )
+
+        executor = ThreadPoolExecutor(
+            max_workers=self.max_parallel_tasks,
+            thread_name_prefix="ablation-sweep",
+        )
+        futures: dict[Future[ParallelJobResult], int] = {}
+        interrupted = False
+        try:
+            for index, (config_path, overrides) in enumerate(self.jobs, start=1):
+                future = executor.submit(self._run_job, index, config_path, overrides)
+                futures[future] = index
+            failures: list[ParallelJobResult] = []
+            completed = 0
+            for future in as_completed(futures):
+                result = future.result()
+                completed += 1
+                if result.return_code != 0:
+                    failures.append(result)
+                status = "OK" if result.return_code == 0 else f"FAILED({result.return_code})"
+                print(
+                    f"[{completed}/{len(self.jobs)}] {status} {result.label} "
+                    f"device={result.device} elapsed={result.elapsed_seconds:.1f}s"
+                )
+                if result.return_code != 0:
+                    print(f"  log={result.log_path}")
+        except KeyboardInterrupt:
+            interrupted = True
+            self.stop_event.set()
+            for future in futures:
+                future.cancel()
+            self._terminate_processes()
+            print("Interrupted; completed artifacts remain resumable with RESUME=true.")
+            return 130
+        finally:
+            executor.shutdown(wait=True, cancel_futures=interrupted)
+
+        if failures:
+            print(
+                f"Ablation sweep finished with {len(failures)} failed task(s); "
+                f"see {self.logs_dir}."
+            )
+            return 1
+        print(f"All {len(self.jobs)} ablation tasks completed successfully.")
+        return 0
+
+    def _run_job(
+        self,
+        index: int,
+        config_path: str,
+        overrides: dict[str, Any],
+    ) -> ParallelJobResult:
+        device = self.device_slots.get()
+        label = _job_label(config_path, overrides)
+        log_path = self.logs_dir / f"{index:04d}_{_safe_filename(label)}.log"
+        start = time.monotonic()
+        try:
+            job_overrides = dict(overrides)
+            job_overrides["device"] = device
+            label = _job_label(config_path, job_overrides)
+            log_path = self.logs_dir / f"{index:04d}_{_safe_filename(label)}.log"
+            if self.stop_event.is_set():
+                return ParallelJobResult(index, label, device, 130, log_path, 0.0)
+            payload = json.dumps(
+                {
+                    "config_path": config_path,
+                    "overrides": job_overrides,
+                    "dry_run": self.dry_run,
+                    "resume": self.resume,
+                },
+                separators=(",", ":"),
+            )
+            command = [
+                sys.executable,
+                "-u",
+                "-m",
+                "sampling.sweep_worker",
+                "--payload",
+                payload,
+            ]
+            with log_path.open("w", encoding="utf-8") as log_handle:
+                process = subprocess.Popen(
+                    command,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    start_new_session=True,
+                )
+                with self.process_lock:
+                    self.processes.add(process)
+                try:
+                    return_code = process.wait()
+                finally:
+                    with self.process_lock:
+                        self.processes.discard(process)
+            return ParallelJobResult(
+                index=index,
+                label=label,
+                device=device,
+                return_code=int(return_code),
+                log_path=log_path,
+                elapsed_seconds=time.monotonic() - start,
+            )
+        except Exception as exc:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as log_handle:
+                log_handle.write(f"parallel launcher error: {type(exc).__name__}: {exc}\n")
+            return ParallelJobResult(
+                index=index,
+                label=label,
+                device=device,
+                return_code=1,
+                log_path=log_path,
+                elapsed_seconds=time.monotonic() - start,
+            )
+        finally:
+            self.device_slots.put(device)
+
+    def _terminate_processes(self) -> None:
+        with self.process_lock:
+            processes = list(self.processes)
+        for process in processes:
+            if process.poll() is not None:
+                continue
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                continue
+        deadline = time.monotonic() + 10.0
+        for process in processes:
+            try:
+                process.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
 
 def expand_grid(
@@ -111,33 +316,66 @@ def run_grid(
         global_overrides=global_overrides,
     )
     for config_path, overrides in jobs[:limit]:
-        if dry_run:
-            overrides["dry_run"] = True
-        cfg = finalize_ground_truth_config(load_config(config_path, overrides=overrides))
-        if resume:
-            completed_run = find_matching_completed_run(cfg)
-            if completed_run is not None:
-                print(
-                    f"Skip completed: {cfg.pde}/{cfg.task}/{cfg.resolved_ablation_name()} "
-                    f"({completed_run})"
-                )
-                results.append(
-                    {
-                        "status": "skipped_completed",
-                        "run_dir": str(completed_run),
-                        "ablation_name": cfg.resolved_ablation_name(),
-                    }
-                )
-                continue
-        results.append(run_single_ablation(cfg))
+        results.append(
+            run_job(
+                config_path,
+                overrides,
+                dry_run=dry_run,
+                resume=resume,
+            )
+        )
     return results
 
 
-def main(argv: list[str] | None = None) -> None:
+def run_job(
+    config_path: str,
+    overrides: dict[str, Any],
+    *,
+    dry_run: bool = False,
+    resume: bool = True,
+) -> dict[str, Any]:
+    job_overrides = dict(overrides)
+    if dry_run:
+        job_overrides["dry_run"] = True
+    cfg = finalize_ground_truth_config(load_config(config_path, overrides=job_overrides))
+    if resume:
+        completed_run = find_matching_completed_run(cfg)
+        if completed_run is not None:
+            print(
+                f"Skip completed: {cfg.pde}/{cfg.task}/{cfg.resolved_ablation_name()} "
+                f"({completed_run})"
+            )
+            return {
+                "status": "skipped_completed",
+                "run_dir": str(completed_run),
+                "ablation_name": cfg.resolved_ablation_name(),
+            }
+    return run_single_ablation(cfg)
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run grouped FM4PDE ablation sweeps.")
     parser.add_argument("--grid", required=True, help="Sweep grid YAML.")
     parser.add_argument("--dry-run", action="store_true", help="Run with dry_run=true.")
     parser.add_argument("--list", action="store_true", help="Only list expanded jobs.")
+    parser.add_argument(
+        "--parallel",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Run independent ablation jobs concurrently (default: disabled).",
+    )
+    parser.add_argument(
+        "--max-parallel-tasks",
+        type=int,
+        default=2,
+        help="Maximum concurrent ablation jobs (default: 2).",
+    )
+    parser.add_argument(
+        "--devices",
+        nargs="+",
+        default=None,
+        help="Devices assigned round-robin to concurrent jobs.",
+    )
     parser.add_argument(
         "--resume",
         action=argparse.BooleanOptionalAction,
@@ -154,6 +392,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Apply a key=value config override to every selected job. Can be repeated.",
     )
     args = parser.parse_args(argv)
+    if args.max_parallel_tasks < 1:
+        parser.error("--max-parallel-tasks must be positive")
     selected_groups = set(args.group) if args.group else None
     selected_pdes = set(args.pde) if args.pde else None
     try:
@@ -172,7 +412,21 @@ def main(argv: list[str] | None = None) -> None:
     if args.list:
         for config_path, overrides in selected:
             print(config_path, overrides)
-        return
+        return 0
+    if args.parallel:
+        devices = tuple(args.devices or [str(global_overrides.get("device", "cuda"))])
+        if not devices:
+            parser.error("--devices must contain at least one device")
+        output_dir = Path(str(selected[0][1].get("output_dir", "outputs/ablations")))
+        signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        return ParallelSweepRunner(
+            selected,
+            devices=devices,
+            max_parallel_tasks=args.max_parallel_tasks,
+            dry_run=args.dry_run,
+            resume=args.resume,
+            output_dir=output_dir,
+        ).run()
     run_grid(
         args.grid,
         dry_run=args.dry_run,
@@ -182,6 +436,7 @@ def main(argv: list[str] | None = None) -> None:
         global_overrides=global_overrides,
         resume=args.resume,
     )
+    return 0
 
 
 def _expand_matrix(matrix: dict[str, Any], product: bool) -> list[dict[str, Any]]:
@@ -387,5 +642,24 @@ def _validate_selection(
         raise ValueError(f"Unknown PDE(s): {', '.join(sorted(unknown_pdes))}")
 
 
+def _job_label(config_path: str, overrides: dict[str, Any]) -> str:
+    pde = str(overrides.get("pde", Path(config_path).stem))
+    task = str(overrides.get("task", "unknown"))
+    name = str(overrides.get("ablation_name", "ablation"))
+    return f"{pde}/{task}/{name}"
+
+
+def _safe_filename(value: str) -> str:
+    safe = "".join(
+        character if character.isalnum() or character in "-_." else "_"
+        for character in value
+    )
+    return safe[:180] or "ablation"
+
+
+def _raise_keyboard_interrupt(_signum: int, _frame: Any) -> None:
+    raise KeyboardInterrupt
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

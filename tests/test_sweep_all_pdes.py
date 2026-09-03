@@ -5,12 +5,14 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
 
 from sampling.config import dump_yaml, load_config, load_yaml_file
 from sampling.data import finalize_ground_truth_config
-from sampling.sweep import expand_grid, find_matching_completed_run
+from sampling.sweep import ParallelSweepRunner, expand_grid, find_matching_completed_run
 
 
 GRID = "configs/ablations/all_internal_ablation_grid.yaml"
@@ -396,6 +398,65 @@ def test_shell_wrapper_plan_only_filters_pde_and_group():
     assert sum("configs/main/both/poisson.yaml" in line for line in lines) == 4
     assert sum("configs/main/forward/poisson.yaml" in line for line in lines) == 4
     assert sum("configs/main/inverse/poisson.yaml" in line for line in lines) == 4
+
+
+def test_parallel_sweep_limits_concurrency_and_assigns_devices(tmp_path, monkeypatch):
+    lock = threading.Lock()
+    active = 0
+    max_active = 0
+    payloads = []
+
+    class FakeProcess:
+        def __init__(self, command, **_kwargs):
+            nonlocal active, max_active
+            self.pid = len(payloads) + 1000
+            self.done = False
+            payloads.append(json.loads(command[-1]))
+            with lock:
+                active += 1
+                max_active = max(max_active, active)
+
+        def wait(self, timeout=None):
+            nonlocal active
+            del timeout
+            time.sleep(0.03)
+            with lock:
+                active -= 1
+            self.done = True
+            return 0
+
+        def poll(self):
+            return 0 if self.done else None
+
+    monkeypatch.setattr("sampling.sweep.subprocess.Popen", FakeProcess)
+    jobs = [
+        (
+            "configs/main/both/poisson.yaml",
+            {
+                "pde": "poisson",
+                "task": "both",
+                "ablation_name": f"parallel_{index}",
+                "output_dir": str(tmp_path),
+            },
+        )
+        for index in range(4)
+    ]
+
+    result = ParallelSweepRunner(
+        jobs,
+        devices=("cuda:0", "cuda:1"),
+        max_parallel_tasks=2,
+        dry_run=False,
+        resume=False,
+        output_dir=tmp_path,
+    ).run()
+
+    assert result == 0
+    assert max_active == 2
+    assert Counter(payload["overrides"]["device"] for payload in payloads) == {
+        "cuda:0": 2,
+        "cuda:1": 2,
+    }
 
 
 def test_topic_grids_match_focused_grid_subsets():

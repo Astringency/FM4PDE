@@ -184,6 +184,22 @@ PLAN_ONLY=true \
   bash scripts/run_ablations.sh guidance_components time_grid_by_sampler
 ```
 
+Run independent ablation jobs concurrently and assign worker slots to devices
+round-robin:
+
+```bash
+PARALLEL=true \
+MAX_PARALLEL_TASKS=2 \
+DEVICE_LIST="cuda:0 cuda:1" \
+  bash scripts/run_ablations.sh
+```
+
+`run_ablations.sh` remains serial by default. In parallel mode each job runs in
+an isolated subprocess, and its output is saved below
+`outputs/ablations/.ablation_sweeps/<run-id>/logs/`. If there are more worker
+slots than unique devices, multiple jobs share a device; this is supported but
+may exhaust GPU memory. `RESUME=true` applies independently to every job.
+
 `--pde`, `--group`, and `--override key=value` may each be repeated. Unknown
 PDEs/groups and filters that select no jobs fail before sampling. The formal
 grid has 1,060 jobs across 11 PDEs; the Poisson-focused grid has 138 jobs.
