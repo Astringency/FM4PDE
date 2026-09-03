@@ -15,6 +15,7 @@ from sampling.sweep import expand_grid, find_matching_completed_run
 
 GRID = "configs/ablations/all_internal_ablation_grid.yaml"
 FOCUSED_GRID = "configs/ablations/all_ablation_grid.yaml"
+DETERMINISTIC_SAFE_GRID = "configs/ablations/main_deterministic_safe.yaml"
 ALL_PDES = {
     "darcy", "poisson", "helmholtz", "nsnonbounded", "burger",
     "reaction_diffusion", "shallow_water", "heat", "wave",
@@ -116,6 +117,43 @@ def test_poisson_deterministic_endpoint_bt_matrix_is_paired_and_endpoint_guided(
         assert {params["deterministic_bt_max_scale"] for params in capped} == expected_caps
 
 
+def test_safe_deterministic_transfer_grid_compares_both_endpoint_predictors():
+    jobs = expand_grid(DETERMINISTIC_SAFE_GRID, selected_pdes={"poisson"})
+    assert len(jobs) == 3
+    by_group = Counter(params["ablation_group"] for _, params in jobs)
+    assert by_group == {"deterministic_safe_single": 2, "deterministic_safe_rollout": 1}
+
+    stochastic = [params for _, params in jobs if params["sampler_phase"] == "stochastic"]
+    deterministic = [params for _, params in jobs if params["sampler_phase"] == "deterministic"]
+    assert len(stochastic) == 1
+    assert {params["deterministic_endpoint_mode"] for params in deterministic} == {
+        "single_step",
+        "rollout",
+    }
+    assert all(
+        params["deterministic_bt_mode"] == "clipped_zero_at_t0"
+        for params in deterministic
+    )
+    assert all(
+        params["deterministic_bt_max_scale"] == pytest.approx(0.0125)
+        for params in deterministic
+    )
+    assert all(
+        params["deterministic_guidance_start_ratio"] == pytest.approx(0.02)
+        for params in deterministic
+    )
+    assert all(
+        params["deterministic_guidance_ramp_ratio"] == pytest.approx(0.04)
+        for params in deterministic
+    )
+    assert all(
+        params["deterministic_correction_max_rms"] == pytest.approx(0.02)
+        for params in deterministic
+    )
+    assert all(params["zeta_pde"] == pytest.approx(30.0) for params in deterministic)
+    assert stochastic[0]["zeta_pde"] == pytest.approx(30.0)
+
+
 def test_poisson_ablations_inherit_task_specific_main_tuning():
     expected_by_task = {
         "both": (50000.0, 90000000.0, 0.1),
@@ -208,6 +246,10 @@ def test_resume_reuses_only_matching_complete_successful_runs(tmp_path):
         "deterministic_bt_mode",
         "deterministic_guidance_coeff",
         "deterministic_bt_max_scale",
+        "deterministic_guidance_start_ratio",
+        "deterministic_guidance_ramp_ratio",
+        "deterministic_correction_max_rms",
+        "deterministic_numerical_guard",
     ):
         saved.pop(field)
     (run_dir / "resolved_config.yaml").write_text(dump_yaml(saved), encoding="utf-8")

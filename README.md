@@ -381,6 +381,47 @@ full trajectory in the formal dataset.
 
 The formal ablation suite sets `allow_synthetic_data: false`; dry-run smoke configs may use synthetic data.
 
+### Safeguarded deterministic sampling
+
+CondOT uses `b_t = (1 - t) / t`, so the historical deterministic update
+`delta_t * b_t * grad(L)` is singular at `t=0`.  The sampler now supports two
+endpoint predictors and four independent stability controls:
+
+- `deterministic_endpoint_mode=single_step` uses the paper's
+  `x_t + (1 - t) v_t(x_t)` endpoint predictor.
+- `deterministic_endpoint_mode=rollout` differentiably integrates the
+  unguided ODE from the current time to 1.  It is substantially more expensive;
+  keep `deterministic_rollout_checkpoint=true` for memory control.
+- `deterministic_bt_mode=clipped_zero_at_t0` removes the singular first update
+  and caps the scalar `delta_t * b_t` multiplier.
+- `deterministic_guidance_start_ratio` and
+  `deterministic_guidance_ramp_ratio` delay and smoothly enable all guidance.
+- `deterministic_correction_max_rms` clips the actual per-sample state
+  correction after weighting, making the trust region independent of image
+  resolution and the PDE-specific zeta scale.  A value of 0 disables it.
+- `deterministic_numerical_guard=true` rejects a sample update containing NaN
+  or infinity instead of contaminating the remaining trajectory.
+
+Run the compact stochastic/single-step/rollout comparison on a server with:
+
+```bash
+bash scripts/run_deterministic_sampling.sh
+
+PDE_LIST="poisson darcy heat" BATCH_SIZE=4 \
+  bash scripts/run_deterministic_sampling.sh
+
+# List jobs or omit the expensive rollout branch.
+PLAN_ONLY=true bash scripts/run_deterministic_sampling.sh
+INCLUDE_ROLLOUT=false bash scripts/run_deterministic_sampling.sh
+```
+
+The Poisson pilot uses `bt_max_scale=0.0125`, an initial 0.02 no-guidance
+window, a 0.04 ramp, `correction_max_rms=0.02`, and `zeta_pde=30` for all three
+Poisson comparison branches.  Other PDEs inherit their own observation/PDE
+weights from `configs/main/both`; the same trust-region settings are
+intentionally retained to test transfer rather than silently retuning each
+equation.
+
 ### Result visualization
 
 Sampling visualization now uses four columns:

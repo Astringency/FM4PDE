@@ -123,6 +123,10 @@ class AblationConfig:
     deterministic_bt_mode: str = "legacy"
     deterministic_guidance_coeff: float = 1.0
     deterministic_bt_max_scale: float = 0.1
+    deterministic_guidance_start_ratio: float = 0.0
+    deterministic_guidance_ramp_ratio: float = 0.0
+    deterministic_correction_max_rms: float = 0.0
+    deterministic_numerical_guard: bool = True
 
     batch_size: int = 1
     sample_seed: int = 42
@@ -238,6 +242,20 @@ class AblationConfig:
             raise ValueError("deterministic_guidance_coeff must be non-negative")
         if self.deterministic_bt_max_scale <= 0:
             raise ValueError("deterministic_bt_max_scale must be positive")
+        if not 0.0 <= self.deterministic_guidance_start_ratio <= 1.0:
+            raise ValueError("deterministic_guidance_start_ratio must be in [0, 1]")
+        if not 0.0 <= self.deterministic_guidance_ramp_ratio <= 1.0:
+            raise ValueError("deterministic_guidance_ramp_ratio must be in [0, 1]")
+        if (
+            self.deterministic_guidance_start_ratio + self.deterministic_guidance_ramp_ratio
+            > 1.0 + 1e-12
+        ):
+            raise ValueError(
+                "deterministic_guidance_start_ratio + deterministic_guidance_ramp_ratio "
+                "must be <= 1"
+            )
+        if self.deterministic_correction_max_rms < 0:
+            raise ValueError("deterministic_correction_max_rms must be non-negative")
         if self.batch_size < 1:
             raise ValueError("batch_size must be positive")
         if self.num_obs < 0:
@@ -341,6 +359,10 @@ class AblationConfig:
             self.deterministic_endpoint_mode != "single_step"
             or self.deterministic_bt_mode != "legacy"
             or self.deterministic_guidance_coeff != 1.0
+            or self.deterministic_guidance_start_ratio != 0.0
+            or self.deterministic_guidance_ramp_ratio != 0.0
+            or self.deterministic_correction_max_rms != 0.0
+            or not self.deterministic_numerical_guard
             or (
                 self.deterministic_bt_mode in {
                     "clipped",
@@ -361,6 +383,18 @@ class AblationConfig:
                 "capped_stochastic_like",
             }:
                 deterministic += f"-max{self.deterministic_bt_max_scale:g}"
+            if (
+                self.deterministic_guidance_start_ratio != 0.0
+                or self.deterministic_guidance_ramp_ratio != 0.0
+            ):
+                deterministic += (
+                    f"-start{self.deterministic_guidance_start_ratio:g}"
+                    f"-ramp{self.deterministic_guidance_ramp_ratio:g}"
+                )
+            if self.deterministic_correction_max_rms != 0.0:
+                deterministic += f"-corrms{self.deterministic_correction_max_rms:g}"
+            if not self.deterministic_numerical_guard:
+                deterministic += "-noguard"
         return (
             f"{self.guidance_components}{reduction}_{self.loss_state}_{phase}_"
             f"{self.guidance_schedule}{pde_gate}{deterministic}_{self.clip_mode}{self.clip_threshold:g}_"

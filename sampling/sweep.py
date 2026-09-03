@@ -25,6 +25,10 @@ _BACKWARD_COMPATIBLE_CONFIG_DEFAULTS = {
     "deterministic_bt_mode": "legacy",
     "deterministic_guidance_coeff": 1.0,
     "deterministic_bt_max_scale": 0.1,
+    "deterministic_guidance_start_ratio": 0.0,
+    "deterministic_guidance_ramp_ratio": 0.0,
+    "deterministic_correction_max_rms": 0.0,
+    "deterministic_numerical_guard": True,
 }
 
 

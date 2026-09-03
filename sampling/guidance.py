@@ -190,12 +190,48 @@ def _schedule_component_active(weight: Any) -> bool:
     return bool(torch.any(torch.as_tensor(weight).detach() != 0).cpu())
 
 
-def apply_guidance_update(x_next: Any, gradient: GuidanceGradient, step_output: Any, schedule: GuidanceSchedule, config: Any) -> Any:
-    scale = _update_scale(step_output.phase, step_output.t, step_output.t_next, step_output.step_size, schedule.bt, config)
+def apply_guidance_update(
+    x_next: Any,
+    gradient: GuidanceGradient,
+    step_output: Any,
+    schedule: GuidanceSchedule,
+    config: Any,
+) -> Any:
+    scale = _update_scale(
+        step_output.phase,
+        step_output.t,
+        step_output.t_next,
+        step_output.step_size,
+        schedule.bt,
+        config,
+    )
+    deterministic_factor = 1.0
+    if step_output.phase == "deterministic":
+        deterministic_factor = _deterministic_guidance_factor(config, step_output.t)
+        scale = scale * deterministic_factor
+    correction = scale * gradient.grad_total
+    nonfinite_samples = 0
+    if step_output.phase == "deterministic" and bool(
+        getattr(config, "deterministic_numerical_guard", True)
+    ):
+        correction, nonfinite_samples = _zero_nonfinite_samples(correction)
+    raw_correction_norm = _norm(correction)
+    correction_clip_scale = 1.0
+    maximum_rms = float(getattr(config, "deterministic_correction_max_rms", 0.0))
+    if step_output.phase == "deterministic" and maximum_rms > 0.0:
+        correction, correction_clip_scale = _clip_correction_rms_per_sample(
+            correction, maximum_rms
+        )
     gradient.metadata["guidance_update_scale"] = _scalar(scale)
     gradient.metadata["stochastic_guidance_time"] = getattr(config, "stochastic_guidance_time", "t")
     gradient.metadata["deterministic_bt_mode"] = getattr(config, "deterministic_bt_mode", "legacy")
-    return x_next - scale * gradient.grad_total
+    gradient.metadata["deterministic_guidance_factor"] = _scalar(deterministic_factor)
+    gradient.metadata["guidance_correction_raw_norm"] = raw_correction_norm
+    gradient.metadata["guidance_correction_norm"] = _norm(correction)
+    gradient.metadata["guidance_correction_rms"] = _rms(correction)
+    gradient.metadata["correction_clip_scale"] = correction_clip_scale
+    gradient.metadata["nonfinite_correction_samples"] = nonfinite_samples
+    return x_next - correction
 
 
 def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
@@ -257,6 +293,37 @@ def _deterministic_update_scale(t: Any, t_next: Any, step_size: Any, bt: Any, co
     return coeff * scale
 
 
+def _deterministic_guidance_factor(config: Any, t: Any) -> Any:
+    """Gate all deterministic guidance near the singular CondOT boundary."""
+    import torch
+
+    progress = t.clamp(0.0, 1.0)
+    start = float(getattr(config, "deterministic_guidance_start_ratio", 0.0))
+    ramp = float(getattr(config, "deterministic_guidance_ramp_ratio", 0.0))
+    if ramp == 0.0:
+        return (progress >= start).to(dtype=progress.dtype)
+    return ((progress - start) / ramp).clamp(0.0, 1.0)
+
+
+def _zero_nonfinite_samples(value: Any) -> tuple[Any, int]:
+    """Reject an entire sample update when any element is NaN or infinite."""
+    import torch
+
+    batch_size = int(value.shape[0])
+    finite = torch.isfinite(value.reshape(batch_size, -1)).all(dim=1)
+    mask = finite.reshape(batch_size, *([1] * (value.ndim - 1)))
+    guarded = torch.where(mask, value, torch.zeros_like(value))
+    return guarded, int((~finite).sum().detach().cpu())
+
+
+def _clip_correction_rms_per_sample(value: Any, maximum_rms: float) -> tuple[Any, float]:
+    """Clip the applied state correction by per-sample RMS, independent of grid size."""
+    import math
+
+    elements_per_sample = int(value[0].numel())
+    return _clip_per_sample(value, maximum_rms * math.sqrt(elements_per_sample), True)
+
+
 def _grad_or_zero(
     loss: Any,
     x: Any,
@@ -313,6 +380,12 @@ def _norm(grad: Any) -> float:
     import torch
 
     return float(torch.linalg.vector_norm(grad).detach().cpu())
+
+
+def _rms(value: Any) -> float:
+    import torch
+
+    return float(value.square().mean().sqrt().detach().cpu())
 
 
 def _scalar(x: Any) -> float:

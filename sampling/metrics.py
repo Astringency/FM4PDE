@@ -204,6 +204,18 @@ def step_metrics(
                 "guidance_update_scale": gradient.metadata.get("guidance_update_scale", 0.0),
                 "stochastic_guidance_time": gradient.metadata.get("stochastic_guidance_time", ""),
                 "deterministic_bt_mode": gradient.metadata.get("deterministic_bt_mode", ""),
+                "deterministic_guidance_factor": gradient.metadata.get(
+                    "deterministic_guidance_factor", 1.0
+                ),
+                "guidance_correction_raw_norm": gradient.metadata.get(
+                    "guidance_correction_raw_norm", 0.0
+                ),
+                "guidance_correction_norm": gradient.metadata.get("guidance_correction_norm", 0.0),
+                "guidance_correction_rms": gradient.metadata.get("guidance_correction_rms", 0.0),
+                "correction_clip_scale": gradient.metadata.get("correction_clip_scale", 1.0),
+                "nonfinite_correction_samples": gradient.metadata.get(
+                    "nonfinite_correction_samples", 0
+                ),
             }
         )
     else:
@@ -219,6 +231,12 @@ def step_metrics(
                 "guidance_update_scale": 0.0,
                 "stochastic_guidance_time": "",
                 "deterministic_bt_mode": "",
+                "deterministic_guidance_factor": 1.0,
+                "guidance_correction_raw_norm": 0.0,
+                "guidance_correction_norm": 0.0,
+                "guidance_correction_rms": 0.0,
+                "correction_clip_scale": 1.0,
+                "nonfinite_correction_samples": 0,
             }
         )
     return row

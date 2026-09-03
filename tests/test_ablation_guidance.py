@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -143,6 +145,85 @@ def test_capped_stochastic_like_recovers_the_stochastic_tail():
         cfg,
     )
     assert float(scale) == pytest.approx(0.001)
+
+
+def test_deterministic_guidance_gate_skips_and_smoothly_ramps_all_components():
+    cfg = AblationConfig(
+        deterministic_bt_mode="clipped",
+        deterministic_bt_max_scale=0.1,
+        deterministic_guidance_start_ratio=0.2,
+        deterministic_guidance_ramp_ratio=0.2,
+    )
+    gradient = SimpleNamespace(grad_total=torch.ones(1, 1, 2, 2), metadata={})
+    schedule = SimpleNamespace(bt=torch.tensor(1.0))
+
+    before = SimpleNamespace(
+        phase="deterministic",
+        t=torch.tensor(0.1),
+        t_next=torch.tensor(0.2),
+        step_size=torch.tensor(0.1),
+    )
+    unchanged = apply_guidance_update(
+        torch.zeros_like(gradient.grad_total), gradient, before, schedule, cfg
+    )
+    assert torch.count_nonzero(unchanged).item() == 0
+    assert gradient.metadata["deterministic_guidance_factor"] == pytest.approx(0.0)
+
+    halfway = SimpleNamespace(
+        phase="deterministic",
+        t=torch.tensor(0.3),
+        t_next=torch.tensor(0.4),
+        step_size=torch.tensor(0.1),
+    )
+    updated = apply_guidance_update(
+        torch.zeros_like(gradient.grad_total), gradient, halfway, schedule, cfg
+    )
+    assert torch.allclose(updated, torch.full_like(updated, -0.05))
+    assert gradient.metadata["deterministic_guidance_factor"] == pytest.approx(0.5)
+
+
+def test_deterministic_correction_is_clipped_by_per_sample_rms():
+    cfg = AblationConfig(
+        deterministic_bt_mode="clipped",
+        deterministic_bt_max_scale=0.1,
+        deterministic_correction_max_rms=0.02,
+    )
+    gradient = SimpleNamespace(grad_total=torch.ones(2, 1, 2, 2), metadata={})
+    schedule = SimpleNamespace(bt=torch.tensor(1.0))
+    step = SimpleNamespace(
+        phase="deterministic",
+        t=torch.tensor(0.5),
+        t_next=torch.tensor(0.6),
+        step_size=torch.tensor(0.1),
+    )
+
+    updated = apply_guidance_update(
+        torch.zeros_like(gradient.grad_total), gradient, step, schedule, cfg
+    )
+
+    assert torch.allclose(updated, torch.full_like(updated, -0.02))
+    assert gradient.metadata["guidance_correction_rms"] == pytest.approx(0.02)
+    assert gradient.metadata["correction_clip_scale"] == pytest.approx(0.2)
+
+
+def test_deterministic_numerical_guard_rejects_nonfinite_sample_update():
+    cfg = AblationConfig(deterministic_bt_mode="clipped", deterministic_bt_max_scale=0.1)
+    grad_total = torch.ones(2, 1, 2, 2)
+    grad_total[1, 0, 0, 0] = torch.inf
+    gradient = SimpleNamespace(grad_total=grad_total, metadata={})
+    schedule = SimpleNamespace(bt=torch.tensor(1.0))
+    step = SimpleNamespace(
+        phase="deterministic",
+        t=torch.tensor(0.5),
+        t_next=torch.tensor(0.6),
+        step_size=torch.tensor(0.1),
+    )
+
+    updated = apply_guidance_update(torch.zeros_like(grad_total), gradient, step, schedule, cfg)
+
+    assert torch.allclose(updated[0], torch.full_like(updated[0], -0.1))
+    assert torch.count_nonzero(updated[1]).item() == 0
+    assert gradient.metadata["nonfinite_correction_samples"] == 1
 
 
 def test_pde_guidance_start_and_ramp_do_not_change_observation_weights():

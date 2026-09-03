@@ -209,11 +209,15 @@ def test_deterministic_endpoint_and_bt_controls_validate_and_name_runs():
         deterministic_bt_mode="clipped",
         deterministic_guidance_coeff=0.1,
         deterministic_bt_max_scale=0.03,
+        deterministic_guidance_start_ratio=0.05,
+        deterministic_guidance_ramp_ratio=0.1,
+        deterministic_correction_max_rms=0.02,
     )
     cfg.validate()
     name = cfg.resolved_ablation_name()
     assert "detep-rollout" in name
     assert "bt-clipped-c0.1-max0.03" in name
+    assert "start0.05-ramp0.1-corrms0.02" in name
 
     with pytest.raises(ValueError, match="deterministic_endpoint_mode"):
         AblationConfig(deterministic_endpoint_mode="direct").validate()
@@ -223,3 +227,12 @@ def test_deterministic_endpoint_and_bt_controls_validate_and_name_runs():
         AblationConfig(deterministic_guidance_coeff=-0.1).validate()
     with pytest.raises(ValueError, match="deterministic_bt_max_scale"):
         AblationConfig(deterministic_bt_max_scale=0.0).validate()
+    with pytest.raises(ValueError, match="deterministic_guidance_start_ratio"):
+        AblationConfig(deterministic_guidance_start_ratio=-0.1).validate()
+    with pytest.raises(ValueError, match="must be <= 1"):
+        AblationConfig(
+            deterministic_guidance_start_ratio=0.8,
+            deterministic_guidance_ramp_ratio=0.3,
+        ).validate()
+    with pytest.raises(ValueError, match="deterministic_correction_max_rms"):
+        AblationConfig(deterministic_correction_max_rms=-0.1).validate()

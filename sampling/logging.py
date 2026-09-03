@@ -86,6 +86,10 @@ def write_run_metadata(
             "deterministic_bt_mode": config.deterministic_bt_mode,
             "deterministic_guidance_coeff": config.deterministic_guidance_coeff,
             "deterministic_bt_max_scale": config.deterministic_bt_max_scale,
+            "deterministic_guidance_start_ratio": config.deterministic_guidance_start_ratio,
+            "deterministic_guidance_ramp_ratio": config.deterministic_guidance_ramp_ratio,
+            "deterministic_correction_max_rms": config.deterministic_correction_max_rms,
+            "deterministic_numerical_guard": config.deterministic_numerical_guard,
         },
         "sensor": {
             "num_obs": config.num_obs,
