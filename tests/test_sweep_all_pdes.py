@@ -151,8 +151,12 @@ def test_safe_deterministic_transfer_grid_compares_both_endpoint_predictors():
         params["deterministic_correction_max_rms"] == pytest.approx(0.02)
         for params in deterministic
     )
-    assert all(params["zeta_pde"] == pytest.approx(30.0) for params in deterministic)
-    assert stochastic[0]["zeta_pde"] == pytest.approx(30.0)
+    assert all("zeta_pde" not in params for params in deterministic)
+    assert "zeta_pde" not in stochastic[0]
+    assert all(
+        load_config(path, overrides=params).zeta_pde == pytest.approx(0.1)
+        for path, params in jobs
+    )
 
 
 def test_poisson_sampler_comparison_crosses_tasks_and_sampler_phases():
@@ -165,7 +169,12 @@ def test_poisson_sampler_comparison_crosses_tasks_and_sampler_phases():
         for phase in ("stochastic", "deterministic", "hybrid_d2s", "hybrid_s2d")
     }
     assert all(params["switch_ratio"] == pytest.approx(0.5) for _, params in jobs)
-    assert all(params["zeta_pde"] == pytest.approx(30.0) for _, params in jobs)
+    expected_zeta_pde = {"both": 0.1, "forward": 0.1, "inverse": 0.3}
+    assert all(
+        load_config(path, overrides=params).zeta_pde
+        == pytest.approx(expected_zeta_pde[params["task"]])
+        for path, params in jobs
+    )
     assert all(params["deterministic_bt_mode"] == "clipped_zero_at_t0" for _, params in jobs)
     assert all(params["deterministic_bt_max_scale"] == pytest.approx(0.0125) for _, params in jobs)
 
@@ -256,18 +265,6 @@ def test_resume_reuses_only_matching_complete_successful_runs(tmp_path):
     run_dir.mkdir(parents=True)
     saved = cfg.asdict()
     saved["device"] = "cuda:0"
-    for field in (
-        "deterministic_endpoint_mode",
-        "deterministic_rollout_checkpoint",
-        "deterministic_bt_mode",
-        "deterministic_guidance_coeff",
-        "deterministic_bt_max_scale",
-        "deterministic_guidance_start_ratio",
-        "deterministic_guidance_ramp_ratio",
-        "deterministic_correction_max_rms",
-        "deterministic_numerical_guard",
-    ):
-        saved.pop(field)
     (run_dir / "resolved_config.yaml").write_text(dump_yaml(saved), encoding="utf-8")
     (run_dir / "metrics_final.json").write_text(
         json.dumps(

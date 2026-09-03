@@ -55,7 +55,17 @@ def test_main_config_tree_has_task_specific_files_and_burger_only_in_both():
         task_paths = list(Path(f"configs/main/{task}").glob("*.yaml"))
         task_pdes = {path.stem for path in task_paths}
         assert non_burger_pdes <= task_pdes
-        assert all(load_config(path).task == task for path in task_paths)
+        configs = [load_config(path) for path in task_paths]
+        assert all(config.task == task for config in configs)
+        assert all(config.deterministic_endpoint_mode == "single_step" for config in configs)
+        assert all(config.deterministic_rollout_checkpoint is False for config in configs)
+        assert all(config.deterministic_bt_mode == "clipped_zero_at_t0" for config in configs)
+        assert all(config.deterministic_guidance_coeff == 1.0 for config in configs)
+        assert all(config.deterministic_bt_max_scale == 0.0125 for config in configs)
+        assert all(config.deterministic_guidance_start_ratio == 0.02 for config in configs)
+        assert all(config.deterministic_guidance_ramp_ratio == 0.04 for config in configs)
+        assert all(config.deterministic_correction_max_rms == 0.02 for config in configs)
+        assert all(config.deterministic_numerical_guard is True for config in configs)
     assert Path("configs/main/both/burger.yaml").is_file()
     assert not Path("configs/main/forward/burger.yaml").exists()
     assert not Path("configs/main/inverse/burger.yaml").exists()

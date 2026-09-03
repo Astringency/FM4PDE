@@ -18,6 +18,15 @@ guidance_components: obs_pde
 loss_state: endpoint
 gradient_target: current_state_chain_rule
 sampler_phase: hybrid_s2d
+deterministic_endpoint_mode: single_step
+deterministic_rollout_checkpoint: false
+deterministic_bt_mode: clipped_zero_at_t0
+deterministic_guidance_coeff: 1.0
+deterministic_bt_max_scale: 0.0125
+deterministic_guidance_start_ratio: 0.02
+deterministic_guidance_ramp_ratio: 0.04
+deterministic_correction_max_rms: 0.02
+deterministic_numerical_guard: true
 switch_ratio: 0.5
 guidance_schedule: constant
 pde_guidance_start_ratio: 0.8

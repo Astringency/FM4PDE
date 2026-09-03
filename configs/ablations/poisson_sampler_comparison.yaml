@@ -25,7 +25,7 @@ groups:
       deterministic_guidance_ramp_ratio: 0.04
       deterministic_correction_max_rms: 0.02
       deterministic_numerical_guard: true
-      zeta_pde: 30.0
+      # zeta_pde remains task-specific and is inherited from configs/main.
     product: true
     matrix:
       task: [both, forward, inverse]

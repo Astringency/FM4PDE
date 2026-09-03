@@ -13,7 +13,8 @@ pdes:
   - steady_heat_conduction
 
 # A compact transfer grid for validating the safeguarded deterministic sampler.
-# Each main config remains the source of its PDE-specific observation weights.
+# Each main config remains the source of its PDE/task-specific guidance weights,
+# including zeta_pde.
 groups:
   deterministic_safe_single:
     fixed:
@@ -37,13 +38,6 @@ groups:
       deterministic_guidance_ramp_ratio: [0.0, 0.04]
       deterministic_correction_max_rms: [0.0, 0.02]
       deterministic_numerical_guard: [true, true]
-    conditional_overrides:
-      poisson_safe_pde_weight:
-        when:
-          pde: poisson
-        set:
-          zeta_pde: 30.0
-
   deterministic_safe_rollout:
     fixed:
       task: both
@@ -65,9 +59,3 @@ groups:
       deterministic_guidance_ramp_ratio: 0.04
       deterministic_correction_max_rms: 0.02
       deterministic_numerical_guard: true
-    conditional_overrides:
-      poisson_safe_pde_weight:
-        when:
-          pde: poisson
-        set:
-          zeta_pde: 30.0
