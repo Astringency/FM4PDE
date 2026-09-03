@@ -13,6 +13,8 @@ def _write_run(root, name, rel_l2_a, rel_l2_u, config_updates=None):
     config = {
         "pde": "poisson",
         "task": "both",
+        "test_type": "id",
+        "data_path": "/data/poisson_id.mat",
         "ablation_name": "same",
         "guidance_components": "obs_pde",
         "loss_state": "endpoint",
@@ -120,9 +122,13 @@ def test_latest_outputs_exclude_superseded_runs_without_dropping_history(tmp_pat
     assert list(report_metrics[0]) == [
         "pde",
         "task",
+        "test_type",
+        "data_path",
         "ablation_group",
         "ablation_name",
         "sample_seed",
+        "offset",
+        "batch_size",
         "guidance_components",
         "loss_state",
         "sampler_phase",
@@ -156,6 +162,19 @@ def test_latest_outputs_exclude_superseded_runs_without_dropping_history(tmp_pat
     assert float(report_metrics[0]["L_obs_a"]) == pytest.approx(3.1)
     assert float(report_metrics[0]["L_obs_u"]) == pytest.approx(4.2)
     assert float(report_metrics[0]["L_pde"]) == pytest.approx(0.5)
+
+
+def test_latest_outputs_keep_test_distributions_separate(tmp_path):
+    _write_run(tmp_path, "id", 1.0, 2.0, {"test_type": "id"})
+    _write_run(tmp_path, "smooth", 3.0, 4.0, {"test_type": "smooth"})
+    _write_run(tmp_path, "rough", 5.0, 6.0, {"test_type": "rough"})
+
+    outputs = aggregate_root(tmp_path)
+    latest = list(csv.DictReader(outputs["latest"].open(encoding="utf-8")))
+    report = list(csv.DictReader(outputs["report_metrics"].open(encoding="utf-8")))
+
+    assert {row["test_type"] for row in latest} == {"id", "smooth", "rough"}
+    assert {row["test_type"] for row in report} == {"id", "smooth", "rough"}
 
 
 def test_failed_pde_evaluations_remain_in_raw_output_but_are_not_aggregated(tmp_path):

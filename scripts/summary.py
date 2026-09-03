@@ -67,6 +67,10 @@ ABLATION_DIMENSIONS: dict[str, tuple[tuple[str, str], ...]] = {
         ("SAMPLER", "sampler_phase"),
         ("SWITCH RATIO", "switch_ratio"),
     ),
+    "poisson_sampler_comparison": (
+        ("SAMPLER", "sampler_phase"),
+        ("SWITCH RATIO", "switch_ratio"),
+    ),
     "sensor_mode": (("SENSOR", "sensor_mode"),),
     "sensor_sparsity": (("NUM OBS", "num_obs"),),
     "statistics_stability": (("SAMPLE SEED", "sample_seed"),),
@@ -310,6 +314,10 @@ def collect_ablation_results(outputs_root: str | Path) -> dict[str, list[dict[st
         result: dict[str, Any] = {
             "PDE": source.get("pde", ""),
             "TASK": source.get("task", ""),
+            "DIST": DIST_NAMES.get(
+                str(source.get("test_type", "")).lower(),
+                source.get("test_type", ""),
+            ),
             "rel L2(a)": source.get("rel_l2_a"),
             "rel L2(u)": source.get("rel_l2_u"),
             "pde L": source.get("L_pde"),
@@ -330,6 +338,7 @@ def collect_ablation_results(outputs_root: str | Path) -> dict[str, list[dict[st
             key=lambda row: (
                 str(row["PDE"]),
                 TASK_ORDER.get(str(row["TASK"]), 99),
+                str(row["DIST"]),
                 *(_sort_value(row.get(label)) for label in labels),
                 str(row["Remark"]),
             )
@@ -351,6 +360,7 @@ def build_ablation_workbook(outputs_root: str | Path, output_path: str | Path) -
         columns = (
             "PDE",
             "TASK",
+            "DIST",
             *(label for label, _ in dimensions),
             *metric_labels,
             "Remark",

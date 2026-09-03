@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 from pathlib import Path
 
 from openpyxl import load_workbook
 
 from scripts.summary import MAIN_COLUMNS, summary
+from scripts.analysis.summarize_poisson_sampler_comparison import collect_comparison
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
@@ -92,6 +94,7 @@ def test_ablation_summary_groups_pdes_by_ablation_type(tmp_path: Path) -> None:
                 (
                     f"pde: {pde}",
                     "task: both",
+                    "test_type: smooth",
                     "ablation_group: noise_robustness",
                     f"ablation_name: noise_robustness_{pde}_000",
                     f"noise_level: {noise}",
@@ -124,6 +127,7 @@ def test_ablation_summary_groups_pdes_by_ablation_type(tmp_path: Path) -> None:
     assert rows[0] == (
         "PDE",
         "TASK",
+        "DIST",
         "NOISE",
         "rel L2(a)",
         "rel L2(u)",
@@ -133,3 +137,53 @@ def test_ablation_summary_groups_pdes_by_ablation_type(tmp_path: Path) -> None:
         "Remark",
     )
     assert [row[0] for row in rows[1:]] == ["burger", "poisson"]
+    assert {row[2] for row in rows[1:]} == {"Smooth"}
+
+
+def test_poisson_sampler_comparison_requires_and_returns_all_36_runs(tmp_path: Path) -> None:
+    root = tmp_path / "comparison"
+    phases = ("stochastic", "deterministic", "hybrid_d2s", "hybrid_s2d")
+    for dist, task, phase in itertools.product(
+        ("id", "smooth", "rough"), ("both", "forward", "inverse"), phases
+    ):
+        run = root / dist / task / phase
+        run.mkdir(parents=True)
+        (run / "resolved_config.yaml").write_text(
+            "\n".join(
+                (
+                    "pde: poisson",
+                    f"task: {task}",
+                    f"test_type: {dist}",
+                    f"data_path: /data/poisson_{dist}.mat",
+                    "ablation_group: poisson_sampler_comparison",
+                    f"ablation_name: poisson_sampler_comparison_poisson_{phases.index(phase):03d}",
+                    f"sampler_phase: {phase}",
+                    "switch_ratio: 0.5",
+                    "sample_seed: 0",
+                    "offset: 0",
+                    "batch_size: 1",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (run / "metrics_final.json").write_text(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "pde_residual_status": "reliable",
+                    "rel_l2_a": 0.1,
+                    "rel_l2_u": 0.2,
+                    "L_pde": 0.3,
+                    "L_obs_a": 0.4,
+                    "L_obs_u": 0.5,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    rows = collect_comparison(root)
+
+    assert len(rows) == 36
+    assert {row["DIST"] for row in rows} == {"ID", "Smooth", "Rough"}
+    assert {row["SAMPLER"] for row in rows} == set(phases)

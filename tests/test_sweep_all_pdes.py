@@ -16,6 +16,7 @@ from sampling.sweep import expand_grid, find_matching_completed_run
 GRID = "configs/ablations/all_internal_ablation_grid.yaml"
 FOCUSED_GRID = "configs/ablations/all_ablation_grid.yaml"
 DETERMINISTIC_SAFE_GRID = "configs/ablations/main_deterministic_safe.yaml"
+POISSON_SAMPLER_COMPARISON_GRID = "configs/ablations/poisson_sampler_comparison.yaml"
 ALL_PDES = {
     "darcy", "poisson", "helmholtz", "nsnonbounded", "burger",
     "reaction_diffusion", "shallow_water", "heat", "wave",
@@ -152,6 +153,21 @@ def test_safe_deterministic_transfer_grid_compares_both_endpoint_predictors():
     )
     assert all(params["zeta_pde"] == pytest.approx(30.0) for params in deterministic)
     assert stochastic[0]["zeta_pde"] == pytest.approx(30.0)
+
+
+def test_poisson_sampler_comparison_crosses_tasks_and_sampler_phases():
+    jobs = expand_grid(POISSON_SAMPLER_COMPARISON_GRID)
+
+    assert len(jobs) == 12
+    assert {(params["task"], params["sampler_phase"]) for _, params in jobs} == {
+        (task, phase)
+        for task in ("both", "forward", "inverse")
+        for phase in ("stochastic", "deterministic", "hybrid_d2s", "hybrid_s2d")
+    }
+    assert all(params["switch_ratio"] == pytest.approx(0.5) for _, params in jobs)
+    assert all(params["zeta_pde"] == pytest.approx(30.0) for _, params in jobs)
+    assert all(params["deterministic_bt_mode"] == "clipped_zero_at_t0" for _, params in jobs)
+    assert all(params["deterministic_bt_max_scale"] == pytest.approx(0.0125) for _, params in jobs)
 
 
 def test_poisson_ablations_inherit_task_specific_main_tuning():

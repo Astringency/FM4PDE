@@ -240,9 +240,11 @@ python -m sampling.aggregate outputs/ablations --output-dir outputs/ablations
 ```
 
 Aggregation writes `ablation_report_metrics.csv` as the stable ablation-report
-view.  It contains one selected row per `(pde, task, ablation_name)` and always
-reports `rel_l2_a`, `rel_l2_u`, `L_obs_a`, `L_obs_u`, and `L_pde` as separate
-columns.  `summary_latest_run_seed_grouped.csv` reports the mean, standard
+view. It contains one selected row per
+`(pde, task, test_type, ablation_name)` and always reports `test_type`,
+`data_path`, `rel_l2_a`, `rel_l2_u`, `L_obs_a`, `L_obs_u`, and `L_pde` as
+separate columns. This keeps ID, smooth, and rough runs with the same ablation
+name separate. `summary_latest_run_seed_grouped.csv` reports the mean, standard
 deviation, standard error, 95% interval half-width, median, p90, minimum, and
 maximum for the same five metrics.  A task-specific or balanced score may be
 used for ranking, but it does not replace these component metrics in reports.

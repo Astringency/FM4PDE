@@ -15,6 +15,7 @@ from sampling.config import load_yaml_file
 GROUP_DIMENSION_KEYS = [
     "pde",
     "task",
+    "test_type",
     "ablation_group",
     "guidance_components",
     "loss_state",
@@ -123,9 +124,13 @@ SAMPLE_METRICS = [
 ABLATION_REPORT_COLUMNS = [
     "pde",
     "task",
+    "test_type",
+    "data_path",
     "ablation_group",
     "ablation_name",
     "sample_seed",
+    "offset",
+    "batch_size",
     "guidance_components",
     "loss_state",
     "sampler_phase",
@@ -228,10 +233,10 @@ def _select_latest_analysis_rows(
     """Select one current, analysis-ready run for every ablation identity.
 
     Historical raw outputs remain available in ``summary_all_raw.csv``.  The
-    current snapshot is keyed by PDE, task, and ablation name so repeated anchor
-    configurations in different ablation groups are intentionally preserved.
+    current snapshot is keyed by PDE, task, test distribution, and ablation name
+    so repeated anchor configurations in different distributions are preserved.
     """
-    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         grouped[_ablation_run_key(row)].append(row)
 
@@ -256,7 +261,8 @@ def _select_latest_analysis_rows(
                 {
                     "pde": key[0],
                     "task": key[1],
-                    "ablation_name": key[2],
+                    "test_type": key[2],
+                    "ablation_name": key[3],
                     "exclusion_reason": reason,
                     "excluded_run_dir": row.get("run_dir", ""),
                     "excluded_metrics_path": row.get("metrics_path", ""),
@@ -280,11 +286,16 @@ def _select_latest_analysis_rows(
     return selected, excluded
 
 
-def _ablation_run_key(row: dict[str, Any]) -> tuple[str, str, str]:
+def _ablation_run_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
     name = str(row.get("ablation_name", ""))
     if not name:
         name = str(row.get("run_dir", row.get("metrics_path", "")))
-    return str(row.get("pde", "")), str(row.get("task", "")), name
+    return (
+        str(row.get("pde", "")),
+        str(row.get("task", "")),
+        str(row.get("test_type", "")),
+        name,
+    )
 
 
 def _row_recency(row: dict[str, Any]) -> tuple[int, str]:
@@ -369,7 +380,14 @@ def _merge_config_metrics(config: dict[str, Any], metrics: dict[str, Any]) -> di
     row["ablation_name"] = config.get("ablation_name", metrics.get("ablation_name", ""))
     row["ablation_family"] = _ablation_family(row)
     row["ablation_group_key"] = _ablation_group_key(row)
-    for key in ("sample_seed", "mask_seed", "noise_seed", "offset", "batch_size"):
+    for key in (
+        "data_path",
+        "sample_seed",
+        "mask_seed",
+        "noise_seed",
+        "offset",
+        "batch_size",
+    ):
         row[key] = config.get(key, "")
     for key, value in metrics.items():
         row[key] = value
