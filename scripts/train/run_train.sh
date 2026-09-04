@@ -46,6 +46,9 @@ SCALAR_CONDITIONING_PARAMS="${SCALAR_CONDITIONING_PARAMS:-}"
 RD_INIT_MODE_FILTER="${RD_INIT_MODE_FILTER:-grf}"
 SAVE_FULL_PDE_PARAMS="${SAVE_FULL_PDE_PARAMS:-0}"
 USE_EMA="${USE_EMA:-0}"
+FUSED_ADAMW="${FUSED_ADAMW:-1}"
+PERSISTENT_WORKERS="${PERSISTENT_WORKERS:-1}"
+DDP_STATIC_GRAPH="${DDP_STATIC_GRAPH:-1}"
 MASTER_PORT_BASE="${MASTER_PORT_BASE:-29500}"
 
 DEFAULT_PDE_LIST=(
@@ -178,6 +181,9 @@ echo "eval_frequency: ${EVAL_FREQUENCY}"
 echo "scalar_conditioning_params: ${SCALAR_CONDITIONING_PARAMS:-<disabled>}"
 echo "default_nproc_per_node: ${NPROC_DEFAULT}"
 echo "target_effective_batch: ${TARGET_EFFECTIVE_BATCH}"
+echo "fused_adamw: ${FUSED_ADAMW}"
+echo "persistent_workers: ${PERSISTENT_WORKERS}"
+echo "ddp_static_graph: ${DDP_STATIC_GRAPH}"
 echo "train_data_config: ${TRAIN_DATA_CONFIG:-<automatic discovery>}"
 
 run_train() {
@@ -233,6 +239,15 @@ run_train() {
   fi
   if [[ "${USE_EMA}" == "1" ]]; then
     extra_args+=(--use_ema)
+  fi
+  if [[ "${FUSED_ADAMW}" == "0" ]]; then
+    extra_args+=(--no-fused_adamw)
+  fi
+  if [[ "${PERSISTENT_WORKERS}" == "0" ]]; then
+    extra_args+=(--no-persistent_workers)
+  fi
+  if [[ "${DDP_STATIC_GRAPH}" == "0" ]]; then
+    extra_args+=(--no-ddp_static_graph)
   fi
   if [[ -n "${RESUME:-}" && ${#PDES[@]} -eq 1 ]]; then
     extra_args+=(--resume "${RESUME}")

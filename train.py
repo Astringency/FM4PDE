@@ -301,12 +301,22 @@ def main(args):
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.gpu], find_unused_parameters=True
+            model,
+            device_ids=[args.gpu],
+            find_unused_parameters=False,
+            gradient_as_bucket_view=True,
+            static_graph=bool(getattr(args, "ddp_static_graph", True)),
         )
         model_without_ddp = model.module
 
+    fused_adamw = bool(
+        device.type == "cuda" and getattr(args, "fused_adamw", True)
+    )
     optimizer = torch.optim.AdamW(
-        model_without_ddp.parameters(), lr=args.lr, betas=args.optimizer_betas
+        model_without_ddp.parameters(),
+        lr=args.lr,
+        betas=args.optimizer_betas,
+        fused=fused_adamw,
     )
 
     resolved_lr_scheduler = _resolve_lr_scheduler_name(args)
@@ -314,6 +324,7 @@ def main(args):
     lr_schedule = _build_lr_scheduler(optimizer, args, resolved_lr_scheduler)
 
     logger.info(f"Optimizer: {optimizer}")
+    logger.info(f"Fused AdamW: {fused_adamw}")
     logger.info(f"Resolved LR scheduler: {resolved_lr_scheduler}")
     logger.info(f"Learning-Rate Schedule: {lr_schedule}")
 
@@ -343,12 +354,16 @@ def main(args):
     sampler_train = torch.utils.data.DistributedSampler(
         dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
     )
+    persistent_workers = bool(
+        args.num_workers > 0 and getattr(args, "persistent_workers", True)
+    )
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
         sampler=sampler_train,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
+        persistent_workers=persistent_workers,
         drop_last=True,
     )
     data_loader_val = torch.utils.data.DataLoader(
@@ -357,8 +372,10 @@ def main(args):
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
+        persistent_workers=persistent_workers,
         drop_last=False,
     )
+    logger.info(f"Persistent DataLoader workers: {persistent_workers}")
     logger.info(str(sampler_train))
 
     logger.info(f"Start from {args.start_epoch} to {args.epochs} epochs")

@@ -108,6 +108,15 @@ def get_args_parser():
         help="[beta1, beta2] for AdamW",
     )
     parser.add_argument(
+        "--fused_adamw",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Use the fused AdamW implementation on CUDA. This changes only the optimizer "
+            "execution path; use --no-fused_adamw to fall back to the PyTorch default."
+        ),
+    )
+    parser.add_argument(
         "--skewed_timesteps",
         action="store_true",
         help="Use skewed timestep sampling proposed in the EDM paper: https://arxiv.org/abs/2206.00364.",
@@ -281,6 +290,15 @@ def get_args_parser():
     # Distributed training parameters
     parser.add_argument("--num_workers", default=10, type=int)
     parser.add_argument(
+        "--persistent_workers",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Keep DataLoader workers alive between epochs when num_workers > 0. "
+            "Use --no-persistent_workers to restore per-epoch worker startup."
+        ),
+    )
+    parser.add_argument(
         "--pin_mem",
         action="store_true",
         help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.",
@@ -294,6 +312,15 @@ def get_args_parser():
     parser.add_argument("--dist_on_itp", action="store_true")
     parser.add_argument(
         "--dist_url", default="env://", help="url used to set up distributed training"
+    )
+    parser.add_argument(
+        "--ddp_static_graph",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Enable DDP static-graph optimizations. Use --no-ddp_static_graph only for "
+            "models whose parameter usage or training graph changes between iterations."
+        ),
     )
     parser.add_argument(
         "--test_run",

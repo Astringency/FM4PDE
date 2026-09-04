@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import gc
 import logging
 import math
 from typing import Iterable
@@ -34,8 +33,10 @@ class MeanAccumulator:
         self.total = 0.0
         self.count = 0
 
-    def update(self, value: torch.Tensor, count: int = 1) -> None:
-        self.total += float(value.detach().cpu()) * int(count)
+    def update(self, value: torch.Tensor | float, count: int = 1) -> None:
+        if torch.is_tensor(value):
+            value = value.detach().item()
+        self.total += float(value) * int(count)
         self.count += int(count)
 
     def compute(self) -> float:
@@ -60,7 +61,6 @@ def train_one_epoch(
     loss_scaler: NativeScalerWithGradNormCount,
     args: argparse.Namespace,
 ):
-    gc.collect()
     model.train(True)
     batch_loss = MeanAccumulator()
     epoch_loss = MeanAccumulator()
@@ -71,7 +71,7 @@ def train_one_epoch(
     for data_iter_step, batch in enumerate(data_loader):
         samples, labels, scalar_conditioning = _unpack_batch(batch)
         if data_iter_step % accum_iter == 0:
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             batch_loss.reset()
             if data_iter_step > 0 and args.test_run:
                 break
@@ -92,9 +92,9 @@ def train_one_epoch(
             sampling_dtype=getattr(args, "sampling_dtype", "float32"),
         )
 
-        loss_value = float(loss.detach().cpu())
-        batch_loss.update(loss, int(samples.shape[0]))
-        epoch_loss.update(loss, int(samples.shape[0]))
+        loss_value = loss.detach().item()
+        batch_loss.update(loss_value, int(samples.shape[0]))
+        epoch_loss.update(loss_value, int(samples.shape[0]))
 
         if not math.isfinite(loss_value):
             raise ValueError(f"Loss is {loss_value}, stopping training")
@@ -134,7 +134,6 @@ def validate_one_epoch(
     epoch: int,
     args: argparse.Namespace,
 ):
-    gc.collect()
     was_training = model.training
     model.eval()
     epoch_loss = MeanAccumulator()
@@ -158,10 +157,10 @@ def validate_one_epoch(
                 skewed_timesteps=getattr(args, "skewed_timesteps", False),
                 sampling_dtype=getattr(args, "sampling_dtype", "float32"),
             )
-            loss_value = float(loss.detach().cpu())
+            loss_value = loss.detach().item()
             if not math.isfinite(loss_value):
                 raise ValueError(f"Validation loss is {loss_value}, stopping training")
-            epoch_loss.update(loss, int(samples.shape[0]))
+            epoch_loss.update(loss_value, int(samples.shape[0]))
             if data_iter_step % PRINT_FREQUENCY == 0:
                 logger.info(
                     f"Validation epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {epoch_loss.compute()}"

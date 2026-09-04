@@ -13,6 +13,7 @@ import torch
 from training.distributed_mode import is_main_process
 
 CHECKPOINT_SCHEMA_VERSION = 3
+OPTIMIZER_RUNTIME_OPTION_KEYS = ("foreach", "fused")
 
 
 def save_on_master(*args, **kwargs):
@@ -79,6 +80,35 @@ def _load_resume_state(model_without_ddp, checkpoint: dict[str, Any]) -> None:
             "Checkpoint model_for_resume does not match the current model. "
             "Use the same --use_ema and model configuration as the saved run."
         ) from exc
+
+
+def _load_optimizer_state_preserving_runtime_options(
+    optimizer: torch.optim.Optimizer,
+    state_dict: dict[str, Any],
+) -> None:
+    """Load checkpoint state without reverting execution-only optimizer options.
+
+    AdamW stores ``foreach`` and ``fused`` in its parameter groups. An older
+    checkpoint therefore carries the implementation selected by the old run and
+    would otherwise overwrite the implementation requested for the resumed run.
+    Shallow-copy only the group dictionaries so large optimizer tensors are not
+    duplicated in host memory during resume.
+    """
+
+    state_to_load = dict(state_dict)
+    saved_groups = state_dict.get("param_groups")
+    if isinstance(saved_groups, list):
+        adapted_groups = []
+        for index, saved_group in enumerate(saved_groups):
+            adapted_group = dict(saved_group)
+            if index < len(optimizer.param_groups):
+                current_group = optimizer.param_groups[index]
+                for key in OPTIMIZER_RUNTIME_OPTION_KEYS:
+                    if key in current_group:
+                        adapted_group[key] = current_group[key]
+            adapted_groups.append(adapted_group)
+        state_to_load["param_groups"] = adapted_groups
+    optimizer.load_state_dict(state_to_load)
 
 
 def save_model(
@@ -301,7 +331,9 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
         and checkpoint.get("optimizer") is not None
         and "epoch" in checkpoint
     ):
-        optimizer.load_state_dict(checkpoint["optimizer"])
+        _load_optimizer_state_preserving_runtime_options(
+            optimizer, checkpoint["optimizer"]
+        )
         if "lr_schedule" in checkpoint and checkpoint.get("lr_schedule") is not None:
             try:
                 lr_schedule.load_state_dict(checkpoint["lr_schedule"])

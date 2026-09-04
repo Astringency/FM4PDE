@@ -4,6 +4,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+import training.grad_scaler as grad_scaler_module
 from training.grad_scaler import NativeScalerWithGradNormCount
 from training.train_loop import _conditioning_for_model, train_one_epoch, validate_one_epoch
 
@@ -61,6 +62,26 @@ def test_train_one_epoch_updates_optimizer():
 
     assert "loss" in stats
     assert not torch.allclose(before, model.scale.detach())
+
+
+def test_scaler_skips_unused_grad_norm_without_clipping(monkeypatch):
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.SGD([parameter], lr=0.1)
+    scaler = NativeScalerWithGradNormCount()
+
+    def unexpected_grad_norm(*args, **kwargs):
+        raise AssertionError("gradient norm should not be calculated without clipping")
+
+    monkeypatch.setattr(grad_scaler_module, "get_grad_norm_", unexpected_grad_norm)
+    norm = scaler(
+        parameter.square(),
+        optimizer,
+        clip_grad=None,
+        parameters=[parameter],
+    )
+
+    assert norm is None
+    assert parameter.item() < 1.0
 
 
 def test_validate_one_epoch_reports_loss_without_optimizer_update():

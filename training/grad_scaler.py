@@ -52,8 +52,10 @@ class NativeScalerWithGradNormCount:
                 )  # unscale the gradients of optimizer's assigned params in-place
                 norm = torch.nn.utils.clip_grad_norm_(parameters, clip_grad)
             else:
-                self._scaler.unscale_(optimizer)
-                norm = get_grad_norm_(parameters)
+                # GradScaler.step() performs the required unscale/non-finite check.
+                # Avoid calculating a full-model gradient norm when the caller did
+                # not request clipping and does not consume the returned norm.
+                norm = None
             self._scaler.step(optimizer)
             self._scaler.update()
         else:
