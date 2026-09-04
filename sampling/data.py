@@ -498,13 +498,50 @@ def _extract_near_endpoint_single(
             )
         expected_channels = _channel_counts(config.pde, config.img_channels)[0]
         trajectory = _pair_h5_trajectory_sample(file[dataset_name], offset)
-        n_time = _trajectory_time_length(trajectory, expected_channels)
+        stored_channels = expected_channels
+        try:
+            n_time = _trajectory_time_length(trajectory, stored_channels)
+        except ValueError:
+            # Legacy Wave datasets stored only displacement u(t) in the saved
+            # trajectory even though endpoint states use the first-order
+            # representation [u, v].  Preserve support for the current full
+            # two-channel schema and reconstruct v only for that legacy case.
+            if config.pde != "wave":
+                raise
+            stored_channels = 1
+            n_time = _trajectory_time_length(trajectory, stored_channels)
         if n_time < 3:
             raise ValueError(f"{dataset_name} must contain at least three time frames for near_endpoint_temporal")
         start_idx, near_start_idx, near_end_idx, final_idx = 0, 1, n_time - 2, n_time - 1
-        dt_value, dt_source = _near_endpoint_dt(config.pde, pde_params, batch_idx, final_idx - start_idx)
-        q_dt = _trajectory_frame_to_chw(trajectory, near_start_idx, expected_channels)
-        q_T_minus_dt = _trajectory_frame_to_chw(trajectory, near_end_idx, expected_channels)
+        time_values, dt_value, dt_source = _pair_h5_near_endpoint_times(
+            file,
+            config.pde,
+            pde_params,
+            batch_idx,
+            offset,
+            n_time,
+        )
+        if config.pde == "wave" and stored_channels == 1:
+            q_dt, q_T_minus_dt = _wave_near_endpoint_states_from_displacement(
+                trajectory,
+                time_values,
+            )
+            state_source = "saved_displacement_trajectory_with_reconstructed_velocity"
+            velocity_metadata = {
+                "wave_velocity_reconstructed": True,
+                "wave_velocity_reconstruction": "three_point_lagrange_derivative",
+                "stored_trajectory_channels": 1,
+                "expected_state_channels": expected_channels,
+            }
+        else:
+            q_dt = _trajectory_frame_to_chw(trajectory, near_start_idx, expected_channels)
+            q_T_minus_dt = _trajectory_frame_to_chw(trajectory, near_end_idx, expected_channels)
+            state_source = "saved_full_state_trajectory"
+            velocity_metadata = {
+                "wave_velocity_reconstructed": False,
+                "stored_trajectory_channels": stored_channels,
+                "expected_state_channels": expected_channels,
+            }
         return (
             q_dt,
             q_T_minus_dt,
@@ -512,12 +549,13 @@ def _extract_near_endpoint_single(
             {
                 "sample_offset": int(offset),
                 "trajectory_dataset": dataset_name,
-                "near_endpoint_state_source": "saved_full_state_trajectory",
+                "near_endpoint_state_source": state_source,
                 "start_frame": start_idx,
                 "q_dt_frame": near_start_idx,
                 "q_T_minus_dt_frame": near_end_idx,
                 "final_frame": final_idx,
                 "dt_source": dt_source,
+                **velocity_metadata,
             },
         )
     if config.loadby == "h5py":
@@ -1074,6 +1112,99 @@ def _trajectory_frame_to_chw(trajectory: Any, frame_idx: int, expected_channels:
     if trajectory.shape[0] == expected_channels:
         return trajectory[:, frame_idx, :, :]
     raise ValueError(f"Cannot infer trajectory layout for shape {tuple(trajectory.shape)}")
+
+
+def _pair_h5_near_endpoint_times(
+    file: Any,
+    pde: str,
+    pde_params: dict[str, Any],
+    batch_idx: int,
+    offset: int,
+    n_time: int,
+) -> tuple[Any, float, str]:
+    import numpy as np
+
+    if "t" in file:
+        raw_values = np.asarray(file["t"][:], dtype=np.float64)
+        if raw_values.ndim == 2:
+            if raw_values.shape[0] == 1:
+                raw_values = raw_values[0]
+            elif offset < raw_values.shape[0]:
+                raw_values = raw_values[offset]
+        values = np.asarray(raw_values).squeeze()
+        if values.ndim != 1 or values.size != n_time:
+            raise ValueError(
+                "pair_h5 trajectory time dataset must be one-dimensional and match the trajectory; "
+                f"t={tuple(values.shape)}, trajectory_time_points={n_time}"
+            )
+        if not np.all(np.isfinite(values)) or not np.all(np.diff(values) > 0):
+            raise ValueError("pair_h5 trajectory time values must be finite and strictly increasing")
+        start_dt = float(values[1] - values[0])
+        end_dt = float(values[-1] - values[-2])
+        if not np.isclose(start_dt, end_dt, rtol=1e-5, atol=1e-8):
+            raise ValueError(
+                "near_endpoint_temporal requires equal first and last saved time intervals because its "
+                f"schema carries one dt; got start_dt={start_dt:g}, end_dt={end_dt:g}"
+            )
+        return values, 0.5 * (start_dt + end_dt), "dataset:t_endpoint_intervals"
+
+    dt_value, dt_source = _near_endpoint_dt(pde, pde_params, batch_idx, n_time - 1)
+    values = np.arange(n_time, dtype=np.float64) * float(dt_value)
+    return values, dt_value, dt_source
+
+
+def _wave_near_endpoint_states_from_displacement(
+    trajectory: Any,
+    time_values: Any,
+) -> tuple[Any, Any]:
+    """Build [u, v] near-endpoint states from a legacy u-only Wave trajectory."""
+    import numpy as np
+
+    n_time = _trajectory_time_length(trajectory, 1)
+    if n_time < 3:
+        raise ValueError("Wave velocity reconstruction requires at least three trajectory time points")
+    times = np.asarray(time_values, dtype=np.float64)
+    if times.ndim != 1 or times.size != n_time:
+        raise ValueError(
+            f"Wave trajectory time values must contain {n_time} entries, got shape {tuple(times.shape)}"
+        )
+
+    def state_at(frame_idx: int) -> Any:
+        indices = (frame_idx - 1, frame_idx, frame_idx + 1)
+        selected_times = times[list(indices)]
+        frames = [
+            _trajectory_frame_to_chw(trajectory, index, 1).astype(np.float64, copy=False)
+            for index in indices
+        ]
+        velocity = sum(
+            _lagrange_derivative_weight(selected_times, local_idx, selected_times[1]) * frame
+            for local_idx, frame in enumerate(frames)
+        )
+        displacement = frames[1]
+        return np.concatenate([displacement, velocity], axis=0).astype(np.float32, copy=False)
+
+    return state_at(1), state_at(n_time - 2)
+
+
+def _lagrange_derivative_weight(nodes: Any, node_idx: int, x: float) -> float:
+    """Derivative at x of one quadratic Lagrange basis polynomial."""
+    weight = 0.0
+    for differentiated_idx in range(3):
+        if differentiated_idx == node_idx:
+            continue
+        term = 1.0
+        for other_idx in range(3):
+            if other_idx in {node_idx, differentiated_idx}:
+                continue
+            denominator = float(nodes[node_idx] - nodes[other_idx])
+            if denominator == 0.0:
+                raise ValueError("Wave trajectory time values must be distinct")
+            term *= float(x - nodes[other_idx]) / denominator
+        denominator = float(nodes[node_idx] - nodes[differentiated_idx])
+        if denominator == 0.0:
+            raise ValueError("Wave trajectory time values must be distinct")
+        weight += term / denominator
+    return weight
 
 
 def _ensure_chw_array(value: Any, expected_channels: int) -> Any:

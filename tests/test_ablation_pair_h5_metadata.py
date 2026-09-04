@@ -10,6 +10,7 @@ from sampling.config import AblationConfig
 from sampling.data import _attach_boundary_metadata_params, attach_near_endpoint_observations, load_ground_truth
 from sampling.data import finalize_ground_truth_config
 from sampling.masks import make_pair_masks
+from sampling.pde_residuals import compute_pde_residual
 
 
 def _load_and_attach(cfg):
@@ -245,6 +246,77 @@ def test_near_endpoint_temporal_loader_from_pair_h5_trajectory(tmp_path):
     assert gt.metadata["near_endpoint_temporal"]["unobserved_values_zeroed"] is True
     assert gt.metadata["near_endpoint_temporal"]["full_near_endpoint_frames_retained"] is False
     assert gt.metadata["near_endpoint_temporal"]["frame_metadata"][0]["trajectory_dataset"] == "full_trajectory"
+
+
+def test_wave_near_endpoint_reconstructs_velocity_from_legacy_displacement_trajectory(tmp_path):
+    path = tmp_path / "wave_1-4-4_1.h5"
+    times = np.array([0.0, 0.1, 0.4, 0.9, 1.0], dtype=np.float32)
+    displacement = np.stack(
+        [np.full((4, 4), time**2, dtype=np.float32) for time in times],
+        axis=0,
+    )
+    with h5py.File(path, "w") as file:
+        file.create_dataset(
+            "input_data",
+            data=np.stack([displacement[0], np.zeros((4, 4), dtype=np.float32)], axis=0)[None],
+        )
+        file.create_dataset(
+            "output_data",
+            data=np.stack([displacement[-1], np.full((4, 4), 2.0, dtype=np.float32)], axis=0)[None],
+        )
+        # Legacy formal Wave files use [N,1,T,H,W], while endpoints are [u,v].
+        file.create_dataset("full_trajectory", data=displacement[None, None])
+        file.create_dataset("t", data=times)
+        file.attrs["T"] = 1.0
+        file.attrs["fixed_c"] = 1.0
+
+    cfg = AblationConfig(
+        pde="wave",
+        task="both",
+        data_path=str(path),
+        checkpoint_path="",
+        loadby="pair_h5",
+        coef_name="input_data",
+        solution_name="output_data",
+        img_channels=4,
+        img_resolution=4,
+        batch_size=1,
+        offset=0,
+        device="cpu",
+        allow_synthetic_data=False,
+        residual_mode="near_endpoint_temporal",
+        num_obs=4,
+        mask_seed=123,
+    )
+
+    gt = _load_and_attach(cfg)
+
+    near = gt.pde_params["near_endpoint_temporal"]
+    assert tuple(near["q_dt"].shape) == (1, 2, 4, 4)
+    assert tuple(near["q_T_minus_dt"].shape) == (1, 2, 4, 4)
+    assert torch.allclose(near["q_dt"][:, 0:1], near["mask_0"] * 0.01, atol=1e-6)
+    assert torch.allclose(near["q_dt"][:, 1:2], near["mask_0"] * 0.2, atol=1e-6)
+    assert torch.allclose(near["q_T_minus_dt"][:, 0:1], near["mask_T"] * 0.81, atol=1e-6)
+    assert torch.allclose(near["q_T_minus_dt"][:, 1:2], near["mask_T"] * 1.8, atol=1e-6)
+    assert torch.allclose(near["dt"], torch.tensor([0.1]), atol=1e-7)
+    frame_meta = gt.metadata["near_endpoint_temporal"]["frame_metadata"][0]
+    assert frame_meta["near_endpoint_state_source"] == (
+        "saved_displacement_trajectory_with_reconstructed_velocity"
+    )
+    assert frame_meta["wave_velocity_reconstructed"] is True
+    assert frame_meta["wave_velocity_reconstruction"] == "three_point_lagrange_derivative"
+    assert frame_meta["stored_trajectory_channels"] == 1
+    assert frame_meta["expected_state_channels"] == 2
+    assert frame_meta["dt_source"] == "dataset:t_endpoint_intervals"
+    residual = compute_pde_residual(
+        "wave",
+        gt.coef,
+        gt.sol,
+        pde_params=gt.pde_params,
+        residual_mode="near_endpoint_temporal",
+    )
+    assert residual.metadata["resolved_residual_mode"] == "near_endpoint_temporal"
+    assert residual.status == "approximate"
 
 
 def test_nsnonbounded_h5py_reads_scalar_params(tmp_path):
