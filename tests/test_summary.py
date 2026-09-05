@@ -26,10 +26,19 @@ def _main_row(*, n: int, key: str, pde: str = "poisson") -> dict[str, object]:
         "task": "both",
         "sensor_mode": "sensor_column",
         "rel_l2_a_mean": 0.1,
+        "rel_l2_a_std": 0.01,
         "rel_l2_u_mean": 0.2,
+        "rel_l2_u_std": 0.02,
+        "rel_l2_u_n": n,
         "pde_residual_norm_mean": 9.0,
+        "pde_residual_norm_std": 0.9,
+        "pde_residual_norm_n": n,
         "obs_rel_l2_a_mean": 8.0,
+        "obs_rel_l2_a_std": 0.8,
+        "obs_rel_l2_a_n": n,
         "obs_rel_l2_u_mean": 7.0,
+        "obs_rel_l2_u_std": 0.7,
+        "obs_rel_l2_u_n": n,
         "rel_l2_a_n": n,
     }
 
@@ -50,8 +59,14 @@ def _write_main_experiment(path: Path, *, dist_key: str) -> None:
             {
                 "ablation_group_key": run_key,
                 "L_pde_mean": 0.3,
+                "L_pde_std": 0.03,
+                "L_pde_n": 50,
                 "L_obs_a_mean": 0.4,
+                "L_obs_a_std": 0.04,
+                "L_obs_a_n": 50,
                 "L_obs_u_mean": 0.5,
+                "L_obs_u_std": 0.05,
+                "L_obs_u_n": 50,
             }
         ],
     )
@@ -74,7 +89,15 @@ def test_main_summary_has_exact_sheets_columns_and_complete_groups(tmp_path: Pat
         assert rows[0] == MAIN_COLUMNS
         assert len(rows) == 2
         assert rows[1][3] == "sensor_col"
-        assert rows[1][4:9] == (0.1, 0.2, 0.3, 0.4, 0.5)
+        values = dict(zip(rows[0], rows[1]))
+        assert values["rel L2(a)"] == 0.1
+        assert values["rel L2(a) std"] == 0.01
+        assert values["rel L2(a) n"] == 1000
+        assert values["rel L2(u)"] == 0.2
+        assert values["rel L2(u) std"] == 0.02
+        assert values["pde L"] == 0.3
+        assert values["pde L std"] == 0.03
+        assert values["pde L n"] == 50
 
 
 def test_ablation_summary_groups_pdes_by_ablation_type(tmp_path: Path) -> None:
@@ -130,14 +153,85 @@ def test_ablation_summary_groups_pdes_by_ablation_type(tmp_path: Path) -> None:
         "DIST",
         "NOISE",
         "rel L2(a)",
+        "rel L2(a) std",
+        "rel L2(a) n",
         "rel L2(u)",
+        "rel L2(u) std",
+        "rel L2(u) n",
         "pde L",
+        "pde L std",
+        "pde L n",
         "obs L(a)",
+        "obs L(a) std",
+        "obs L(a) n",
         "obs L(u)",
+        "obs L(u) std",
+        "obs L(u) n",
         "Remark",
     )
     assert [row[0] for row in rows[1:]] == ["burger", "poisson"]
     assert {row[2] for row in rows[1:]} == {"Smooth"}
+    values = dict(zip(rows[0], rows[1]))
+    assert values["rel L2(a) std"] == 0
+    assert values["rel L2(a) n"] == 1
+    assert values["pde L std"] == 0
+    assert values["pde L n"] == 1
+
+
+def test_ablation_summary_uses_grouped_cross_seed_statistics(tmp_path: Path) -> None:
+    outputs = tmp_path / "outputs"
+    root = outputs / "ablations"
+    sample_key = "pde=poisson|resolved_residual_mode=|group=stability"
+    run_key = "pde=poisson|resolved_residual_mode=static|group=stability"
+    _write_csv(
+        root / "summary_latest_grouped.csv",
+        [
+            {
+                "ablation_group_key": sample_key,
+                "ablation_group": "statistics_stability",
+                "pde": "poisson",
+                "task": "both",
+                "test_type": "id",
+                "rel_l2_a_mean": 0.1,
+                "rel_l2_a_std": 0.01,
+                "rel_l2_a_n": 5,
+                "rel_l2_u_mean": 0.2,
+                "rel_l2_u_std": 0.02,
+                "rel_l2_u_n": 5,
+            }
+        ],
+    )
+    _write_csv(
+        root / "summary_latest_run_seed_grouped.csv",
+        [
+            {
+                "ablation_group_key": run_key,
+                "L_pde_mean": 0.3,
+                "L_pde_std": 0.03,
+                "L_pde_n": 5,
+                "L_obs_a_mean": 0.4,
+                "L_obs_a_std": 0.04,
+                "L_obs_a_n": 5,
+                "L_obs_u_mean": 0.5,
+                "L_obs_u_std": 0.05,
+                "L_obs_u_n": 5,
+            }
+        ],
+    )
+
+    written = summary(outputs, "ablations")
+
+    workbook = load_workbook(written["ablations"], read_only=True, data_only=True)
+    rows = list(workbook["statistics_stability"].iter_rows(values_only=True))
+    assert len(rows) == 2
+    values = dict(zip(rows[0], rows[1]))
+    assert values["NUM SEEDS"] == 5
+    assert values["rel L2(a)"] == 0.1
+    assert values["rel L2(a) std"] == 0.01
+    assert values["rel L2(a) n"] == 5
+    assert values["pde L"] == 0.3
+    assert values["pde L std"] == 0.03
+    assert values["pde L n"] == 5
 
 
 def test_poisson_sampler_comparison_requires_and_returns_all_36_runs(tmp_path: Path) -> None:

@@ -8,6 +8,7 @@ import csv
 import json
 import math
 import re
+import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -25,16 +26,24 @@ if str(PROJECT_ROOT) not in sys.path:
 from sampling.aggregate import collect_ablation_report_rows  # noqa: E402
 
 
+METRIC_COLUMNS = (
+    ("rel L2(a)", "rel_l2_a"),
+    ("rel L2(u)", "rel_l2_u"),
+    ("pde L", "L_pde"),
+    ("obs L(a)", "L_obs_a"),
+    ("obs L(u)", "L_obs_u"),
+)
+METRIC_OUTPUT_COLUMNS = tuple(
+    column
+    for label, _ in METRIC_COLUMNS
+    for column in (label, f"{label} std", f"{label} n")
+)
 MAIN_COLUMNS = (
     "PDE",
     "TASK",
     "DIST",
     "SENSOR",
-    "rel L2(a)",
-    "rel L2(u)",
-    "pde L",
-    "obs L(a)",
-    "obs L(u)",
+    *METRIC_OUTPUT_COLUMNS,
     "Remark",
 )
 MAIN_DIR_PATTERN = re.compile(
@@ -43,14 +52,6 @@ MAIN_DIR_PATTERN = re.compile(
 )
 DIST_NAMES = {"id": "ID", "rough": "Rough", "smooth": "Smooth"}
 TASK_ORDER = {"both": 0, "forward": 1, "inverse": 2}
-
-METRIC_COLUMNS = (
-    ("rel L2(a)", "rel_l2_a"),
-    ("rel L2(u)", "rel_l2_u"),
-    ("pde L", "L_pde"),
-    ("obs L(a)", "L_obs_a"),
-    ("obs L(u)", "L_obs_u"),
-)
 
 ABLATION_DIMENSIONS: dict[str, tuple[tuple[str, str], ...]] = {
     "guidance_components": (("GUIDANCE", "guidance_components"),),
@@ -73,7 +74,7 @@ ABLATION_DIMENSIONS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
     "sensor_mode": (("SENSOR", "sensor_mode"),),
     "sensor_sparsity": (("NUM OBS", "num_obs"),),
-    "statistics_stability": (("SAMPLE SEED", "sample_seed"),),
+    "statistics_stability": (("NUM SEEDS", "rel_l2_a_n"),),
     "step_method_by_sampler": (
         ("STEP METHOD", "step_method"),
         ("SAMPLER", "sampler_phase"),
@@ -118,13 +119,124 @@ def _number(value: Any) -> float | int | None:
     return int(parsed) if parsed.is_integer() else parsed
 
 
-def _first_number(rows: Sequence[Mapping[str, Any]], fields: Sequence[str]) -> float | int | None:
-    for row in rows:
-        for field in fields:
-            value = _number(row.get(field))
-            if value is not None:
-                return value
-    return None
+def _first_aggregate_stats(
+    candidates: Sequence[tuple[Mapping[str, Any], str]],
+) -> tuple[float | int | None, float | int | None, int | None]:
+    """Return mean, sample standard deviation, and count from one metric source.
+
+    Choosing all three fields from the same row and metric stem prevents, for
+    example, pairing an ``L_pde`` mean with a ``pde_residual_norm`` standard
+    deviation when the preferred aggregate is unavailable.
+    """
+    for row, metric in candidates:
+        mean = _number(row.get(f"{metric}_mean"))
+        if mean is None:
+            continue
+        std = _number(row.get(f"{metric}_std"))
+        count = _number(row.get(f"{metric}_n"))
+        return mean, std, int(count) if count is not None else None
+    return None, None, None
+
+
+def _set_metric_stats(
+    result: dict[str, Any],
+    label: str,
+    stats: tuple[Any, Any, Any],
+) -> None:
+    mean, std, count = stats
+    result[label] = mean
+    result[f"{label} std"] = std
+    result[f"{label} n"] = count
+
+
+def _set_aggregate_metric_stats(
+    result: dict[str, Any],
+    sample_row: Mapping[str, Any],
+    run_row: Mapping[str, Any],
+) -> None:
+    """Populate the five output metrics from matching sample/run aggregates."""
+    _set_metric_stats(
+        result,
+        "rel L2(a)",
+        _first_aggregate_stats(((sample_row, "rel_l2_a"),)),
+    )
+    _set_metric_stats(
+        result,
+        "rel L2(u)",
+        _first_aggregate_stats(((sample_row, "rel_l2_u"),)),
+    )
+    _set_metric_stats(
+        result,
+        "pde L",
+        _first_aggregate_stats(
+            (
+                (run_row, "L_pde"),
+                (run_row, "pde_residual_norm"),
+                (sample_row, "L_pde"),
+                (sample_row, "pde_residual_norm"),
+            )
+        ),
+    )
+    _set_metric_stats(
+        result,
+        "obs L(a)",
+        _first_aggregate_stats(
+            (
+                (run_row, "L_obs_a"),
+                (run_row, "clean_L_obs_a"),
+                (run_row, "obs_rel_l2_a"),
+                (sample_row, "L_obs_a"),
+                (sample_row, "clean_L_obs_a"),
+                (sample_row, "obs_rel_l2_a"),
+            )
+        ),
+    )
+    _set_metric_stats(
+        result,
+        "obs L(u)",
+        _first_aggregate_stats(
+            (
+                (run_row, "L_obs_u"),
+                (run_row, "clean_L_obs_u"),
+                (run_row, "obs_rel_l2_u"),
+                (sample_row, "L_obs_u"),
+                (sample_row, "clean_L_obs_u"),
+                (sample_row, "obs_rel_l2_u"),
+            )
+        ),
+    )
+
+
+def _single_run_metric_stats(
+    source: Mapping[str, Any], run_dir: Path
+) -> dict[str, tuple[float | int | None, float | int | None, int | None]]:
+    """Compute per-run statistics from per-sample metrics when available.
+
+    Some losses are currently persisted only as one run-level aggregate. Such
+    metrics report ``n=1`` and ``std=0`` instead of implying that a per-sample
+    deviation was available.
+    """
+    sample_values: dict[str, list[float]] = defaultdict(list)
+    sample_path = run_dir / "metrics_per_sample.csv"
+    if sample_path.is_file():
+        for row in _read_csv(sample_path):
+            for _, metric in METRIC_COLUMNS:
+                value = _number(row.get(metric))
+                if value is not None:
+                    sample_values[metric].append(float(value))
+
+    stats: dict[str, tuple[float | int | None, float | int | None, int | None]] = {}
+    for _, metric in METRIC_COLUMNS:
+        mean = _number(source.get(metric))
+        values = sample_values.get(metric, [])
+        if values:
+            std = statistics.stdev(values) if len(values) > 1 else 0.0
+            stats[metric] = (mean, std, len(values))
+        elif mean is not None:
+            stats[metric] = (mean, 0.0, 1)
+        else:
+            stats[metric] = (None, None, None)
+    return stats
 
 
 def _normalize_sensor(value: Any) -> str:
@@ -186,22 +298,9 @@ def collect_main_results(outputs_root: str | Path) -> dict[str, list[dict[str, A
                 "TASK": source_row.get("task", ""),
                 "DIST": distance,
                 "SENSOR": _normalize_sensor(source_row.get("sensor_mode")),
-                "rel L2(a)": _first_number((source_row,), ("rel_l2_a_mean",)),
-                "rel L2(u)": _first_number((source_row,), ("rel_l2_u_mean",)),
-                "pde L": _first_number(
-                    (loss_row, source_row),
-                    ("L_pde_mean", "pde_residual_norm_mean"),
-                ),
-                "obs L(a)": _first_number(
-                    (loss_row, source_row),
-                    ("L_obs_a_mean", "clean_L_obs_a_mean", "obs_rel_l2_a_mean"),
-                ),
-                "obs L(u)": _first_number(
-                    (loss_row, source_row),
-                    ("L_obs_u_mean", "clean_L_obs_u_mean", "obs_rel_l2_u_mean"),
-                ),
                 "Remark": experiment_dir.name,
             }
+            _set_aggregate_metric_stats(result, source_row, loss_row)
             collected[observation].append(result)
 
     if matched_directories == 0:
@@ -245,8 +344,14 @@ def _write_table(ws: Any, columns: Sequence[str], rows: Iterable[Mapping[str, An
             if row_number % 2 == 0:
                 cell.fill = ALT_FILL
         for column_number, column in enumerate(columns, start=1):
-            if column in {label for label, _ in METRIC_COLUMNS}:
+            if column in {
+                name
+                for label, _ in METRIC_COLUMNS
+                for name in (label, f"{label} std")
+            }:
                 ws.cell(row_number, column_number).number_format = "0.000000E+00"
+            elif column in {f"{label} n" for label, _ in METRIC_COLUMNS}:
+                ws.cell(row_number, column_number).number_format = "0"
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{max(1, len(rows) + 1)}"
@@ -296,21 +401,43 @@ def _sort_value(value: Any) -> tuple[int, Any]:
 
 
 def collect_ablation_results(outputs_root: str | Path) -> dict[str, list[dict[str, Any]]]:
-    """Traverse ablation runs and group their latest valid results by experiment type."""
+    """Collect latest grouped ablation statistics by experiment type."""
     outputs_root = Path(outputs_root).resolve()
     ablations_root = outputs_root / "ablations"
     if not ablations_root.is_dir():
         raise FileNotFoundError(f"Ablation experiment directory does not exist: {ablations_root}")
 
+    sample_path = ablations_root / "summary_latest_grouped.csv"
+    run_path = ablations_root / "summary_latest_run_seed_grouped.csv"
+    report_path = ablations_root / "ablation_report_metrics.csv"
+    sources: Iterable[Mapping[str, Any]]
+    run_by_key: dict[str, Mapping[str, Any]] = {}
+    using_aggregates = sample_path.is_file() and run_path.is_file()
+    if using_aggregates:
+        sources = _read_csv(sample_path)
+        run_by_key = {
+            _main_group_key(row): row
+            for row in _read_csv(run_path)
+            if row.get("ablation_group_key")
+        }
+    elif report_path.is_file():
+        sources = _read_csv(report_path)
+    else:
+        sources = collect_ablation_report_rows(ablations_root)
+
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for source in collect_ablation_report_rows(ablations_root):
+    for source in sources:
         group = str(source.get("ablation_group") or "ungrouped")
         dimensions = ABLATION_DIMENSIONS.get(group, (("NAME", "ablation_name"),))
-        run_dir = Path(str(source.get("run_dir", "")))
-        try:
-            remark = str(run_dir.resolve().relative_to(outputs_root))
-        except (OSError, ValueError):
-            remark = str(run_dir)
+        if using_aggregates:
+            run_dir = Path()
+            remark = "ablations/summary_latest_grouped.csv"
+        else:
+            run_dir = Path(str(source.get("run_dir", "")))
+            try:
+                remark = str(run_dir.resolve().relative_to(outputs_root))
+            except (OSError, ValueError):
+                remark = str(run_dir)
         result: dict[str, Any] = {
             "PDE": source.get("pde", ""),
             "TASK": source.get("task", ""),
@@ -318,15 +445,20 @@ def collect_ablation_results(outputs_root: str | Path) -> dict[str, list[dict[st
                 str(source.get("test_type", "")).lower(),
                 source.get("test_type", ""),
             ),
-            "rel L2(a)": source.get("rel_l2_a"),
-            "rel L2(u)": source.get("rel_l2_u"),
-            "pde L": source.get("L_pde"),
-            "obs L(a)": source.get("L_obs_a"),
-            "obs L(u)": source.get("L_obs_u"),
             "Remark": remark,
         }
+        if using_aggregates:
+            run_row = run_by_key.get(_main_group_key(source), {})
+            _set_aggregate_metric_stats(result, source, run_row)
+        else:
+            run_stats = _single_run_metric_stats(source, run_dir)
+            for label, metric in METRIC_COLUMNS:
+                _set_metric_stats(result, label, run_stats[metric])
         for label, field in dimensions:
-            result[label] = source.get(field, "")
+            value = source.get(field, "")
+            if value == "" and field == "rel_l2_a_n":
+                value = result.get("rel L2(a) n", "")
+            result[label] = value
         grouped[group].append(result)
 
     if not grouped:
@@ -354,7 +486,6 @@ def build_ablation_workbook(outputs_root: str | Path, output_path: str | Path) -
     workbook = Workbook()
     workbook.remove(workbook.active)
     used_sheet_names: set[str] = set()
-    metric_labels = tuple(label for label, _ in METRIC_COLUMNS)
     for group, rows in grouped.items():
         dimensions = ABLATION_DIMENSIONS.get(group, (("NAME", "ablation_name"),))
         columns = (
@@ -362,7 +493,7 @@ def build_ablation_workbook(outputs_root: str | Path, output_path: str | Path) -
             "TASK",
             "DIST",
             *(label for label, _ in dimensions),
-            *metric_labels,
+            *METRIC_OUTPUT_COLUMNS,
             "Remark",
         )
         worksheet = workbook.create_sheet(_sheet_name(group, used_sheet_names))

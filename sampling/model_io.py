@@ -58,7 +58,8 @@ def load_fm4pde_checkpoint_bundle(
     path = Path(checkpoint_path)
     if not path.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {path}")
-    payload = torch.load(path, weights_only=False, map_location="cpu")
+    from models.legacy_checkpoint import read_checkpoint
+    payload = read_checkpoint(path, pde_type)
     _validate_checkpoint_payload(payload, path)
 
     model_config = dict(payload["model_config"])
@@ -67,7 +68,7 @@ def load_fm4pde_checkpoint_bundle(
         or model_config.get("architecture_profile")
         or "recommended"
     )
-    if model_profile is not None and model_profile != selected_profile:
+    if model_profile not in {None, "auto"} and model_profile != selected_profile:
         raise ValueError(
             f"Configured model_profile={model_profile!r} does not match checkpoint "
             f"profile={selected_profile!r}: {path}"

@@ -63,6 +63,8 @@ class PDEStandardizer:
     def from_state_dict(cls, state: dict[str, Any]) -> "PDEStandardizer":
         if state is None:
             raise ValueError("Cannot construct PDEStandardizer from None state")
+        if cls is PDEStandardizer and state.get("type") == LegacyAffineNormalizer.normalization_type:
+            return LegacyAffineNormalizer.from_state_dict(state)
         if state.get("type", cls.normalization_type) not in {cls.normalization_type, None}:
             raise ValueError(f"Unsupported normalizer type: {state.get('type')!r}")
         return cls(
@@ -151,3 +153,24 @@ class PDEStandardizer:
         expected = int(self.mean.shape[1])
         if int(x.shape[1]) != expected:
             raise ValueError(f"Expected {expected} channels, got {int(x.shape[1])}")
+
+
+class LegacyAffineNormalizer(PDEStandardizer):
+    """Physical affine mapping for legacy latent coordinates in [-1, 1]."""
+
+    normalization_type = "legacy_affine"
+
+    @classmethod
+    def fit(cls, data, eps=1e-8, channel_names=None, pde=None):
+        return cls.fit_pools([data], eps=eps, channel_names=channel_names, pde=pde)
+
+    @classmethod
+    def fit_pools(cls, pools, eps=1e-8, channel_names=None, pde=None):
+        if not pools or any(data.ndim != 4 for data in pools):
+            raise ValueError("Legacy Min-Max fit expects nonempty [N,C,H,W] pools")
+        if len({int(data.shape[1]) for data in pools}) != 1:
+            raise ValueError("Legacy training pools must have the same channel count")
+        low = torch.stack([data.amin(dim=(0, 2, 3), keepdim=True) for data in pools]).amin(0)
+        high = torch.stack([data.amax(dim=(0, 2, 3), keepdim=True) for data in pools]).amax(0)
+        scale = (high - low + eps) / 2
+        return cls(low + scale, scale, eps=0.0, channel_names=channel_names, pde=pde)

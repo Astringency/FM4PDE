@@ -38,6 +38,9 @@ def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSch
     zeta_a = ones * float(config.zeta_obs_a) if flags["obs_a"] else ones * 0.0
     zeta_u = ones * float(config.zeta_obs_u) if flags["obs_u"] else ones * 0.0
     zeta_pde = ones * float(config.zeta_pde) if flags["pde"] else ones * 0.0
+    if getattr(config, "guidance_operator", "current") == "legacy":
+        zeta_a = zeta_a * float(config.legacy_obs_multiplier)
+        zeta_u = zeta_u * float(config.legacy_obs_multiplier)
 
     schedule = config.guidance_schedule
     if schedule == "constant":

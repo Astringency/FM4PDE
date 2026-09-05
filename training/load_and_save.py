@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from models.legacy_checkpoint import read_checkpoint, validate_legacy_optimizer
 from training.distributed_mode import is_main_process
 
 CHECKPOINT_SCHEMA_VERSION = 3
@@ -179,7 +180,7 @@ def save_model(
         "data_shape": tuple(data_shape) if data_shape is not None else None,
         "num_channels": int(num_channels) if num_channels is not None else None,
         "normalization": {
-            "type": "channelwise_standardization",
+            "type": getattr(normalizer, "normalization_type", "channelwise_standardization"),
             "eps": getattr(normalizer, "eps", None),
         },
         "data_metadata": data_metadata,
@@ -274,7 +275,7 @@ def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
             raise FileNotFoundError(f"resume checkpoint not found: {checkpoint_path}")
         result["checkpoint_path"] = str(checkpoint_path)
         result["has_checkpoint"] = True
-        payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        payload = read_checkpoint(checkpoint_path)
 
     if not isinstance(payload, dict):
         raise ValueError(f"Checkpoint payload must be a mapping: {result['checkpoint_path']}")
@@ -305,6 +306,7 @@ def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
         )
     result["checkpoint_num_channels"] = payload.get("num_channels")
     result["checkpoint_schema_version"] = payload.get("checkpoint_schema_version")
+    result["legacy_compatibility"] = payload.get("legacy_compatibility")
     return result
 
 
@@ -316,7 +318,13 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
             args.resume, map_location="cpu", check_hash=True
         )
     else:
-        checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
+        checkpoint = read_checkpoint(args.resume, args.dataset)
+    if checkpoint.get("legacy_compatibility"):
+        validate_legacy_optimizer(model_without_ddp, checkpoint)
+        expected = checkpoint["resolved_lr_scheduler"]
+        actual = getattr(args, "resolved_lr_scheduler", getattr(args, "lr_scheduler", None))
+        if actual != expected:
+            raise ValueError(f"Legacy resume requires --lr_scheduler {expected}; use scripts/train/resume_bak.py")
     _load_resume_state(model_without_ddp, checkpoint)
     print(f"Resume {args.dataset} checkpoint {args.resume}")
     if checkpoint.get("checkpoint_schema_version") != CHECKPOINT_SCHEMA_VERSION:

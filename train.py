@@ -218,6 +218,7 @@ def main(args):
         rd_init_mode_filter=args.rd_init_mode_filter,
         seed=args.seed,
         train_files_by_pde=train_files_by_pde,
+        legacy_full_training_set=getattr(args, "legacy_full_training_set", False),
     )
     num_channels = int(data.shape[1])
     requested_scalar_conditioning_params = _normalize_scalar_conditioning_params(
@@ -251,6 +252,9 @@ def main(args):
         val_sample_count=int(data_val.shape[0]),
         eps=args.normalization_eps,
     )
+    if getattr(args, "model_gradient_checkpointing", False):
+        model_config["use_checkpoint"] = True
+        model_config_metadata = {**model_config_metadata, **model_config_metadata_from_config(model_config)}
     data_metadata = _build_data_metadata(
         args=args,
         pde_names=pde_names,
@@ -273,12 +277,19 @@ def main(args):
         if args.save_full_pde_params:
             torch.save(detach_pde_params(loader_metadata), output_dir / "pde_params.pt")
 
-    fitted_normalizer = PDEStandardizer.fit(
-        data,
-        eps=args.normalization_eps,
-        channel_names=_training_channel_names(pde_names, loader_metadata, num_channels),
-        pde=args.dataset,
-    )
+    if resume_arch_meta.get("legacy_compatibility"):
+        from data.transform import LegacyAffineNormalizer
+        # Legacy training fit Min-Max on ALL loaded examples before sampling.
+        # Include the held-out subset when using the modern split for continuation.
+        fitted_normalizer = LegacyAffineNormalizer.fit_pools(
+            [data, data_val], channel_names=_training_channel_names(pde_names, loader_metadata, num_channels),
+            pde=args.dataset,
+        )
+    else:
+        fitted_normalizer = PDEStandardizer.fit(
+            data, eps=args.normalization_eps,
+            channel_names=_training_channel_names(pde_names, loader_metadata, num_channels), pde=args.dataset,
+        )
 
     logger.info("Initializing Model")
     model = instantiate_model(
@@ -985,6 +996,7 @@ def _load_training_and_validation_data(
     rd_init_mode_filter: str | None = None,
     seed: int = 0,
     train_files_by_pde: dict[str, list[str | Path]] | None = None,
+    legacy_full_training_set: bool = False,
 ) -> tuple[
     torch.Tensor,
     torch.Tensor,
@@ -1001,6 +1013,8 @@ def _load_training_and_validation_data(
     train_metadata: dict[str, Any] = {}
     val_metadata: dict[str, Any] = {}
     split_metadata: dict[str, Any] = {"val_ratio": DEFAULT_VAL_RATIO, "per_pde": {}}
+    if legacy_full_training_set:
+        split_metadata["is_independent_validation"] = False
     train_channel_counts = {}
     val_channel_counts = {}
     pde_label_mapping = {pde_name: index for index, pde_name in enumerate(pde_names)}
@@ -1025,6 +1039,8 @@ def _load_training_and_validation_data(
             seed=seed + int(get_pde_spec(pde_name).label_id) * 1009,
             val_ratio=DEFAULT_VAL_RATIO,
         )
+        if legacy_full_training_set:
+            train_idx = torch.arange(int(dataset.shape[0]))
         train_dataset = dataset[train_idx].contiguous()
         val_dataset = dataset[val_idx].contiguous()
         local_label = int(pde_label_mapping[pde_name])
@@ -1033,6 +1049,8 @@ def _load_training_and_validation_data(
         pde_train_meta = _slice_loader_metadata(loader_meta, train_idx)
         pde_val_meta = _slice_loader_metadata(loader_meta, val_idx)
         split_source = "deterministic_disjoint_9_1_from_train_data"
+        if legacy_full_training_set:
+            split_source = "legacy_full_training_set_with_overlapping_diagnostic_validation"
 
         train_channel_counts[pde_name] = int(train_dataset.shape[1])
         val_channel_counts[pde_name] = int(val_dataset.shape[1])
@@ -1563,6 +1581,17 @@ def _resolve_normalizer(
     fitted_normalizer: PDEStandardizer,
     num_channels: int,
 ) -> PDEStandardizer:
+    if checkpoint and checkpoint.get("legacy_compatibility"):
+        from data.transform import LegacyAffineNormalizer
+        if not isinstance(fitted_normalizer, LegacyAffineNormalizer):
+            raise ValueError("Legacy resume requires training-data Min-Max normalization")
+        warnings.warn(
+            "Legacy checkpoint contains no training Min-Max statistics. Refitting from the loaded "
+            "training pool; exact scale recovery requires the same original files and sample count.",
+            RuntimeWarning, stacklevel=2,
+        )
+        _check_normalizer_channels(fitted_normalizer, num_channels, "legacy training normalizer")
+        return fitted_normalizer
     if checkpoint and checkpoint.get("normalizer") is not None:
         normalizer = PDEStandardizer.from_state_dict(checkpoint["normalizer"])
         _check_normalizer_channels(normalizer, num_channels, "checkpoint normalizer")

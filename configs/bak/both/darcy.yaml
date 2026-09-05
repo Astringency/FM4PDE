@@ -1,0 +1,54 @@
+# Legacy sparse zeta and losses; 100 steps for comparison with outputs/main.
+# Darcy old --lr_decay=True applies obsguide_decay=0.1 to observations every step.
+# Masks use the current generator to allow paired evaluation.
+pde: darcy
+task: both
+test_type: id
+data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_id.mat
+data_paths:
+  id: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_id.mat
+  smooth: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_smooth.mat
+  rough: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_rough.mat
+loadby: h5py
+coef_name: thresh_a_data
+solution_name: thresh_p_data
+img_channels: 2
+img_resolution: 128
+residual_mode: auto
+boundary_condition_mode: dirichlet_zero
+checkpoint_path: outputs/pretrained/bak/fm4darcy.pth
+model_profile: legacy
+output_dir: outputs/bak
+allow_synthetic_data: false
+guidance_components: obs_pde
+guidance_operator: legacy
+obs_guidance_reduction: legacy_l2_mean
+pde_guidance_reduction: legacy_l2_mean
+loss_state: endpoint
+gradient_target: current_state_chain_rule
+sampler_phase: stochastic
+guidance_schedule: constant
+stochastic_guidance_coeff: 0.2
+stochastic_guidance_time: t_next
+legacy_obs_multiplier: 0.1
+pde_guidance_start_ratio: 0.0
+pde_guidance_ramp_ratio: 0.0
+clip_mode: none
+enforce_boundary_conditions: true
+num_obs: 500
+sensor_mode: random
+shared_mask: false
+mask_seed: 0
+noise_level: 0.0
+noise_seed: 0
+time_grid: uniform
+num_steps: 100
+step_method: euler
+batch_size: 1
+sample_seed: 0
+device: cuda:0
+dtype: float32
+model_gradient_checkpointing: true
+zeta_obs_a: 100000
+zeta_obs_u: 200000
+zeta_pde: 1

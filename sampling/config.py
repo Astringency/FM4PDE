@@ -78,11 +78,11 @@ VALID_RESIDUAL_MODES = {
     "full_time_space",
     "disabled",
 }
-VALID_MODEL_PROFILES = {"recommended", "light", "base", "heavy"}
+VALID_MODEL_PROFILES = {"auto", "recommended", "light", "base", "heavy", "legacy"}
 VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "wall", "open"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
-VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm"}
+VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm", "legacy_l2_mean"}
 VALID_TEST_TYPES = {"id", "smooth", "rough"}
 
 
@@ -96,6 +96,10 @@ class AblationConfig:
 
     guidance_components: str = "obs_pde"
     obs_guidance_reduction: str = "mse"
+    pde_guidance_reduction: str = "mse"
+    guidance_operator: str = "current"
+    legacy_obs_multiplier: float = 1.0
+    model_gradient_checkpointing: bool = False
     loss_state: str = "endpoint"
     gradient_target: str = "current_state_chain_rule"
     sampler_phase: str = "stochastic"
@@ -193,6 +197,8 @@ class AblationConfig:
             ("task", self.task, VALID_TASKS),
             ("guidance_components", self.guidance_components, VALID_GUIDANCE_COMPONENTS),
             ("obs_guidance_reduction", self.obs_guidance_reduction, VALID_OBS_GUIDANCE_REDUCTIONS),
+            ("pde_guidance_reduction", self.pde_guidance_reduction, {"mse", "legacy_l2_mean"}),
+            ("guidance_operator", self.guidance_operator, {"current", "legacy"}),
             ("loss_state", self.loss_state, VALID_LOSS_STATES),
             ("gradient_target", self.gradient_target, VALID_GRADIENT_TARGETS),
             ("sampler_phase", self.sampler_phase, VALID_SAMPLER_PHASES),

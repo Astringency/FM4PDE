@@ -83,10 +83,14 @@ def compute_guidance_losses(
         raw_guidance_L_obs_a = L_obs_a
         raw_guidance_L_obs_u = L_obs_u
         obs_guidance_reduction_label = "masked_mse_over_observed_entries"
-    elif obs_guidance_reduction == "l2_norm":
+    elif obs_guidance_reduction in {"l2_norm", "legacy_l2_mean"}:
         raw_guidance_L_obs_a = _masked_l2_norm(phys_state.coef, target_coef, masks.coef)
         raw_guidance_L_obs_u = _masked_l2_norm(phys_state.sol, target_sol, masks.sol)
         obs_guidance_reduction_label = "mean_of_per_sample_masked_l2_norm"
+        if obs_guidance_reduction == "legacy_l2_mean":
+            raw_guidance_L_obs_a = _legacy_masked_l2_mean(phys_state.coef, target_coef, masks.coef)
+            raw_guidance_L_obs_u = _legacy_masked_l2_mean(phys_state.sol, target_sol, masks.sol)
+            obs_guidance_reduction_label = "mean_of_per_sample_l2_div_observed_count"
     else:
         raise ValueError(f"Unknown obs_guidance_reduction={obs_guidance_reduction!r}")
     guidance_L_obs_a = raw_guidance_L_obs_a if enabled["obs_a"] else zero
@@ -194,6 +198,15 @@ def compute_guidance_losses(
                 "does not produce an evaluable PDE loss"
             )
         guidance_L_pde = L_pde
+        if getattr(config, "pde_guidance_reduction", "mse") == "legacy_l2_mean":
+            field = pde_field if pde_field_mask is None else pde_field * pde_field_mask
+            flat = field.reshape(field.shape[0], -1)
+            guidance_L_pde = (torch.linalg.vector_norm(flat, dim=1) / flat.shape[1]).mean()
+            pde_meta["guidance_loss_reduction"] = "mean_of_per_sample_l2_div_grid_entries"
+        if getattr(config, "guidance_operator", "current") == "legacy":
+            from sampling.legacy_guidance import legacy_pde_loss
+            guidance_L_pde = legacy_pde_loss(config.pde, phys_state.coef, phys_state.sol, config.k)
+            pde_meta["guidance_operator"] = "FM4PDE_bak historical surrogate (evaluation uses current operator)"
         guidance_component_losses = pde_component_losses
     else:
         guidance_L_pde = zero
@@ -225,7 +238,7 @@ def compute_guidance_losses(
         "guidance_loss_reduction": {
             "obs_a": obs_guidance_reduction_label,
             "obs_u": obs_guidance_reduction_label,
-            "pde": "componentwise_mse_sum",
+            "pde": pde_meta.get("guidance_loss_reduction", "componentwise_mse_sum"),
         },
         "loss_batch_reduction": "mean_of_per_sample",
         "obs_counts": obs_counts,
@@ -369,6 +382,14 @@ def _masked_mse(pred: Any, target: Any, mask: Any, *, eps: float = 1e-12) -> Any
     denominator = expanded_mask.reshape(batch, -1).sum(dim=1)
     per_sample = numerator / denominator.clamp_min(eps)
     return per_sample.mean()
+
+
+def _legacy_masked_l2_mean(pred: Any, target: Any, mask: Any) -> Any:
+    import torch
+    residual = (pred - target) * mask
+    flat = residual.reshape(residual.shape[0], -1)
+    count = torch.broadcast_to(mask, pred.shape).reshape(pred.shape[0], -1).sum(dim=1).clamp_min(1)
+    return (torch.linalg.vector_norm(flat, dim=1) / count).mean()
 
 
 def _masked_l2_norm(pred: Any, target: Any, mask: Any) -> Any:

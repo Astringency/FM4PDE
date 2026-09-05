@@ -30,6 +30,10 @@ class DatasetChoices:
 
 def get_args_parser():
     parser = argparse.ArgumentParser("PDE Network Training", add_help=False)
+    parser.add_argument("--legacy_full_training_set", action="store_true",
+                        help="Use all loaded samples for legacy continuation; validation becomes an overlapping diagnostic.")
+    parser.add_argument("--model_gradient_checkpointing", action="store_true",
+                        help="Checkpoint UNet blocks to reduce training activation memory.")
 
     # Main Training parameters
     parser.add_argument(

@@ -29,6 +29,9 @@ from sampling.time_grid import affine_coefficients, make_time_grid, scheduler_co
 def run_single_ablation(
     config: AblationConfig,
     checkpoint_bundle: tuple[Any, Any, dict[str, Any]] | None = None,
+    *,
+    ground_truth: Any | None = None,
+    observation_masks: Any | None = None,
 ) -> dict[str, Any]:
     config = finalize_ground_truth_config(config)
     config.validate()
@@ -61,9 +64,9 @@ def run_single_ablation(
     _set_seed(config.sample_seed)
     device = _resolve_device(config.device)
     config.device = str(device)
-    gt = load_ground_truth(config)
+    gt = ground_truth if ground_truth is not None else load_ground_truth(config)
     config.img_channels = int(gt.pair.shape[1])
-    masks = make_pair_masks(
+    masks = observation_masks if observation_masks is not None else make_pair_masks(
         gt.coef.shape,
         gt.sol.shape,
         config.num_obs,
@@ -137,6 +140,11 @@ def run_single_ablation(
         checkpoint_metadata=checkpoint_metadata,
         scalar_conditioning_metadata=scalar_conditioning_metadata,
     )
+    if config.model_gradient_checkpointing and not config.dry_run:
+        base_model = getattr(net, "model", net)
+        for module in base_model.modules():
+            if hasattr(module, "use_checkpoint"):
+                module.use_checkpoint = True
     _check_sampling_channels(gt, normalizer, checkpoint_payload)
 
     grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta)
@@ -510,6 +518,7 @@ def _checkpoint_metadata(payload: dict[str, Any]) -> dict[str, Any]:
         "num_channels": payload.get("num_channels"),
         "normalization": payload.get("normalization"),
         "checkpoint_schema_version": payload.get("checkpoint_schema_version"),
+        "legacy_compatibility": payload.get("legacy_compatibility"),
         "use_ema": payload.get("use_ema"),
         "has_ema": payload.get("has_ema"),
         "selected_inference_weight": payload.get("selected_inference_weight"),
