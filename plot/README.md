@@ -126,6 +126,10 @@ results. Final figures report paired physical-example intervals (seeds averaged
 within example), all declared guidance/phase settings, measured time versus
 accuracy, error trajectories, separate endpoint/state residuals, and weighted
 gradient norms. Exact clipping/gate/correction traces remain in exported CSVs.
+Updated-state errors and residuals use `t_next`; guidance-endpoint residuals
+and component gradients use their evaluation time `t`. Both clocks are
+exported explicitly. Comparison figures use a 2-by-2 layout for four PDEs;
+the trajectory figure is sized for the journal's six-inch text width.
 Timing includes the full sampler call, diagnostics and artifact writes, with
 loading excluded. Per-example time is amortized batch cost, not latency.
 The normalized rule fixes only the nominal scalar sum `c_N*(N+1)/2`; clipping,

@@ -107,14 +107,36 @@ def main():
     lookup={(r['pde'],r['variant']):r for r in summary}
     plt.rcParams.update({'font.size':9,'axes.titlesize':10,'axes.labelsize':9,'pdf.fonttype':42,'ps.fonttype':42,
                          'axes.spines.top':False,'axes.spines.right':False})
+    from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullFormatter
+    def plain_log_ticks(axis, powers_of_two=False):
+        # Percent errors and second-scale runtimes read better as 20 and 0.5
+        # than as 2 x 10^1 and 5 x 10^-1 at the journal's six-inch width.
+        lo,hi=sorted(axis.get_view_interval())
+        if powers_of_two:
+            candidates=2.**np.arange(np.floor(np.log2(lo))-1,np.ceil(np.log2(hi))+2)
+        elif hi/lo>4:
+            candidates=np.array([m*10.**e for e in range(int(np.floor(np.log10(lo)))-1,
+                                                         int(np.ceil(np.log10(hi)))+2) for m in [1,2,5]])
+        else:
+            candidates=MaxNLocator(nbins=4,min_n_ticks=3).tick_values(lo,hi)
+        ticks=[v for v in candidates if lo<=v<=hi and v>0]
+        if len(ticks)>5:ticks=[ticks[i] for i in np.linspace(0,len(ticks)-1,5).round().astype(int)]
+        axis.set_major_locator(FixedLocator(ticks))
+        axis.set_major_formatter(FuncFormatter(lambda value,_:f'{value:g}'))
+        axis.set_minor_formatter(NullFormatter())
+    def comparison_axes(height):
+        columns=min(2,len(args.pdes));rows=(len(args.pdes)+columns-1)//columns
+        fig,axes=plt.subplots(rows,columns,figsize=(6.2,height*rows),layout='constrained',squeeze=False)
+        for ax in axes.flat[len(args.pdes):]:ax.set_visible(False)
+        return fig,list(axes.flat[:len(args.pdes)])
     def save(fig,name):
         if args.stage=='pilot':
             fig.text(.5,-.018,'PILOT — pipeline validation only',ha='center',va='top',fontsize=11)
         for ext in ['pdf','png']:fig.savefig(args.dest/f'{name}.{ext}',dpi=200,bbox_inches='tight')
         plt.close(fig)
     # Main time figure: all discrete budgets, both nominal coefficient rules.
-    fig,axes=plt.subplots(len(args.pdes),1,figsize=(7.9,2.0*len(args.pdes)),layout='constrained',squeeze=False)
-    for ax,pde in zip(axes[:,0],args.pdes):
+    fig,axes=comparison_axes(2.4)
+    for ax,pde in zip(axes,args.pdes):
         for rule,color,marker in [('fixed',COLORS[0],'o'),('normalized',COLORS[1],'s')]:
             selected=[lookup[pde,anchor if k==100 else f'steps_{k}_{rule}'] for k in [25,50,100,200]]
             x=np.array([r['median_amortized_seconds'] for r in selected]);y=np.array([100*r['mean_error'] for r in selected])
@@ -123,21 +145,27 @@ def main():
             for r,xx,yy in zip(selected,x,y):
                 if rule=='fixed':ax.annotate(str(r['steps']),(xx,yy),xytext=(4,5),textcoords='offset points',fontsize=8,color=color)
         ax.set_title(LABELS[pde],loc='left');ax.set_ylabel('Primary error (%)');ax.grid(color='.9',lw=.5)
-        ax.set_xscale('log');ax.set_yscale('log')
-    axes[0,0].legend(frameon=False,fontsize=8);axes[-1,0].set_xlabel('Median amortized time per example (s; batch = 4)')
+        ax.set_xscale('log',base=2);ax.set_yscale('log')
+        plain_log_ticks(ax.xaxis,powers_of_two=True);plain_log_ticks(ax.yaxis)
+        ax.tick_params(which='both',labelsize=8)
+        ax.set_xlabel('Amortized sampling time (s)')
+    handles,labels=axes[0].get_legend_handles_labels()
+    fig.legend(handles,labels,loc='outside upper center',ncols=2,frameon=False,fontsize=8)
     save(fig,'controlled_time_accuracy')
     # Guidance and phases keep every declared configuration, with physical-unit intervals.
     for family,selected,labels,filename in [
         ('guidance',['guidance_'+g for g in ['noguide','pde_only','obs_only','obs_pde']],['No guide','PDE only','Obs. only','Obs.+PDE'],'sampling_confirmation_guidance'),
         ('phase',[anchor,'phase_deterministic','phase_hybrid_d2s','phase_hybrid_s2d'],['Stochastic','Deterministic','D→S (0.2)','S→D (0.2)'],'sampling_confirmation_phase')]:
-        fig,axes=plt.subplots(1,len(args.pdes),figsize=(8.4,3.15),layout='constrained',squeeze=False)
-        for ax,pde in zip(axes[0],args.pdes):
+        fig,axes=comparison_axes(2.25)
+        for ax,pde in zip(axes,args.pdes):
             for j,name in enumerate(selected):
                 r=lookup[pde,name];mean=100*r['mean_error']
-                ax.errorbar(j,mean,yerr=[[mean-100*r['ci95_low']],[100*r['ci95_high']-mean]],fmt='o',color=COLORS[j],capsize=3)
-            ax.set_xticks(range(4),labels,rotation=50,ha='right');ax.set_title(LABELS[pde],loc='left')
-            ax.set_yscale('log');ax.grid(axis='y',color='.9',lw=.5)
-        axes[0,0].set_ylabel('Primary error (%)');save(fig,filename)
+                ax.errorbar(mean,j,xerr=[[mean-100*r['ci95_low']],[100*r['ci95_high']-mean]],fmt='o',color=COLORS[j],capsize=3)
+            ax.set_yticks(range(4),labels);ax.invert_yaxis();ax.set_title(LABELS[pde],loc='left')
+            ax.set_xscale('log');plain_log_ticks(ax.xaxis)
+            ax.grid(axis='x',color='.9',lw=.5);ax.tick_params(which='both',labelsize=8)
+            ax.set_xlabel('Primary error (%)');ax.margins(y=.15)
+        save(fig,filename)
     # Endpoint losses and current-state diagnostics are deliberately kept separate.
     trajectory=[];budget=[]
     for pde in args.pdes:
@@ -166,14 +194,14 @@ def main():
                 mean=lambda key:float(np.mean([float(v[key]) for v in batch]))
                 weighted_physics=float(np.mean([float(v['zeta_pde_t'])*float(v['grad_norm_pde']) for v in batch]))
                 weighted_obs=float(np.mean([float(v['zeta_obs_a_t'])*float(v['grad_norm_obs_a'])+float(v['zeta_obs_u_t'])*float(v['grad_norm_obs_u']) for v in batch]))
-                trajectory.append(dict(pde=pde,variant=name,step=step,t=mean('t_next'),mean_error=float(avg.mean()),
+                trajectory.append(dict(pde=pde,variant=name,step=step,t=mean('t_next'),guidance_t=mean('t'),mean_error=float(avg.mean()),
                                        ci95_low=float(lo),ci95_high=float(hi),
                                        state_residual=mean('eval_pde_residual_norm'),endpoint_residual=mean('guidance_pde_residual_norm'),
                                        weighted_physical_gradient=weighted_physics,weighted_observation_norm_sum=weighted_obs,
                                        state_observation_mse_a=mean('eval_L_obs_a'),state_observation_mse_u=mean('eval_L_obs_u'),
                                        endpoint_observation_mse_a=mean('guidance_L_obs_a'),endpoint_observation_mse_u=mean('guidance_L_obs_u'),
                                        mean_clip_scale=mean('clip_scale')))
-    fig,axes=plt.subplots(len(args.pdes),3,figsize=(8.5,2.15*len(args.pdes)),layout='constrained',squeeze=False)
+    fig,axes=plt.subplots(len(args.pdes),3,figsize=(6.2,.5+1.6*len(args.pdes)),layout='constrained',squeeze=False)
     for axes_row,pde in zip(axes,args.pdes):
         for name,color,label in [(anchor,COLORS[0],'Obs.+PDE'),('guidance_obs_only',COLORS[1],'Obs. only')]:
             data=[r for r in trajectory if (r['pde'],r['variant'])==(pde,name)];x=[r['t'] for r in data]
@@ -182,16 +210,20 @@ def main():
             axes_row[0].fill_between(x,[100*r['ci95_low'] for r in data],[100*r['ci95_high'] for r in data],color=color,alpha=.13,lw=0)
             if name==anchor:
                 axes_row[1].plot(x,[r['state_residual'] for r in data],color=color,label='Updated state',lw=1)
-                axes_row[1].plot(x,[r['endpoint_residual'] for r in data],color=COLORS[2],ls='--',label='Guidance endpoint',lw=1)
-                axes_row[2].plot(x,[r['weighted_physical_gradient'] for r in data],color=COLORS[2],label='Weighted physics',lw=1)
-                axes_row[2].plot(x,[r['weighted_observation_norm_sum'] for r in data],color=color,ls='--',label='Sum of weighted obs. norms',lw=1)
+                guidance_x=[r['guidance_t'] for r in data]
+                axes_row[1].plot(guidance_x,[r['endpoint_residual'] for r in data],color=COLORS[2],ls='--',label='Guidance endpoint',lw=1)
+                axes_row[2].plot(guidance_x,[r['weighted_physical_gradient'] for r in data],color=COLORS[2],label='Weighted physics',lw=1)
+                axes_row[2].plot(guidance_x,[r['weighted_observation_norm_sum'] for r in data],color=color,ls='--',label='Sum of weighted obs. norms',lw=1)
         axes_row[0].set_title(LABELS[pde],loc='left')
-        for ax in axes_row:ax.set_yscale('log');ax.grid(color='.9',lw=.5)
+        for ax in axes_row:
+            ax.set_yscale('log');ax.grid(color='.9',lw=.5)
+            ax.set_xticks([0,.5,1.]);ax.tick_params(which='both',labelsize=8)
+        plain_log_ticks(axes_row[0].yaxis)
         for ax,label in zip(axes_row,['Primary error (%)','Residual RMS','Batch gradient norm']):ax.set_ylabel(label)
     handles=[];legend_labels=[]
     for ax in axes[0]:
         h,l=ax.get_legend_handles_labels();handles.extend(h);legend_labels.extend(l)
-    fig.legend(handles,legend_labels,loc='outside upper center',ncols=3,frameon=False,fontsize=7)
+    fig.legend(handles,legend_labels,loc='outside upper center',ncols=3,frameon=False,fontsize=8)
     for ax in axes[-1]:ax.set_xlabel('Flow time')
     save(fig,'sampling_confirmation_trajectories')
     for filename,rows in [('sampling_confirmation_summary.csv',summary),('sampling_confirmation_pairs.csv',pairs),
