@@ -98,7 +98,8 @@ def main():
     plt.rcParams.update({'font.size':9,'axes.titlesize':10,'axes.labelsize':9,'pdf.fonttype':42,'ps.fonttype':42,
                          'axes.spines.top':False,'axes.spines.right':False})
     def save(fig,name):
-        if args.stage=='pilot':fig.suptitle('PILOT — pipeline validation only',fontsize=12)
+        if args.stage=='pilot':
+            fig.text(.5,-.018,'PILOT — pipeline validation only',ha='center',va='top',fontsize=11)
         for ext in ['pdf','png']:fig.savefig(args.dest/f'{name}.{ext}',dpi=200,bbox_inches='tight')
         plt.close(fig)
     # Main time figure: all discrete budgets, both nominal coefficient rules.
