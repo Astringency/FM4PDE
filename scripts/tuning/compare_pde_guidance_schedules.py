@@ -248,6 +248,8 @@ def main():
     parser.add_argument("--source-root", default="outputs/main/MAIN1000_100_TEST_id")
     parser.add_argument("--pdes", nargs="+", default=list(PDES), choices=PDES)
     parser.add_argument("--tasks", nargs="+", default=["both", "forward", "inverse"])
+    parser.add_argument("--only-cells", nargs="+",
+                        help="Execute only these PDE/task cells without changing the shared full experiment protocol; writes partial_complete.json")
     parser.add_argument("--tune-samples", type=int, default=4)
     parser.add_argument("--holdout-samples", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=2)
@@ -271,6 +273,8 @@ def main():
     from sampling.config import load_config
     cells = [(pde, task) for pde in args.pdes for task in args.tasks
              if (ROOT / f"configs/main/{task}/{pde}.yaml").exists()]
+    if args.only_cells and set(args.only_cells) - {f"{p}/{t}" for p, t in cells}:
+        parser.error("only-cells must name existing cells within --pdes/--tasks")
     ids = random.Random(args.seed).sample(range(1000), args.tune_samples + args.holdout_samples)
     tune, holdout = ids[:args.tune_samples], ids[args.tune_samples:]
     protocol = dict(seed=args.seed, tune_sample_ids=tune, holdout_sample_ids=holdout, cells=cells,
@@ -288,6 +292,8 @@ def main():
     if protocol_path.exists() and json.loads(protocol_path.read_text()) != json.loads(json.dumps(protocol)):
         raise ValueError("Protocol differs from existing experiment; use a new root")
     write_json(protocol_path, protocol)
+    if args.only_cells:
+        write_json(args.root / "worker_scope.json", dict(cells=args.only_cells, protocol_hash=args.protocol_hash))
     prepare_samples(args, args.pdes, ids)
     if args.prepare_only:
         return
@@ -296,7 +302,8 @@ def main():
     torch.set_num_threads(2)
     selected = {}
     for pde in args.pdes:
-        bases = [load_config(ROOT / f"configs/main/{task}/{pde}.yaml") for p, task in cells if p == pde]
+        bases = [load_config(ROOT / f"configs/main/{task}/{pde}.yaml") for p, task in cells
+                 if p == pde and (not args.only_cells or f"{p}/{task}" in args.only_cells)]
         if not bases:
             continue
         print(f"LOADING MODEL {pde}", flush=True)
@@ -328,7 +335,8 @@ def main():
         del truths, bundle
         gc.collect()
         torch.cuda.empty_cache()
-    write_json(args.root / "complete.json", dict(protocol_hash=args.protocol_hash, status="complete"))
+    marker = "partial_complete.json" if args.only_cells else "complete.json"
+    write_json(args.root / marker, dict(protocol_hash=args.protocol_hash, status="complete", executed_cells=args.only_cells or cells))
     print(f"COMPLETE: {args.root / 'summary.csv'}", flush=True)
 
 
