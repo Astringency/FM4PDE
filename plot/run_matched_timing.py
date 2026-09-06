@@ -177,6 +177,7 @@ def baseline_batch(pde, observed, mask, geometry, sample_id, method, device):
 
 
 def run(args):
+    os.environ['CUBLAS_WORKSPACE_CONFIG']=':4096:8'
     import torch
     from sampling.config import AblationConfig
     from sampling.data import PDEGroundTruth
@@ -190,10 +191,13 @@ def run(args):
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
     torch.backends.cudnn.benchmark=False
+    torch.backends.cudnn.deterministic=True
+    torch.use_deterministic_algorithms(True)
     args.output.mkdir(parents=True,exist_ok=True)
     environment=dict(host=socket.gethostname(),python=sys.version,torch=torch.__version__,cuda=torch.version.cuda,
                      gpu=torch.cuda.get_device_name(),visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
                      cpu_threads=torch.get_num_threads(),tf32=False,batch_size=1,
+                     deterministic_algorithms=True,cudnn_deterministic=True,cublas_workspace_config=':4096:8',
                      fm_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
                      baseline_commit=protocol['baseline_commit'],protocol_sha256=ph)
     write_json(args.output/'environment.json',environment)
