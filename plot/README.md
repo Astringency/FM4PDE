@@ -182,4 +182,16 @@ python plot/run_matched_timing.py pilot --inputs INPUTS --output RESULTS \
   --baseline-root BASELINE_REPO
 python plot/run_matched_timing.py run --inputs INPUTS --output RESULTS \
   --baseline-root BASELINE_REPO
+python plot/summarize_matched_timing.py --inputs INPUTS --results RESULTS --dest REPORT
+python plot/export_matched_timing.py --inputs INPUTS --report REPORT --paper PAPER
 ```
+
+For the actual 2026-09-07 execution, the authoritative local paths are
+`../audit/fm4pde_jmlr_matched_timing_20260907/inputs_v2` and `results_v3`.
+The earlier inputs/results preserve superseded engineering pilots and a
+short interrupted timing launch; they must not enter paper summaries.
+Formal inference is pinned to `180cdcf` in a separate remote checkout.
+The report requires all 1,920 calls and independently checks actual masks,
+frozen physical truths, saved predictions, deterministic repetitions, and
+the original effective PDE-Opt configuration hash. Paper export retains all
+20 method/budget rows, including exactly zero solver predictions.
