@@ -243,8 +243,8 @@ def main():
         prose(f"findings_{task}", f"## {task}：逐方程比较", "\n".join(statements) + "\n\n下表列出各方式在筛选集选出的权重与独立复核误差。不同方式可以选择不同权重；固定同一权重的完整筛选结果保存在 summary.csv。", True)
         columns = [{"field": "pde", "label": "PDE", "type": "text"}]
         for schedule in SCHEDULES:
-            columns += [{"field": schedule + "_zeta", "label": LABELS[schedule] + " zeta", "format": "number"},
-                        {"field": schedule + "_mean", "label": LABELS[schedule] + " 误差", "format": "number"}]
+            columns += [{"field": schedule + "_zeta", "label": LABELS[schedule][0] + " ζ", "format": "number"},
+                        {"field": schedule + "_mean", "label": LABELS[schedule][0] + " 误差", "format": "number"}]
         tables.append(dict(id=f"table_{task}", title=f"{task} 独立复核结果", dataset=f"cells_{task}", sourceId=source["id"],
                            defaultSort={"field": "pde", "direction": "asc"}, columns=columns))
         blocks.append(dict(id=f"table_block_{task}", type="table", tableId=f"table_{task}"))
