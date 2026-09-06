@@ -23,7 +23,11 @@ def main():
     parser.add_argument('--inputs',type=Path,required=True)
     parser.add_argument('--results',type=Path,required=True)
     parser.add_argument('--dest',type=Path,required=True)
+    parser.add_argument('--pdes',nargs='+',choices=['poisson','darcy'],default=['poisson','darcy'])
     args=parser.parse_args()
+    assert len(args.pdes)==len(set(args.pdes))
+    if len(args.pdes)<2:
+        assert 'completed_'+args.pdes[0] in args.dest.name, 'Use a separate completed-PDE report directory'
     import numpy as np
     import torch
     import matplotlib
@@ -38,11 +42,11 @@ def main():
     assert env['deterministic_algorithms']
     args.dest.mkdir(parents=True,exist_ok=True)
     variants=[('fm',n) for n in protocol['fm_steps']]+[(m,1) for m in ['recfno','senseiver','voronoicnn']]+[('pde_opt',n) for n in protocol['pde_opt_steps']]
-    expected={(p,m,n,i,s) for p in ['poisson','darcy'] for m,n in variants for i in protocol['evaluation_ids'] for s in protocol['seeds']}
+    expected={(p,m,n,i,s) for p in args.pdes for m,n in variants for i in protocol['evaluation_ids'] for s in protocol['seeds']}
     rows=[];receipts=[];seen=set();per_example=[];summary=[];differences=[]
     max_discrepancy=0.
     truths={};masks={}
-    for pde in ['poisson','darcy']:
+    for pde in args.pdes:
         assert json.loads((args.results/pde/'run_complete.json').read_text())['protocol_sha256']==ph
         original=json.loads((args.inputs/protocol['baselines'][pde]['pde_opt']).read_text())
         effective=json.loads((args.results/pde/'pde_opt_effective_config.json').read_text())
@@ -53,7 +57,8 @@ def main():
         for method in ['fm','recfno','senseiver','voronoicnn','pde_opt']:
             pilot=json.loads((args.results/pde/f'pilot_{method}.json').read_text())
             assert pilot['status']=='pass' and pilot['protocol_sha256']==ph
-    for path in sorted(args.results.glob('*/*/n*/seed*/sample*/receipt.json')):
+    paths=[path for pde in args.pdes for path in (args.results/pde).glob('*/n*/seed*/sample*/receipt.json')]
+    for path in sorted(paths):
         r=json.loads(path.read_text());key=(r['pde'],r['method'],r['budget'],r['sample_id'],r['seed'])
         assert key in expected and key not in seen and r['protocol_sha256']==ph and r['status']=='ok',path
         seen.add(key)
@@ -81,7 +86,7 @@ def main():
     assert seen==expected,{'missing':len(expected-seen),'found':len(seen),'expected':len(expected)}
     boot=np.random.default_rng(20260907).integers(0,32,size=(10000,32))
     grouped={}
-    for pde in ['poisson','darcy']:
+    for pde in args.pdes:
         for method,n in variants:
             selected=[r for r in rows if (r['pde'],r['method'],r['budget'])==(pde,method,n)]
             errors=[]
@@ -114,11 +119,12 @@ def main():
     with gzip.open(args.dest/'matched_timing_receipts.json.gz','wt') as out:json.dump(receipts,out,allow_nan=False)
     plt.rcParams.update({'font.family':'serif','font.size':9,'axes.labelsize':9,'axes.titlesize':10,
                          'pdf.fonttype':42,'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False})
-    fig,axes=plt.subplots(1,2,figsize=(6.2,3.25))
+    fig,axes=plt.subplots(1,len(args.pdes),figsize=(6.2,3.25),squeeze=False)
+    axes=axes[0]
     colors={'fm':'#176c9a','recfno':'#a94b23','senseiver':'#886ab5','voronoicnn':'#487d43','pde_opt':'#555555'}
     markers={'fm':'o','recfno':'s','senseiver':'^','voronoicnn':'D','pde_opt':'x'}
     labels={'fm':'FM4PDE','recfno':'RecFNO','senseiver':'Senseiver','voronoicnn':'VoronoiCNN','pde_opt':'PDE-Opt'}
-    for ax,pde in zip(axes,['poisson','darcy']):
+    for ax,pde in zip(axes,args.pdes):
         for method in colors:
             data=[r for r in summary if r['pde']==pde and r['method']==method]
             x=np.array([r['median_seconds'] for r in data]);y=100*np.array([r['mean_error'] for r in data])
@@ -139,7 +145,7 @@ def main():
     fig.savefig(args.dest/'matched_time_accuracy.pdf');fig.savefig(args.dest/'matched_time_accuracy.png',dpi=220);plt.close(fig)
     outputs={p.name:digest(p) for p in args.dest.iterdir() if p.is_file() and p.name!='matched_timing_manifest.json'}
     write_json(args.dest/'matched_timing_manifest.json',dict(protocol_sha256=ph,environment=env,
-               calls_verified=len(rows),physical_examples_per_pde=32,prediction_error_max_discrepancy=max_discrepancy,
+               pdes=args.pdes,calls_verified=len(rows),physical_examples_per_pde=32,prediction_error_max_discrepancy=max_discrepancy,
                uncertainty='10000 paired bootstrap resamples of 32 physical examples; three FM seeds averaged within each example',
                timing='Median and IQR of 96 single-example calls; includes preprocessing and transfer, excludes scoring and I/O',
                limitations=protocol['scope'],outputs=outputs))
