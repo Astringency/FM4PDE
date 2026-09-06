@@ -31,6 +31,8 @@ def main():
     import matplotlib.pyplot as plt
     torch.set_num_threads(2)
     protocol=json.loads((args.inputs/'protocol.json').read_text());ph=digest(args.inputs/'protocol.json')
+    for artifact in protocol['artifacts']:
+        assert digest(args.inputs/artifact['path'])==artifact['sha256'],artifact['path']
     env=json.loads((args.results/'environment.json').read_text())
     assert env['protocol_sha256']==ph and env['batch_size']==1 and not env['tf32']
     assert env['deterministic_algorithms']
@@ -42,6 +44,10 @@ def main():
     truths={};masks={}
     for pde in ['poisson','darcy']:
         assert json.loads((args.results/pde/'run_complete.json').read_text())['protocol_sha256']==ph
+        original=json.loads((args.inputs/protocol['baselines'][pde]['pde_opt']).read_text())
+        effective=json.loads((args.results/pde/'pde_opt_effective_config.json').read_text())
+        semantic=hashlib.sha256(json.dumps(effective,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode()).hexdigest()
+        assert semantic==original['args']['baseline_config_sha256']
         truths[pde]=torch.load(args.inputs/'cache'/f'{pde}_ground_truth.pt',weights_only=False,map_location='cpu')['truths']
         masks[pde]=torch.load(args.inputs/'cache'/f'{pde}_masks.pt',weights_only=False,map_location='cpu')
         for method in ['fm','recfno','senseiver','voronoicnn','pde_opt']:
