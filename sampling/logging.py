@@ -56,6 +56,7 @@ def write_run_metadata(
         "guidance": {
             "guidance_components": config.guidance_components,
             "obs_guidance_reduction": config.obs_guidance_reduction,
+            "pde_guidance_reduction": config.pde_guidance_reduction,
             "guidance_schedule": config.guidance_schedule,
             "zeta_obs_a": config.zeta_obs_a,
             "zeta_obs_u": config.zeta_obs_u,

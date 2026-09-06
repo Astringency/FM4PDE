@@ -197,7 +197,7 @@ class AblationConfig:
             ("task", self.task, VALID_TASKS),
             ("guidance_components", self.guidance_components, VALID_GUIDANCE_COMPONENTS),
             ("obs_guidance_reduction", self.obs_guidance_reduction, VALID_OBS_GUIDANCE_REDUCTIONS),
-            ("pde_guidance_reduction", self.pde_guidance_reduction, {"mse", "legacy_l2_mean"}),
+            ("pde_guidance_reduction", self.pde_guidance_reduction, {"mse", "rms", "legacy_l2_mean"}),
             ("guidance_operator", self.guidance_operator, {"current", "legacy"}),
             ("loss_state", self.loss_state, VALID_LOSS_STATES),
             ("gradient_target", self.gradient_target, VALID_GRADIENT_TARGETS),
@@ -224,6 +224,8 @@ class AblationConfig:
         for name, value, allowed in checks:
             if value not in allowed:
                 raise ValueError(f"{name}={value!r} is invalid; expected one of {sorted(allowed)}")
+        if self.pde_guidance_reduction == "rms" and self.guidance_operator != "current":
+            raise ValueError("pde_guidance_reduction='rms' requires guidance_operator='current'")
         if self.test_type not in VALID_TEST_TYPES:
             raise ValueError(
                 f"test_type={self.test_type!r} is invalid; expected one of {sorted(VALID_TEST_TYPES)}"
@@ -352,6 +354,8 @@ class AblationConfig:
         if phase.startswith("hybrid"):
             phase = f"{phase}_{self.switch_ratio:g}"
         reduction = "" if self.obs_guidance_reduction == "mse" else f"_obsred-{self.obs_guidance_reduction}"
+        if self.pde_guidance_reduction == "rms":
+            reduction += f"_pdered-{self.pde_guidance_reduction}"
         pde_gate = (
             ""
             if self.pde_guidance_start_ratio == 0.0 and self.pde_guidance_ramp_ratio == 0.0

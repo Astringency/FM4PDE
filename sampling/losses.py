@@ -198,16 +198,27 @@ def compute_guidance_losses(
                 "does not produce an evaluable PDE loss"
             )
         guidance_L_pde = L_pde
-        if getattr(config, "pde_guidance_reduction", "mse") == "legacy_l2_mean":
+        guidance_component_losses = pde_component_losses
+        pde_reduction = getattr(config, "pde_guidance_reduction", "mse")
+        if pde_reduction == "rms":
+            guidance_L_pde, guidance_component_losses = _componentwise_pde_rms_loss(
+                loss_components,
+                bc_weight=float(getattr(config, "bc_weight", 1.0)),
+                endpoint_weight=float(getattr(config, "endpoint_bc_weight", 1.0)),
+                fallback_field=pde_field,
+            )
+            pde_meta["guidance_loss_reduction"] = "componentwise_mean_per_sample_rms_sum"
+        elif pde_reduction == "legacy_l2_mean":
             field = pde_field if pde_field_mask is None else pde_field * pde_field_mask
             flat = field.reshape(field.shape[0], -1)
             guidance_L_pde = (torch.linalg.vector_norm(flat, dim=1) / flat.shape[1]).mean()
             pde_meta["guidance_loss_reduction"] = "mean_of_per_sample_l2_div_grid_entries"
+        elif pde_reduction != "mse":
+            raise ValueError(f"Unknown pde_guidance_reduction={pde_reduction!r}")
         if getattr(config, "guidance_operator", "current") == "legacy":
             from sampling.legacy_guidance import legacy_pde_loss
             guidance_L_pde = legacy_pde_loss(config.pde, phys_state.coef, phys_state.sol, config.k)
             pde_meta["guidance_operator"] = "FM4PDE_bak historical surrogate (evaluation uses current operator)"
-        guidance_component_losses = pde_component_losses
     else:
         guidance_L_pde = zero
         guidance_component_losses = {
@@ -372,6 +383,50 @@ def _componentwise_pde_mse_loss(
         "bc_weight": float(bc_weight),
         "endpoint_weight": float(endpoint_weight),
     }
+    return total, detached
+
+
+def _mean_per_sample_rms(residual: Any, mask: Any | None = None) -> Any:
+    """Unsquared L2 loss, normalized by each sample's active entry count.
+
+    vector_norm supplies a finite zero subgradient at an exact match, unlike
+    directly differentiating sqrt(mean(residual**2)) at zero.
+    """
+    import torch
+
+    if residual.numel() == 0:
+        return _zero_like_reference(residual)
+    batch = int(residual.shape[0]) if residual.ndim > 1 else 1
+    flat = residual.reshape(batch, -1)
+    if mask is None:
+        return (torch.linalg.vector_norm(flat, dim=1) / flat.shape[1] ** 0.5).mean()
+    weights = torch.broadcast_to(mask, residual.shape).reshape(batch, -1)
+    numerator = torch.linalg.vector_norm(flat * weights.sqrt(), dim=1)
+    return (numerator / weights.sum(dim=1).clamp_min(1e-12).sqrt()).mean()
+
+
+def _componentwise_pde_rms_loss(
+    components: dict[str, Any | None],
+    *,
+    bc_weight: float,
+    endpoint_weight: float,
+    fallback_field: Any,
+) -> tuple[Any, dict[str, float]]:
+    """Keep component weights and regions; replace each MSE with per-sample RMS."""
+    values = {name: components.get(name) for name in ("interior", "boundary", "endpoint")}
+    if all(value is None for value in values.values()):
+        values["interior"] = fallback_field
+    reference = next(value for value in values.values() if value is not None)
+    losses = {
+        name: (
+            _zero_like_reference(reference) if value is None else
+            _mean_per_sample_rms(value, components.get("interior_mask") if name == "interior" else None)
+        )
+        for name, value in values.items()
+    }
+    total = losses["interior"] + float(bc_weight) * losses["boundary"] + float(endpoint_weight) * losses["endpoint"]
+    detached = {name: float(value.detach().cpu()) for name, value in losses.items()}
+    detached.update(total=float(total.detach().cpu()), bc_weight=float(bc_weight), endpoint_weight=float(endpoint_weight))
     return total, detached
 
 
