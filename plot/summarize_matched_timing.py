@@ -64,6 +64,7 @@ def main():
         seen.add(key)
         tensor=path.parent/'prediction.pt';assert digest(tensor)==r['tensor_sha256']
         d=torch.load(tensor,weights_only=False,map_location='cpu');p,m,n,i,s=key
+        assert all(d[k].dtype==torch.float32 for k in ['prediction','truth','observations','mask']),path
         assert torch.equal(d['truth'],truths[p][i].coef)
         assert torch.equal(d['mask'],masks[p][i]) and int(d['mask'].sum())==500
         assert torch.equal(d['observations'],truths[p][i].sol*masks[p][i])
