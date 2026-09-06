@@ -128,7 +128,7 @@ def test_bak_configs_are_separate_and_valid():
     from pathlib import Path
     from sampling.config import load_config
     files=list(Path('configs/bak').glob('*/*.yaml'))
-    assert len(files)==12
+    assert len(files)==13
     for path in files:
         cfg=load_config(str(path));cfg.validate()
         assert cfg.model_profile=='legacy' and cfg.guidance_operator=='legacy'

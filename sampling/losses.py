@@ -88,9 +88,13 @@ def compute_guidance_losses(
         raw_guidance_L_obs_u = _masked_l2_norm(phys_state.sol, target_sol, masks.sol)
         obs_guidance_reduction_label = "mean_of_per_sample_masked_l2_norm"
         if obs_guidance_reduction == "legacy_l2_mean":
-            raw_guidance_L_obs_a = _legacy_masked_l2_mean(phys_state.coef, target_coef, masks.coef)
-            raw_guidance_L_obs_u = _legacy_masked_l2_mean(phys_state.sol, target_sol, masks.sol)
+            # Old Burgers retained obs_size (500), even for K*128 column entries.
+            denominator = config.num_obs if config.pde == "burger" and config.guidance_operator == "legacy" else None
+            raw_guidance_L_obs_a = _legacy_masked_l2_mean(phys_state.coef, target_coef, masks.coef, denominator)
+            raw_guidance_L_obs_u = _legacy_masked_l2_mean(phys_state.sol, target_sol, masks.sol, denominator)
             obs_guidance_reduction_label = "mean_of_per_sample_l2_div_observed_count"
+            if denominator is not None:
+                obs_guidance_reduction_label = "mean_of_per_sample_l2_div_legacy_obs_size"
     else:
         raise ValueError(f"Unknown obs_guidance_reduction={obs_guidance_reduction!r}")
     guidance_L_obs_a = raw_guidance_L_obs_a if enabled["obs_a"] else zero
@@ -217,7 +221,9 @@ def compute_guidance_losses(
             raise ValueError(f"Unknown pde_guidance_reduction={pde_reduction!r}")
         if getattr(config, "guidance_operator", "current") == "legacy":
             from sampling.legacy_guidance import legacy_pde_loss
-            guidance_L_pde = legacy_pde_loss(config.pde, phys_state.coef, phys_state.sol, config.k)
+            sensor_columns = config.num_sensor_columns if config.sensor_mode == "sensor_column" else None
+            guidance_L_pde = legacy_pde_loss(config.pde, phys_state.coef, phys_state.sol, config.k,
+                                           sensor_columns=sensor_columns)
             pde_meta["guidance_operator"] = "FM4PDE_bak historical surrogate (evaluation uses current operator)"
     else:
         guidance_L_pde = zero
@@ -439,11 +445,15 @@ def _masked_mse(pred: Any, target: Any, mask: Any, *, eps: float = 1e-12) -> Any
     return per_sample.mean()
 
 
-def _legacy_masked_l2_mean(pred: Any, target: Any, mask: Any) -> Any:
+def _legacy_masked_l2_mean(pred: Any, target: Any, mask: Any, denominator: int | None = None) -> Any:
     import torch
     residual = (pred - target) * mask
     flat = residual.reshape(residual.shape[0], -1)
     count = torch.broadcast_to(mask, pred.shape).reshape(pred.shape[0], -1).sum(dim=1).clamp_min(1)
+    if denominator is not None:
+        if denominator <= 0:
+            raise ValueError("Legacy observation denominator must be positive")
+        count = denominator
     return (torch.linalg.vector_norm(flat, dim=1) / count).mean()
 
 

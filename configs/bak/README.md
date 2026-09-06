@@ -1,7 +1,7 @@
 # 旧 pretrained 的兼容配置
 
 本目录独立于 `configs/main/`。使用 `outputs/pretrained/bak/` 的旧权重，不修改原 checkpoint。
-支持 Poisson、Helmholtz、Darcy、NS，以及单通道 Burgers 权重加载；这里的采样配置和比较矩阵覆盖前四个 PDE。
+支持 Poisson、Helmholtz、Darcy、NS 和单通道 Burgers 的旧权重加载、采样与恢复训练。
 
 ## 采样参数
 
@@ -15,6 +15,7 @@
 | Helmholtz | 200000 / 20000000 / 1 | 20000000 | 1 |
 | Darcy | 100000 / 200000 / 1 | 50000000 | 0.1 |
 | NS | 30000 / 300000 / 10 | 300000 | 1 |
+| Burgers | 0 / 320000 / 10 | —（单通道，使用 both） | 1 |
 
 forward 只启用 a 观测，inverse 只启用 u 观测，保留各自 PDE 项。
 Darcy 乘数复现旧 `sample.py` 默认 `--lr_decay=True`：每一步都乘 `obsguide_decay=0.1`，不是逐步累乘。
@@ -85,7 +86,8 @@ bash scripts/run_bak_comparison_a100.sh
 可设置 `BAK_PYTHON`、`BAK_GPU0/1`、`BAK_BATCH_SIZE`。默认启用梯度 checkpoint；若显存仍不足，
 降低 `BAK_BATCH_SIZE` 后用相同命令续跑。若已有失败记录，处理原因后增加 `--retry-failed`。
 两个进程分别处理 Poisson+Darcy、Helmholtz+NS，均先跑 Rough/inverse，写独立结果文件，最后统一统计。
-`worker0.log` / `worker1.log` 可查看进度。首次运行先统一建立 manifest，worker 不会互相覆盖结果。
+终端默认显示各 GPU 的样本进度条、当前采样步数和 u 误差；完整日志保存在 `worker0.log` / `worker1.log`。
+重定向终端输出时每 30 秒打印一次进度，可用 `BAK_PROGRESS=0` 关闭。首次运行先统一建立 manifest，worker 不会互相覆盖结果。
 
 服务器需要本项目修改后的代码、`configs/bak/`、四个旧 `.pth`，以及 `outputs/main/MAIN1000_100_TEST_{id,smooth,rough}`
 和对应 `_tuned1` 目录中的 `metrics_per_sample_all.csv` 与被选运行的 `result.pt`。
@@ -112,3 +114,40 @@ python -m scripts.compare_bak --output outputs/bak_comparison \
 失败样本保留并停止任务，不会悄悄从统计里删掉。相同命令可续跑；改样本数/步数应使用新的输出目录。
 采样 YAML 的 SHA256 写入协议文件，参数改变后禁止把结果混入已有比较目录。
 `--priority-only` 只执行 Rough/inverse，`--pde`、`--limit` 可分批运行，`--prepare-only` 只建立清单。
+
+## Burgers 补充实验
+
+```bash
+# 双 A100：3 分布 × 2 观测方式 × 1000 例，共 6000 次重建。
+bash scripts/run_bak_comparison_a100_burgers.sh
+
+# 小规模试跑：ID/Smooth 各 20 例，Rough 各 100 例。
+BAK_OUTPUT=outputs/bak_comparison_burgers_pilot SAMPLES=20 PRIORITY_SAMPLES=100 \
+  bash scripts/run_bak_comparison_a100_burgers.sh
+
+# 仅检查完整实验所需文件并生成 required_assets.txt，不使用 GPU。
+python -m scripts.compare_bak --suite burgers --samples 1000 --priority-samples 1000 \
+  --output outputs/bak_comparison_burgers_full --prepare-only
+```
+
+独立输出目录默认为 `outputs/bak_comparison_burgers_full/`，不混入四 PDE 的已有结果。
+GPU 0 运行 random，GPU 1 运行 sensor_column；都按 Rough → ID → Smooth 顺序。
+支持与四 PDE 脚本相同的环境变量、进度条和断点续跑。再次运行相同命令跳过成功样本；修复失败原因后加 `--retry-failed`。
+`--priority-only` 在 Burgers 中选择两种观测方式的 Rough；`--sensor-mode random` 或 `sensor_column` 可进一步筛选。
+
+配置为 `configs/bak/both/burger.yaml`，权重文件名为 **`outputs/pretrained/bak/fm4burgers.pth`**（带 s）。
+Burgers 预测一个完整的时空场，a/u 指向同一通道，因此只设 `both`，汇总只统计 `rel_l2_u`，对 6 个组做 Holm 校正。
+续跑和统计的样本标识包含观测方式，相同 sample_id 的 random/column 两次重建不会互相覆盖。
+
+旧 zeta 使用 `0 / 320000 / 10`。旧 YAML 的 500 个时间点改为 **100 次更新**，与当前已保存的 n100 结果比较。
+历史基线实际是 random 500 点和 **5 列（640 点）**；脚本从 `result.pt` 复用相同真值和掩码，并核对列数。
+它不会使用目前 `configs/main/both/burger.yaml` 的 16 列，也不会把基线换成旧 YAML 的 20 列。
+单独使用 bak YAML 时 `num_sensor_columns: 20` 保留旧默认值；比较脚本会覆写为历史运行的列数。
+
+旧 Burgers 残差是未除 dt/dx 的中心差分 `u_t + u*u_x - 0.01*u_xx`，保留零填充边界。
+旧列观测还有两个需要保留的缩放：观测损失为 `||masked residual||₂ / 500`，
+PDE 损失为 `||residual||₂ / (列数 × 128)`；random 的 PDE 分母则是 `128 × 128`。
+这些只影响 legacy guidance，评估仍使用当前物理算子。该比较反映两套完整系统，不能单独归因于 checkpoint。
+
+服务器需要新脚本、适配代码、上述 Burgers YAML/权重，以及 `required_assets.txt` 中的历史 CSV 和 `result.pt`。
+与四 PDE 比较一样，无需原 MAT、当前正式 checkpoint 或旧项目源码，也不生成 HTML。

@@ -10,7 +10,8 @@ import pytest
 
 
 @pytest.mark.parametrize('fail_worker', [False, True])
-def test_two_gpu_launcher_shards_and_stops_on_failure(tmp_path, fail_worker):
+@pytest.mark.parametrize('suite', ['four_pde', 'burgers'])
+def test_two_gpu_launcher_shards_and_stops_on_failure(tmp_path, fail_worker, suite):
     stub=tmp_path/'python_stub'
     stub.write_text(f'#!{sys.executable}\n'+'''
 import json,os,pathlib,sys,time
@@ -31,7 +32,8 @@ elif '--summarize-only' in args:
     output=tmp_path/'results'
     env={**os.environ,'BAK_PYTHON':str(stub),'BAK_OUTPUT':str(output),
          'TEST_FAIL_WORKER':'1' if fail_worker else '0'}
-    proc=subprocess.run(['bash','scripts/run_bak_comparison_a100.sh'],env=env,
+    launcher='scripts/run_bak_comparison_a100' + ('_burgers' if suite=='burgers' else '') + '.sh'
+    proc=subprocess.run(['bash',launcher],env=env,
                         capture_output=True,text=True,timeout=10)
     assert proc.returncode==(1 if fail_worker else 0),proc.stderr
     assert (output/'summary.csv').is_file()
@@ -40,3 +42,4 @@ elif '--summarize-only' in args:
         assert args[args.index('--device')+1]==f'cuda:{index}'
         assert args[args.index('--worker-index')+1]==str(index)
         assert args[args.index('--num-workers')+1]=='2'
+        assert args[args.index('--suite')+1]==suite
