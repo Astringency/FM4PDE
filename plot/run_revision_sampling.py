@@ -222,8 +222,21 @@ def run_pde(args, pde, protocol):
                   sampler_phase='stochastic',coefficient_rule='fixed')
         # Warm-up is repeated after process restarts and is never a timing result.
         warm['name']=f'warmup_pid{os.getpid()}'
-        one(warm,0,protocol['pilot_ids'],'warmup')
-        if args.mode=='smoke':
+        warm_ids=protocol['pilot_ids'][:1] if args.mode=='probe' else protocol['pilot_ids']
+        if args.mode!='probe':
+            probes=list((target/'probe').glob('*/seed0/*/receipt.json'))
+            if not probes:
+                raise RuntimeError('Run a batch-one memory probe before batching.')
+            peak=max(json.loads(p.read_text())['peak_allocated_bytes'] for p in probes)
+            parameter_bytes=sum(p.numel()*p.element_size() for p in bundle[0].model.parameters())
+            predicted=parameter_bytes+4*max(0,peak-parameter_bytes)+(2<<30)
+            total=torch.cuda.get_device_properties(0).total_memory
+            if predicted>.8*total:
+                raise RuntimeError(f'Conservative batch-four memory estimate {predicted} exceeds 80% of {total}')
+        one(warm,0,warm_ids,'warmup')
+        if args.mode=='probe':
+            one(next(v for v in protocol['variants'] if v['name']=='guidance_obs_pde'),0,warm_ids,'probe')
+        elif args.mode=='smoke':
             for variant in protocol['variants']:
                 one(variant,0,protocol['pilot_ids'],'pilot')
         else:
@@ -241,7 +254,7 @@ def run_pde(args, pde, protocol):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode',choices=['prepare','smoke','run'])
+    parser.add_argument('mode',choices=['prepare','probe','smoke','run'])
     parser.add_argument('--inputs',type=Path,required=True)
     parser.add_argument('--output',type=Path)
     parser.add_argument('--source-root',type=Path,default=ROOT/'outputs/main/MAIN1000_100_TEST_id')
