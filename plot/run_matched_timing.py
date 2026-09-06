@@ -220,7 +220,22 @@ def run(args):
                     path=args.inputs/protocol['baselines'][pde][method]
                     payload=json.loads(path.read_text()) if method=='pde_opt' else torch.load(path,weights_only=False,map_location='cpu')
                     cls=getattr(importlib.import_module('baselines.methods.'+method),CLASSES[method])
-                    model=cls().build(payload['config'],payload['data_spec'])
+                    effective=payload['config']
+                    if method=='pde_opt':
+                        from baselines.configuration import resolve_method_config
+                        from scripts.experiments.provenance import baseline_config_sha256
+                        original=payload['args']
+                        assert not original['method_override']
+                        keys=['epochs','lr','steps','refine_steps','particles','implementation_mode',
+                              'official_backend','device','seed','dry_run']
+                        effective=resolve_method_config(effective,baseline=method,pde=pde,
+                                                        **{k:original[k] for k in keys})
+                        # Same resolver and semantic hash as the original CLI.
+                        assert baseline_config_sha256(effective)==original['baseline_config_sha256']
+                        assert effective['early_stopping'] and effective['lr']==.01
+                        write_json(target/'pde_opt_effective_config.json',effective)
+                        effective['device']=args.device
+                    model=cls().build(effective,payload['data_spec'])
                     if method!='pde_opt':
                         model.load_state_dict({k:v for k,v in payload['state_dict'].items() if torch.is_tensor(v)},strict=True)
                         model.load_payload(payload)
