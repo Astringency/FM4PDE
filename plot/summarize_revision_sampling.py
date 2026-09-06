@@ -120,6 +120,9 @@ def main():
         else:
             candidates=MaxNLocator(nbins=4,min_n_ticks=3).tick_values(lo,hi)
         ticks=[v for v in candidates if lo<=v<=hi and v>0]
+        if len(ticks)<3 and not powers_of_two:
+            ticks=[v for v in MaxNLocator(nbins=4,min_n_ticks=3).tick_values(lo,hi)
+                   if lo<=v<=hi and v>0]
         if len(ticks)>5:ticks=[ticks[i] for i in np.linspace(0,len(ticks)-1,5).round().astype(int)]
         axis.set_major_locator(FixedLocator(ticks))
         axis.set_major_formatter(FuncFormatter(lambda value,_:f'{value:g}'))

@@ -120,7 +120,7 @@ def main():
     with gzip.open(args.dest/'matched_timing_receipts.json.gz','wt') as out:json.dump(receipts,out,allow_nan=False)
     plt.rcParams.update({'font.family':'serif','font.size':9,'axes.labelsize':9,'axes.titlesize':10,
                          'pdf.fonttype':42,'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False})
-    fig,axes=plt.subplots(1,len(args.pdes),figsize=(6.2,3.25),squeeze=False)
+    fig,axes=plt.subplots(1,len(args.pdes),figsize=(6.2,3.25),squeeze=False,sharey=True)
     axes=axes[0]
     colors={'fm':'#176c9a','recfno':'#a94b23','senseiver':'#886ab5','voronoicnn':'#487d43','pde_opt':'#555555'}
     markers={'fm':'o','recfno':'s','senseiver':'^','voronoicnn':'D','pde_opt':'x'}
@@ -135,13 +135,16 @@ def main():
                         marker=markers[method],linestyle='-' if method=='fm' else ':' if method=='pde_opt' else 'none',
                         markersize=4,capsize=2,linewidth=1,label=labels[method])
             if method=='fm':
-                for xx,yy,r in zip(x,y,data):ax.annotate(str(r['budget']),(xx,yy),xytext=(4,5),textcoords='offset points',fontsize=7)
+                for xx,yy,r in zip(x,y,data):
+                    offset=(4,-11) if r['budget']==200 else (4,5)
+                    ax.annotate(str(r['budget']),(xx,yy),xytext=offset,textcoords='offset points',fontsize=7)
             elif method=='pde_opt' and all(r['zero_prediction_calls']==96 for r in data):
                 lo=min(r['optimizer_steps_min'] for r in data);hi=max(r['optimizer_steps_max'] for r in data)
                 steps=str(lo) if lo==hi else f'{lo}–{hi}'
                 ax.annotate(f'{steps} iterations; zero output',(float(np.median(x)),float(y[0])),
                             xytext=(0,8),textcoords='offset points',ha='center',fontsize=7,color=colors[method])
         ax.set_xscale('log');ax.set_yscale('log');ax.set_title(pde.capitalize())
+        ax.tick_params(axis='y',labelleft=True)
         ax.set_xlabel('Prediction-call latency (s)');ax.grid(True,which='major',alpha=.16)
         ax.margins(x=.15,y=.23)
     axes[0].set_ylabel(r'Inverse field relative $L^2$ error (%)')

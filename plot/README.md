@@ -88,6 +88,11 @@ Local inputs and collected results:
 `../audit/fm4pde_jmlr_sampling_20260906/{inputs,results}`.
 Remote checkout: `/home/zhangxf/C01Python/FM4PDE_jmlr_20260906`.
 
+Completed 2026-09-07: all four PDEs, 1,248 batches and 4,992 example-runs
+passed the full tensor audit. `confirmation_report` is the authoritative
+complete report; all 52 variant summaries and four figures are included in
+the paper. The revision's sampling tmux sessions have exited.
+
 The runner has `prepare`, `probe`, `smoke` and `run` modes. Preparation freezes
 4 pilot + 32 evaluation examples, excludes prior screening/holdout IDs, and
 copies inference weights and real ground truths with SHA-256 hashes. A batch-one
@@ -199,3 +204,8 @@ The report requires all 1,920 calls and independently checks actual masks,
 frozen physical truths, saved predictions, deterministic repetitions, and
 the original effective PDE-Opt configuration hash. Paper export retains all
 20 method/budget rows, including exactly zero solver predictions.
+
+Completed 2026-09-07: all 1,920 calls passed the full tensor audit and were
+exported from `../audit/fm4pde_jmlr_matched_timing_20260907/report`.
+The dedicated timing tmux session has exited. Both completed studies can be
+replotted from their local archives without another remote inference run.
