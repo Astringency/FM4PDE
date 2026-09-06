@@ -135,6 +135,11 @@ def main():
                         markersize=4,capsize=2,linewidth=1,label=labels[method])
             if method=='fm':
                 for xx,yy,r in zip(x,y,data):ax.annotate(str(r['budget']),(xx,yy),xytext=(4,5),textcoords='offset points',fontsize=7)
+            elif method=='pde_opt' and all(r['zero_prediction_calls']==96 for r in data):
+                lo=min(r['optimizer_steps_min'] for r in data);hi=max(r['optimizer_steps_max'] for r in data)
+                steps=str(lo) if lo==hi else f'{lo}–{hi}'
+                ax.annotate(f'{steps} iterations; zero output',(float(np.median(x)),float(y[0])),
+                            xytext=(0,8),textcoords='offset points',ha='center',fontsize=7,color=colors[method])
         ax.set_xscale('log');ax.set_yscale('log');ax.set_title(pde.capitalize())
         ax.set_xlabel('Prediction-call latency (s)');ax.grid(True,which='major',alpha=.16)
         ax.margins(x=.15,y=.23)
