@@ -114,6 +114,7 @@ def compare(mse_root, rms_root, output, allow_partial=False, schedule_report_roo
                      ratio_rms_to_mse=ratio,change_pct=(ratio-1)*100 if ratio is not None else None,
                      ci95_low=lo,ci95_high=hi,paired_rms_wins=sum(y<x for x,y in zip(av,bv)) if av and bv else None,
                      n=hold_n,mse_residual=a['pde_residual_norm'] if a else None,rms_residual=b['pde_residual_norm'] if b else None,
+                     residual_change_pct=(b['pde_residual_norm']/a['pde_residual_norm']-1)*100 if a and b and a['pde_residual_norm'] else None,
                      status='ok' if a and b else 'failed')
             for form,result in [('mse',a),('rms',b)]:
                 for field in ['rel_l2_a','rel_l2_u']: row[f'{form}_{field}']=result[field] if result else None
@@ -165,10 +166,13 @@ def compare(mse_root, rms_root, output, allow_partial=False, schedule_report_roo
             findings.append(f"- **{row['pde_label']}**：至少一种形式在复核集失败，不能报告有效误差比值。")
             continue
         meaning='近似持平' if abs(row['change_pct'])<1 else 'RMS 误差更低' if row['change_pct']<0 else 'MSE 误差更低'
-        findings.append(f"- **{row['pde_label']}**：{meaning}；RMS 相对 MSE 的均值变化 {row['change_pct']:+.2f}%，误差比值的配对 bootstrap 95% 区间为 [{row['ci95_low']:.3f}, {row['ci95_high']:.3f}]。")
+        physics=f" 最终 PDE 残差 RMS 变化 {row['residual_change_pct']:+.1f}%。" if row['residual_change_pct'] is not None else ''
+        findings.append(f"- **{row['pde_label']}**：{meaning}；RMS 相对 MSE 的重建均值变化 {row['change_pct']:+.2f}%，误差比值的配对 bootstrap 95% 区间为 [{row['ci95_low']:.3f}, {row['ci95_high']:.3f}]。"+physics)
     blocks=[prose('loss_intro','## 不平方的 PDE loss 是否更好\n\n比较使用相同逐样本总梯度裁剪阈值 50 的 MSE 与 RMS 引导，覆盖五种 PDE 的 both 任务。时机和权重均在 4 个筛选样本上独立选择，再用相同的 8 个复核样本评估；下列结论未使用复核误差挑选时机。\n\n'+ '\n'.join(findings)),
             prose('loss_read_table','### 各形式先独立选参数，再比较复核误差\n\n表中主误差为 a、u 相对 L2 误差的等权平均，Burger 为完整解场误差；越低越好。“相对变化”是 RMS / MSE − 1，负值表示 RMS 更低。接近零的变化不足以支持更换默认 loss。完整分量误差、逐样本胜出数和区间保存在配套结果中。'),
             dict(id='loss_selected_block',type='table',tableId='loss_selected_table'),
+            prose('loss_physics_note','### 重建误差与物理残差分别判断\n\n下表仍是同一组按重建误差选出的参数，比较最终预测的 PDE 残差 RMS。评估定义在两种引导形式之间保持一致，所以这些数值可以直接比较；负变化表示残差更低。物理残差降低且重建基本持平，可以视为物理一致性方面的收益，不能表述为重建精度显著提升。不同 PDE 的原始残差尺度不可横向排名。'),
+            dict(id='loss_physics_block',type='table',tableId='loss_physics_table'),
             prose('loss_chart_note','### 固定启用方式后，比较两种 loss\n\n每组柱表示相同启用方式下、分别调权重后的 RMS / MSE 复核误差比值。小于 1 表示 RMS 更低，大于 1 表示 MSE 更低；这能区分 loss 的效果与启用时机选择的效果。失败候选不绘制比值，保留在结果 CSV 中。'),
             dict(id='loss_chart_block',type='chart',chartId='loss_ratio_chart'),
             prose('loss_method','### RMS 的定义与解释边界\n\n每个样本、每个残差分量使用 ||r||₂ / √N（掩码下 N 为有效点数），对样本取均值后按原来的内部、边界和端点权重相加。它是未平方的 L2 型目标，区别于 MAE 和历史的 ||r||₂ / N。MSE 与 RMS 的数值尺度不同，因此分别搜索原 main 权重及 0.1、1、10。所有评估 MSE、物理残差和相对重建误差保持原定义。\n\n当前 main 在端点预测上计算引导。曲线中当前噪声状态的 L_pde 与实际优化的 guidance_L_pde 不是同一个状态上的 loss；失稳诊断应看后者及引导梯度。RMS 减弱大残差的线性放大，但模型/PDE 的雅可比和全局裁剪仍会影响实际更新，不能保证更准确。\n\n本轮是 ID 数据的小样本筛选，只对 both 任务比较 loss 形式。区间未做多重比较校正；接近持平或区间跨过 1 时应扩大样本复核，再决定是否修改 main。')]
@@ -178,6 +182,7 @@ def compare(mse_root, rms_root, output, allow_partial=False, schedule_report_roo
         blocks[0]['body'] += '\n\nLoss 形式的比较使用服务器上重新运行的同机 MSE 对照；本地完成的时机实验在后文单独列出，避免将跨 GPU/环境的差异归因于 loss。'
     manifest['tables'].append(dict(id='loss_selected_table',title='独立选参后的 MSE / RMS 复核结果',dataset='loss_selected',sourceId=source['id'],columns=[
         dict(field='pde_label',label='PDE',type='text'),dict(field='mse_schedule',label='MSE 时机',type='text'),dict(field='mse_zeta',label='MSE zeta',format='number'),dict(field='mse_error',label='MSE 误差',format='number'),dict(field='rms_schedule',label='RMS 时机',type='text'),dict(field='rms_zeta',label='RMS zeta',format='number'),dict(field='rms_error',label='RMS 误差',format='number'),dict(field='change_pct',label='相对变化 (%)',format='number')]))
+    manifest['tables'].append(dict(id='loss_physics_table',title='同一组参数下的最终 PDE 残差',dataset='loss_selected',sourceId=source['id'],columns=[dict(field='pde_label',label='PDE',type='text'),dict(field='mse_residual',label='MSE 引导后的残差 RMS',format='number'),dict(field='rms_residual',label='RMS 引导后的残差 RMS',format='number'),dict(field='residual_change_pct',label='残差变化 (%)',format='number')]))
     manifest['charts'].append(dict(id='loss_ratio_chart',title='相同启用方式下的 RMS / MSE 误差',dataset='loss_schedules',type='bar',sourceId=source['id'],settings={'groupMode':'grouped'},palette={'kind':'categorical'},referenceLines=[{'axis':'y','value':1,'label':'MSE 对照'}],encodings={'x':{'field':'pde_label','type':'nominal','label':'PDE'},'y':{'field':'ratio_rms_to_mse','type':'quantitative','label':'RMS / MSE 误差'},'color':{'field':'comparison_label','type':'nominal','label':'启用方式'}}))
     if allow_partial:
         snapshot['status']='partial'
