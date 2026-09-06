@@ -93,7 +93,8 @@ def main_comparisons(paper):
         ('sparse-joint-results', 'Sparse joint: solution', ['RecFNO', 'Senseiver', 'VoronoiCNN', 'FM4PDE'], 'rel L2(u)'),
     ]
     plotted = []
-    fig, axes = plt.subplots(3, 2, figsize=(8.6, 9.5), layout='constrained')
+    # Designed for approximately six-inch journal text width after inclusion.
+    fig, axes = plt.subplots(3, 2, figsize=(8.0, 9.2), layout='constrained')
     for ax, (table, title, methods, metric) in zip(axes.flat, specs):
         rows = [r for r in all_rows if r['table'] == 'tab:' + table and r['metric'] == metric]
         plotted.extend(rows)
@@ -103,21 +104,22 @@ def main_comparisons(paper):
         im = ax.imshow(values, norm=LogNorm(.1, 100), cmap=CMAP, aspect='auto')
         ax.set_xticks(range(len(methods)), ['iFNO' if m == 'IFNO' else m for m in methods], rotation=28, ha='right')
         ax.set_yticks(range(12), [f'{LABELS[p]} / {d}' for p, d in expected])
-        ax.set_title(title, loc='left', pad=9)
+        ax.tick_params(labelsize=9.5)
+        ax.set_title(title, loc='left', pad=9, fontsize=11)
         for i in range(12):
             for j in range(len(methods)):
                 val = values[i, j]
-                ax.text(j, i, f'{val:.2f}', ha='center', va='center', fontsize=8,
+                ax.text(j, i, f'{val:.2f}', ha='center', va='center', fontsize=9.5,
                         color='white' if val > 9 else '#222222')
-        for y in (2.5, 5.5, 8.5):
-            ax.axhline(y, color='white', lw=1.5)
-    fig.colorbar(im, ax=axes, label='Mean relative L2 error (%) · logarithmic color scale', shrink=.7, extend='both')
-    fig.suptitle('Archived paired-field benchmarks\n1000 examples per cell; sparse sensor protocols differ across methods', fontsize=12)
+    bar=fig.colorbar(im, ax=axes, shrink=.7, extend='both')
+    bar.set_label('Mean relative L2 error (%) · logarithmic color scale',fontsize=10)
+    bar.ax.tick_params(labelsize=9.5)
+    fig.suptitle('Archived paired-field benchmarks\nReported means; sparse sensor protocols differ across methods', fontsize=11.5)
     verify_workbook_rows(paper, plotted)
     write_csv(paper / 'source_data/main_figure_values.csv', plotted)
     save(fig, paper, 'main_comparisons')
 
-    fig, axes = plt.subplots(1, 2, figsize=(11.8, 4.5), layout='constrained')
+    fig, axes = plt.subplots(1, 2, figsize=(8.0, 4.5), layout='constrained')
     rows = [r for r in all_rows if r['table'] == 'tab:physics-smooth-results']
     methods = ['PINN-Sparse', 'PDE-Opt', 'PC-BNN', 'FM4PDE']
     for j, method in enumerate(methods):
@@ -129,9 +131,10 @@ def main_comparisons(paper):
     axes[0].set_yticks(range(6), [f'{LABELS[p]} / {t}' for p, t in keys])
     axes[0].invert_yaxis()
     axes[0].set_xscale('log')
-    axes[0].set_title('Physics-based reconstruction · Smooth', loc='left')
-    axes[0].set_xlabel('Mean target-field relative L2 error (%)')
-    axes[0].legend(fontsize=7, loc='upper right')
+    axes[0].set_title('Physics-based reconstruction\nSmooth distribution', loc='left',fontsize=10.5)
+    axes[0].set_xlabel('Mean target-field error (%)',fontsize=10)
+    axes[0].legend(fontsize=9, loc='upper center', bbox_to_anchor=(.5,-.18),
+                   ncols=2, frameon=False)
     br = [r for r in all_rows if r['table'] == 'tab:burgers-results']
     bm = ['RecFNO', 'VoronoiCNN', 'FM4PDE', 'Senseiver', 'Var4D', 'VIVID']
     for j, dist in enumerate(DIST):
@@ -140,13 +143,15 @@ def main_comparisons(paper):
                      ['o','s','^'][j], color=COLORS[j], ms=4, label=dist)
     axes[1].set_yticks(range(6), ['4D-Var' if m == 'Var4D' else m for m in bm])
     axes[1].invert_yaxis()
-    axes[1].set_xlabel('Mean full-trajectory relative L2 error (%)')
+    axes[1].set_xlabel('Mean full-trajectory error (%)',fontsize=10)
     axes[1].set_xlim(left=0)
-    axes[1].set_title('Burgers · 500 random space–time observations', loc='left')
-    axes[1].legend(fontsize=7)
+    axes[1].set_title('Burgers trajectory\n500 random space–time observations', loc='left',fontsize=10.5)
+    axes[1].legend(fontsize=9, loc='upper center', bbox_to_anchor=(.5,-.18),
+                   ncols=3, frameon=False)
     for ax in axes:
+        ax.tick_params(labelsize=9.5)
         ax.grid(axis='x', alpha=.7)
-    fig.suptitle('Archived reconstruction errors\n1000 examples per cell; descriptive comparison under the recorded protocols', fontsize=11)
+    fig.suptitle('Archived reconstruction errors\nReported means; descriptive comparison under the recorded protocols', fontsize=11)
     verify_workbook_rows(paper, rows + br)
     save(fig, paper, 'physics_burgers_comparisons')
 

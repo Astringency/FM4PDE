@@ -26,7 +26,8 @@ per-example metrics, hashes, configuration text, code and a completion inventory
 ## Figure contracts
 
 All artifacts are vector PDF plus PNG previews in the paper's `figures/`.
-Typography is 8–10 pt before scaling, embedded TrueType, white background.
+Typography is sized for inclusion at the journal's six-inch text width, with
+embedded TrueType fonts and a white background.
 This is an externally authored journal article, so no product branding is used.
 Every plot is checked in its PDF context before final handoff.
 
@@ -55,6 +56,7 @@ require the mounted outputs; rendering uses the frozen paper extracts.
 python plot/extract_endpoint_inventory.py
 python plot/extract_main_configs.py
 python plot/audit_loss_study.py
+python plot/audit_baseline_counts.py
 python plot/plot_verified_supplements.py
 ```
 
@@ -65,6 +67,15 @@ Older Smooth configs missing gate fields are resolved from 210 full step logs,
 not current defaults. MSE/RMS holdout errors are independently recomputed in
 float64 from saved prediction/target tensors; source diagnostics and matched
 masks are checked separately.
+
+The baseline count audit verifies that all 267 current workbook identities match
+the established row-to-run map. It rereads the raw metric arrays for all 235
+populated cells, verifies 1,000 unique IDs per cell, and reproduces all 328
+applicable field means and SDs with denominator `n-1`. The other 32 workbook
+rows remain unavailable. It writes a portable compressed extract; use
+`python plot/audit_baseline_counts.py --from-frozen` to repeat the aggregation
+without mounted raw files. This does not recompute baseline predictions or
+certify historical training-data validity or identical observation masks.
 
 ## New sampling confirmation (frozen 2026-09-06)
 
@@ -86,7 +97,7 @@ new parameter selection. Each GPU task runs in its own tmux session; its session
 exits when the command finishes. Never kill the user's other sessions.
 
 ```bash
-python plot/collect_revision_sampling.py --dest ../audit/fm4pde_jmlr_sampling_20260906/results
+python plot/collect_revision_sampling.py --dest ../audit/fm4pde_jmlr_sampling_20260906/results --with-tensors
 python plot/check_revision_sampling.py \
   --inputs ../audit/fm4pde_jmlr_sampling_20260906/inputs \
   --output ../audit/fm4pde_jmlr_sampling_20260906/results --stage evaluation
@@ -94,6 +105,13 @@ python plot/summarize_revision_sampling.py \
   --inputs ../audit/fm4pde_jmlr_sampling_20260906/inputs \
   --results ../audit/fm4pde_jmlr_sampling_20260906/results \
   --dest ../audit/fm4pde_jmlr_sampling_20260906/confirmation_report
+python plot/audit_revision_predictions.py \
+  --inputs ../audit/fm4pde_jmlr_sampling_20260906/inputs \
+  --results ../audit/fm4pde_jmlr_sampling_20260906/results \
+  --dest ../audit/fm4pde_jmlr_sampling_20260906/confirmation_report
+python plot/export_revision_sampling.py \
+  --report ../audit/fm4pde_jmlr_sampling_20260906/confirmation_report \
+  --paper ../../C04Papers/fm4pde_jmlr
 ```
 
 Collection never uses `--delete`. Add `--with-tensors` for prediction/mask audit
@@ -112,3 +130,20 @@ Timing includes the full sampler call, diagnostics and artifact writes, with
 loading excluded. Per-example time is amortized batch cost, not latency.
 The normalized rule fixes only the nominal scalar sum `c_N*(N+1)/2`; clipping,
 physical activation, gradient paths and reinjection counts can still differ.
+
+`audit_revision_predictions.py` checks every saved prediction against the frozen
+per-ID truth tensors and actual mask hashes, and recomputes both full-field and
+observation errors in CPU float64. It does not independently discretize the
+PDE residual or certify historical training-data independence. The paper exporter
+requires complete formal results and tensor audits for all four PDEs, reconciles
+the per-example error exports, and writes all 52 variant summaries without rank
+selection. A complete single-PDE report may be generated for inspection in its
+own directory, but it is refused by the paper exporter.
+
+The residual trace is mean per-example RMS. Gradient and correction norms are
+Euclidean norms over the entire four-example batch, then averaged over batches
+and seeds. The sum of weighted observation-component norms is distinct from the
+norm of their summed gradient. The CSVs also retain observation errors/losses
+and paired physical-residual intervals. Initial-noise and mask pairing is
+checked from actual tensor hashes; differing phase schedules and budgets do
+not imply reinjection draws aligned at the same flow times.

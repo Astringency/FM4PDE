@@ -53,24 +53,27 @@ def main():
     seeds=[0] if args.stage=='pilot' else protocol['inference_seeds']
     variants=protocol['variants'];names=[v['name'] for v in variants];anchor='guidance_obs_pde'
     n=len(ids);rng=np.random.default_rng(20260907);indices=rng.integers(0,n,size=(10000,n))
-    summary=[];pairs=[];examples=[];receipt_archive=[];arrays={};batch_groups={};run_hashes=[]
+    summary=[];pairs=[];examples=[];receipt_archive=[];arrays={};residual_arrays={};batch_groups={};run_hashes=[]
     for pde in args.pdes:
         receipts=[json.loads(f.read_text()) for f in (args.results/pde/args.stage).glob('*/seed*/*/receipt.json')]
         receipt_archive.extend(receipts)
         groups={name:[r for r in receipts if r['variant']['name']==name] for name in names}
-        batch_groups[pde]=groups;arrays[pde]={}
+        batch_groups[pde]=groups;arrays[pde]={};residual_arrays[pde]={}
         for variant in variants:
             name=variant['name'];records=groups[name]
-            values={};residuals={};field_a={};field_u={}
+            values={};residuals={};field_a={};field_u={};obs_a={};obs_u={}
             for r in records:
                 for row in r['rows']:
                     key=(r['seed'],int(row['sample_id']));value=primary(pde,row)
                     values[key]=value;residuals[key]=float(row['pde_residual_norm'])
                     field_a[key]=float(row['rel_l2_a']);field_u[key]=float(row['rel_l2_u'])
+                    obs_a[key]=float(row['obs_rel_l2_a']);obs_u[key]=float(row['obs_rel_l2_u'])
                     examples.append(dict(pde=pde,variant=name,inference_seed=r['seed'],sample_id=key[1],
-                                         primary_error=value,rel_l2_a=field_a[key],rel_l2_u=field_u[key],pde_residual_norm=residuals[key]))
+                                         primary_error=value,rel_l2_a=field_a[key],rel_l2_u=field_u[key],
+                                         obs_rel_l2_a=obs_a[key],obs_rel_l2_u=obs_u[key],pde_residual_norm=residuals[key]))
             matrix=lambda vals:np.array([[vals[(s,i)] for i in ids] for s in seeds])
             per_seed=matrix(values);avg=per_seed.mean(axis=0);arrays[pde][name]=avg
+            residual_arrays[pde][name]=matrix(residuals).mean(axis=0)
             lo,hi=np.quantile(avg[indices].mean(1),[.025,.975])
             times=np.array([r['elapsed_seconds']/len(r['sample_ids']) for r in records])
             nfe=sorted({r['model_evaluations'] for r in records})
@@ -80,6 +83,7 @@ def main():
                                 mean_error=float(avg.mean()),ci95_low=float(lo),ci95_high=float(hi),
                                 sd_example_seed_means=float(avg.std(ddof=1)),
                                 mean_rel_l2_a=float(matrix(field_a).mean()),mean_rel_l2_u=float(matrix(field_u).mean()),
+                                mean_obs_rel_l2_a=float(matrix(obs_a).mean()),mean_obs_rel_l2_u=float(matrix(obs_u).mean()),
                                 mean_pde_residual=float(matrix(residuals).mean()),
                                 median_amortized_seconds=float(np.median(times)),q25_seconds=float(np.quantile(times,.25)),
                                 q75_seconds=float(np.quantile(times,.75)),model_forward_calls=nfe[0],
@@ -89,11 +93,17 @@ def main():
             a=arrays[pde][name];b=arrays[pde][ref]
             diffs=a-b;boot=diffs[indices].mean(1);low,high=np.quantile(boot,[.025,.975])
             ratio_boot=a[indices].mean(1)/b[indices].mean(1)-1;rlo,rhi=np.quantile(ratio_boot,[.025,.975])
+            ra=residual_arrays[pde][name];rb=residual_arrays[pde][ref]
+            rd=ra-rb;rdlo,rdhi=np.quantile(rd[indices].mean(1),[.025,.975])
+            rrlo,rrhi=np.quantile(ra[indices].mean(1)/rb[indices].mean(1)-1,[.025,.975])
             pairs.append(dict(pde=pde,variant=name,reference=ref,n=n,mean_difference_pp=100*float(diffs.mean()),
                               ci95_low_pp=100*float(low),ci95_high_pp=100*float(high),
                               relative_change_pct=100*float(a.mean()/b.mean()-1),
                               relative_ci95_low_pct=100*float(rlo),relative_ci95_high_pct=100*float(rhi),
-                              wins=int((a<b).sum())))
+                              wins=int((a<b).sum()),mean_residual_difference=float(rd.mean()),
+                              residual_ci95_low=float(rdlo),residual_ci95_high=float(rdhi),
+                              residual_relative_change_pct=100*float(ra.mean()/rb.mean()-1),
+                              residual_relative_ci95_low_pct=100*float(rrlo),residual_relative_ci95_high_pct=100*float(rrhi)))
     lookup={(r['pde'],r['variant']):r for r in summary}
     plt.rcParams.update({'font.size':9,'axes.titlesize':10,'axes.labelsize':9,'pdf.fonttype':42,'ps.fonttype':42,
                          'axes.spines.top':False,'axes.spines.right':False})
@@ -160,12 +170,15 @@ def main():
                                        ci95_low=float(lo),ci95_high=float(hi),
                                        state_residual=mean('eval_pde_residual_norm'),endpoint_residual=mean('guidance_pde_residual_norm'),
                                        weighted_physical_gradient=weighted_physics,weighted_observation_norm_sum=weighted_obs,
+                                       state_observation_mse_a=mean('eval_L_obs_a'),state_observation_mse_u=mean('eval_L_obs_u'),
+                                       endpoint_observation_mse_a=mean('guidance_L_obs_a'),endpoint_observation_mse_u=mean('guidance_L_obs_u'),
                                        mean_clip_scale=mean('clip_scale')))
     fig,axes=plt.subplots(len(args.pdes),3,figsize=(8.5,2.15*len(args.pdes)),layout='constrained',squeeze=False)
     for axes_row,pde in zip(axes,args.pdes):
         for name,color,label in [(anchor,COLORS[0],'Obs.+PDE'),('guidance_obs_only',COLORS[1],'Obs. only')]:
             data=[r for r in trajectory if (r['pde'],r['variant'])==(pde,name)];x=[r['t'] for r in data]
-            axes_row[0].plot(x,[100*r['mean_error'] for r in data],color=color,label=label,lw=1)
+            axes_row[0].plot(x,[100*r['mean_error'] for r in data],color=color,label=label,lw=1,
+                             ls='-' if name==anchor else '--')
             axes_row[0].fill_between(x,[100*r['ci95_low'] for r in data],[100*r['ci95_high'] for r in data],color=color,alpha=.13,lw=0)
             if name==anchor:
                 axes_row[1].plot(x,[r['state_residual'] for r in data],color=color,label='Updated state',lw=1)
@@ -174,7 +187,7 @@ def main():
                 axes_row[2].plot(x,[r['weighted_observation_norm_sum'] for r in data],color=color,ls='--',label='Sum of weighted obs. norms',lw=1)
         axes_row[0].set_title(LABELS[pde],loc='left')
         for ax in axes_row:ax.set_yscale('log');ax.grid(color='.9',lw=.5)
-        for ax,label in zip(axes_row,['Primary error (%)','Residual diagnostic','Gradient norm']):ax.set_ylabel(label)
+        for ax,label in zip(axes_row,['Primary error (%)','Residual RMS','Batch gradient norm']):ax.set_ylabel(label)
     handles=[];legend_labels=[]
     for ax in axes[0]:
         h,l=ax.get_legend_handles_labels();handles.extend(h);legend_labels.extend(l)
@@ -187,6 +200,7 @@ def main():
     manifest=dict(stage=args.stage,protocol=protocol,validation=reports,trajectory_source_hashes=run_hashes,
                   resampling='10,000 paired physical-example bootstrap resamples; 3,000 for time-point ribbons; seed 20260907.',
                   scope='Fixed checkpoints and masks; inference seeds averaged within example. Pointwise intervals, no simultaneous-coverage claim.',
+                  diagnostics='Residual is mean per-example RMS. Gradient/correction norms are Euclidean norms over the entire four-example batch, then averaged across batches and seeds. Observation trace losses use the archived per-sample MSE reduction. Weighted observation norm sum is not the norm of the summed gradient.',
                   timing=protocol['timing_scope'],script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
     (args.dest/'sampling_confirmation_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     with gzip.open(args.dest/'sampling_confirmation_receipts.json.gz','wt') as f:json.dump(receipt_archive,f,allow_nan=False)
