@@ -267,7 +267,10 @@ def main():
             prose(f"chart_note_{task}", "### 相同基线下的误差比值", "图中小于 1 表示优于同裁剪基线。失败或误差超过基线 5 倍的方案不进入此图，完整状态与数值保留在结果表和 CSV 中；这类方案不应视为缺少实验。", True)
             blocks.append(dict(id=f"chart_block_{task}", type="chart", chartId=f"chart_{task}"))
     prose("method", "## 配对实验与门控验证", "① start=0.8、ramp=0：第 81–100 步直接使用完整 PDE 权重。② start=0.8、ramp=0.1：第 81 步权重仍为零，第 82 步起逐渐增加，t=0.9 时达到完整权重。③ start=0、ramp=0：全部 100 步使用 PDE Guide。\n\n每种方式测试当前权重及 0.1、1、10（重复值去重）。所有候选使用 global_norm=50 的逐样本总梯度裁剪；基线为相同裁剪下的方案①加原 main PDE 权重。除 PDE 时机和权重外，同组候选保持模型、观测权重、梯度裁剪、目标样本、随机种子、批量和观测掩码一致。真实目标来自历史测试运行保存的 ground-truth 张量；历史预测未用于本轮指标。样本 ID 在查看结果前由固定随机种子选定。", True)
-    prose("limits", "## 不确定性与稳健性", "当前只覆盖 ID 测试集、随机观测和 stochastic 采样。筛选集与复核集互不重叠，但样本量较小；复核集内的三种方式排名仍有选择偏差。holdout_comparison.csv 给出相对基线的配对 bootstrap 95% 区间和逐样本胜出数；区间未做多重比较校正。\n\nPDE 残差降低不等于重建更准确，both 的平均误差也可能掩盖 a、u 之间的取舍。增大 PDE 权重可能引起数值发散或通过全局梯度裁剪改变观测更新，应结合分量误差、失败率与曲线解释。未将失败或非有限值作为零误差参与排名。", True)
+    if (root / "remote_cells.json").exists():
+        remote_cells = json.loads((root / "remote_cells.json").read_text())
+        prose("execution_hosts", "### 每个任务组合保持执行环境一致", "本地计算与 server197 分担完整的 PDE/任务组合。同一组合的所有候选在同一环境上计算，避免在一个配对比较中混入不同 GPU 或 PyTorch 版本。服务器完成的组合为：" + "、".join(remote_cells) + "。执行来源保存在 remote_cells.json 中。")
+    prose("limits", "## 不确定性与稳健性", "当前只覆盖 ID 测试集、随机观测和 stochastic 采样。NS 使用当前 main 的 endpoint_secant 残差，它是端点近似一致性指标，不能作为完整时间轨迹满足 NS 方程的证明。筛选集与复核集互不重叠，但样本量较小；复核集内的三种方式排名仍有选择偏差。holdout_comparison.csv 给出相对基线的配对 bootstrap 95% 区间和逐样本胜出数；区间未做多重比较校正。\n\nPDE 残差降低不等于重建更准确，both 的平均误差也可能掩盖 a、u 之间的取舍。增大 PDE 权重可能引起数值发散或通过全局梯度裁剪改变观测更新，应结合分量误差、失败率与曲线解释。未将失败或非有限值作为零误差参与排名。", True)
     prose("next", "## 下一轮应验证什么", "保留各 PDE/任务独立的候选结果。优先扩大复核样本量，并在 smooth、rough 分布上重复胜出候选与同裁剪基线的配对比较，再决定是否修改默认配置。若不同启用方式差距落在小样本波动范围内，暂不更换 main。")
     datasets = {"holdout_comparison": comparisons}
     for task in ("both", "forward", "inverse"):
