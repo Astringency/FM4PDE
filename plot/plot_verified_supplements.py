@@ -62,7 +62,7 @@ def main_table():
     for r in rows:
         for k in ['zeta_obs_a','zeta_obs_u','zeta_pde','clip_threshold']:r[k]=f'{float(r[k]):g}'
         groups[tuple(r[k] for k in keys)].append(r['distribution'])
-    lines=[r'\begin{table}[!htbp]',r'\centering\scriptsize\setlength{\tabcolsep}{3pt}',
+    lines=[r'\begin{table}[!htbp]',r'\centering\footnotesize\setlength{\tabcolsep}{3pt}',
            r'\caption{Archived hyperparameters for all 66 FM4PDE main-table cells, checked against 2,892 batch configurations. I/S/R denote ID/Smooth/Rough; F/I/J denote forward/inverse/joint tasks. Random means 500 locations per observed field, columns means five Burgers spatial columns, and full means all input locations. The stochastic coefficient is $c_\zeta=0.1$ throughout. Late activates physics at $t=0.8$ without a ramp. All* denotes an older Smooth run whose constant physical weight was verified in every step log; its config predates the gate fields.}',
            r'\label{tab:verified-main-hyperparameters}',r'\begin{tabular}{@{}llllrrrrl@{}}\toprule',
            r'PDE & Task & Observations & Dist. & $\zeta_a$ & $\zeta_u$ & $\zeta_{\rm pde}$ & Clip & Gate \\ \midrule']

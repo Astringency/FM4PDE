@@ -40,7 +40,7 @@ def main():
     with out.open('w',newline='') as f:
         w=csv.DictWriter(f,list(rows[0]));w.writeheader();w.writerows(rows)
     (PAPER/'source_data/endpoint_inventory_configs.json').write_text(json.dumps(configs,indent=2)+'\n')
-    lines=[r'\begin{table}[!htbp]',r'\centering\scriptsize',
+    lines=[r'\begin{table}[!htbp]',r'\centering\footnotesize',
            r'\caption{Resolved Poisson endpoint-correction inventory (one ID instance per row). Row numbers identify the source workbook. Phase and $\zeta_{\rm pde}$ distinguish the previously duplicated display keys. D/S denote deterministic/stochastic sampling. The coefficient and cap refer to deterministic updates and are inactive in the S row, whose stochastic coefficient is $0.1$. Field errors are percentages; $L_{\rm pde}$ is the archived diagnostic loss.}',
            r'\label{tab:ablation-det-endpoint-complete}',r'\setlength{\tabcolsep}{3pt}',
            r'\begin{tabular}{@{}rllllrrrrrr@{}}\toprule',

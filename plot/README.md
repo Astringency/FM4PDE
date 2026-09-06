@@ -45,3 +45,70 @@ before rendering. `audit/figure_manifest.json` records source and script hashes.
 completeness per metric. SD uses ddof=1, never SD=0 for n=1. Smooth attribution
 for the legacy DiffusionPDE runs follows the author's instruction. Existing
 wall times remain historical measurements, not a common-hardware benchmark.
+
+## Verified supplements
+
+Run these using the `fm4pde` Python environment. The raw-archive audit commands
+require the mounted outputs; rendering uses the frozen paper extracts.
+
+```bash
+python plot/extract_endpoint_inventory.py
+python plot/extract_main_configs.py
+python plot/audit_loss_study.py
+python plot/plot_verified_supplements.py
+```
+
+The main-config audit selects only the 66 author-approved cells used in the
+paper, excludes separate diagnostic subdirectories, checks all 2,892 batch
+configs, verifies weighted means and offsets, and retains complete config hashes.
+Older Smooth configs missing gate fields are resolved from 210 full step logs,
+not current defaults. MSE/RMS holdout errors are independently recomputed in
+float64 from saved prediction/target tensors; source diagnostics and matched
+masks are checked separately.
+
+## New sampling confirmation (frozen 2026-09-06)
+
+Code was committed locally and transferred via Git bundles into an isolated
+checkout on server193. The actual sampler executes commit `42bae4a`, PyTorch
+2.5.1/CUDA12.1, on RTX4090 GPUs. Postprocessing may have a later commit and records
+its own script hash. Existing remote repositories and results are untouched.
+
+Local inputs and collected results:
+`../audit/fm4pde_jmlr_sampling_20260906/{inputs,results}`.
+Remote checkout: `/home/zhangxf/C01Python/FM4PDE_jmlr_20260906`.
+
+The runner has `prepare`, `probe`, `smoke` and `run` modes. Preparation freezes
+4 pilot + 32 evaluation examples, excludes prior screening/holdout IDs, and
+copies inference weights and real ground truths with SHA-256 hashes. A batch-one
+memory probe gates the batch-four pilot. All four pilots passed. The evaluation
+has 13 variants × 32 examples × 3 inference seeds per PDE, with no retraining or
+new parameter selection. Each GPU task runs in its own tmux session; its session
+exits when the command finishes. Never kill the user's other sessions.
+
+```bash
+python plot/collect_revision_sampling.py --dest ../audit/fm4pde_jmlr_sampling_20260906/results
+python plot/check_revision_sampling.py \
+  --inputs ../audit/fm4pde_jmlr_sampling_20260906/inputs \
+  --output ../audit/fm4pde_jmlr_sampling_20260906/results --stage evaluation
+python plot/summarize_revision_sampling.py \
+  --inputs ../audit/fm4pde_jmlr_sampling_20260906/inputs \
+  --results ../audit/fm4pde_jmlr_sampling_20260906/results \
+  --dest ../audit/fm4pde_jmlr_sampling_20260906/confirmation_report
+```
+
+Collection never uses `--delete`. Add `--with-tensors` for prediction/mask audit
+copies. Validation refuses missing groups, duplicates, errors, nonfinite
+metrics, mismatched initial noise, or changed masks. A complete marker alone
+is insufficient. Genuine failed evaluations must be reviewed and disclosed,
+never silently dropped or replaced by a favorable rerun.
+
+The postprocessor was exercised against all 52 pilot batches in a separate
+`pilot_report` directory, with visible PILOT labels. Those plots are not paper
+results. Final figures report paired physical-example intervals (seeds averaged
+within example), all declared guidance/phase settings, measured time versus
+accuracy, error trajectories, separate endpoint/state residuals, and weighted
+gradient norms. Exact clipping/gate/correction traces remain in exported CSVs.
+Timing includes the full sampler call, diagnostics and artifact writes, with
+loading excluded. Per-example time is amortized batch cost, not latency.
+The normalized rule fixes only the nominal scalar sum `c_N*(N+1)/2`; clipping,
+physical activation, gradient paths and reinjection counts can still differ.
