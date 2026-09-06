@@ -48,6 +48,7 @@ def prepare(args):
                     prior_sampling_protocol_sha256=digest(args.sampling_inputs/'protocol.json'),
                     fm_steps=[25,50,100,200], pde_opt_steps=[50,100,500],
                     sensor_count=500, noise_level=0., dtype='float32', cpu_threads=2,
+                    deterministic_algorithms=True,tf32=False,cublas_workspace_config=':4096:8',
                     timing='CUDA-synchronized perf_counter, CPU sparse observations to GPU physical prediction; '
                            'includes preprocessing, transfers, sampling/optimization and decoding; '
                            'excludes loading, warmup, scoring and writes',
@@ -98,6 +99,7 @@ def prepare(args):
                 d=torch.load(sample,map_location='cpu',weights_only=False)
                 # Freeze only public geometry / PDE conventions, never template targets.
                 public_keys=['canonical_layout','elliptic_operator_sign','elliptic_operator_convention',
+                             'grid_layout','domain_length',
                              'coordinate_layout','observation_source_channel_names','task_channel_names']
                 geom={k:d[k] for k in ['coords','channel_names','input_channel_names','target_channel_names','pde_params']}
                 geom['metadata']={k:d['metadata'][k] for k in public_keys if k in d['metadata']}
