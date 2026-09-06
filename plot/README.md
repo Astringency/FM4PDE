@@ -147,3 +147,39 @@ norm of their summed gradient. The CSVs also retain observation errors/losses
 and paired physical-residual intervals. Initial-noise and mask pairing is
 checked from actual tensor hashes; differing phase schedules and budgets do
 not imply reinjection draws aligned at the same flow times.
+# Matched inverse prediction timing (2026-09-07)
+
+`run_matched_timing.py` is a separate batch-one study on Poisson and Darcy ID
+inverse problems. It reuses the 4 pilot / 32 evaluation IDs already frozen for
+sampling confirmation, with 500 fixed solution sensors, and compares FM4PDE
+(25/50/100/200 steps), RecFNO, Senseiver, VoronoiCNN, and PDE-Opt
+(50/100/500 iteration caps, retaining its original early stopping).
+The current inverse FM weights and clipping thresholds must match every
+corresponding sparse-ID archived configuration. No parameters are tuned.
+
+All methods run in one Python/PyTorch environment on one GPU, with float32,
+TF32 disabled and two CPU threads. Synchronized wall time starts with physical
+CPU observations and includes construction, method-specific preprocessing,
+transfer, prediction and physical decoding. Loading, warmup, error evaluation
+and file writes are excluded. Voronoi preprocessing uses the canonical CPU
+implementation for the two grid reconstruction networks. PDE-Opt retains its
+archived initialization from the masked solution and best-state restoration.
+Three baseline timing repetitions do not increase the number of independent
+error observations. FM seeds are averaged within each physical example.
+
+The pilot must pass repeat and hidden-target invariance checks on all four
+pilot IDs; learned methods must also respond to perturbed observations.
+Prediction-only FM output must exactly match the original instrumented sampler.
+Zero PDE-Opt predictions after best-state restoration are recorded, not tuned
+away. Every formal prediction, physical truth, actual mask, elapsed time,
+optimizer status, and artifact checksum is retained for independent audit.
+This experiment is distinct from the batch-four instrumented sampling timings.
+
+```bash
+python plot/run_matched_timing.py prepare --inputs INPUTS \
+  --sampling-inputs SAMPLING_INPUTS --paper PAPER --baseline-root BASELINE_REPO
+python plot/run_matched_timing.py pilot --inputs INPUTS --output RESULTS \
+  --baseline-root BASELINE_REPO
+python plot/run_matched_timing.py run --inputs INPUTS --output RESULTS \
+  --baseline-root BASELINE_REPO
+```
