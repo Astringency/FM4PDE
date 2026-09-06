@@ -34,7 +34,7 @@ def read_rows(root, form):
         return [dict(row, form=form) for row in csv.DictReader(handle) if row['task'] == 'both']
 
 
-def compare(mse_root, rms_root, output, allow_partial=False):
+def compare(mse_root, rms_root, output, allow_partial=False, schedule_report_root=None):
     output.mkdir(parents=True, exist_ok=True)
     protocols = {form: json.loads((root / 'protocol.json').read_text())
                  for form, root in [('mse', mse_root), ('rms', rms_root)]}
@@ -145,9 +145,10 @@ def compare(mse_root, rms_root, output, allow_partial=False):
     write_csv(output/'loss_gradient_diagnostic.csv',diagnostics)
     for pde,task in protocols['rms']['cells']:
         pair=[r for r in diagnostics if r['pde']==pde]
-        if len(pair)==2 and not math.isclose(pair[0]['initial_guidance_residual'],pair[1]['initial_guidance_residual'],rel_tol=1e-6,abs_tol=1e-9):
+        if len(pair)==2 and pair[0]['batch_steps']==pair[1]['batch_steps'] and not math.isclose(pair[0]['initial_guidance_residual'],pair[1]['initial_guidance_residual'],rel_tol=1e-6,abs_tol=1e-9):
             raise ValueError(f'Initial guidance states differ between loss forms: {pde}')
-    artifact=copy.deepcopy(json.loads((mse_root/'artifact.json').read_text()))
+    schedule_report_root=schedule_report_root or mse_root
+    artifact=copy.deepcopy(json.loads((schedule_report_root/'artifact.json').read_text()))
     manifest=artifact['manifest']; snapshot=artifact['snapshot']
     title='PDE Guidance: Schedule, Clipping and RMS Loss'
     manifest['title']=title
@@ -173,6 +174,8 @@ def compare(mse_root, rms_root, output, allow_partial=False):
             prose('loss_method','### RMS 的定义与解释边界\n\n每个样本、每个残差分量使用 ||r||₂ / √N（掩码下 N 为有效点数），对样本取均值后按原来的内部、边界和端点权重相加。它是未平方的 L2 型目标，区别于 MAE 和历史的 ||r||₂ / N。MSE 与 RMS 的数值尺度不同，因此分别搜索原 main 权重及 0.1、1、10。所有评估 MSE、物理残差和相对重建误差保持原定义。\n\n当前 main 在端点预测上计算引导。曲线中当前噪声状态的 L_pde 与实际优化的 guidance_L_pde 不是同一个状态上的 loss；失稳诊断应看后者及引导梯度。RMS 减弱大残差的线性放大，但模型/PDE 的雅可比和全局裁剪仍会影响实际更新，不能保证更准确。\n\n本轮是 ID 数据的小样本筛选，只对 both 任务比较 loss 形式。区间未做多重比较校正；接近持平或区间跨过 1 时应扩大样本复核，再决定是否修改 main。')]
     manifest['blocks'][0]['body']='# '+title+'\n'
     manifest['blocks'][1:1]=blocks
+    if schedule_report_root != mse_root:
+        blocks[0]['body'] += '\n\nLoss 形式的比较使用服务器上重新运行的同机 MSE 对照；本地完成的时机实验在后文单独列出，避免将跨 GPU/环境的差异归因于 loss。'
     manifest['tables'].append(dict(id='loss_selected_table',title='独立选参后的 MSE / RMS 复核结果',dataset='loss_selected',sourceId=source['id'],columns=[
         dict(field='pde_label',label='PDE',type='text'),dict(field='mse_schedule',label='MSE 时机',type='text'),dict(field='mse_zeta',label='MSE zeta',format='number'),dict(field='mse_error',label='MSE 误差',format='number'),dict(field='rms_schedule',label='RMS 时机',type='text'),dict(field='rms_zeta',label='RMS zeta',format='number'),dict(field='rms_error',label='RMS 误差',format='number'),dict(field='change_pct',label='相对变化 (%)',format='number')]))
     manifest['charts'].append(dict(id='loss_ratio_chart',title='相同启用方式下的 RMS / MSE 误差',dataset='loss_schedules',type='bar',sourceId=source['id'],settings={'groupMode':'grouped'},palette={'kind':'categorical'},referenceLines=[{'axis':'y','value':1,'label':'MSE 对照'}],encodings={'x':{'field':'pde_label','type':'nominal','label':'PDE'},'y':{'field':'ratio_rms_to_mse','type':'quantitative','label':'RMS / MSE 误差'},'color':{'field':'comparison_label','type':'nominal','label':'启用方式'}}))
@@ -180,7 +183,7 @@ def compare(mse_root, rms_root, output, allow_partial=False):
         snapshot['status']='partial'
         snapshot['accessIssues']=[{'id':'partial_loss','message':'实验尚未全部完成。'}]
     write_json(output/'artifact.json',artifact)
-    write_json(output/'source_notes.json',dict(protocols=protocols,roots={'mse':str(mse_root),'rms':str(rms_root)},audit=audit,chart_map={'loss_ratio_chart':'Grouped bar, one held-out ratio per PDE and schedule; tuning independent by loss form.'},required_structure='Technical summary, paired loss findings, MSE schedule findings, definitions, methods, limitations and next steps. Further questions are integrated in next-step prose.'))
+    write_json(output/'source_notes.json',dict(protocols=protocols,roots={'mse':str(mse_root),'rms':str(rms_root),'schedule_report':str(schedule_report_root)},audit=audit,chart_map={'loss_ratio_chart':'Grouped bar, one held-out ratio per PDE and schedule; tuning independent by loss form.'},required_structure='Technical summary, paired loss findings, MSE schedule findings, definitions, methods, limitations and next steps. Further questions are integrated in next-step prose.'))
     print(json.dumps({'selected':chosen,'audit':audit},indent=2,ensure_ascii=False))
 
 
@@ -190,7 +193,8 @@ def main():
     parser.add_argument('--rms-root',type=Path,required=True)
     parser.add_argument('--output-root',type=Path,required=True)
     parser.add_argument('--allow-partial',action='store_true')
+    parser.add_argument('--schedule-report-root',type=Path,help='Optional separate complete MSE schedule study for the report; cross-loss metrics always use mse-root')
     args=parser.parse_args()
-    compare(args.mse_root,args.rms_root,args.output_root,args.allow_partial)
+    compare(args.mse_root,args.rms_root,args.output_root,args.allow_partial,args.schedule_report_root)
 
 if __name__=='__main__': main()
