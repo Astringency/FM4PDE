@@ -34,7 +34,10 @@ def main():
         manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else None
         ready = bool(manifest and manifest['status'] == 'complete' and manifest['calls_verified'] == 1728)
         if not ready:
-            record('waiting_for_complete_audit', calls_verified=manifest.get('calls_verified', 0) if manifest else 0)
+            sampling_path = args.study / 'sampling_progress.json'
+            sampling = json.loads(sampling_path.read_text()) if sampling_path.exists() else {}
+            record('waiting_for_complete_audit', calls_verified=manifest.get('calls_verified', 0) if manifest else 0,
+                   calls_collected=sampling.get('calls'), expected_calls=1728)
             if not args.watch:
                 return
             time.sleep(600)  # Own background tmux; no interactive tool is blocked.
@@ -47,20 +50,25 @@ def main():
             root = Path(__file__).parent
             report = args.study / 'ns_complete_report'
             guidance = args.study / 'ns_guidance_report'
+            strategies = args.study / 'ns_strategy_report'
             subprocess.run([sys.executable, str(root / 'export_ns_loss_spectra.py'),
                             '--audit', str(audit), '--inputs', str(args.study / 'inputs_v2'),
                             '--output', str(report)], check=True)
             subprocess.run([sys.executable, str(root / 'plot_ns_guidance_traces.py'),
                             '--audit', str(audit), '--output', str(guidance)], check=True)
+            subprocess.run([sys.executable, str(root / 'compare_ns_sampling_strategies.py'),
+                            '--study', str(args.study), '--output', str(strategies)], check=True)
             report_manifest = report / 'ns_report_manifest.json'
             guidance_manifest = guidance / 'ns_guidance_plot_manifest.json'
-            for path in [report_manifest, guidance_manifest]:
+            strategy_manifest = strategies / 'ns_strategy_manifest.json'
+            for path in [report_manifest, guidance_manifest, strategy_manifest]:
                 m = json.loads(path.read_text())
                 assert m['status'] == 'complete' and m['calls_verified'] == 1728
                 for name, expected in m['outputs'].items():
                     assert sha(path.parent / name) == expected, name
             record('reports_complete', calls_verified=1728, audit_manifest_sha256=sha(manifest_path),
                    report_manifest_sha256=sha(report_manifest), guidance_manifest_sha256=sha(guidance_manifest),
+                   strategy_manifest_sha256=sha(strategy_manifest),
                    remaining='Visual review, source-backed narrative, active paper/response integration, and full builds.')
             return
         except Exception as exc:
