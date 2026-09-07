@@ -39,6 +39,7 @@ def main():
      assert r['protocol_sha256']==ph and r['uncontended'] and r['seconds']>0
      assert r['nfe']==(n if method=='FM4PDE' else 2*n-1)
      pred=target/(stem+'.pt');assert sha(pred)==r['prediction_sha256'];d=torch.load(pred,map_location='cpu',weights_only=False)
+     assert d['coef'].dtype==d['sol'].dtype==torch.float32,(pde,stem,'output dtype')
      idx=protocol['evaluation_ids'].index(i)
      for field,key in [('coef','a'),('sol','u')]:
       assert np.array_equal(d[field+'_truth'].numpy(),data[pde+'_'+key][idx:idx+1])
