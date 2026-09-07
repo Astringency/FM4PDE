@@ -2,6 +2,7 @@
 import argparse
 from collections import Counter
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -31,7 +32,7 @@ print(json.dumps(dict(files=files,receipts=rows)))
             report = json.loads(subprocess.check_output(
                 ['ssh', '-o', 'ConnectTimeout=20', remote, 'python3', '-'],
                 input=script, text=True, timeout=60))
-            listing = args.study / 'ns_calibration_collect_files.txt'
+            listing = args.study / f'ns_calibration_collect_files_{os.getpid()}.txt'
             listing.write_text('\n'.join(report['files']) + '\n')
             dest = args.study / 'guidance_calibration_v1'
             dest.mkdir(exist_ok=True)

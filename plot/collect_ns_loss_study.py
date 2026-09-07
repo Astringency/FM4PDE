@@ -1,5 +1,5 @@
 """Read-only collection of committed receipts from the separate NS study."""
-import argparse,json,shlex,subprocess,sys,time
+import argparse,json,os,shlex,subprocess,sys,time
 from collections import Counter,defaultdict
 from pathlib import Path
 from run_ns_loss_study import write
@@ -22,7 +22,7 @@ print(json.dumps(dict(files=names,receipts=receipts)))
     while True:
         try:
             report=json.loads(subprocess.check_output(['ssh','-p','9088','-o','ConnectTimeout=20',remote,'python3','-'],input=script,text=True,timeout=60))
-            listing=s/'ns_collect_files.txt';listing.write_text('\n'.join(report['files'])+'\n')
+            listing=s/f'ns_collect_files_{os.getpid()}.txt';listing.write_text('\n'.join(report['files'])+'\n')
             dest=s/'ns_results_v3';dest.mkdir(exist_ok=True)
             subprocess.run(['rsync','-a','--timeout=60','--files-from='+str(listing),'-e','ssh -p 9088',remote+':'+root+'/',str(dest)+'/'],check=True)
             counts=Counter(r['status'] for r in report['receipts'])
