@@ -138,7 +138,7 @@ def main():
                                str(r['complete_inputs'])]) + r' \\')
     tex += [r'\bottomrule\end{tabular}\end{table}']
     tex += [r'\begin{table}[!htbp]\centering\footnotesize',
-            r'\caption{Guidance weights selected using the four reserved development inputs. Multipliers apply to the recipient FM weights in Appendix~\ref{app:ns-loss-exchange}. Calibration errors are percentages, mean $\pm$ SD over four input-level seed averages. Selection minimizes the primary error and disqualifies any candidate with a failed call. These development scores are separate from the 32-input evaluation in Table~\ref{tab:ns-calibration}.}',
+            r'\caption{Guidance weights selected using the four reserved development inputs. Multipliers apply to the recipient FM weights in Appendix~\ref{app:ns-common-inputs}. Calibration errors are percentages, mean $\pm$ SD over four input-level seed averages. Selection minimizes the primary error and disqualifies any candidate with a failed call. These development scores are separate from the 32-input evaluation in Table~\ref{tab:ns-calibration}.}',
             r'\label{tab:ns-calibration-selection}', r'\begin{tabular}{@{}lrrrr@{}}\toprule',
             r'Task & Obs. multiplier & PDE multiplier & Original error & Selected error \\\midrule']
     for task in TASKS:
