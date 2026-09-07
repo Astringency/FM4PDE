@@ -69,7 +69,7 @@ def main():
             task_label='joint' if task=='both' else task
             ax.set(yscale='log',xlim=(.77,1.0),title=f'{method}, {n} steps · {task_label}')
             if row==2:ax.set_xlabel('Step index / step budget')
-            if col==0:ax.set_ylabel('Weighted component-norm ratio')
+            if col==0:ax.set_ylabel('Weighted norm ratio\n(physical / observation)')
             ax.grid(alpha=.2);ax.legend(frameon=False,fontsize=10)
     fig.suptitle('Scale of physical guidance under fixed recipient weights\nMedian and interquartile range of 32 input-level seed averages',fontsize=12)
     for ext in ['pdf','png']:fig.savefig(args.output/f'ns_guidance_component_ratios.{ext}',dpi=190,bbox_inches='tight')
