@@ -1,4 +1,4 @@
-"""Eight-worker continuation of the immutable four-worker NS plan.
+"""Six- or eight-worker continuation of the immutable four-worker NS plan.
 
 The native sampler stays frozen. Completed calls and actual producer GPUs
 are retained; only unfinished pairs are redistributed to newly idle GPUs.
@@ -16,8 +16,9 @@ import run_ns_loss_study as frozen
 from ns_acceleration import all_jobs, digest, stem, validate_plan as validate_parent
 
 ROOT = Path(__file__).resolve().parents[1]
-SHARDS = 8
-SLOTS = 1728 // SHARDS
+def dimensions(shards):
+    assert shards in (6, 8)
+    return shards, 1728 // shards
 
 
 def producer(parent, parent_owner, key):
@@ -25,6 +26,7 @@ def producer(parent, parent_owner, key):
 
 
 def validate_plan(plan, source, parent):
+    SHARDS, SLOTS = dimensions(plan['shards'])
     old_owner = validate_parent(parent, source)
     assert plan['version'] == 2 and plan['shards'] == SHARDS
     assert plan['protocol_sha256'] == parent['protocol_sha256']
@@ -62,7 +64,7 @@ def make_plan(args):
     assert digest(args.results/'protocol.json') == parent['protocol_sha256']
     assert digest(args.inputs/'source.json') == parent['source_sha256']
     workers = json.loads(args.workers.read_text())
-    assert len(workers) == SHARDS
+    SHARDS, SLOTS = dimensions(len(workers))
     for i in range(4):
         env = json.loads((args.results/f'acceleration_environment_{i}.json').read_text())
         assert workers[i]['environment'] == env
@@ -125,6 +127,7 @@ def make_plan(args):
 
 def run(args):
     plan = json.loads(args.plan.read_text())
+    SHARDS, SLOTS = dimensions(plan['shards'])
     parent_path = args.output/'acceleration_plan.json'
     parent = json.loads(parent_path.read_text())
     assert digest(parent_path) == plan['parent_plan_sha256']

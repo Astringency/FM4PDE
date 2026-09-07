@@ -1,4 +1,4 @@
-"""Start reserved-input pilots when four A800 GPUs become idle.
+"""Start reserved-input pilots when two or four A800 GPUs become idle.
 
 This watcher never stops current sampling or deploys a continuation plan.
 Pilot processes retain their CUDA context for at most 15 minutes afterward
@@ -29,8 +29,8 @@ def gpu_state():
  text=subprocess.check_output(['nvidia-smi','--query-gpu=index,name,uuid,memory.used','--format=csv,noheader,nounits'],text=True)
  return [dict(index=int(i),name=n.strip(),uuid=u.strip(),memory_mib=int(m)) for i,n,u,m in (line.split(',') for line in text.splitlines())]
 gpus=gpu_state();idle=[g['index'] for g in gpus if 'A800' in g['name'] and g['memory_mib']<20]
-if len(idle)<4 or not ALLOW_LAUNCH:
- print(json.dumps(dict(status='waiting_for_idle_gpus' if len(idle)<4 else 'idle_probe_only',idle_indices=idle,gpus=gpus)))
+if len(idle)<2 or not ALLOW_LAUNCH:
+ print(json.dumps(dict(status='waiting_for_idle_gpus' if len(idle)<2 else 'idle_probe_only',idle_indices=idle,gpus=gpus)))
  raise SystemExit(0)
 head=subprocess.check_output(['git','-C',str(base/'FM4PDE'),'rev-parse','HEAD'],text=True).strip()
 assert head.startswith('e8b29f6'),head
@@ -52,12 +52,13 @@ driver=Path('/data1/zjinzxf2025/C01Python/DiffusionPDE')
 assert sha(driver/'scripts/generate_ns_nonbounded.py')==protocol['diffusion_source_sha256']
 # Recheck after hashing; another job may have claimed a device meanwhile.
 gpus=gpu_state();idle=[g['index'] for g in gpus if 'A800' in g['name'] and g['memory_mib']<20]
-if len(idle)<4:
+if len(idle)<2:
  print(json.dumps(dict(status='waiting_for_idle_gpus',idle_indices=idle,gpus=gpus)))
  raise SystemExit(0)
 hold="import pathlib,runpy,sys,time; driver=sys.argv[1]; sys.path.insert(0,str(pathlib.Path(driver).resolve().parent)); sys.argv=sys.argv[1:]; runpy.run_path(driver,run_name='__main__'); print('PILOT_COMPLETE_HOLDING_GPU_MAX_900_SECONDS',flush=True); time.sleep(900)"
 launched=[]
-for shard,gpu in enumerate(idle[:4]):
+count=4 if len(idle)>=4 else 2
+for shard,gpu in enumerate(idle[:count]):
  session=f'ns_ext_pilot{shard}_0907'
  args=['env',f'CUDA_VISIBLE_DEVICES={gpu}','CUBLAS_WORKSPACE_CONFIG=:4096:8','OMP_NUM_THREADS=2',
  '/data1/zjinzxf2025/miniconda3/envs/fm4pde/bin/python','-u','-c',hold,'plot/run_ns_loss_study.py','run',
@@ -67,7 +68,7 @@ for shard,gpu in enumerate(idle[:4]):
  cmd=shlex.join(args)+' >> '+shlex.quote(str(base/f'pilot_{shard}.log'))+' 2>&1'
  subprocess.run(['tmux','new-session','-d','-s',session,'-c',str(base/'FM4PDE'),cmd],check=True)
  launched.append(dict(shard=shard,gpu=gpu,session=session,command=args))
- (base/'pilot_launch.json').write_text(json.dumps(dict(status='launching' if shard<3 else 'pilots_started',workers=launched),indent=2)+'\n')
+ (base/'pilot_launch.json').write_text(json.dumps(dict(status='launching' if shard<count-1 else 'pilots_started',workers=launched),indent=2)+'\n')
 print(json.dumps(dict(status='pilots_started',workers=launched,gpus=gpus,hold_seconds=900)))
 '''
 

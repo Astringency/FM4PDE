@@ -157,9 +157,10 @@ def main():
     extension=None
     extension_path=args.results/'acceleration_extension_plan.json'
     if extension_path.exists():
-        from ns_acceleration_extension import validate_plan as validate_extension,SHARDS,SLOTS
+        from ns_acceleration_extension import validate_plan as validate_extension,dimensions
         assert acceleration is not None
         extension=json.loads(extension_path.read_text())
+        SHARDS,SLOTS=dimensions(extension['shards'])
         validate_extension(extension,source,acceleration)
         assert extension['parent_plan_sha256']==sha(plan_path)
         assert extension['scheduler_sha256']==sha(ROOT/'plot/ns_acceleration_extension.py')
@@ -299,7 +300,7 @@ def main():
     complete=seen==expected
     if args.require_complete:
         assert complete, f'Only {len(seen)}/1728 calls have completed'
-        for shard in range(8 if extension else 4 if acceleration else 2):
+        for shard in range(extension['shards'] if extension else 4 if acceleration else 2):
             name=f'extension_complete_{shard}.json' if extension else f'complete_{shard}.json'
             rr=json.loads((args.results/name).read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=extension['pending_counts'][shard] if extension else 432 if acceleration else 864)
     for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows),('ns_reference_residuals.csv',reference_residuals),('ns_trace_checks.csv',trace_checks)]:

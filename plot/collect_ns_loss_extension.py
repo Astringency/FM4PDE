@@ -1,4 +1,4 @@
-"""Collect immutable eight-worker NS results, retaining four-worker lineage."""
+"""Collect immutable NS extension results, retaining four-worker lineage."""
 import argparse
 from collections import Counter
 import fcntl
@@ -11,7 +11,7 @@ import sys
 import time
 
 from ns_acceleration import digest, stem
-from ns_acceleration_extension import SHARDS, validate_plan
+from ns_acceleration_extension import dimensions, validate_plan
 from run_ns_loss_study import write
 
 HOSTS = [dict(name='server193', ssh=['ssh','-p','9088'], rsync_ssh='ssh -p 9088',
@@ -47,6 +47,8 @@ def main():
     lock = (work/'collector.lock').open('a+')
     fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
     plan = json.loads(args.plan.read_text())
+    shards, _ = dimensions(plan['shards'])
+    hosts = [dict(h, shards=[i for i in h['shards'] if i < shards]) for h in HOSTS]
     parent_path = canonical/'acceleration_plan.json'
     parent = json.loads(parent_path.read_text())
     assert digest(parent_path) == plan['parent_plan_sha256']
@@ -60,7 +62,7 @@ def main():
     while True:
         try:
             origins = {}
-            for host in HOSTS:
+            for host in hosts:
                 script = f'''from pathlib import Path
 import json
 p=Path({host['root']!r});shards={host['shards']!r};names=[];rows=[]
@@ -114,10 +116,10 @@ print(json.dumps(dict(files=names,receipts=rows)))
             rows = [json.loads(p.read_text()) for p in (canonical/'results').rglob('*.json')]
             keys = [stem(tuple(r[k] for k in ['task','method','steps','exchange','sample_id','seed'])) for r in rows]
             assert len(keys) == len(set(keys)) and set(keys) <= set(owner)
-            complete = len(keys) == 1728 and all((canonical/f'extension_complete_{i}.json').exists() for i in range(SHARDS))
+            complete = len(keys) == 1728 and all((canonical/f'extension_complete_{i}.json').exists() for i in range(shards))
             summary = dict(checked_utc=time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()), calls=len(rows), expected=1728,
                            outcomes=dict(Counter(r['status'] for r in rows)), sampling_complete=complete,
-                           worker_pool='2 RTX4090 + 2 A100 + 4 A800', plan_sha256=digest(args.plan))
+                           worker_pool=f'2 RTX4090 + 2 A100 + {shards-4} A800', plan_sha256=digest(args.plan))
             write(study/'sampling_progress.json', summary)
             write(work/'collected_origins.json', origins)
             print(json.dumps(summary), flush=True)
@@ -125,7 +127,7 @@ print(json.dumps(dict(files=names,receipts=rows)))
                 subprocess.run([sys.executable,str(Path(__file__).with_name('audit_ns_loss_results.py')),
                     '--inputs',str(study/'inputs_v2'),'--results',str(canonical),'--baselines',str(study/'baseline_results_gpu_v2'),
                     '--output',str(study/'ns_complete_audit'),'--require-complete'], check=True)
-                print('COMPLETE: all eight-worker continuation calls collected and audited.', flush=True)
+                print(f'COMPLETE: all {shards}-worker continuation calls collected and audited.', flush=True)
                 return
         except (subprocess.SubprocessError, ValueError, OSError) as exc:
             print('Collection retry; samplers unchanged:',repr(exc),flush=True)
