@@ -162,6 +162,12 @@ def run(args):
         u = torch.as_tensor(data[f'u_{sample_id}'], device='cuda:0', dtype=dtype)
         ma = torch.as_tensor(data[f'mask_a_{sample_id}'], device='cuda:0', dtype=dtype)
         mu = torch.as_tensor(data[f'mask_u_{sample_id}'], device='cuda:0', dtype=dtype)
+        if task == 'both' and source.get('joint_shared_mask', False):
+            # The task-specific Senseiver checkpoint consumes both measured
+            # values at one coordinate. Match this information contract for
+            # every method, rather than filling an unobserved channel with a
+            # value that its encoder would interpret as an observation.
+            mu = ma.clone()
         if task == 'forward': mu = torch.zeros_like(mu)
         if task == 'inverse': ma = torch.zeros_like(ma)
         masks = PairMasks(ma, mu, dict(source='frozen common 500-point mask'))
