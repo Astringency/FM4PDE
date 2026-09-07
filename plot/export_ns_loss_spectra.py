@@ -168,6 +168,11 @@ def main():
     font=use_times_new_roman();outputs=[]
     def save(fig,name):
         if args.preview:fig.text(.5,.5,'INCOMPLETE PREVIEW',fontsize=30,color='crimson',alpha=.25,ha='center',rotation=20)
+        # Resolve positions with Agg before switching save backends. PDF's
+        # first constrained-layout pass can otherwise overlap field titles.
+        fig.canvas.draw()
+        fig.canvas.draw()
+        fig.set_layout_engine('none')
         for ext in ['pdf','png']:
             out=args.output/(name+'.'+ext);fig.savefig(out,dpi=190,bbox_inches='tight');outputs.append(out)
         plt.close(fig)
