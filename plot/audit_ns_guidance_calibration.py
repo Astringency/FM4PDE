@@ -208,12 +208,24 @@ def main():
     independently_selected, grid = independent_selection(protocol, calibration)
     if selection:
         assert len(calibration) == 540 and independently_selected == selection['selected']
+        assert len(selection['calibration_summary']) == len(grid) == 45
         for actual, frozen in zip(grid, selection['calibration_summary']):
             assert actual.keys() == frozen.keys()
             for k, v in actual.items():
                 assert np.isclose(v, frozen[k], rtol=1e-10, atol=1e-12) if isinstance(v, float) else v == frozen[k], (k, actual, frozen)
         for shard in [0, 1]:
             assert json.loads((args.results / f'calibration_complete_{shard}.json').read_text()) == dict(protocol_sha256=ph, calls=270)
+    identical_control_pairs = 0
+    if selection:
+        for task in protocol['tasks']:
+            if selection['selected'][task] != protocol['candidates'][0]:
+                continue
+            for i in ids:
+                reference = dict(ensemble.get((task, 'reference', i), []))
+                selected = dict(ensemble.get((task, 'selected', i), []))
+                for seed in reference.keys() & selected.keys():
+                    assert all(torch.equal(x, y) for x, y in zip(reference[seed], selected[seed])), (task, i, seed)
+                    identical_control_pairs += 1
     ensemble_rows = []
     for (task, variant, i), values in ensemble.items():
         if len(values) != 3:
@@ -272,6 +284,7 @@ def main():
                     outcomes={k: dict(v) for k, v in outcomes.items()},
                     protocol_sha256=ph, selection_sha256=sh, selected=selection['selected'] if selection else None,
                     selection_independently_verified=bool(selection), source_sha256=protocol['source_sha256'],
+                    identical_setting_prediction_pairs_verified=identical_control_pairs,
                     source_hashes=hashes, baseline_prediction_hashes=baseline_hashes,
                     baseline_audit_sha256=sha(args.baseline_audit / 'ns_audit_manifest.json'),
                     environment=environment, spectral_checks=self_check(), script_sha256=sha(Path(__file__)),

@@ -99,13 +99,53 @@ def main():
     (args.output/'ns_loss_tables.tex').write_text('\n'.join(tex)+'\n')
     with gzip.open(args.audit/'ns_frequency_records.json.gz','rt') as f:freq=json.load(f)
     powers=['reference_power','prediction_power','error_power']
-    fg=defaultdict(list);bands=[]
+    fg=defaultdict(list);bands=[];band_groups=defaultdict(list)
     for r in freq:
         for k in powers:r[k]=np.asarray(r[k],float)
         fg[r['task'],r['field'],r['method'],r['steps'],r['exchange']].append(r)
         for label,bb in [('8/32',r['bands'])]+list(r['sensitivity_bands'].items()):
-            for name,v in bb.items():bands.append(dict(task=r['task'],field=r['field'],method=r['method'],steps=r['steps'],exchange=r['exchange'],sample_id=r['sample_id'],seed=r['seed'],cutoffs=label,band=name,**v))
+            for name,v in bb.items():
+                bands.append(dict(task=r['task'],field=r['field'],method=r['method'],steps=r['steps'],exchange=r['exchange'],sample_id=r['sample_id'],seed=r['seed'],cutoffs=label,band=name,**v))
+                for metric,value in dict(v,global_normalized_error=np.sqrt(v['global_error_contribution'])).items():
+                    if metric not in ['relative_error','global_normalized_error','predicted_reference_energy_ratio','reference_fraction'] or value is None:continue
+                    band_groups[r['task'],r['field'],r['method'],r['steps'],r['exchange'],label,name,metric,r['sample_id']].append(value)
     csvwrite(args.output/'ns_frequency_bands.csv',bands)
+    band_values=defaultdict(dict)
+    for key,vv in band_groups.items():
+        expected_seeds=3 if key[2] in ['FM4PDE','DiffusionPDE'] else 1
+        if len(vv)==expected_seeds:band_values[key[:-1]][key[-1]]=float(np.mean(vv))
+    band_summary=[dict(zip(['task','field','method','steps','exchange','cutoffs','band','metric'],key),
+                       **summarize(list(vv.values()))) for key,vv in band_values.items()]
+    csvwrite(args.output/'ns_frequency_summary.csv',band_summary)
+    band_effects=[]
+    for key,selected in band_values.items():
+        if key[4] is not True:continue
+        original=band_values.get(key[:4]+(False,)+key[5:],{})
+        common=sorted(selected.keys()&original.keys())
+        if common:band_effects.append(dict(zip(['task','field','method','steps','exchange','cutoffs','band','metric'],key),
+                                          **summarize([selected[i]-original[i] for i in common])))
+    csvwrite(args.output/'ns_frequency_paired_effects.csv',band_effects)
+    band_tex=[]
+    for t,f in [('forward','u'),('inverse','a'),('both','a'),('both','u')]:
+        label=('joint' if t=='both' else t)+' / '+('initial' if f=='a' else 'final')+' vorticity'
+        caption=(r'NS '+label+r' frequency errors on 32 common inputs (\%, mean $\pm$ SD over input-level seed averages). $e_B=\sqrt{D_B/E_B}$ normalizes band error by reference energy in that band; $g_H=\sqrt{D_H/E_{\rm full}}$ normalizes high-band error by full-field reference energy. Bands are $(0,8]$, $(8,32]$, and $(32,\infty)$. A dash denotes an undefined ratio below the fixed $10^{-14}$ reference-fraction threshold. DC and alternative cutoffs are retained in source data.'
+                 if t=='forward' else r'NS '+label+r' frequency errors under the common-input protocol and metric definitions of Table~\ref{tab:ns-frequency-forward-u}. Values are percentages, mean $\pm$ SD across 32 input-level seed averages; undefined ratios are shown as dashes.')
+        band_tex += [r'\begin{table}[!htbp]\centering\footnotesize\setlength{\tabcolsep}{3pt}',
+            r'\caption{'+caption+'}',
+            r'\label{tab:ns-frequency-'+t+'-'+f+'}',r'\begin{tabular}{@{}llrrrr@{}}\toprule',
+            r'Method & Steps / loss & $e_L$ & $e_M$ & $e_H$ & $g_H$ \\\midrule']
+        for method,n in SETTINGS+[(b,1) for b in BASELINES]:
+            for e in ([False,True] if method in ['FM4PDE','DiffusionPDE'] else [False]):
+                loss='F' if (method=='FM4PDE')!=e else 'D'
+                row=[method,f'{n} / $L_{loss}$' if n>1 else '---']
+                for band,metric in [('low','relative_error'),('mid','relative_error'),('high','relative_error'),('high','global_normalized_error')]:
+                    values=band_values.get((t,f,method,n,e,'8/32',band,metric),{})
+                    assert len(values) in [0,32] or args.preview
+                    row.append(display(summarize(list(values.values())),100))
+                band_tex.append(' & '.join(row)+r' \\')
+        band_tex += [r'\bottomrule\end{tabular}\end{table}']
+    if args.preview:band_tex.insert(0,'% INCOMPLETE ENGINEERING PREVIEW: not a manuscript result.')
+    (args.output/'ns_frequency_tables.tex').write_text('\n'.join(band_tex)+'\n')
     plt.rcParams.update({'font.size':12,'axes.labelsize':12,'axes.titlesize':12,'axes.spines.top':False,'axes.spines.right':False})
     font=use_times_new_roman();outputs=[]
     def save(fig,name):
@@ -153,12 +193,15 @@ def main():
                 pred=fields[key] if key in fields else None
                 assert pred is not None or args.preview
                 loss='F' if (method=='FM4PDE')!=e else 'D'
-                names.append(f'{method} {n}\n$L_{loss}$');preds.append(pred);meta.append((method,n,e))
+                names.append(f'{method}\n{n} steps · $L_{loss}$');preds.append(pred);meta.append((method,n,e))
         actual=[v for v in preds if v is not None];vmax=max(np.max(np.abs(v)) for v in [truth]+actual)
         emax=max([np.max(np.abs(v-truth)) for v in actual]+[1e-12])
-        fig,axes=plt.subplots(2,7,figsize=(10,4.4),layout='constrained')
+        fig,axes=plt.subplots(2,7,figsize=(8.5,4.4),layout='constrained')
         im=axes[0,0].imshow(truth,origin='lower',cmap='RdBu_r',vmin=-vmax,vmax=vmax);axes[0,0].set_title('Ground truth',fontsize=10)
-        axes[1,0].imshow(fields[f'{task}_mask_{field}'],origin='lower',cmap='Greys',vmin=0,vmax=1);axes[1,0].set_title('Observed mask',fontsize=10)
+        observed_field='a' if task=='forward' else 'u' if task=='inverse' else field
+        observed_mask=fields[f'{task}_mask_{observed_field}'];assert int(observed_mask.sum())==500
+        axes[1,0].imshow(observed_mask,origin='lower',cmap='Greys',vmin=0,vmax=1)
+        axes[1,0].set_title(f'Observed ${observed_field}$\n500 locations',fontsize=10)
         gt_residual=np.sqrt(float(next(r for r in reference_rows if int(r['sample_id'])==ids[0])['fm_residual_mse_f64']))
         axes[1,0].set_xlabel(f'True-pair $R_F$\n{gt_residual:.4f}',fontsize=10)
         err=None
@@ -177,7 +220,7 @@ def main():
         for ax in axes.flat:ax.set_xticks([]);ax.set_yticks([])
         fig.colorbar(im,ax=axes[0,:],orientation='horizontal',shrink=.65,aspect=45)
         if err is not None:fig.colorbar(err,ax=axes[1,1:],orientation='horizontal',shrink=.7,aspect=45)
-        fig.suptitle(f'NS {task_label} · {field_label} · predeclared input {ids[0]}, seed 0\nTop: truth and prediction; bottom: absolute error; shared scales within rows',fontsize=12)
+        fig.suptitle(f'NS {task_label} · {field_label} · predeclared input {ids[0]}, seed 0\nTop: truth and prediction; bottom: sensor mask and absolute errors',fontsize=11)
         save(fig,f'ns_loss_fields_{task}_{field}')
     write(args.output/'ns_report_manifest.json',dict(status='preview' if args.preview else 'complete',calls_verified=m['calls_verified'],
         protocol_sha256=m['protocol_sha256'],audit_manifest_sha256=sha(args.audit/'ns_audit_manifest.json'),font_path=font,

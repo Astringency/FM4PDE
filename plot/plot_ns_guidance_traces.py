@@ -61,7 +61,8 @@ def main():
                 ci=paired_bootstrap(vals)
                 summary_rows.append(dict(task=task,method=method,steps=n,exchange=e,n=32,
                     mean_active_component_ratio=float(vals.mean()),sd_active_component_ratio=float(vals.std(ddof=1)),ci_low=float(ci[0]),ci_high=float(ci[1])))
-            ax.set(yscale='log',xlim=(.77,1.0),title=f'{method}, {n} steps · {task}')
+            task_label='joint' if task=='both' else task
+            ax.set(yscale='log',xlim=(.77,1.0),title=f'{method}, {n} steps · {task_label}')
             if row==2:ax.set_xlabel('Step index / step budget')
             if col==0:ax.set_ylabel('Weighted component-norm ratio')
             ax.grid(alpha=.2);ax.legend(frameon=False,fontsize=10)
