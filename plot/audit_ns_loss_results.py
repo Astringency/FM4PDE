@@ -129,13 +129,31 @@ def main():
         for worker in range(4):
             meta_path=args.results/f'acceleration_worker_{worker}.json'
             env_path=args.results/f'acceleration_environment_{worker}.json'
-            if args.require_complete:
+            pilot_path=args.results/f'pilot_{worker}.json'
+            if args.require_complete or meta_path.exists():
                 meta=json.loads(meta_path.read_text());env=json.loads(env_path.read_text())
                 assert meta['plan_sha256']==sha(plan_path) and meta['scheduler_sha256']==acceleration['scheduler_sha256']
                 assert meta['native_driver_sha256']==protocol['code_sha256']['plot/run_ns_loss_study.py']
                 assert meta['shard']==worker and meta['assigned_slots']==432 and meta['pid']==env['pid']
-                assert env['protocol_sha256']==ph
+                assert meta['shards']==4 and meta['initial_pending']==acceleration['pending_counts'][worker]
+                assert env['protocol_sha256']==ph and env['host']==meta['host']
+                assert env['visible_devices']==meta['visible_devices']==str(worker%2)
+                expected_gpu='RTX 4090' if worker<2 else 'A100'
+                assert expected_gpu in env['gpu']
+                if worker<2:
+                    legacy=acceleration['legacy_environment'][str(worker)]
+                    assert all(env[k]==legacy[k] for k in ['uuid','gpu','torch','cuda','native_arithmetic'])
+                pilot=json.loads(pilot_path.read_text())
+                assert pilot['status']=='pass' and pilot['protocol_sha256']==ph
+                assert {(c['method'],c['exchange']) for c in pilot['checks']}=={(m,e) for m in ['FM4PDE','DiffusionPDE'] for e in [False,True]}
+                assert len(pilot['checks'])==4
+                for check in pilot['checks']:
+                    assert check['sample_id'] not in source['evaluation_ids']
+                    assert check['repeat']==check['hidden']==0 and check['sensitivity']>0
+                    if check['method']=='FM4PDE' and not check['exchange']:assert check['original_runner']==0
+                    if check['method']=='DiffusionPDE':assert check['diagnostic_reference']==0
                 native_hashes[str(meta_path)]=sha(meta_path);native_hashes[str(env_path)]=sha(env_path)
+                native_hashes[str(pilot_path)]=sha(pilot_path)
     ids=source['evaluation_ids'];seeds=source['inference_seeds'];assert len(ids)==32 and seeds==[0,1,2]
     expected={(t,m,n,e,i,s) for t in TASKS for m,n,e in VARIANTS for i in ids for s in seeds}
     assert len(expected)==1728
