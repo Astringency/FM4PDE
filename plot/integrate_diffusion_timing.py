@@ -21,8 +21,9 @@ def main():
 \label{sec:diffusion-fm-timing}
 
 Figure~\ref{fig:diffusion-fm-timing} compares single-sample sampling time at
-100 and 1,000 steps. Each of the 20 settings uses the same 20 preselected
-Smooth inputs, yielding 400 timed calls. For each PDE, both methods run on
+100 and 1,000 steps. Within each PDE, all four method--budget settings
+use the same 20 preselected Smooth inputs, yielding 400 timed calls across
+five PDEs. For each PDE, both methods run on
 the same physical RTX 4090 with common observations and masks, batch size
 one, float32 arithmetic, and a full warm-up per method and budget. Calls
 are interleaved in a predeclared random order. GPU/process telemetry checks
