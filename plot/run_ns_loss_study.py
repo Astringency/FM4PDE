@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from ns_loss_exchange import build_native_diffusion, diffusion_pde_loss, fm_exchange, fm_pde_loss
 
 TASKS = ['forward', 'inverse', 'both']
-VARIANTS = [(method, steps, exchange) for method, steps in [('FM4PDE', 100), ('DiffusionPDE', 100), ('DiffusionPDE', 1000)] for exchange in [False, True]]
+VARIANTS = [[method, steps, exchange] for method, steps in [('FM4PDE', 100), ('DiffusionPDE', 100), ('DiffusionPDE', 1000)] for exchange in [False, True]]
 
 
 def sha(path):
