@@ -35,6 +35,13 @@ def main():
     assert len(expected)==1728
     statuses=Counter();seen=set();metrics=[];spectra=[];traces=[];hashes={};examples={}
     params={k:torch.tensor([v],dtype=torch.float64) for k,v in source['pde_params'].items()}
+    reference_residuals=[]
+    for i in ids:
+        a,u=[torch.from_numpy(data[f'{f}_{i}']).double() for f in ['a','u']]
+        cfg=AblationConfig(**source['fm_configs']['both'])
+        with torch.no_grad():
+            reference_residuals.append(dict(sample_id=i,fm_residual_mse_f64=float(fm_pde_loss(a,u,cfg,params)),
+                diffusion_spatial_loss_f64=float(diffusion_pde_loss(a,u))))
     def convert(x):
         if isinstance(x,np.ndarray):return x.tolist()
         if isinstance(x,np.generic):return x.item()
@@ -78,6 +85,7 @@ def main():
             row[f'rel_l2_{f}']=rel;row[f'obs_rel_l2_{f}']=float(((pred-gt)*mask).norm()/(gt*mask).norm()) if bool(mask.any()) else None
             spec=spectral_record(pred[0,0].numpy(),gt[0,0].numpy(),'periodic_fft')
             assert np.isclose(spec['rel_l2'],rel,rtol=2e-12)
+            spec['sensitivity_bands']={f'{lo}/{hi}':spectral_record(pred[0,0].numpy(),gt[0,0].numpy(),'periodic_fft',(lo,hi))['bands'] for lo,hi in [(4,16),(16,48)]}
             spectra.append(dict(**{k:row[k] for k in ['task','method','steps','exchange','sample_id','seed']},field=f,**spec))
             if i==ids[0] and s==0:
                 tag=f'{t}_{m}_{n}_{int(e)}_{f}'
@@ -85,6 +93,7 @@ def main():
         metrics.append(row)
         assert len(d['trace'])==n and [x['step'] for x in d['trace']]==list(range(n))
         c=source['fm_configs'][t] if m=='FM4PDE' else source['diffusion_configs'][f'{t}_{n}']['config']['generate']
+        if m=='FM4PDE':assert c['guidance_schedule']=='constant' and c['guidance_operator']=='current'
         za,zu=float(c['zeta_obs_a']),float(c['zeta_obs_u'])
         if t=='forward':zu=0.
         if t=='inverse':za=0.
@@ -115,6 +124,7 @@ def main():
                 for j,f in enumerate(fields):
                     pred=d['prediction'][0,j].double().numpy();truth=d['truth'][0,j].double().numpy()
                     spec=spectral_record(pred,truth,'periodic_fft');assert np.isclose(spec['rel_l2'],r['relative_l2'][j],rtol=2e-12)
+                    spec['sensitivity_bands']={f'{lo}/{hi}':spectral_record(pred,truth,'periodic_fft',(lo,hi))['bands'] for lo,hi in [(4,16),(16,48)]}
                     meta=dict(task=t,method={'recfno':'RecFNO','senseiver':'Senseiver','voronoicnn':'VoronoiCNN'}[m],steps=1,exchange=False,sample_id=i,seed=0,field=f)
                     spectra.append(dict(**meta,**spec));baseline_rows.append(dict(**meta,rel_l2=spec['rel_l2']))
                     if i==ids[0]:examples[f'{t}_{meta["method"]}_1_0_{f}']=pred
@@ -123,7 +133,7 @@ def main():
         assert complete, f'Only {len(seen)}/1728 calls have completed'
         for shard in [0,1]:
             rr=json.loads((args.results/f'complete_{shard}.json').read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=864)
-    for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows)]:
+    for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows),('ns_reference_residuals.csv',reference_residuals)]:
         with (args.output/name).open('w',newline='') as f:
             w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
     for name,rows in [('ns_frequency_records.json.gz',spectra),('ns_guidance_traces.json.gz',traces)]:
@@ -131,7 +141,7 @@ def main():
     np.savez_compressed(args.output/'ns_example_fields.npz',**examples)
     write(args.output/'ns_audit_manifest.json',dict(status='complete' if complete else 'partial',calls_verified=len(seen),expected_calls=1728,
         outcome_counts=dict(statuses),finite_predictions=len(metrics),baseline_predictions_verified=288,baseline_field_metrics=len(baseline_rows),
-        protocol_sha256=ph,baseline_protocol_sha256=bh,source_hashes=hashes,checks=self_check(),script_sha256=sha(Path(__file__)),
+        protocol_sha256=ph,baseline_protocol_sha256=bh,source_sha256=sha(args.inputs/'source.json'),source_hashes=hashes,checks=self_check(),script_sha256=sha(Path(__file__)),
         scope='Prediction hashes, native arithmetic, source truths/masks, NFE, independent physical errors, both PDE scalars in float64, and exact Fourier Parseval decomposition. Partial results cannot enter final loss-exchange comparisons.',
         trace_ratio='Norm of weighted PDE component divided by sum of norms of weighted observation components; not the norm ratio of summed vectors and not a direct update-size ratio.',
         outputs={f.name:sha(f) for f in args.output.iterdir() if f.name!='ns_audit_manifest.json' and f.is_file()}))
