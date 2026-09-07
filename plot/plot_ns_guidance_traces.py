@@ -20,6 +20,7 @@ def main():
     assert manifest['status']=='complete' and manifest['calls_verified']==1728
     assert manifest['outcome_counts']=={'complete':1728}
     assert manifest['recipient_guidance_traces_verified']==1728
+    assert manifest['trace_weighting_schema']=='recipient_update_v2'
     path=args.audit/'ns_guidance_traces.json.gz';assert sha(path)==manifest['outputs'][path.name]
     args.output.mkdir(parents=True,exist_ok=True)
     with gzip.open(path,'rt') as f:rows=json.load(f)
@@ -79,7 +80,8 @@ def main():
     write(args.output/'ns_guidance_plot_manifest.json',dict(status='complete',calls_verified=1728,font_path=font,
         audit_manifest_sha256=sha(manifest_path),trace_source_sha256=sha(path),script_sha256=sha(Path(__file__)),
         dependency_sha256={name:sha(Path(__file__).parent/name) for name in ['publication_style.py','spectral_diagnostics.py']},
-        definition='Weighted PDE-component norm divided by the sum of weighted observation-component norms before common global clipping; not a norm of summed vectors or final updates.',
+        trace_weighting_schema=manifest['trace_weighting_schema'],
+        definition='Weighted PDE-component norm divided by the sum of weighted observation-component norms including the native late DiffusionPDE observation multiplier 0.1; before common global clipping and not a norm of summed vectors or final updates.',
         uncertainty='Plot: pointwise median and IQR across 32 seed-averaged inputs. Summary CSV: mean, SD and 95% paired-input bootstrap interval for the active-step mean.',
         outputs={f.name:sha(f) for f in args.output.iterdir() if f.is_file() and f.name!='ns_guidance_plot_manifest.json'}))
 

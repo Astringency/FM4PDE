@@ -5,6 +5,7 @@ No new sampling, result selection, or modification of source receipts occurs.
 """
 from __future__ import annotations
 import argparse
+import ast
 from collections import Counter
 import csv,gzip,json
 from pathlib import Path
@@ -14,6 +15,37 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from run_ns_loss_study import sha,write,TASKS,VARIANTS
 from ns_loss_exchange import fm_pde_loss,diffusion_pde_loss
 from spectral_diagnostics import spectral_record,self_check
+
+
+def verify_native_update_weights(path):
+    """Extract observation/PDE coefficients from the frozen native updates."""
+    tree=ast.parse(path.read_text())
+    gates=[node for node in ast.walk(tree) if isinstance(node,ast.If)
+           and ast.unparse(node.test)=='i <= 0.8 * num_steps']
+    assert len(gates)==1,path
+    weights=[]
+    for branch in [gates[0].body,gates[0].orelse]:
+        updates=[node.value for node in branch if isinstance(node,ast.Assign)
+                 and any(isinstance(t,ast.Name) and t.id=='x_next' for t in node.targets)]
+        assert len(updates)==1,path
+        expression=updates[0]
+        assert all(isinstance(node,(ast.BinOp,ast.Name,ast.Constant,ast.Load,
+                                    ast.Add,ast.Sub,ast.Mult)) for node in ast.walk(expression))
+        names=['grad_x_cur_obs_a','grad_x_cur_obs_u','grad_x_cur_pde']
+        coefficients=[]
+        for active in names:
+            values=dict(x_next=0.,zeta_obs_a=1.,zeta_obs_u=1.,zeta_pde=1.,
+                        **{name:float(name==active) for name in names})
+            coefficients.append(-float(eval(compile(ast.Expression(expression),str(path),'eval'),
+                                             {'__builtins__':{}},values)))
+        weights.append(coefficients)
+    assert weights==[[1.,1.,0.],[.1,.1,1.]],(path,weights)
+    return dict(early=weights[0],late=weights[1],order=['obs_a','obs_u','pde'],
+                condition='early: i <= 0.8 * num_steps; late: i > 0.8 * num_steps')
+
+
+def observation_update_factor(method, steps, step):
+    return .1 if method=='DiffusionPDE' and step>0.8*steps else 1.
 
 
 def verify_guidance_trace(points, task, method, steps, config):
@@ -48,12 +80,13 @@ def verify_guidance_trace(points, task, method, steps, config):
     if task=='inverse':za=0.
     if za==0:assert all(p['obs_a_gradient_norm']==0 for p in points)
     if zu==0:assert all(p['obs_u_gradient_norm']==0 for p in points)
-    obs=za*values[:,4]+zu*values[:,5]
+    obs=np.asarray([observation_update_factor(method,steps,p['step']) for p in points])*(za*values[:,4]+zu*values[:,5])
     pde=values[:,-1]*values[:,3]
     assert np.isfinite(obs).all() and np.isfinite(pde).all()
     assert (obs[active]>0).all(), 'Active physical/observation ratios must be defined.'
     assert np.isfinite(pde[active]/obs[active]).all()
-    return dict(first_active_step=int(np.flatnonzero(active)[0]),active_steps=int(active.sum()))
+    return dict(first_active_step=int(np.flatnonzero(active)[0]),active_steps=int(active.sum()),
+                active_observation_update_factor=observation_update_factor(method,steps,steps-1))
 
 
 def main():
@@ -70,10 +103,43 @@ def main():
     protocol=json.loads((args.results/'protocol.json').read_text());ph=sha(args.results/'protocol.json')
     assert protocol['source_sha256']==sha(args.inputs/'source.json')
     for name,digest in protocol['code_sha256'].items():assert sha(ROOT/name)==digest,name
+    native=args.results/'generate_ns_nonbounded_frozen.py'
+    assert sha(native)==protocol['diffusion_source_sha256']
+    native_weights=verify_native_update_weights(native)
+    native_hashes={str(native):sha(native)}
+    for exchange in [0,1]:
+        for diagnostics in [0,1]:
+            path=args.results/f'diffusion_exchange{exchange}_diagnostics{diagnostics}.py'
+            assert verify_native_update_weights(path)==native_weights
+            native_hashes[str(path)]=sha(path)
+    acceleration=None
+    plan_path=args.results/'acceleration_plan.json'
+    if plan_path.exists():
+        from ns_acceleration import validate_plan
+        acceleration=json.loads(plan_path.read_text())
+        validate_plan(acceleration,source)
+        assert acceleration['protocol_sha256']==ph
+        assert acceleration['source_sha256']==sha(args.inputs/'source.json')
+        assert acceleration['scheduler_sha256']==sha(ROOT/'plot/ns_acceleration.py')
+        native_hashes[str(plan_path)]=sha(plan_path)
+        for key,old in acceleration['initial_completed'].items():
+            path=args.results/'results'/key
+            assert sha(path.with_suffix('.json'))==old['receipt_sha256']
+            assert sha(path.with_suffix('.pt'))==old['prediction_sha256']
+        for worker in range(4):
+            meta_path=args.results/f'acceleration_worker_{worker}.json'
+            env_path=args.results/f'acceleration_environment_{worker}.json'
+            if args.require_complete:
+                meta=json.loads(meta_path.read_text());env=json.loads(env_path.read_text())
+                assert meta['plan_sha256']==sha(plan_path) and meta['scheduler_sha256']==acceleration['scheduler_sha256']
+                assert meta['native_driver_sha256']==protocol['code_sha256']['plot/run_ns_loss_study.py']
+                assert meta['shard']==worker and meta['assigned_slots']==432 and meta['pid']==env['pid']
+                assert env['protocol_sha256']==ph
+                native_hashes[str(meta_path)]=sha(meta_path);native_hashes[str(env_path)]=sha(env_path)
     ids=source['evaluation_ids'];seeds=source['inference_seeds'];assert len(ids)==32 and seeds==[0,1,2]
     expected={(t,m,n,e,i,s) for t in TASKS for m,n,e in VARIANTS for i in ids for s in seeds}
     assert len(expected)==1728
-    statuses=Counter();seen=set();metrics=[];spectra=[];traces=[];hashes={};examples={};trace_checks=[]
+    statuses=Counter();seen=set();metrics=[];spectra=[];traces=[];hashes=dict(native_hashes);examples={};trace_checks=[]
     params={k:torch.tensor([v],dtype=torch.float64) for k,v in source['pde_params'].items()}
     reference_residuals=[]
     for i in ids:
@@ -139,9 +205,11 @@ def main():
         if t=='forward':zu=0.
         if t=='inverse':za=0.
         for point in d['trace']:
-            obs=za*point['obs_a_gradient_norm']+zu*point['obs_u_gradient_norm']
+            factor=observation_update_factor(m,n,point['step'])
+            obs=factor*(za*point['obs_a_gradient_norm']+zu*point['obs_u_gradient_norm'])
             pde=point['zeta_pde']*point['pde_gradient_norm']
             traces.append(dict(**{k:row[k] for k in ['task','method','steps','exchange','sample_id','seed']},**point,
+                observation_update_factor=factor,effective_zeta_obs_a=factor*za,effective_zeta_obs_u=factor*zu,
                 weighted_pde_norm=pde,sum_weighted_observation_norms=obs,component_norm_ratio=pde/obs if obs>0 else None))
     baseline_protocol=json.loads((args.baselines/'protocol.json').read_text());bh=sha(args.baselines/'protocol.json')
     assert baseline_protocol['source_sha256']==sha(args.inputs/'source.json') and baseline_protocol['tf32'] is False
@@ -172,8 +240,8 @@ def main():
     complete=seen==expected
     if args.require_complete:
         assert complete, f'Only {len(seen)}/1728 calls have completed'
-        for shard in [0,1]:
-            rr=json.loads((args.results/f'complete_{shard}.json').read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=864)
+        for shard in range(4 if acceleration else 2):
+            rr=json.loads((args.results/f'complete_{shard}.json').read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=432 if acceleration else 864)
     for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows),('ns_reference_residuals.csv',reference_residuals),('ns_trace_checks.csv',trace_checks)]:
         with (args.output/name).open('w',newline='') as f:
             w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
@@ -183,10 +251,13 @@ def main():
     write(args.output/'ns_audit_manifest.json',dict(status='complete' if complete else 'partial',calls_verified=len(seen),expected_calls=1728,
         outcome_counts=dict(statuses),finite_predictions=len(metrics),baseline_predictions_verified=288,baseline_field_metrics=len(baseline_rows),
         recipient_guidance_traces_verified=len(trace_checks),
+        trace_weighting_schema='recipient_update_v2',native_diffusion_update_weights=native_weights,
+        acceleration_plan_sha256=sha(plan_path) if acceleration else None,
+        acceleration_initial_results_preserved=len(acceleration['initial_completed']) if acceleration else None,
         guidance_trace_checks='Finite nonnegative scalar/norm records, exact original recipient PDE gates and weights, absent-observation zero gradients, FM clipping bounds, and defined finite active component ratios. Does not independently reconstruct neural gradients.',
         protocol_sha256=ph,baseline_protocol_sha256=bh,source_sha256=sha(args.inputs/'source.json'),source_hashes=hashes,checks=self_check(),script_sha256=sha(Path(__file__)),
         scope='Prediction hashes, native arithmetic, source truths/masks, NFE, independent physical errors, both PDE scalars in float64, and exact Fourier Parseval decomposition. Partial results cannot enter final loss-exchange comparisons.',
-        trace_ratio='Norm of weighted PDE component divided by sum of norms of weighted observation components; not the norm ratio of summed vectors and not a direct update-size ratio.',
+        trace_ratio='Norm of weighted PDE component divided by sum of norms of weighted observation components, including the native late DiffusionPDE observation factor 0.1; not the norm ratio of summed vectors and not a direct update-size ratio.',
         outputs={f.name:sha(f) for f in args.output.iterdir() if f.name!='ns_audit_manifest.json' and f.is_file()}))
     print(json.dumps(dict(status='complete' if complete else 'partial',calls=len(seen),outcomes=dict(statuses),baselines=288)))
 
