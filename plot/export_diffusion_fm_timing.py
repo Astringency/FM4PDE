@@ -83,7 +83,7 @@ def main():
    bars=ax.bar(x+(j-.5)*.34,means,width=.32,yerr=sd,color=['#28628F','#BF6634'][j],label=method,capsize=4,error_kw={'elinewidth':1,'capthick':1},zorder=3)
    ceiling=max(r['mean_seconds']+r['sd_seconds'] for r in summary if r['steps']==n)
    for b,m,s in zip(bars,means,sd):ax.text(b.get_x()+b.get_width()/2,m+s+.025*ceiling,f'{m:.2f} s',ha='center',va='bottom',fontsize=9)
-  ax.set_ylim(0,ceiling*1.21);ax.set_xticks(x,LABELS);ax.set_ylabel('Time per sample (s)')
+  ax.set_ylim(0,ceiling*(1.30 if n==100 else 1.21));ax.set_xticks(x,LABELS);ax.set_ylabel('Time per sample (s)')
   ax.set_title(f'{n:,} sampling steps  ·  NFE: FM4PDE {n:,}, DiffusionPDE {2*n-1:,}',loc='left',fontsize=11,pad=10)
   ax.grid(axis='y',alpha=.25,zorder=0);ax.set_axisbelow(True)
  axes[0].legend(loc='upper left',frameon=False,ncols=2)
