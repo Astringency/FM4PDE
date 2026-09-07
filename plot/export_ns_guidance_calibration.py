@@ -114,9 +114,19 @@ def main():
            r'\label{tab:ns-calibration}', r'\begin{tabular}{@{}lrrr@{}}\toprule',
            r'Method / estimator & Forward & Inverse & Joint \\\midrule']
     entries = [('FM original / single', 'reference', 'single'), ('FM selected / single', 'selected', 'single'),
-               ('FM selected / mean3', 'selected', 'mean3')] + [(m, m, 'deterministic') for m in BASELINES]
+               ('FM original / mean3', 'reference', 'mean3'), ('FM selected / mean3', 'selected', 'mean3')]
+    entries += [(m, m, 'deterministic') for m in BASELINES]
     for label, variant, estimator in entries:
         tex.append(label + ' & ' + ' & '.join(number(stat(t, variant, estimator)) for t in TASKS) + r' \\')
+    tex += [r'\bottomrule\end{tabular}\end{table}',
+            r'\begin{table}[!htbp]\centering\footnotesize\setlength{\tabcolsep}{4pt}',
+            r'\caption{Field-specific errors for the same NS guidance evaluation (\%, mean $\pm$ SD across complete inputs). The two joint fields are scored separately here, so changes in the larger-error selection score cannot conceal a tradeoff between fields. Single averages three individual seed errors within each input; mean3 scores the average of three predicted fields.}',
+            r'\label{tab:ns-calibration-fields}', r'\begin{tabular}{@{}lrrrr@{}}\toprule',
+            r'Method / estimator & Forward $e_u$ & Inverse $e_a$ & Joint $e_a$ & Joint $e_u$ \\\midrule']
+    for label, variant, estimator in entries:
+        cells = [number(stat(task, variant, estimator, 'rel_l2_' + field))
+                 for task, field in [('forward', 'u'), ('inverse', 'a'), ('both', 'a'), ('both', 'u')]]
+        tex.append(label + ' & ' + ' & '.join(cells) + r' \\')
     tex += [r'\bottomrule\end{tabular}\end{table}',
             r'\begin{table}[!htbp]\centering\footnotesize',
             r'\caption{All NS calibration-evaluation outcomes. Finite counts include arbitrarily large finite errors; no error threshold is applied. Complete inputs have three finite inference seeds. The 540 grid calls and their candidate-level outcomes are reported in the accompanying source data.}',
@@ -211,20 +221,41 @@ def main():
     for r in frequency:
         meta = {k: r[k] for k in ['task', 'variant', 'estimator', 'field', 'sample_id', 'seed']}
         for cutoffs, bands in [('8/32', r['bands'])] + list(r['sensitivity_bands'].items()):
-            for band, metrics in bands.items():
+            for band, raw_metrics in bands.items():
+                metrics = dict(raw_metrics)
+                energy_ratio = metrics['predicted_reference_energy_ratio']
+                metrics['absolute_energy_ratio_mismatch'] = abs(energy_ratio - 1) if energy_ratio is not None else None
+                metrics['global_normalized_error'] = float(np.sqrt(metrics['global_error_contribution']))
                 band_rows.append(dict(**meta, cutoffs=cutoffs, band=band, **metrics))
-                for metric in ['relative_error', 'predicted_reference_energy_ratio', 'global_error_contribution', 'reference_fraction']:
+                for metric in ['relative_error', 'predicted_reference_energy_ratio', 'global_error_contribution',
+                               'reference_fraction', 'absolute_energy_ratio_mismatch', 'global_normalized_error']:
                     if metrics[metric] is not None:
                         band_groups[r['task'], r['variant'], r['estimator'], r['field'], cutoffs, band, metric, r['sample_id']].append(metrics[metric])
-    band_values = defaultdict(list)
+    band_values = defaultdict(dict)
     for key, vv in band_groups.items():
         expected_seeds = 3 if key[2] == 'single' else 1
         if len(vv) == expected_seeds:
-            band_values[key[:-1]].append(float(np.mean(vv)))
+            band_values[key[:-1]][key[-1]] = float(np.mean(vv))
     band_summary = [dict(zip(['task', 'variant', 'estimator', 'field', 'cutoffs', 'band', 'metric'], key),
-                         **summarize(vv)) for key, vv in band_values.items()]
+                         **summarize(list(vv.values()))) for key, vv in band_values.items()]
+    band_effects = []
+    for (task, variant, estimator, field, cutoffs, band, metric), selected in band_values.items():
+        if variant != 'selected':
+            continue
+        comparisons = [('reference', estimator)] + [(m, 'deterministic') for m in BASELINES]
+        if estimator == 'mean3':
+            comparisons.append(('selected', 'single'))
+        for comparator, other_estimator in comparisons:
+            other = band_values.get((task, comparator, other_estimator, field, cutoffs, band, metric), {})
+            common = sorted(selected.keys() & other.keys())
+            if common:
+                band_effects.append(dict(task=task, variant=variant, estimator=estimator, field=field,
+                                         cutoffs=cutoffs, band=band, metric=metric, comparator=comparator,
+                                         comparator_estimator=other_estimator,
+                                         **summarize([selected[i] - other[i] for i in common])))
     csvwrite(args.output / 'guidance_frequency_per_call.csv', band_rows)
     csvwrite(args.output / 'guidance_frequency_summary.csv', band_summary)
+    csvwrite(args.output / 'guidance_frequency_paired_effects.csv', band_effects)
     settings = [('reference', 'single', 'Original FM (100)'), ('selected', 'single', 'Selected FM (100)'),
                 ('selected', 'mean3', 'Selected FM (3 × 100)')] + [(m, 'deterministic', m) for m in BASELINES]
     colors = ['#256493', '#aa4b32', '#c3943b', '#5a8055', '#805f95', '#697c85']

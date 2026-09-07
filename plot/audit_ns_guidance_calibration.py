@@ -226,14 +226,27 @@ def main():
                 for seed in reference.keys() & selected.keys():
                     assert all(torch.equal(x, y) for x, y in zip(reference[seed], selected[seed])), (task, i, seed)
                     identical_control_pairs += 1
+    evaluation_scores = {(r['task'], r['variant'], r['sample_id'], r['seed']): r
+                         for r in rows if r['stage'] == 'evaluation' and r['status'] == 'complete'}
     ensemble_rows = []
+    convexity_checks = 0
     for (task, variant, i), values in ensemble.items():
         if len(values) != 3:
             continue  # Full report separately retains failed/missing seed counts.
         assert {s for s, _ in values} == {0, 1, 2}
         pred = [torch.stack([v[j] for _, v in values]).mean(0) for j in [0, 1]]
         gt, masks = truth_masks(task, i)
-        ensemble_rows.append(dict(task=task, variant=variant, sample_id=i, calls=3, **score(pred, gt, masks, task)))
+        mean_values = score(pred, gt, masks, task)
+        # Relative norms and their maximum are convex in the predicted fields.
+        # This checks the field-average estimator against an independent
+        # mathematical bound, including the joint per-call maximum convention.
+        for metric in ['rel_l2_a', 'rel_l2_u', 'primary_error', 'obs_rel_l2_a', 'obs_rel_l2_u']:
+            if mean_values[metric] is None:
+                continue
+            seed_mean = np.mean([evaluation_scores[task, variant, i, s][metric] for s in seeds])
+            assert mean_values[metric] <= seed_mean + 1e-12 * max(1., seed_mean), (task, variant, i, metric)
+        convexity_checks += 1
+        ensemble_rows.append(dict(task=task, variant=variant, sample_id=i, calls=3, **mean_values))
         add_spectra(pred, gt, dict(task=task, variant=variant, sample_id=i, seed=-1, estimator='mean3'))
 
     # The baseline part of this separate audit is already complete, even while
@@ -285,6 +298,7 @@ def main():
                     protocol_sha256=ph, selection_sha256=sh, selected=selection['selected'] if selection else None,
                     selection_independently_verified=bool(selection), source_sha256=protocol['source_sha256'],
                     identical_setting_prediction_pairs_verified=identical_control_pairs,
+                    ensemble_convexity_checked_groups=convexity_checks,
                     source_hashes=hashes, baseline_prediction_hashes=baseline_hashes,
                     baseline_audit_sha256=sha(args.baseline_audit / 'ns_audit_manifest.json'),
                     environment=environment, spectral_checks=self_check(), script_sha256=sha(Path(__file__)),
