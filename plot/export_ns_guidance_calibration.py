@@ -212,7 +212,7 @@ def main():
                xlabel='Selected FM − comparator (pp)', title='Joint' if task == 'both' else task.capitalize())
         ax.invert_yaxis()
         ax.grid(axis='x', alpha=.2)
-    fig.suptitle('Paired primary-error difference · 32 evaluation inputs\nPoints: input means; bars: 95% paired-bootstrap CI; negative favors selected FM', fontsize=12)
+    fig.suptitle('Paired primary-error difference · 32 evaluation inputs\nPoints: mean differences; bars: 95% paired-bootstrap CI; negative favors selected FM', fontsize=12)
     save(fig, 'ns_guidance_paired_effects')
 
     with gzip.open(args.audit / 'calibration_spectra.json.gz', 'rt') as f:
