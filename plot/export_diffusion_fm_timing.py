@@ -49,8 +49,10 @@ def main():
      uuid=r['uuid'];uuids.add(uuid)
      if uuid not in telemetry:
       telemetry[uuid]=[json.loads(x) for x in (args.results/f'telemetry_{uuid}.jsonl').read_text().splitlines()]
-     samples=[x for x in telemetry[uuid] if r['start_monotonic']<=x['monotonic']<=r['end_monotonic']]
-     assert samples and all(not s['foreign'] for s in samples),(pde,stem,'telemetry')
+     before=max((x for x in telemetry[uuid] if x['monotonic']<=r['start_monotonic']),key=lambda x:x['monotonic'])
+     after=min((x for x in telemetry[uuid] if x['monotonic']>=r['end_monotonic']),key=lambda x:x['monotonic'])
+     samples=[x for x in telemetry[uuid] if before['monotonic']<=x['monotonic']<=after['monotonic']]
+     assert len(samples)>=3 and all(not s['foreign'] for s in samples),(pde,stem,'telemetry including call boundaries')
      rows.append(r);all_rows.append(r)
     assert len(rows)==20 and len({r['sample_id'] for r in rows})==20
     x=np.array([r['seconds'] for r in rows])
@@ -94,7 +96,7 @@ def main():
   lines.append(label.replace('–','--')+' & '+' & '.join(f"${r['mean_seconds']:.3f} \\pm {r['sd_seconds']:.3f}$" for r in rr)+r' \\')
  lines.extend([r'\bottomrule\end{tabular}',r'\end{table}'])
  p=source/'diffusion_fm_timing_table.tex';p.write_text('\n'.join(lines)+'\n');output_files[str(p.relative_to(args.paper))]=sha(p)
- manifest=dict(protocol_sha256=ph,calls_verified=400,settings_verified=20,examples_per_setting=20,sd_ddof=1,source_prediction_errors_recomputed=True,source_truths_masks_verified=True,telemetry_uncontended=True,outputs=output_files,summary=summary)
+ manifest=dict(exporter_sha256=sha(Path(__file__)),protocol_sha256=ph,calls_verified=400,settings_verified=20,examples_per_setting=20,sd_ddof=1,source_prediction_errors_recomputed=True,source_truths_masks_verified=True,telemetry_uncontended=True,outputs=output_files,summary=summary)
  (source/'diffusion_fm_timing_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  print('AUDITED AND EXPORTED 400 calls, 20 mean/SD settings')
 
