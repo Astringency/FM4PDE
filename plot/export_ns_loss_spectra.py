@@ -101,15 +101,15 @@ def main():
     tex=[]
     for t in TASKS:
         tex += [r'\begin{table}[!htbp]',r'\centering\footnotesize\setlength{\tabcolsep}{3pt}',
-            r'\caption{NS '+('joint' if t=='both' else t)+r' loss exchange on 32 common inputs and three seeds. Field errors are percentages (mean $\pm$ SD over input-level seed averages). $L_F$ is endpoint-secant MSE; $L_D$ is the original directional spatial loss. $R_F$ is mean endpoint-secant RMS and $L_D^{\rm final}$ is the common final spatial diagnostic. Weights and solvers remain fixed within recipient pairs.}',
+            r'\caption{NS '+('joint' if t=='both' else t)+r' loss exchange on 32 common inputs and three seeds. All metrics are mean $\pm$ SD over input-level seed averages. Field errors are percentages. $L_F$ is endpoint-secant MSE; $L_D$ is the archived directional spatial loss. $R_F$ is endpoint-secant RMS and $L_D^{\rm final}$ is the final spatial diagnostic; their columns rescale both means and SDs as indicated. Weights and solvers remain fixed within recipient pairs.}',
             r'\label{tab:ns-loss-'+t+'}',r'\begin{tabular}{@{}llrrrrr@{}}\toprule',
-            r'Method & Steps / loss & $e_a$ (\%) & $e_u$ (\%) & $R_F$ & $L_D^{\rm final}$ & $n$ \\\midrule']
+            r'Method & Steps / loss & $e_a$ (\%) & $e_u$ (\%) & $10^2 R_F$ & $10^4 L_D^{\rm final}$ & $n$ \\\midrule']
         for method,n in SETTINGS:
             for e in [False,True]:
                 loss='F' if (method=='FM4PDE')!=e else 'D'
                 ra,ru=stat(t,method,n,e,'rel_l2_a'),stat(t,method,n,e,'rel_l2_u')
-                residual=stat(t,method,n,e,'secant_rms')['mean'];spatial=stat(t,method,n,e,'spatial_loss')['mean']
-                vals=[method,f'{n} / $L_{loss}$',display(ra,100),display(ru,100),f'{residual:.4f}' if residual is not None else '---',f'{spatial:.3g}' if spatial is not None else '---',str(ra['n'])]
+                residual=stat(t,method,n,e,'secant_rms');spatial=stat(t,method,n,e,'spatial_loss')
+                vals=[method,f'{n} / $L_{loss}$',display(ra,100),display(ru,100),display(residual,100),display(spatial,10000),str(ra['n'])]
                 tex.append(' & '.join(vals)+r' \\')
         tex += [r'\bottomrule\end{tabular}',r'\end{table}']
     if args.preview:tex.insert(0,'% INCOMPLETE ENGINEERING PREVIEW: not a manuscript result.')
