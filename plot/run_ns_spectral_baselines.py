@@ -53,6 +53,10 @@ def main():
     import numpy as np
     import torch
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
+    torch.backends.cuda.matmul.allow_tf32=False
+    torch.backends.cudnn.allow_tf32=False
+    torch.backends.cudnn.benchmark=False
+    torch.backends.cudnn.deterministic=True
     torch.use_deterministic_algorithms(True)
     source=json.loads((args.inputs/'source.json').read_text())
     assert source['joint_shared_mask'] and sha(args.inputs/'fields_masks.npz')==source['fields_sha256']
@@ -61,7 +65,9 @@ def main():
     protocol=dict(source_sha256=sha(args.inputs/'source.json'),weights_manifest_sha256=sha(args.weights/'source_manifest.json'),
                   runner_sha256=sha(Path(__file__)),baseline_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=args.baseline_root,text=True).strip(),
                   baseline_clean=not subprocess.check_output(['git','status','--porcelain'],cwd=args.baseline_root,text=True),
-                  device=args.device,torch=torch.__version__,examples=32,tasks=['forward','inverse','both'],
+                  device=args.device,torch=torch.__version__,tf32=False,batch_size=1,
+                  gpu=torch.cuda.get_device_name(0) if args.device.startswith('cuda') else None,
+                  examples=32,tasks=['forward','inverse','both'],
                   methods=['recfno','senseiver','voronoicnn'],scope='Task-specific trained baseline checkpoints, exact common physical observations; one deterministic prediction per input; no training or weight selection.')
     assert protocol['baseline_clean']
     args.output.mkdir(parents=True,exist_ok=True)
@@ -79,6 +85,7 @@ def main():
             cls=getattr(importlib.import_module('baselines.methods.'+method),classes[method])
             config=copy.deepcopy(payload['config']);config['device']=args.device
             model=cls().build(config,payload['data_spec'])
+            assert model.backend_used==payload['backend']['backend_used'] and not model.fallback_used
             model.load_state_dict({k:v for k,v in payload['state_dict'].items() if torch.is_tensor(v)},strict=True)
             model.load_payload(payload);model.to(args.device).eval()
 
