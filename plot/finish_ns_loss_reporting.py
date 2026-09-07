@@ -16,7 +16,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--study', type=Path, required=True)
     parser.add_argument('--watch', action='store_true')
+    parser.add_argument('--poll-seconds', type=int, default=60,
+                        help='Seconds between checks for the complete audit (default: 60).')
     args = parser.parse_args()
+    if args.poll_seconds < 1:
+        parser.error('--poll-seconds must be positive')
     args.study.mkdir(parents=True, exist_ok=True)
     audit = args.study / 'ns_complete_audit'
     manifest_path = audit / 'ns_audit_manifest.json'
@@ -37,10 +41,11 @@ def main():
             sampling_path = args.study / 'sampling_progress.json'
             sampling = json.loads(sampling_path.read_text()) if sampling_path.exists() else {}
             record('waiting_for_complete_audit', calls_verified=manifest.get('calls_verified', 0) if manifest else 0,
-                   calls_collected=sampling.get('calls'), expected_calls=1728)
+                   calls_collected=sampling.get('calls'), expected_calls=1728,
+                   poll_seconds=args.poll_seconds)
             if not args.watch:
                 return
-            time.sleep(600)  # Own background tmux; no interactive tool is blocked.
+            time.sleep(args.poll_seconds)  # Own background tmux; no interactive tool is blocked.
             continue
         try:
             # Failed outcomes remain in the audit and require an explicit report
