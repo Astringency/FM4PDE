@@ -73,7 +73,9 @@ def main():
  archive=source/'diffusion_fm_timing_audit.json.gz'
  with gzip.open(archive,'wt') as f:json.dump(dict(audits=audits,receipts=all_rows,telemetry=telemetry,environments=[json.loads(p.read_text()) for p in args.results.glob('environment_*.json')]),f)
  output_files[str(archive.relative_to(args.paper))]=sha(archive)
- plt.rcParams.update({'font.family':'DejaVu Sans','font.size':10,'pdf.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.linewidth':.6,'xtick.labelsize':10,'ytick.labelsize':9})
+ plt.rcParams.update({'font.size':10,'pdf.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.linewidth':.6,'xtick.labelsize':10,'ytick.labelsize':9})
+ from publication_style import use_times_new_roman
+ use_times_new_roman()
  fig,axes=plt.subplots(2,1,figsize=(8.2,6.4),layout='constrained')
  for ax,n in zip(axes,[100,1000]):
   x=np.arange(5)

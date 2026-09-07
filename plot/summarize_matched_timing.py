@@ -120,6 +120,8 @@ def main():
     with gzip.open(args.dest/'matched_timing_receipts.json.gz','wt') as out:json.dump(receipts,out,allow_nan=False)
     plt.rcParams.update({'font.family':'serif','font.size':9,'axes.labelsize':9,'axes.titlesize':10,
                          'pdf.fonttype':42,'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False})
+    from publication_style import use_times_new_roman
+    use_times_new_roman()
     fig,axes=plt.subplots(1,len(args.pdes),figsize=(6.2,3.25),squeeze=False,sharey=True)
     axes=axes[0]
     colors={'fm':'#176c9a','recfno':'#a94b23','senseiver':'#886ab5','voronoicnn':'#487d43','pde_opt':'#555555'}

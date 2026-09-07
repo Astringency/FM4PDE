@@ -81,6 +81,8 @@ def loss_figure():
     rows=read('loss_comparison_verified.csv'); samples=read('loss_holdout_verified.csv')
     plt.rcParams.update({'font.size':9,'axes.titlesize':10,'axes.labelsize':9,'pdf.fonttype':42,
                          'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False})
+    from publication_style import use_times_new_roman
+    use_times_new_roman()
     fig,axes=plt.subplots(1,2,figsize=(7.9,3.0),layout='constrained',sharey=True)
     intervals=[];rng=np.random.default_rng(20260907)
     for y,row in enumerate(rows):

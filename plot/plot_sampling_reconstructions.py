@@ -15,12 +15,14 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from matplotlib.ticker import MaxNLocator, ScalarFormatter
+from publication_style import use_times_new_roman
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 
 LABELS={'poisson':'Poisson','darcy':'Darcy','nsnonbounded':'Navier–Stokes','burger':'Burgers'}
 plt.rcParams.update({'font.family':'DejaVu Sans','font.size':9,'axes.titlesize':9,
  'axes.labelsize':9,'xtick.labelsize':8,'ytick.labelsize':8,'pdf.fonttype':42,
  'axes.linewidth':.5,'savefig.facecolor':'white'})
+use_times_new_roman()
 
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 

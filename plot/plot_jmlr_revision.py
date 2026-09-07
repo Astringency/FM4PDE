@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, LinearSegmentedColormap
 import numpy as np
 import openpyxl
+from publication_style import use_times_new_roman
 
 FMROOT = Path(__file__).resolve().parents[1]
 PDES = ['poisson', 'helmholtz', 'darcy', 'nsnonbounded', 'burger',
@@ -36,6 +37,7 @@ plt.rcParams.update({'font.family': 'DejaVu Sans', 'font.size': 9, 'axes.titlesi
                      'pdf.fonttype': 42, 'ps.fonttype': 42, 'axes.spines.top': False,
                      'axes.spines.right': False, 'axes.linewidth': .6,
                      'grid.color': '#DDDDDD', 'grid.linewidth': .5})
+use_times_new_roman()
 
 
 def read_csv(path):

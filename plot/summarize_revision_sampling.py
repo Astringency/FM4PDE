@@ -107,6 +107,8 @@ def main():
     lookup={(r['pde'],r['variant']):r for r in summary}
     plt.rcParams.update({'font.size':9,'axes.titlesize':10,'axes.labelsize':9,'pdf.fonttype':42,'ps.fonttype':42,
                          'axes.spines.top':False,'axes.spines.right':False})
+    from publication_style import use_times_new_roman
+    use_times_new_roman()
     from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullFormatter
     def plain_log_ticks(axis, powers_of_two=False):
         # Percent errors and second-scale runtimes read better as 20 and 0.5
