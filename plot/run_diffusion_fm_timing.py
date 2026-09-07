@@ -125,6 +125,7 @@ def run(args):
     torch.backends.cudnn.benchmark=False;torch.backends.cudnn.deterministic=True
     torch.use_deterministic_algorithms(True)
     device='cuda:0';uuid=str(torch.cuda.get_device_properties(0).uuid)
+    if not uuid.startswith('GPU-'):uuid='GPU-'+uuid
     args.output.mkdir(parents=True,exist_ok=True)
     env=dict(host=socket.gethostname(),python=sys.version,torch=torch.__version__,cuda=torch.version.cuda,
              gpu=torch.cuda.get_device_name(0),uuid=uuid,visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
