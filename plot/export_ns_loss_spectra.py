@@ -35,6 +35,23 @@ def summarize(values):
                 ci_low=float(ci[0]) if ci[0] is not None else None,ci_high=float(ci[1]) if ci[1] is not None else None)
 
 
+def spectral_shape_metrics(band, reference_total):
+    """Separate energy retention from normalized coefficient alignment."""
+    metrics = dict(band)
+    ratio = metrics['predicted_reference_energy_ratio']
+    metrics['absolute_energy_ratio_mismatch'] = abs(ratio - 1) if ratio is not None else None
+    metrics['global_normalized_error'] = float(np.sqrt(metrics['global_error_contribution']))
+    truth, pred, error = [metrics[k] for k in ['reference_energy', 'prediction_energy', 'error_energy']]
+    alignment = None
+    if ratio is not None and pred > reference_total * 1e-14:
+        # ||p-t||^2 = ||p||^2 + ||t||^2 - 2 Re<p,t>, also for complex FFT coefficients.
+        alignment = (pred + truth - error) / (2 * np.sqrt(pred * truth))
+        assert -1 - 1e-10 <= alignment <= 1 + 1e-10
+        alignment = float(np.clip(alignment, -1, 1))
+    metrics['coefficient_alignment'] = alignment
+    return metrics
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--audit',type=Path,required=True);p.add_argument('--inputs',type=Path,required=True)
@@ -104,10 +121,11 @@ def main():
         for k in powers:r[k]=np.asarray(r[k],float)
         fg[r['task'],r['field'],r['method'],r['steps'],r['exchange']].append(r)
         for label,bb in [('8/32',r['bands'])]+list(r['sensitivity_bands'].items()):
-            for name,v in bb.items():
+            for name,raw in bb.items():
+                v = spectral_shape_metrics(raw, r['reference_total'])
                 bands.append(dict(task=r['task'],field=r['field'],method=r['method'],steps=r['steps'],exchange=r['exchange'],sample_id=r['sample_id'],seed=r['seed'],cutoffs=label,band=name,**v))
-                for metric,value in dict(v,global_normalized_error=np.sqrt(v['global_error_contribution'])).items():
-                    if metric not in ['relative_error','global_normalized_error','predicted_reference_energy_ratio','reference_fraction'] or value is None:continue
+                for metric,value in v.items():
+                    if metric not in ['relative_error','global_normalized_error','predicted_reference_energy_ratio','reference_fraction','absolute_energy_ratio_mismatch','coefficient_alignment'] or value is None:continue
                     band_groups[r['task'],r['field'],r['method'],r['steps'],r['exchange'],label,name,metric,r['sample_id']].append(value)
     csvwrite(args.output/'ns_frequency_bands.csv',bands)
     band_values=defaultdict(dict)

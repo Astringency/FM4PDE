@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
 from audit_ns_guidance_calibration import csvwrite
-from export_ns_loss_spectra import summarize
+from export_ns_loss_spectra import summarize, spectral_shape_metrics
 from publication_style import use_times_new_roman
 from run_ns_loss_study import sha, write
 from spectral_diagnostics import paired_bootstrap
@@ -222,13 +222,11 @@ def main():
         meta = {k: r[k] for k in ['task', 'variant', 'estimator', 'field', 'sample_id', 'seed']}
         for cutoffs, bands in [('8/32', r['bands'])] + list(r['sensitivity_bands'].items()):
             for band, raw_metrics in bands.items():
-                metrics = dict(raw_metrics)
-                energy_ratio = metrics['predicted_reference_energy_ratio']
-                metrics['absolute_energy_ratio_mismatch'] = abs(energy_ratio - 1) if energy_ratio is not None else None
-                metrics['global_normalized_error'] = float(np.sqrt(metrics['global_error_contribution']))
+                metrics = spectral_shape_metrics(raw_metrics, r['reference_total'])
                 band_rows.append(dict(**meta, cutoffs=cutoffs, band=band, **metrics))
                 for metric in ['relative_error', 'predicted_reference_energy_ratio', 'global_error_contribution',
-                               'reference_fraction', 'absolute_energy_ratio_mismatch', 'global_normalized_error']:
+                               'reference_fraction', 'absolute_energy_ratio_mismatch', 'global_normalized_error',
+                               'coefficient_alignment']:
                     if metrics[metric] is not None:
                         band_groups[r['task'], r['variant'], r['estimator'], r['field'], cutoffs, band, metric, r['sample_id']].append(metrics[metric])
     band_values = defaultdict(dict)
@@ -307,6 +305,8 @@ def main():
         status='complete', audit_manifest_sha256=sha(args.audit / 'calibration_audit_manifest.json'),
         protocol_sha256=manifest['protocol_sha256'], selection_sha256=manifest['selection_sha256'],
         selected=manifest['selected'], font_path=font, script_sha256=sha(Path(__file__)),
+        report_dependency_sha256={name: sha(Path(__file__).with_name(name)) for name in
+                                  ['export_ns_loss_spectra.py', 'spectral_diagnostics.py', 'publication_style.py']},
         call_seconds={stage: float(sum(float(r['seconds']) for r in calls if r['stage'] == stage))
                       for stage in ['calibration', 'evaluation']},
         timing_scope='Sum of per-call measured seconds on two A100 workers; development cost, not a controlled cross-method timing benchmark.',
