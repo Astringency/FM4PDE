@@ -58,6 +58,7 @@ def main():
   assert len(uuids)==1,(pde,uuids)
   audits.append(dict(pde=pde,pilot=pilot,warmups=warmups,calls_verified=80,uuid=next(iter(uuids))))
  assert len(all_rows)==400 and len(summary)==20
+ assert all(r['finite'] for r in all_rows), 'Non-finite predictions retained in raw results; explicit failure analysis is required before manuscript export'
  source=args.paper/'source_data';figdir=args.paper/'figures'
  def csvwrite(name,rows):
   f=source/name
