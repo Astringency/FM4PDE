@@ -16,6 +16,46 @@ from ns_loss_exchange import fm_pde_loss,diffusion_pde_loss
 from spectral_diagnostics import spectral_record,self_check
 
 
+def verify_guidance_trace(points, task, method, steps, config):
+    """Check the frozen recipient gate and recorded component arithmetic.
+
+    This checks saved diagnostics, not an independent reconstruction of the
+    network's gradients. The FM gate is inclusive; the native DiffusionPDE
+    loop uses a strict step-index inequality.
+    """
+    assert len(points)==steps and [p['step'] for p in points]==list(range(steps))
+    keys=['pde_loss','obs_a_loss','obs_u_loss','pde_gradient_norm',
+          'obs_a_gradient_norm','obs_u_gradient_norm','zeta_pde']
+    values=np.asarray([[p[k] for k in keys] for p in points],dtype=float)
+    assert np.isfinite(values).all() and (values>=0).all(), (task,method,steps,'trace values')
+    if method=='FM4PDE':
+        assert steps==100 and config['time_grid']=='uniform'
+        assert config['guidance_schedule']=='constant' and config['guidance_operator']=='current'
+        assert config['pde_guidance_start_ratio']==0.8 and config['pde_guidance_ramp_ratio']==0
+        active=np.arange(steps)>=80
+        weight=float(np.float32(config['zeta_pde']))
+        assert all(p['pde_gradient_norm']==0 for p,on in zip(points,active) if not on)
+        clipping=np.asarray([[p['total_gradient_norm'],p['clip_scale']] for p in points])
+        assert np.isfinite(clipping).all() and (clipping[:,0]>=0).all()
+        assert ((clipping[:,1]>0)&(clipping[:,1]<=1)).all()
+    else:
+        assert method=='DiffusionPDE' and steps in [100,1000]
+        active=np.arange(steps)>0.8*steps
+        weight=float(config['zeta_pde'])
+    assert np.array_equal(values[:,-1],np.where(active,weight,0.)), (task,method,steps,'PDE gate/weight')
+    za,zu=float(config['zeta_obs_a']),float(config['zeta_obs_u'])
+    if task=='forward':zu=0.
+    if task=='inverse':za=0.
+    if za==0:assert all(p['obs_a_gradient_norm']==0 for p in points)
+    if zu==0:assert all(p['obs_u_gradient_norm']==0 for p in points)
+    obs=za*values[:,4]+zu*values[:,5]
+    pde=values[:,-1]*values[:,3]
+    assert np.isfinite(obs).all() and np.isfinite(pde).all()
+    assert (obs[active]>0).all(), 'Active physical/observation ratios must be defined.'
+    assert np.isfinite(pde[active]/obs[active]).all()
+    return dict(first_active_step=int(np.flatnonzero(active)[0]),active_steps=int(active.sum()))
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--inputs',type=Path,required=True);p.add_argument('--results',type=Path,required=True)
@@ -33,7 +73,7 @@ def main():
     ids=source['evaluation_ids'];seeds=source['inference_seeds'];assert len(ids)==32 and seeds==[0,1,2]
     expected={(t,m,n,e,i,s) for t in TASKS for m,n,e in VARIANTS for i in ids for s in seeds}
     assert len(expected)==1728
-    statuses=Counter();seen=set();metrics=[];spectra=[];traces=[];hashes={};examples={}
+    statuses=Counter();seen=set();metrics=[];spectra=[];traces=[];hashes={};examples={};trace_checks=[]
     params={k:torch.tensor([v],dtype=torch.float64) for k,v in source['pde_params'].items()}
     reference_residuals=[]
     for i in ids:
@@ -57,6 +97,7 @@ def main():
         r=json.loads(path.read_text());key=tuple(r[k] for k in ['task','method','steps','exchange','sample_id','seed'])
         assert key in expected and key not in seen and r['protocol_sha256']==ph,key
         seen.add(key);statuses[r['status']]+=1
+        hashes[str(path)]=sha(path)
         t,m,n,e,i,s=key
         if r['status']=='unstable':
             assert r.get('error');continue
@@ -91,9 +132,9 @@ def main():
                 tag=f'{t}_{m}_{n}_{int(e)}_{f}'
                 examples[tag]=pred[0,0].numpy();examples[t+'_truth_'+f]=gt[0,0].numpy();examples[t+'_mask_'+f]=mask[0,0].numpy()
         metrics.append(row)
-        assert len(d['trace'])==n and [x['step'] for x in d['trace']]==list(range(n))
         c=source['fm_configs'][t] if m=='FM4PDE' else source['diffusion_configs'][f'{t}_{n}']['config']['generate']
-        if m=='FM4PDE':assert c['guidance_schedule']=='constant' and c['guidance_operator']=='current'
+        trace_checks.append(dict(task=t,method=m,steps=n,exchange=e,sample_id=i,seed=s,
+                                 **verify_guidance_trace(d['trace'],t,m,n,c)))
         za,zu=float(c['zeta_obs_a']),float(c['zeta_obs_u'])
         if t=='forward':zu=0.
         if t=='inverse':za=0.
@@ -133,7 +174,7 @@ def main():
         assert complete, f'Only {len(seen)}/1728 calls have completed'
         for shard in [0,1]:
             rr=json.loads((args.results/f'complete_{shard}.json').read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=864)
-    for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows),('ns_reference_residuals.csv',reference_residuals)]:
+    for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows),('ns_reference_residuals.csv',reference_residuals),('ns_trace_checks.csv',trace_checks)]:
         with (args.output/name).open('w',newline='') as f:
             w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
     for name,rows in [('ns_frequency_records.json.gz',spectra),('ns_guidance_traces.json.gz',traces)]:
@@ -141,6 +182,8 @@ def main():
     np.savez_compressed(args.output/'ns_example_fields.npz',**examples)
     write(args.output/'ns_audit_manifest.json',dict(status='complete' if complete else 'partial',calls_verified=len(seen),expected_calls=1728,
         outcome_counts=dict(statuses),finite_predictions=len(metrics),baseline_predictions_verified=288,baseline_field_metrics=len(baseline_rows),
+        recipient_guidance_traces_verified=len(trace_checks),
+        guidance_trace_checks='Finite nonnegative scalar/norm records, exact original recipient PDE gates and weights, absent-observation zero gradients, FM clipping bounds, and defined finite active component ratios. Does not independently reconstruct neural gradients.',
         protocol_sha256=ph,baseline_protocol_sha256=bh,source_sha256=sha(args.inputs/'source.json'),source_hashes=hashes,checks=self_check(),script_sha256=sha(Path(__file__)),
         scope='Prediction hashes, native arithmetic, source truths/masks, NFE, independent physical errors, both PDE scalars in float64, and exact Fourier Parseval decomposition. Partial results cannot enter final loss-exchange comparisons.',
         trace_ratio='Norm of weighted PDE component divided by sum of norms of weighted observation components; not the norm ratio of summed vectors and not a direct update-size ratio.',

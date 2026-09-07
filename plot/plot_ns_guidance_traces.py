@@ -14,10 +14,14 @@ from run_ns_loss_study import sha,write
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--audit',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
-    args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
-    manifest=json.loads((args.audit/'ns_audit_manifest.json').read_text())
+    args=p.parse_args()
+    manifest_path=args.audit/'ns_audit_manifest.json'
+    manifest=json.loads(manifest_path.read_text())
     assert manifest['status']=='complete' and manifest['calls_verified']==1728
+    assert manifest['outcome_counts']=={'complete':1728}
+    assert manifest['recipient_guidance_traces_verified']==1728
     path=args.audit/'ns_guidance_traces.json.gz';assert sha(path)==manifest['outputs'][path.name]
+    args.output.mkdir(parents=True,exist_ok=True)
     with gzip.open(path,'rt') as f:rows=json.load(f)
     by_run=defaultdict(list)
     for r in rows:by_run[r['task'],r['method'],r['steps'],r['exchange'],r['sample_id'],r['seed']].append(r)
@@ -73,7 +77,8 @@ def main():
         with (args.output/name).open('w',newline='') as f:
             w=csv.DictWriter(f,fieldnames=list(data[0]));w.writeheader();w.writerows(data)
     write(args.output/'ns_guidance_plot_manifest.json',dict(status='complete',calls_verified=1728,font_path=font,
-        trace_source_sha256=sha(path),script_sha256=sha(Path(__file__)),
+        audit_manifest_sha256=sha(manifest_path),trace_source_sha256=sha(path),script_sha256=sha(Path(__file__)),
+        dependency_sha256={name:sha(Path(__file__).parent/name) for name in ['publication_style.py','spectral_diagnostics.py']},
         definition='Weighted PDE-component norm divided by the sum of weighted observation-component norms before common global clipping; not a norm of summed vectors or final updates.',
         uncertainty='Plot: pointwise median and IQR across 32 seed-averaged inputs. Summary CSV: mean, SD and 95% paired-input bootstrap interval for the active-step mean.',
         outputs={f.name:sha(f) for f in args.output.iterdir() if f.is_file() and f.name!='ns_guidance_plot_manifest.json'}))
