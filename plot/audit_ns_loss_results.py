@@ -154,6 +154,47 @@ def main():
                     if check['method']=='DiffusionPDE':assert check['diagnostic_reference']==0
                 native_hashes[str(meta_path)]=sha(meta_path);native_hashes[str(env_path)]=sha(env_path)
                 native_hashes[str(pilot_path)]=sha(pilot_path)
+    extension=None
+    extension_path=args.results/'acceleration_extension_plan.json'
+    if extension_path.exists():
+        from ns_acceleration_extension import validate_plan as validate_extension,SHARDS,SLOTS
+        assert acceleration is not None
+        extension=json.loads(extension_path.read_text())
+        validate_extension(extension,source,acceleration)
+        assert extension['parent_plan_sha256']==sha(plan_path)
+        assert extension['scheduler_sha256']==sha(ROOT/'plot/ns_acceleration_extension.py')
+        assert extension['native_driver_sha256']==protocol['code_sha256']['plot/run_ns_loss_study.py']
+        native_hashes[str(extension_path)]=sha(extension_path)
+        for key,old in extension['initial_completed'].items():
+            path=args.results/'results'/key
+            assert sha(path.with_suffix('.json'))==old['receipt_sha256']
+            assert sha(path.with_suffix('.pt'))==old['prediction_sha256']
+        for worker in extension['workers']:
+            i=worker['shard']
+            meta_path=args.results/f'extension_worker_{i}.json'
+            env_path=args.results/f'extension_environment_{i}.json'
+            pilot_path=args.results/f'extension_pilot_{i}.json'
+            if args.require_complete or meta_path.exists():
+                meta=json.loads(meta_path.read_text());env=json.loads(env_path.read_text())
+                assert meta['plan_sha256']==sha(extension_path) and meta['scheduler_sha256']==extension['scheduler_sha256']
+                assert meta['native_driver_sha256']==extension['native_driver_sha256']
+                assert meta['shard']==i and meta['shards']==SHARDS and meta['assigned_slots']==SLOTS
+                assert meta['native_shard']==0 and meta['native_shards']==1
+                assert meta['pid']==env['pid'] and meta['initial_pending']==extension['pending_counts'][i]
+                assert env['protocol_sha256']==ph and env['host']==meta['host']
+                assert env['visible_devices']==meta['visible_devices']==str(worker['gpu'])
+                assert all(env[k]==worker['environment'][k] for k in ['host','uuid','gpu','torch','cuda','native_arithmetic'])
+                assert sha(pilot_path)==worker['pilot_sha256']
+                pilot=json.loads(pilot_path.read_text())
+                assert pilot['status']=='pass' and pilot['protocol_sha256']==ph
+                assert {(c['method'],c['exchange']) for c in pilot['checks']}=={(m,e) for m in ['FM4PDE','DiffusionPDE'] for e in [False,True]}
+                assert len(pilot['checks'])==4
+                for check in pilot['checks']:
+                    assert check['sample_id'] not in source['evaluation_ids']
+                    assert check['repeat']==check['hidden']==0 and check['sensitivity']>0
+                    if check['method']=='FM4PDE' and not check['exchange']:assert check['original_runner']==0
+                    if check['method']=='DiffusionPDE':assert check['diagnostic_reference']==0
+                for path in [meta_path,env_path,pilot_path]:native_hashes[str(path)]=sha(path)
     ids=source['evaluation_ids'];seeds=source['inference_seeds'];assert len(ids)==32 and seeds==[0,1,2]
     expected={(t,m,n,e,i,s) for t in TASKS for m,n,e in VARIANTS for i in ids for s in seeds}
     assert len(expected)==1728
@@ -258,8 +299,9 @@ def main():
     complete=seen==expected
     if args.require_complete:
         assert complete, f'Only {len(seen)}/1728 calls have completed'
-        for shard in range(4 if acceleration else 2):
-            rr=json.loads((args.results/f'complete_{shard}.json').read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=432 if acceleration else 864)
+        for shard in range(8 if extension else 4 if acceleration else 2):
+            name=f'extension_complete_{shard}.json' if extension else f'complete_{shard}.json'
+            rr=json.loads((args.results/name).read_text());assert rr==dict(status='complete',protocol_sha256=ph,jobs=extension['pending_counts'][shard] if extension else 432 if acceleration else 864)
     for name,rows in [('ns_loss_per_run.csv',metrics),('ns_baseline_per_field.csv',baseline_rows),('ns_reference_residuals.csv',reference_residuals),('ns_trace_checks.csv',trace_checks)]:
         with (args.output/name).open('w',newline='') as f:
             w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
@@ -272,6 +314,8 @@ def main():
         trace_weighting_schema='recipient_update_v2',native_diffusion_update_weights=native_weights,
         acceleration_plan_sha256=sha(plan_path) if acceleration else None,
         acceleration_initial_results_preserved=len(acceleration['initial_completed']) if acceleration else None,
+        extension_plan_sha256=sha(extension_path) if extension else None,
+        extension_initial_results_preserved=len(extension['initial_completed']) if extension else None,
         guidance_trace_checks='Finite nonnegative scalar/norm records, exact original recipient PDE gates and weights, absent-observation zero gradients, FM clipping bounds, and defined finite active component ratios. Does not independently reconstruct neural gradients.',
         protocol_sha256=ph,baseline_protocol_sha256=bh,source_sha256=sha(args.inputs/'source.json'),source_hashes=hashes,checks=self_check(),script_sha256=sha(Path(__file__)),
         scope='Prediction hashes, native arithmetic, source truths/masks, NFE, independent physical errors, both PDE scalars in float64, and exact Fourier Parseval decomposition. Partial results cannot enter final loss-exchange comparisons.',
