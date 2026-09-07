@@ -209,3 +209,73 @@ Completed 2026-09-07: all 1,920 calls passed the full tensor audit and were
 exported from `../audit/fm4pde_jmlr_matched_timing_20260907/report`.
 The dedicated timing tmux session has exited. Both completed studies can be
 replotted from their local archives without another remote inference run.
+
+# Revised main tables, reconstructions, and generative latency (2026-09-07)
+
+The eight original main tables are included at their task-specific locations
+in Experiments. Their exact mean/SD blocks remain unchanged. The earlier
+main-comparison heatmaps are retained as historical artifacts and are no longer
+included in the manuscript. `export_matched_timing_tables.py` presents the
+completed 32-example inverse cost study as mean/SD tables; its original
+bootstrap and IQR tables remain in the appendix.
+
+`prepare_diffusion_revision.py` reads original DiffusionPDE predictions and
+existing metrics, remaps pickled CUDA tensors to CPU, and computes missing
+metrics in a new output directory. The 2026-09-07 snapshot has all 26
+100/1000-step PDE/task groups, each with 1,000 unique offsets and finite
+field errors (26,000 records). It includes Burgers. No accuracy inference is
+repeated and no original source, configuration, prediction or metric is changed.
+`export_diffusion_revision.py` builds four task-specific Smooth comparisons,
+with FM4PDE 100 / DiffusionPDE 100 / DiffusionPDE 1000 method columns.
+Its 51 entries contain field-specific mean and sample SD; FM values and counts
+are checked against the supplied workbook. The structured Burgers comparator
+uses the five-spatial-column FM row, not the random-point row or time slices.
+
+`plot_sampling_reconstructions.py` generates eight figures from actual saved
+sampling-study tensors. Selection is fixed to the first predeclared evaluation
+ID (425) and seed 0, before visual inspection. Four figures compare observation
+and combined guidance, two show all phase controls, and two show normalized
+step controls. No outcome is used to select the example. All prediction fields
+within a comparison share color limits; all absolute errors share a zero-based
+range, with no quantile clipping. Full-grid and observed relative L2 errors are
+recomputed in CPU float64 and checked against original receipts. The figures
+and a compact tensor NPZ, metric CSV and source/output hash manifest are exported.
+The 32-example/three-seed aggregate results remain the evidence for mean effects.
+
+`run_diffusion_fm_timing.py` freezes twenty common Smooth inputs plus a separate
+pilot, and runs both methods at 100/1000 steps, batch one, on the same physical
+GPU for each PDE. Resident GPU input-to-output timing includes initialization,
+network calls, residuals, gradients, guidance and physical decoding; loading,
+preprocessing/transfers, per-step scoring and writes are excluded. The adapter
+extracts the original Diffusion update loop and records the generated source.
+Both use float32 (including the explicit conversion of Diffusion's native
+float64 state/residual), TF32 off, deterministic software and two CPU threads.
+Heun is retained: Diffusion NFE=2N-1; FM NFE=N. This is a controlled-precision
+latency study, separate from the archived native-precision accuracy results.
+
+Each PDE passes repeat, hidden-field invariance, observation-sensitivity and
+prediction-path equivalence checks. Each method/budget receives a full warm-up.
+The four settings are shuffled within each of twenty inputs. GPU UUID, other
+compute PIDs, utilization, clocks, temperature, memory and power are monitored
+at one-second intervals and call boundaries. Contended attempts are retained
+but not used as one of the twenty valid calls. No time-based trimming is allowed.
+`export_diffusion_fm_timing.py` requires all 400 calls and independently verifies
+input tensors, masks, prediction hashes, errors, NFE and contention telemetry
+before producing two grouped bar panels (100/1000 steps). Bars and numeric
+labels give mean seconds; error bars are sample SD (ddof=1), not SEM.
+
+Authoritative controlled-timing inputs are
+`../audit/diffusion_fm_revision_20260907/timing_inputs_v2`, protocol SHA-256
+`0237fd018240c2d3f57720b40ce7fcec15cacca33b12ac588703df5ffe752217`.
+Execution is pinned to FM commit `3f94ddb` and Diffusion commit `151e721` in
+isolated Git checkouts on server193. The first launch ended before sampling
+because Torch's UUID omits NVIDIA's `GPU-` prefix; `timing_results_v2` contains
+the corrected study. The failed-launch directory must not enter final summaries.
+
+```bash
+python plot/export_diffusion_revision.py --paper PAPER --source SNAPSHOT
+python plot/plot_sampling_reconstructions.py --study SAMPLING_STUDY --paper PAPER
+python plot/export_matched_timing_tables.py --paper PAPER
+python plot/export_diffusion_fm_timing.py --inputs INPUTS --results RESULTS --paper PAPER
+python PAPER/audit/verify_presentation_0907.py --require-timing
+```
