@@ -25,10 +25,10 @@ def tex_number(value):
     return f'{value:.2f}'
 
 
-def table(caption, label, header, rows):
+def table(caption, label, header, rows, font_size='scriptsize'):
     return '\n'.join([
         r'\begin{table}[!htbp]',rf'\FMTableMark{{start}}{{{label}}}',
-        r'\centering\scriptsize\setlength{\tabcolsep}{3pt}',
+        r'\centering'+'\\'+font_size+r'\setlength{\tabcolsep}{3pt}',
         r'\renewcommand{\arraystretch}{1.10}',r'\caption{'+caption+'}',
         r'\label{'+label+'}',r'\begin{tabular}{@{}'+'ll'+'r'*(len(header)-2)+r'@{}}\toprule',
         ' & '.join(header)+r' \\\midrule',
@@ -48,7 +48,7 @@ def export(args):
         return candidates[0]
     fields=[(pde,field) for pde in PDES for field in (['u'] if pde=='burger' else ['a','u'])]
     outputs={}
-    def save(name,caption,label,columns,group,pdes=PDES,base=None):
+    def save(name,caption,label,columns,group,pdes=PDES,base=None,font_size='scriptsize'):
         rows=[]
         for pde,field in fields:
             if pde not in pdes:continue
@@ -57,7 +57,7 @@ def export(args):
                 r=get(pde,group,**dict({'task':'both'},**(base or {}),**query))
                 values.append('$'+tex_number(100*r['rel_l2_'+field])+'$')
             rows.append([NAMES[pde],f'${field}$',*values])
-        text=table(caption,label,['PDE','Field',*[c[0] for c in columns]],rows)
+        text=table(caption,label,['PDE','Field',*[c[0] for c in columns]],rows,font_size=font_size)
         (args.output/name).write_text(text)
         outputs[name]=dict(label=label,rows=len(rows),group=group)
     units='Relative field errors in percent on the main ID sample; coefficient and solution are reported separately. '
@@ -108,10 +108,12 @@ def export(args):
     save('ablation_loss_state_fields.tex',units+'Loss evaluation at the current, next, or endpoint state. S and D denote stochastic and deterministic sampling.',
          'tab:ablation-loss-state',[(phase_label+' / '+state_label,dict(sampler_phase=phase,loss_state=state))
              for phase,phase_label in PHASES[:2] for state,state_label in [('xt',r'$x_t$'),('x_next',r'$x_{t+\Delta t}$'),('endpoint','endpoint')]],'loss_state_by_sampler')
-    columns=[(label,dict(sampler_phase=phase)) for phase,label in PHASES[:2]]
-    columns += [(label+f' {ratio}',dict(sampler_phase=phase,switch_ratio=ratio)) for phase,label in PHASES[2:] for ratio in [.2,.5,.8]]
-    save('ablation_phase_fields.tex',units+'Sampler phases at 100 steps. Hybrid labels give the switch ratio.',
-         'tab:ablation-sampler-complete',columns,'sampler_phase')
+    # Pure samplers and the 0.2 switch are already scored in the field figures.
+    columns=[(label+f' {ratio}',dict(sampler_phase=phase,switch_ratio=ratio))
+             for phase,label in PHASES[2:] for ratio in [.5,.8]]
+    save('ablation_phase_fields.tex',units+'Additional hybrid switch ratios at 100 steps. '
+         'Labels give the switch ratio; pure samplers and the 0.2 switch are shown in the reconstruction figures.',
+         'tab:ablation-sampler-complete',columns,'sampler_phase',font_size='small')
     for phase,phase_label in PHASES:
         label={'stochastic':'tab:ablation-numsteps-complete','deterministic':'tab:ablation-numsteps-deterministic',
                'hybrid_d2s':'tab:ablation-numsteps-hybrid-d2s','hybrid_s2d':'tab:ablation-numsteps-hybrid-s2d'}[phase]
