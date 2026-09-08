@@ -293,10 +293,11 @@ def figures(args, protocol, paths, *, only_tasks=None):
         fig, axes = plt.subplots(2, 5, figsize=(13, 5.2), layout='constrained')
         im = axes[0, 0].imshow(truth, cmap='RdBu_r', vmin=-vmax, vmax=vmax, origin='lower')
         axes[0, 0].set_title('Reference')
-        observed = (task, field) not in [('forward', 'u'), ('inverse', 'a')]
-        mask = fields[f'mask_{"a" if task == "both" else field}_{i}'].squeeze() if observed else np.zeros_like(truth)
+        observed_field = 'u' if task == 'inverse' else 'a'
+        mask = fields[f'mask_{observed_field}_{i}'].squeeze()
         axes[1, 0].imshow(mask, cmap='Greys', vmin=0, vmax=1, origin='lower')
-        axes[1, 0].set_title(f'Observed {field}: {int(mask.sum())} points')
+        sensor_label = 'paired' if task == 'both' else observed_field
+        axes[1, 0].set_title(f'{int(mask.sum())} {sensor_label} sensors')
         for k, pred in enumerate(predictions, 1):
             axes[0, k].set_title(short[k-1])
             if pred is None:
