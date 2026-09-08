@@ -109,6 +109,18 @@ def audit(args, protocol):
     hashes[str(args.results / 'protocol.json')] = ph
     hashes[str(args.inputs / 'source.json')] = protocol['source_sha256']
     hashes[str(args.inputs / 'fields_masks.npz')] = protocol['fields_sha256']
+    for info in protocol['checkpoints'].values():
+        for name, expected_hash in info['evidence_sha256'].items():
+            evidence = args.results / name
+            assert sha(evidence) == expected_hash
+            hashes[str(evidence)] = expected_hash
+    optimizer_path = args.results / 'evidence/optimizer_inventory.json'
+    if optimizer_path.exists():
+        optimizer = json.loads(optimizer_path.read_text())
+        for label, info in optimizer.items():
+            assert info['checkpoint'] == protocol['checkpoints'][label]['path']
+            assert info['epoch'] == protocol['checkpoints'][label]['epoch']
+        hashes[str(optimizer_path)] = sha(optimizer_path)
     uuids = set()
     for worker in range(protocol['workers']):
         env_path = args.results / f'environment_{worker}.json'
