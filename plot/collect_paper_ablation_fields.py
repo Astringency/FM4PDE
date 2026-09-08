@@ -40,6 +40,13 @@ def collect(args):
     archived_rows = list(csv.DictReader(args.archive.open()))
     assert len(archived_rows) == 1060
     protocols = {pde: json.loads((args.inputs/pde/'protocol.json').read_text()) for pde in PDES}
+    complete_pdes = set()
+    for pde in REVISED:
+        marker = args.results/pde/'rerun_complete.json'
+        expected = [i['id'] for i in protocols[pde]['archived'] if i['config']['ablation_group'] not in EXCLUDED_GROUPS]
+        if marker.exists() and all((args.results/pde/'main'/ident/'receipt.json').exists() for ident in expected):
+            assert json.loads(marker.read_text())['protocol_sha256'] == digest(args.inputs/pde/'protocol.json')
+            complete_pdes.add(pde)
     all_items = {item['id']: (pde, item) for pde, protocol in protocols.items() for item in protocol['archived']}
     assert len(all_items) == len(archived_rows)
     records, metrics, pending = [], [], []
@@ -54,10 +61,13 @@ def collect(args):
         folder = args.results/pde/'main'/ident
         config = item['config'].copy()
         values = {field: float(old['rel_l2_'+field]) for field in ['a', 'u']}
+        diagnostics = {key:float(old[key]) for key in ['L_pde','pde_residual_norm','L_obs_a','L_obs_u',
+                                                     'obs_rel_l2_a','obs_rel_l2_u']}
         result_path = original_path(item, args.original_root)
         source = 'unchanged'
         receipt_path = folder/'receipt.json'
-        if required and receipt_path.exists():
+        eligible = not args.completed_pdes_only or pde in complete_pdes
+        if required and eligible and receipt_path.exists():
             receipt = json.loads(receipt_path.read_text())
             assert receipt['protocol_sha256'] == digest(args.inputs/pde/'protocol.json')
             assert receipt['sample_ids'] == [0] and receipt['stage'] == 'main'
@@ -80,6 +90,11 @@ def collect(args):
                 recorded = receipt['errors'][field][0]
                 assert (np.isfinite(error) and recorded is not None and np.isclose(error, recorded, rtol=1e-11, atol=1e-12)) or (not np.isfinite(error) and recorded is None)
                 values[field] = float(error)
+            terminal = list(csv.DictReader((result_path.parent/'curves.csv').open()))[-1]
+            assert np.isclose(float(terminal['t_next']), 1.0)
+            for field in ['a', 'u']:
+                assert np.isclose(float(terminal['rel_l2_'+field]), values[field], rtol=3e-6, atol=1e-9)
+            diagnostics = {key:float(terminal[key]) for key in diagnostics}
             source = 'revised'
             revised += 1
         elif required:
@@ -88,6 +103,7 @@ def collect(args):
         record = dict(id=ident, pde=pde, source=source, required_rerun=required,
                       old_rel_l2_a=float(old['rel_l2_a']), old_rel_l2_u=float(old['rel_l2_u']),
                       rel_l2_a=values['a'], rel_l2_u=values['u'], config=config,
+                      diagnostics=diagnostics,
                       result_path=str(result_path) if result_path.exists() else None,
                       source_result=item['source_result'], receipt=str(receipt_path) if source=='revised' else None)
         records.append(record)
@@ -104,6 +120,8 @@ def collect(args):
     write_csv(args.output/'field_errors.csv', metrics)
     (args.output/'manifest.json').write_text(json.dumps(dict(
         configurations=len(records),required_reruns=744,completed_reruns=revised,pending_ids=pending,
+        included_revised_pdes=sorted({r['pde'] for r in records if r['source']=='revised'}),
+        completed_pdes_only=args.completed_pdes_only,
         final_ready=not pending, source_archive_sha256=digest(args.archive),
         protocols={pde:digest(args.inputs/pde/'protocol.json') for pde in PDES},
         collector_sha256=digest(Path(__file__)),
@@ -121,4 +139,6 @@ if __name__ == '__main__':
     parser.add_argument('--original-root',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--allow-pending',action='store_true')
+    parser.add_argument('--completed-pdes-only',action='store_true',
+                        help='During a draft revision, replace a PDE only after its whole rerun is complete')
     collect(parser.parse_args())

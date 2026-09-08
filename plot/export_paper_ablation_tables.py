@@ -77,6 +77,34 @@ def export(args):
         'tab:ablation-guidance-complete',['PDE','Task / field','No guide','PDE only','Obs. only','Obs.+PDE'],rows))
     outputs[name]=dict(label='tab:ablation-guidance-complete',rows=len(rows),group='guidance_components')
 
+    rows=[]
+    for task,title in [('forward','Forward'),('inverse','Inverse'),('both','Joint')]:
+        for pde in PDES:
+            if pde=='burger' and task!='both':continue
+            values=[get(pde,'guidance_components',task=task,guidance_components=g)['diagnostics']['L_pde']
+                    for g in ['obs_only','obs_pde']]
+            def diagnostic_number(x):
+                mantissa, exponent=f'{x:.3e}'.split('e')
+                return f'${mantissa}\\times10^{{{int(exponent)}}}$'
+            rows.append([NAMES[pde],title,*[diagnostic_number(x) for x in values]])
+    name='ablation_physics_diagnostics.tex'
+    (args.output/name).write_text(table('Physical loss at the final reconstructed state, with observation-only and combined guidance. '
+        'Values use the PDE-specific residual definition and normalization; comparisons are within a row.',
+        'tab:ablation-guidance-residuals',['PDE','Task','Obs. only','Obs.+PDE'],rows))
+    outputs[name]=dict(label='tab:ablation-guidance-residuals',rows=len(rows),group='guidance_components')
+
+    rows=[]
+    for pde in PDES:
+        for task in (['both'] if pde=='burger' else ['forward','inverse','both']):
+            c=get(pde,'guidance_components',task=task,guidance_components='obs_pde')['config']
+            values=['$'+tex_number(c[k])+'$' for k in ['zeta_obs_a','zeta_obs_u','zeta_pde','clip_threshold']]
+            rows.append([NAMES[pde],{'forward':'Forward','inverse':'Inverse','both':'Joint'}[task],*values])
+    name='ablation_guidance_parameters.tex'
+    (args.output/name).write_text(table('Observation weights, physical weight, and global gradient-norm cap for the main ablations. '
+        'These parameters remain fixed within each factor sweep; an inactive guidance component contributes zero.',
+        'tab:ablation-guidance-parameters',['PDE','Task',r'$\zeta_a$',r'$\zeta_u$',r'$\zeta_{\mathrm{pde}}$','Cap'],rows))
+    outputs[name]=dict(label='tab:ablation-guidance-parameters',rows=len(rows),group='guidance_components')
+
     save('ablation_loss_state_fields.tex',units+'Loss evaluation at the current, next, or endpoint state. S and D denote stochastic and deterministic sampling.',
          'tab:ablation-loss-state',[(phase_label+' / '+state_label,dict(sampler_phase=phase,loss_state=state))
              for phase,phase_label in PHASES[:2] for state,state_label in [('xt',r'$x_t$'),('x_next',r'$x_{t+\Delta t}$'),('endpoint','endpoint')]],'loss_state_by_sampler')

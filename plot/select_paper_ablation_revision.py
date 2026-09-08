@@ -6,6 +6,7 @@ from pathlib import Path
 import statistics
 import socket
 import time
+import os
 
 
 def main():
@@ -21,7 +22,9 @@ def main():
             owner=json.loads(assignment.read_text())
             protocol_hash=hashlib.sha256((a.inputs/pde/'protocol.json').read_bytes()).hexdigest()
             assert owner['protocol_sha256']==protocol_hash
-            if socket.gethostname()!=owner['host']:
+            is_owner = socket.gethostname()==owner['host'] and (
+                'visible_devices' not in owner or os.environ.get('CUDA_VISIBLE_DEVICES')==owner['visible_devices'])
+            if not is_owner:
                 deadline=time.monotonic()+43200
                 for stage in owner['stages']:
                     marker=target/f'{stage}_complete.json'
