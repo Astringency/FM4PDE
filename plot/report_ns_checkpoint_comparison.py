@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from run_ns_loss_study import sha, write
 
-LABELS = {'current_common100': 'FM current / common guidance / 100',
+LABELS = {'current_common100': 'FM 260712 (current) / common guidance / 100',
           'v260904_common100': 'FM 260904 / common guidance / 100',
           'bak_common100': 'FM bak / common guidance / 100',
           'bak_legacy100': 'FM bak / legacy guidance / 100',
@@ -76,7 +76,7 @@ def training(args, protocol):
     csv_write(args.output / 'training_summary.csv', summary)
     csv_write(args.output / 'training_history.csv', [dict(checkpoint=k, **r) for k, rr in histories.items() for r in rr])
     fig, axes = plt.subplots(2, 3, figsize=(13.2, 7), layout='constrained')
-    names = {'current': 'Current (387.5M parameters)', 'v260904': '260904 (44.1M parameters)', 'bak': 'Backup (98.8M parameters)'}
+    names = {'current': '260712, current (387.5M parameters)', 'v260904': '260904 (44.1M parameters)', 'bak': 'Backup (98.8M parameters)'}
     for j, label in enumerate(histories):
         rr = histories[label]
         for metric, color, style in [('train_loss', '#2878A5', '-'), ('val_loss', '#C87932', '--')]:
@@ -266,7 +266,7 @@ def figures(args, protocol, paths):
     fields = np.load(args.inputs / 'fields_masks.npz')
     i, seed = protocol['evaluation_ids'][0], 0
     variants = ['current_common100', 'v260904_common100', 'bak_legacy100', 'DiffusionPDE_1000']
-    short = ['FM current\n100 steps', 'FM 260904\n100 steps',
+    short = ['FM 260712\n100 steps', 'FM 260904\n100 steps',
              'FM bak, legacy\n100 steps', 'DiffusionPDE\n1000 steps']
     for task, field, j in [('forward', 'u', 1), ('inverse', 'a', 0), ('both', 'a', 0), ('both', 'u', 1)]:
         truth = fields[f'{field}_{i}'].squeeze()
@@ -353,7 +353,7 @@ def spectra(args, protocol, paths):
                     summaries.append(row)
     csv_write(args.output / 'frequency_band_summary.csv', summaries)
     variants = ['current_common100', 'v260904_common100', 'bak_legacy100', 'DiffusionPDE_1000']
-    styles = [('#2878A5','-','FM current / 100'),('#C87932','--','FM 260904 / 100'),
+    styles = [('#2878A5','-','FM 260712 / 100'),('#C87932','--','FM 260904 / 100'),
               ('#808540','-.','FM bak, legacy / 100'),('#BF6E99',':','DiffusionPDE / 1000')]
     fig, axes = plt.subplots(2, 2, figsize=(11.5, 7.5), layout='constrained')
     for j, (task, field) in enumerate([('forward','u'),('inverse','a')]):
