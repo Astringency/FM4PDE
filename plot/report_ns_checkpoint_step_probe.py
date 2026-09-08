@@ -86,7 +86,8 @@ def main():
     for r in summary:
         value = f"{r['mean_pct']:.2f} ± {r['sd_pct']:.2f}" if r['mean_pct'] is not None else f"{r['finite_calls']}/12 finite"
         lines.append(f"| {r['variant']} | {value} |")
-    lines += ['', 'Both budgets and every specified checkpoint are retained. FM 1000 uses 1000 model evaluations; DiffusionPDE 1000 uses 1999. These are sampling-step interventions, with no additional training. Diffusion references are identical-input archived results, with a separate execution environment.']
+    lines += ['', 'Both budgets and every specified checkpoint are retained. FM 1000 uses 1000 model evaluations; DiffusionPDE 1000 uses 1999. These are sampling-step interventions, with no additional training. Diffusion references are identical-input archived results, with a separate execution environment.', '',
+              'The archived constant stochastic guidance uses c(1-t), or c(1-t_next) for the backup, without multiplying by the integration step size. Increasing the number of steps also increases the number of guidance updates and bridge-noise draws. The nominal sum of these scalars changes from 5.05 to 50.05 for current/light and from 9.9 to 99.9 for backup. These are schedule-scalar sums, not measured vector-update norms. Thus this experiment changes cumulative guidance exposure as well as the step budget, and does not isolate pure integration-discretization error. No step-specific retuning was performed.']
     (args.output / 'RESULTS.md').write_text('\n'.join(lines)+'\n')
     print('\n'.join(lines))
 
