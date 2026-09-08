@@ -252,14 +252,15 @@ def audit(args, protocol):
                 bb = sorted([r for r in per_input if r['task'] == task and r['variant'] == control], key=lambda r:r['sample_id'])
                 if not all(r['finite'] == 3 for r in aa + bb):
                     continue
-                delta = np.array([a['primary_error'] - b['primary_error'] for a,b in zip(aa,bb)]) * 100
-                rng = np.random.default_rng(20260912)
-                boot = delta[rng.integers(0, 32, (4000, 32))].mean(axis=1)
-                lo, hi = np.quantile(boot, [.025, .975])
-                paired.append(dict(task=task, variant=variant, control=control, n_inputs=32,
-                                   mean_delta_pp=delta.mean(), ci95_low_pp=lo, ci95_high_pp=hi,
-                                   input_wins=int((delta < 0).sum()), bootstrap_seed=20260912,
-                                   resamples=4000, interval='pointwise paired input percentile bootstrap'))
+                for metric in ['primary_error', 'rel_l2_a', 'rel_l2_u']:
+                    delta = np.array([a[metric] - b[metric] for a,b in zip(aa,bb)]) * 100
+                    rng = np.random.default_rng(20260912)
+                    boot = delta[rng.integers(0, 32, (4000, 32))].mean(axis=1)
+                    lo, hi = np.quantile(boot, [.025, .975])
+                    paired.append(dict(task=task, variant=variant, control=control, metric=metric, n_inputs=32,
+                                       mean_delta_pp=delta.mean(), ci95_low_pp=lo, ci95_high_pp=hi,
+                                       input_wins=int((delta < 0).sum()), bootstrap_seed=20260912,
+                                       resamples=4000, interval='pointwise paired input percentile bootstrap'))
     csv_write(args.output / 'paired_effects.csv', paired)
     write(args.output / 'audit_manifest.json', dict(status='complete', protocol_sha256=ph,
           report_source_sha256=sha(Path(__file__)),
@@ -468,6 +469,16 @@ def main():
             r = next(r for r in summaries if r['task'] == task and r['variant'] == variant)
             fmt = '.2e' if (r['primary_error_mean_pct'] or 0) > 10000 else '.2f'
             cells.append(f"{r['primary_error_mean_pct']:{fmt}} ± {r['primary_error_sd_pct']:{fmt}}" if r['complete_inputs'] == 32 else f"Incomplete finite outcomes: {r['finite_calls']}/96")
+        lines.append('| ' + label + ' | ' + ' | '.join(cells) + ' |')
+    lines += ['', 'Joint reconstruction, field-specific errors (same input and seed aggregation):', '',
+              '| Model / configuration / steps | Joint a | Joint u |', '|---|---:|---:|']
+    for variant, label in LABELS.items():
+        r = next(r for r in summaries if r['task'] == 'both' and r['variant'] == variant)
+        cells = []
+        for field in ['a', 'u']:
+            mean, sd = r[f'rel_l2_{field}_mean_pct'], r[f'rel_l2_{field}_sd_pct']
+            fmt = '.2e' if (mean or 0) > 10000 else '.2f'
+            cells.append(f'{mean:{fmt}} ± {sd:{fmt}}' if mean is not None else 'Incomplete finite outcomes')
         lines.append('| ' + label + ' | ' + ' | '.join(cells) + ' |')
     lines += ['', 'All specified checkpoints and failed/nonfinite outcomes are retained. The common-guidance comparison changes the checkpoint, saved architecture and normalizer. Backup legacy guidance is a separate configuration. No evaluation-score tuning occurred. Current and 260904 differ in architecture, numerical training precision, resume history and learning-rate trajectory; this is not a training-duration ablation.', '', 'DiffusionPDE references use the identical input fields, masks and nominal seeds, but were computed earlier across several GPUs. FM 100 steps uses 100 network evaluations; DiffusionPDE 100 and 1000 steps use 199 and 1999 respectively. Runtime values must not be pooled as a controlled speed benchmark.', '', 'Paired differences and pointwise 95% bootstrap intervals are in `paired_effects.csv`; all raw tensor and source hashes are in `audit_manifest.json`.']
     (args.output / 'RESULTS.md').write_text('\n'.join(lines)+'\n')
