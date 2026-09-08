@@ -266,6 +266,85 @@ def figures(args, protocol, paths):
         save(fig, args.output / f'ns_fields_{task}_{field}')
 
 
+def spectra(args, protocol, paths):
+    """Normalize shell energies by total reference energy, avoiding tiny tail ratios."""
+    import torch
+    import matplotlib.pyplot as plt
+    k = np.fft.fftfreq(128) * 128
+    radius = np.hypot(k[:, None], k[None, :])
+    shells = radius.astype(int)
+    band_masks = [('dc', radius == 0), ('low_0_8', (radius > 0) & (radius <= 8)),
+                  ('mid_8_32', (radius > 8) & (radius <= 32)), ('high_32_plus', radius > 32)]
+    bands, curves = [], []
+    fields = np.load(args.inputs / 'fields_masks.npz')
+    for (task, variant, i, seed), path in paths.items():
+        data = torch.load(path, map_location='cpu', weights_only=False)
+        for j, field in enumerate(['a', 'u']):
+            truth = fields[f'{field}_{i}'].squeeze().astype(np.float64)
+            pred = data['prediction'][j].numpy().squeeze().astype(np.float64)
+            ft, fp = np.fft.fft2(truth, norm='ortho'), np.fft.fft2(pred, norm='ortho')
+            te, pe, ee = np.abs(ft)**2, np.abs(fp)**2, np.abs(fp - ft)**2
+            total = te.sum()
+            assert np.isclose(ee.sum(), np.square(pred - truth).sum(), rtol=1e-12)
+            for name, mask in band_masks:
+                tref, pref, err = te[mask].sum(), pe[mask].sum(), ee[mask].sum()
+                bands.append(dict(task=task, variant=variant, sample_id=i, seed=seed, field=field,
+                                  band=name, reference_energy_fraction=tref / total,
+                                  normalized_prediction_energy=pref / total,
+                                  normalized_error_energy=err / total,
+                                  band_relative_l2=np.sqrt(err / tref) if tref / total >= 1e-14 else None))
+            if (task, field) in [('inverse', 'a'), ('forward', 'u')]:
+                for q in range(int(shells.max()) + 1):
+                    mask = shells == q
+                    curves.append(dict(task=task, variant=variant, sample_id=i, seed=seed, field=field,
+                                       shell=q, reference=te[mask].sum()/total,
+                                       prediction=pe[mask].sum()/total, error=ee[mask].sum()/total))
+    csv_write(args.output / 'frequency_bands_per_call.csv', bands)
+    csv_write(args.output / 'frequency_shells_per_call.csv', curves)
+    summaries = []
+    for task in protocol['tasks']:
+        for variant in LABELS:
+            for field in ['a', 'u']:
+                for band, _ in band_masks:
+                    rr = [r for r in bands if (r['task'],r['variant'],r['field'],r['band']) == (task,variant,field,band)]
+                    if len(rr) != 96:
+                        continue
+                    row = dict(task=task, variant=variant, field=field, band=band, calls=96, inputs=32)
+                    for metric in ['reference_energy_fraction', 'normalized_prediction_energy', 'normalized_error_energy']:
+                        a = np.array([np.mean([r[metric] for r in rr if r['sample_id'] == i]) for i in protocol['evaluation_ids']])
+                        row[metric + '_mean'] = float(a.mean())
+                        row[metric + '_sd'] = float(a.std(ddof=1))
+                    summaries.append(row)
+    csv_write(args.output / 'frequency_band_summary.csv', summaries)
+    variants = ['current_common100', 'v260904_common100', 'bak_legacy100', 'DiffusionPDE_1000']
+    styles = [('#2878A5','-','FM current / 100'),('#C87932','--','FM 260904 / 100'),
+              ('#808540','-.','FM bak, legacy / 100'),('#BF6E99',':','DiffusionPDE / 1000')]
+    fig, axes = plt.subplots(2, 2, figsize=(11.5, 7.5), layout='constrained')
+    for j, (task, field) in enumerate([('forward','u'),('inverse','a')]):
+        reference_done = False
+        for variant, (color, style, label) in zip(variants, styles):
+            rr = [r for r in curves if r['task'] == task and r['variant'] == variant]
+            if len(rr) != 96 * (shells.max() + 1):
+                continue
+            qs = np.arange(1, int(shells.max()) + 1)
+            values = {m:np.array([np.mean([r[m] for r in rr if r['shell'] == q]) for q in qs])
+                      for m in ['reference', 'prediction', 'error']}
+            if not reference_done:
+                axes[j,0].plot(qs, values['reference'], color='.2', linewidth=1.5, label='Reference')
+                reference_done = True
+            axes[j,0].plot(qs, values['prediction'], color=color, linestyle=style, linewidth=1.2, label=label)
+            axes[j,1].plot(qs, values['error'], color=color, linestyle=style, linewidth=1.2, label=label)
+        for z, title in enumerate(['Field energy', 'Error energy']):
+            axes[j,z].set(title=f'{task.capitalize()} {field}: {title.lower()}', xlabel='Fourier shell radius',
+                          ylabel='Shell energy / total reference energy', yscale='log', xlim=(1,90))
+            axes[j,z].grid(axis='y', color='.9', linewidth=.5)
+            for edge in [8,32]:
+                axes[j,z].axvline(edge, color='.7', linewidth=.6)
+        axes[j,0].legend(frameon=False, fontsize=8)
+    fig.suptitle('NS checkpoint frequency diagnostics\nMean normalized shell energies over 32 inputs and 3 seeds; periodic Fourier transform', fontsize=13)
+    save(fig, args.output / 'ns_checkpoint_spectra')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--results', type=Path, required=True)
@@ -282,6 +361,7 @@ def main():
         return
     summaries, paired, paths = audit(args, protocol)
     figures(args, protocol, paths)
+    spectra(args, protocol, paths)
     lines = ['# NS checkpoint comparison', '', '32 matched Smooth inputs × 3 seeds × 3 tasks. Each table cell averages seed-level errors within each input, then reports mean ± sample SD (%) over 32 inputs. These are supplementary results, not the 1000-input main experiment.', '', '| Model / configuration / steps | Forward u | Inverse a | Joint max(a,u) |', '|---|---:|---:|---:|']
     for variant, label in LABELS.items():
         cells = []
