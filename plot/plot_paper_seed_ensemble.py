@@ -47,6 +47,8 @@ def plot(args):
         color = BLUE if row['field']=='a' else GOLD
         ax.plot([lo, hi], [i, i],color=color,lw=1.5)
         ax.plot(point,i,'o' if row['field']=='a' else 's',color=color,ms=4)
+        ax.text(1.015,i,f'{point:+.2f}',transform=ax.get_yaxis_transform(),
+                ha='left',va='center',fontsize=8,color=INK,clip_on=False)
     ax.axvline(0,color=INK,lw=.7,ls='--')
     ax.set_yticks(range(len(rows)),[NAMES[r['pde']].replace('--','–')+rf"  ${r['field']}$" for r in rows])
     ax.invert_yaxis()
@@ -57,7 +59,7 @@ def plot(args):
     fig.tight_layout()
     save(fig,'ensemble_paired_fields',
         'Effect of averaging three 100-step conditional predictions. Points show the mean paired change in field error relative to the prespecified single prediction, over 32 inputs per PDE. '
-        'Negative values indicate lower error. Intervals use the paired bootstrap with a Bonferroni adjustment for the 21 field comparisons; blue circles and gold squares denote $a$ and $u$, respectively.')
+        'Negative values indicate lower error; the right-hand labels give mean changes in percentage points. Intervals use the paired bootstrap with a Bonferroni adjustment for the 21 field comparisons; blue circles and gold squares denote $a$ and $u$, respectively.')
     for pde in manifest['pdes']:
         fields=['u'] if pde=='burger' else ['a','u']
         fig, axes=plt.subplots(len(fields),2,figsize=(6.2,2.15*len(fields)+.3),squeeze=False)
