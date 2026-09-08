@@ -1,5 +1,19 @@
 """Paper figure typography with an explicit, verifiable Times New Roman font."""
 from pathlib import Path
+import math
+
+
+def error_number(value, *, signed=False):
+    """Format a percentage without rounding a nonzero error to zero."""
+    if not math.isfinite(value):
+        raise ValueError('A displayed error must be finite')
+    sign = '+' if signed else ''
+    if 0 < abs(value) < .01:
+        if abs(value) >= .0001:
+            return format(value, sign + '.2g')
+        mantissa, exponent = format(value, sign + '.1e').split('e')
+        return f'{mantissa}\\times10^{{{int(exponent)}}}'
+    return format(value, sign + '.2f')
 
 
 def use_times_new_roman():

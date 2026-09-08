@@ -19,6 +19,7 @@ import torch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from run_paper_ablation_revision import PDES, digest
+from publication_style import error_number
 
 NONPERIODIC = {'poisson', 'helmholtz', 'darcy', 'steady_heat_conduction'}
 NAMES = dict(poisson='Poisson', helmholtz='Helmholtz', darcy='Darcy',
@@ -209,14 +210,14 @@ def analyze(args):
     write_csv(target/'verified_predictions.csv', verified)
     np.savez_compressed(target/'spectral_shells.npz', **all_shells)
     lines = [r'\begin{table}[!htbp]\centering\scriptsize\setlength{\tabcolsep}{3pt}',
-             r'\caption{Averaging three 100-step FM4PDE predictions on 32 inputs per PDE. Errors are percentages, mean $\pm$ sample SD across inputs. Seed 0 is the prespecified single prediction; Single avg. averages the three individual errors; Mean of 3 scores the average prediction. Intervals compare Mean of 3 with Seed 0 and use a Bonferroni adjustment for 21 field comparisons.}',
+             r'\caption{Averaging three 100-step FM4PDE predictions on 32 inputs per PDE. Errors are percentages, mean $\pm$ sample SD across inputs. Draw 0 is the prespecified single prediction; Single avg. averages the three individual errors; Mean of 3 scores the average prediction. Intervals compare Mean of 3 with Draw 0 and use a Bonferroni adjustment for 21 field comparisons.}',
              r'\label{tab:seed-ensemble-fields}',
              r'\begin{tabular}{@{}llrrrr@{}}\toprule',
-             r'PDE & Field & Seed 0 & Single avg. & Mean of 3 & Paired change [adjusted CI] \\\midrule']
+             r'PDE & Field & Draw 0 & Single avg. & Mean of 3 & Paired change [adjusted CI] \\\midrule']
     for row in summary:
-        stats = [f"${row[e+'_mean']:.2f}\\pm{row[e+'_sd']:.2f}$" for e in estimators]
+        stats = [f"${error_number(row[e+'_mean'])}\\pm{error_number(row[e+'_sd'])}$" for e in estimators]
         lines.append(f"{NAMES[row['pde']]} & ${row['field']}$ & "+' & '.join(stats)+
-                     f" & ${row['paired_delta_pp']:.2f}\\ [{row['family21_low']:.2f},{row['family21_high']:.2f}]$ \\\\")
+                     f" & ${error_number(row['paired_delta_pp'])}\\ [{error_number(row['family21_low'])},{error_number(row['family21_high'])}]$ \\\\")
     lines += [r'\bottomrule\end{tabular}\end{table}']
     (target/'ensemble_fields.tex').write_text('\n'.join(lines)+'\n')
     (target/'manifest.json').write_text(json.dumps(dict(

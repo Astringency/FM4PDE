@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from publication_style import use_times_new_roman
+from publication_style import use_times_new_roman, error_number
 from export_paper_seed_ensemble import NAMES, NONPERIODIC
 from run_paper_ablation_revision import digest, write
 
@@ -47,7 +47,7 @@ def plot(args):
         color = BLUE if row['field']=='a' else GOLD
         ax.plot([lo, hi], [i, i],color=color,lw=1.5)
         ax.plot(point,i,'o' if row['field']=='a' else 's',color=color,ms=4)
-        ax.text(1.015,i,f'{point:+.2f}',transform=ax.get_yaxis_transform(),
+        ax.text(1.015,i,'$'+error_number(point,signed=True)+'$',transform=ax.get_yaxis_transform(),
                 ha='left',va='center',fontsize=8,color=INK,clip_on=False)
     ax.axvline(0,color=INK,lw=.7,ls='--')
     ax.set_yticks(range(len(rows)),[NAMES[r['pde']].replace('--','–')+rf"  ${r['field']}$" for r in rows])

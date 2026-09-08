@@ -23,7 +23,7 @@ import torch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from data.specs import get_pde_spec
-from publication_style import use_times_new_roman
+from publication_style import use_times_new_roman, error_number
 from export_paper_seed_ensemble import NAMES
 from run_paper_ablation_revision import PDES,digest
 
@@ -105,9 +105,9 @@ def main(args):
         return im
 
     def metric_label(field,data):
-        label=f'$e_{field}={100*data["error"]:.2f}\\%$'
+        label=f'$e_{field}={error_number(100*data["error"])}\\%$'
         if data['observed'] is not None:
-            label+=f'\n$e_{{{field},\\mathrm{{obs}}}}={100*data["observed"]:.2f}\\%$'
+            label+=f'\n$e_{{{field},\\mathrm{{obs}}}}={error_number(100*data["observed"])}\\%$'
         return label
 
     def colorbar(fig,im,axes):
