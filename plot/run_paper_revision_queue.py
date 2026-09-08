@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 HERE=Path(__file__).resolve().parent
 REVISED={'poisson','nsnonbounded','reaction_diffusion','shallow_water','heat',
@@ -15,7 +16,13 @@ def main():
     p.add_argument('--inputs',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--pdes',nargs='+',required=True)
+    p.add_argument('--wait-for-complete',nargs='*',default=[])
     a=p.parse_args()
+    deadline=time.monotonic()+7200
+    while any(not (a.output/pde/'diagnose_complete.json').exists() for pde in a.wait_for_complete):
+        if time.monotonic()>deadline:
+            raise TimeoutError('Prerequisite diagnostics have not completed; no GPU work started')
+        time.sleep(10)
     for pde in a.pdes:
         shared=['--inputs',str(a.inputs),'--output',str(a.output),'--pdes',pde]
         target=a.output/pde
