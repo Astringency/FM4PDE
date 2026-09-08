@@ -52,12 +52,14 @@ def freeze(args):
         pilot='Input 0 with a separate seed for implementation equivalence, repeatability, hidden-field invariance, '
               'and observation sensitivity only; fixed archived guidance is not tuned.',
         metrics='Full 128x128 physical trajectory relative L2; per-input values, mean, n-1 standard deviation.',
-        precision='FM network/state float32; Diffusion network float32, native state/time/residual float64; TF32 disabled.')
+        precision='FM network/state float32; Diffusion network float32, native state/time/residual float64; TF32 disabled.',
+        deterministic_algorithms=True,cublas_workspace_config=':4096:8')
     write(protocol_path,protocol)
     print('FROZEN',len(jobs),'calls',args.shards,'shards',flush=True)
 
 
 def worker(args):
+    os.environ['CUBLAS_WORKSPACE_CONFIG']=':4096:8'
     import numpy as np
     import torch
     from sampling.config import AblationConfig
@@ -69,6 +71,8 @@ def worker(args):
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
     torch.backends.cudnn.benchmark=False
+    torch.backends.cudnn.deterministic=True
+    torch.use_deterministic_algorithms(True)
     source=json.loads((args.inputs/'protocol.json').read_text())
     protocol_path=args.sampling_protocol or args.inputs/'sampling_protocol.json'
     protocol=json.loads(protocol_path.read_text())
