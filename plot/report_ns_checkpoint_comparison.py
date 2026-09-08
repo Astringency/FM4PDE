@@ -370,14 +370,14 @@ def spectra(args, protocol, paths):
                 reference_done = True
             axes[j,0].plot(qs, values['prediction'], color=color, linestyle=style, linewidth=1.2, label=label)
             axes[j,1].plot(qs, values['error'], color=color, linestyle=style, linewidth=1.2, label=label)
-        for z, title in enumerate(['Field energy', 'Error energy']):
+        for z, title in enumerate(['Vorticity power', 'Error power']):
             axes[j,z].set(title=f'{task.capitalize()} {field}: {title.lower()}', xlabel='Fourier shell radius',
-                          ylabel='Shell energy / total reference energy', yscale='log', xlim=(1,90))
+                          ylabel='Shell power / total reference power', yscale='log', xlim=(1,90))
             axes[j,z].grid(axis='y', color='.9', linewidth=.5)
             for edge in [8,32]:
                 axes[j,z].axvline(edge, color='.7', linewidth=.6)
         axes[j,0].legend(frameon=False, fontsize=8)
-    fig.suptitle('NS checkpoint frequency diagnostics\nMean normalized shell energies over 32 inputs and 3 seeds; periodic Fourier transform', fontsize=13)
+    fig.suptitle('NS checkpoint vorticity spectra\nMean normalized squared Fourier coefficients over 32 inputs and 3 seeds', fontsize=13)
     save(fig, args.output / 'ns_checkpoint_spectra')
 
 
