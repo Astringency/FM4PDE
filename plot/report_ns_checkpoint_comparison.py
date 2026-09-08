@@ -112,9 +112,9 @@ def audit(args, protocol):
         path = args.results / 'evaluation' / task / variant / f'sample{i}_seed{seed}.json'
         assert path.exists(), f'Missing expected call: {path}'
         r = json.loads(path.read_text())
-        assert r['protocol_sha256'] == ph
+        assert r['protocol_sha256'] in {ph, protocol.get('upstream_protocol_sha256')}
         assert (r['task'], r['variant'], r['sample_id'], r['seed']) == (task, variant, i, seed)
-        assert r['worker'] == protocol['evaluation_ids'].index(i) % 2
+        assert r['worker'] == protocol['evaluation_ids'].index(i) % protocol['workers']
         hashes[str(path)] = sha(path)
         if r['status'] != 'complete':
             rows.append(r)

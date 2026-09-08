@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import copy
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -39,6 +40,20 @@ def simple(value):
     return str(value)
 
 
+def inference_signature(payload):
+    """Bind inference weights, architecture, normalization and conditioning metadata."""
+    h = hashlib.sha256()
+    for key in ['model_config', 'model_config_metadata', 'model_profile', 'normalizer', 'data_metadata']:
+        h.update(json.dumps(simple(payload.get(key)), sort_keys=True).encode())
+    for key in ['model', 'model_ema']:
+        h.update(key.encode())
+        for name, tensor in sorted((payload.get(key) or {}).items()):
+            h.update(name.encode())
+            h.update(str((tuple(tensor.shape), tensor.dtype)).encode())
+            h.update(tensor.detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
 def freeze(args):
     from models.legacy_checkpoint import read_checkpoint
     from sampling.config import load_config
@@ -57,6 +72,7 @@ def freeze(args):
         info = {k: simple(vars(payload[k]) if k == 'args' and not isinstance(payload[k], dict)
                           else payload[k]) for k in keys if k in payload}
         info.update(path=str(path), sha256=sha(path),
+                    inference_signature=inference_signature(payload),
                     parameter_count=sum(v.numel() for v in payload['model'].values()),
                     model_tensor_dtypes=sorted({str(v.dtype) for v in payload['model'].values()}))
         evidence = args.output / 'evidence' / label
@@ -76,7 +92,7 @@ def freeze(args):
             for p in (ROOT / folder).rglob('*.py')]
     code += [ROOT / 'plot' / p for p in ['run_ns_checkpoint_comparison.py', 'run_matched_timing.py',
                                         'run_ns_loss_study.py', 'ns_loss_exchange.py']]
-    protocol = dict(version=1, inputs=str(args.inputs), source_sha256=sha(args.inputs / 'source.json'),
+    protocol = dict(version=2, workers=args.workers, inputs=str(args.inputs), source_sha256=sha(args.inputs / 'source.json'),
                     fields_sha256=sha(args.inputs / 'fields_masks.npz'), checkpoints=inventory,
                     source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                     code_sha256={str(p.relative_to(ROOT)): sha(p) for p in sorted(set(code))},
@@ -88,7 +104,16 @@ def freeze(args):
                     selection='All specified final checkpoints, no score-based selection or retuning.',
                     pairing='Input sharding: every checkpoint, task and seed for one input stays on one GPU.',
                     primary='Forward u, inverse a, joint per-call max(a,u). Mean seeds within input, then mean and sample SD across 32 inputs.',
-                    scope='Exploratory Smooth NS checkpoint comparison on the previous frozen 32-input cohort; not a replacement for 1000-input main experiments. Current and 260904 change architecture and potentially training protocol, not training duration alone. Backup normalization reproduces its archived sampling affine; training statistics were not saved. Native DiffusionPDE 100/1000 saved outcomes are external paired accuracy references, not same-environment timing benchmarks.')
+                    scope='Exploratory Smooth NS checkpoint comparison on the previous frozen 32-input cohort; not a replacement for 1000-input main experiments. Current and 260904 change architecture and potentially training protocol, not training duration alone. Backup normalization reproduces its archived sampling affine; training statistics were not saved. Native DiffusionPDE 100/1000 saved outcomes are external paired accuracy references, not same-environment timing benchmarks. Four-worker execution uses two A100 and two A800 GPUs, Torch 2.8/CUDA 12.8; all checkpoint comparisons for each input use one GPU. Inference signatures permit copies stripped only of optimizer/resume buffers.')
+    if args.upstream:
+        previous = json.loads(args.upstream.read_text())
+        for key in ['source_sha256', 'fields_sha256', 'common_configs', 'legacy_configs',
+                    'evaluation_ids', 'pilot_ids', 'seeds', 'tasks', 'variants', 'formal_calls']:
+            assert previous[key] == protocol[key], key
+        for label in inventory:
+            assert previous['checkpoints'][label]['sha256'] == inventory[label]['sha256']
+        protocol['upstream_protocol_sha256'] = sha(args.upstream)
+        protocol['upstream_reuse'] = 'Reuse only complete committed calls assigned to the same original A100 (input index modulo 4 is 0 or 1); selection depends solely on input index, never metrics. Other prior calls remain archived as execution history.'
     write(args.output / 'protocol.json', protocol)
     print('FROZEN', protocol['formal_calls'], 'calls', sha(args.output / 'protocol.json'), flush=True)
     for label, row in inventory.items():
@@ -132,9 +157,14 @@ def worker(args):
     source = json.loads((args.inputs / 'source.json').read_text())
     data = np.load(args.inputs / 'fields_masks.npz')
     models = {}
+    weights_map = json.loads(args.weights_map.read_text()) if args.weights_map else {}
     for label, spec in protocol['checkpoints'].items():
-        assert sha(spec['path']) == spec['sha256'], label
-        models[label] = load_fm4pde_checkpoint_bundle(spec['path'], 'nsnonbounded', 'cuda:0', model_profile='auto')
+        from models.legacy_checkpoint import read_checkpoint
+        path = weights_map.get(label, spec['path'])
+        assert inference_signature(read_checkpoint(path, 'nsnonbounded')) == spec['inference_signature'], label
+        models[label] = load_fm4pde_checkpoint_bundle(path, 'nsnonbounded', 'cuda:0', model_profile='auto')
+        write(args.output / f'loaded_weight_{args.shard}_{label}.json',
+              dict(path=path, artifact_sha256=sha(path), inference_signature=spec['inference_signature'], protocol_sha256=ph))
     counts = {label: 0 for label in models}
     handles = []
     for label, model in models.items():
@@ -160,7 +190,7 @@ def worker(args):
         conf.update(device='cuda:0', sample_seed=seed, batch_size=1, offset=i, num_steps=variant['steps'],
                     model_profile=protocol['checkpoints'][label]['model_profile'],
                     save_plots=False, save_intermediate=False, save_per_sample_curves=False,
-                    checkpoint_path=protocol['checkpoints'][label]['path'],
+                    checkpoint_path=weights_map.get(label, protocol['checkpoints'][label]['path']),
                     output_dir=str(args.output / f'pilot_native_{args.shard}' / variant['name']),
                     initial_noise_source_indices=[], initial_noise_source_batch_size=None,
                     model_gradient_checkpointing=False)
@@ -208,7 +238,7 @@ def worker(args):
         write(pilot_path, dict(status='pass', protocol_sha256=ph, checks=checks))
     if args.pilot_only:
         return
-    jobs = [(t, v, i, seed) for i in protocol['evaluation_ids'][args.shard::2]
+    jobs = [(t, v, i, seed) for i in protocol['evaluation_ids'][args.shard::protocol['workers']]
             for seed in protocol['seeds'] for t in TASKS for v in protocol['variants']]
     random.Random(20260911 + args.shard).shuffle(jobs)
     for task, variant, i, seed in jobs:
@@ -216,7 +246,8 @@ def worker(args):
         rpath = dest.with_suffix('.json')
         if rpath.exists():
             old = json.loads(rpath.read_text())
-            assert old['protocol_sha256'] == ph
+            assert old['protocol_sha256'] in {ph, protocol.get('upstream_protocol_sha256')}
+            assert old['worker'] == args.shard
             if 'prediction_sha256' in old:
                 assert sha(dest.with_suffix('.pt')) == old['prediction_sha256']
             continue
@@ -259,7 +290,10 @@ def main():
     p.add_argument('--inputs', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--checkpoints', type=Path)
-    p.add_argument('--shard', type=int, choices=[0, 1], default=0)
+    p.add_argument('--shard', type=int, choices=[0, 1, 2, 3], default=0)
+    p.add_argument('--workers', type=int, choices=[2, 4], default=4)
+    p.add_argument('--weights-map', type=Path)
+    p.add_argument('--upstream', type=Path)
     p.add_argument('--pilot-only', action='store_true')
     args = p.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
