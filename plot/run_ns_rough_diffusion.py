@@ -105,17 +105,17 @@ def freeze(args):
         start += count
     protocol = dict(version=1, distribution='rough', pde='nsnonbounded', selection_seed=20260910,
         evaluation_ids=evaluation, pilot_ids=pilots, inference_seeds=[0], tasks=TASKS,
-        steps=[100, 1000], formal_calls=192, workers=7, assignment=assignment,
+        steps=[1000], formal_calls=96, workers=7, assignment=assignment,
         source_sha256=sha(args.inputs / 'source.json'), fields_sha256=sha(args.inputs / 'fields_masks_bak.npz'),
         diffusion_configs=dm_configs, checkpoint_sha256=sha(args.dm_checkpoint),
         native_source_sha256=sha(args.diffusion_root / 'scripts/generate_ns_nonbounded.py'),
         code_sha256={p: sha(ROOT / p) for p in ['plot/run_ns_rough_diffusion.py', 'plot/ns_loss_exchange.py']},
         source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         selection='32 uniformly sampled IDs and seven disjoint pilots, fixed before new DiffusionPDE outcomes; no retuning or early stopping by score.',
-        pairing='Exact archived bak Rough truth tensors and task-specific effective masks reused. Both Diffusion budgets for an input stay on one GPU. Archived bak retains its historical one reconstruction per input; no claim of matched initial model noise.',
-        scope='Supplementary 32-input, one-seed Rough screening, three tasks, 100 and 1000 native diffusion steps. Not a 1000-input evaluation or repeated-seed robustness test. Archived Smooth hyperparameters and native NS spatial-derivative surrogate retained unchanged.')
+        pairing='Exact archived bak Rough truth tensors and task-specific effective masks reused. All three tasks for an input stay on one GPU. Archived bak retains its historical one reconstruction per input; no claim of matched initial model noise.',
+        scope='Supplementary 32-input, one-seed Rough screening, three tasks, 1000 native diffusion steps only as requested. Short 100-step disjoint pilots check implementation only and are excluded from evaluation. Not a 1000-input evaluation or repeated-seed robustness test. Archived Smooth hyperparameters and native NS spatial-derivative surrogate retained unchanged.')
     write(args.inputs / 'protocol.json', protocol)
-    print('FROZEN', json.dumps(dict(ids=evaluation, calls=192, sha256=sha(args.inputs / 'protocol.json'))), flush=True)
+    print('FROZEN', json.dumps(dict(ids=evaluation, calls=96, sha256=sha(args.inputs / 'protocol.json'))), flush=True)
 
 
 def worker(args):
@@ -192,7 +192,7 @@ def worker(args):
         print('PILOT', json.dumps(check), flush=True)
     else:
         assert json.loads(check_path.read_text())['protocol_sha256'] == ph
-    jobs = [(task, i, n) for i in p['assignment'][str(args.shard)] for task in TASKS for n in [1000, 100]]
+    jobs = [(task, i, n) for i in p['assignment'][str(args.shard)] for task in TASKS for n in p['steps']]
     for j, (task, i, steps) in enumerate(jobs):
         dest = args.output / 'results' / task / f'DiffusionPDE_{steps}' / f'sample{i}_seed0.pt'
         receipt = dest.with_suffix('.json')
