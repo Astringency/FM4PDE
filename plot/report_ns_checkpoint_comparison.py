@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import numpy as np
@@ -105,6 +106,39 @@ def audit(args, protocol):
     fields = np.load(args.inputs / 'fields_masks.npz')
     ph = sha(args.results / 'protocol.json')
     rows, hashes, paths = [], {}, {}
+    hashes[str(args.results / 'protocol.json')] = ph
+    hashes[str(args.inputs / 'source.json')] = protocol['source_sha256']
+    hashes[str(args.inputs / 'fields_masks.npz')] = protocol['fields_sha256']
+    uuids = set()
+    for worker in range(protocol['workers']):
+        env_path = args.results / f'environment_{worker}.json'
+        env = json.loads(env_path.read_text())
+        assert env['protocol_sha256'] == ph and env['torch'] == '2.8.0+cu128' and env['tf32'] is False
+        assert ('A100' if worker < 2 else 'A800') in env['gpu']
+        assert env['uuid'] not in uuids
+        uuids.add(env['uuid'])
+        hashes[str(env_path)] = sha(env_path)
+        pilot = args.results / f'implementation_check_{worker}.json'
+        check = json.loads(pilot.read_text())
+        assert check['status'] == 'pass' and len(check['checks']) == 4
+        assert check['protocol_sha256'] in {ph, protocol.get('upstream_protocol_sha256')}
+        hashes[str(pilot)] = sha(pilot)
+        for label, info in protocol['checkpoints'].items():
+            weight_path = args.results / f'loaded_weight_{worker}_{label}.json'
+            weight = json.loads(weight_path.read_text())
+            assert weight['protocol_sha256'] == ph and weight['inference_signature'] == info['inference_signature']
+            hashes[str(weight_path)] = sha(weight_path)
+    if 'upstream_protocol_sha256' in protocol:
+        migration_path = args.results / 'migration_manifest.json'
+        migration = json.loads(migration_path.read_text())
+        assert migration['destination_protocol_sha256'] == ph
+        assert migration['source_protocol_sha256'] == protocol['upstream_protocol_sha256']
+        for row in migration['upstream_archive']:
+            suffix = row['path'].split('/results/', 1)[1]
+            archived = args.results.parent / 'results' / suffix
+            assert sha(archived) == row['sha256']
+            hashes[str(archived)] = row['sha256']
+        hashes[str(migration_path)] = sha(migration_path)
     variants = [v['name'] for v in protocol['variants']]
     expected = [(t, v, i, s) for t in protocol['tasks'] for v in variants
                 for i in protocol['evaluation_ids'] for s in protocol['seeds']]
@@ -216,6 +250,8 @@ def audit(args, protocol):
                                    resamples=4000, interval='pointwise paired input percentile bootstrap'))
     csv_write(args.output / 'paired_effects.csv', paired)
     write(args.output / 'audit_manifest.json', dict(status='complete', protocol_sha256=ph,
+          report_source_sha256=sha(Path(__file__)),
+          report_source_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
           new_calls=new_count, new_finite_calls=sum(r['status'] == 'complete' for r in rows[:new_count]),
           diffusion_reference_calls=len(rows)-new_count, per_input_rows=len(per_input),
           summary_rows=len(summaries), paired_effect_rows=len(paired), source_hashes=hashes,
