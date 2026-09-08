@@ -113,7 +113,7 @@ def main(args):
     def colorbar(fig,im,axes):
         bar=fig.colorbar(im,ax=axes,orientation='horizontal',fraction=.05,pad=.035,aspect=40,shrink=.88)
         bar.locator=MaxNLocator(4)
-        bar.formatter=ScalarFormatter(useMathText=False)
+        bar.formatter=ScalarFormatter(useMathText=True)
         bar.formatter.set_powerlimits((-2,3));bar.update_ticks()
         bar.ax.tick_params(length=2,pad=1,labelsize=7)
 
@@ -157,7 +157,9 @@ def main(args):
             caption=(NAMES[pde]+' sampler phases on the main ID sample. S and D denote stochastic and deterministic updates; both hybrids switch at flow time 0.2. '
                      r'Labels give the relative error of the entire field, $e_a$ or $e_u$, and its observed values, in percent. '
                      'Each component is shown separately, with a common color range across settings within its row. ')
-            if pde=='burger':caption+='The horizontal and vertical axes represent space and physical time, respectively.'
+            if pde=='burger':
+                caption=caption.replace('$e_a$ or $e_u$', '$e_u$')
+                caption+='The horizontal and vertical axes represent space and physical time, respectively.'
             save(fig,stem,caption)
 
     # Retain the earlier reconstruction style for four prescribed main PDEs.
@@ -182,7 +184,8 @@ def main(args):
             colorbar(fig,im,axes[i,:3]);colorbar(fig,err,axes[i,3:])
         fig.suptitle(NAMES[pde].replace('--','–')+' · guidance at 100 stochastic steps',fontsize=10)
         save(fig,'ablation_guidance_reconstruction_'+pde,
-             NAMES[pde]+r' observation and physical guidance on the main ID sample. Both physical fields are shown separately; Burgers has one trajectory field. '
+             NAMES[pde]+r' observation and physical guidance on the main ID sample. '+
+             ('The complete time--space trajectory is shown. ' if pde=='burger' else 'Both physical fields are shown separately. ')+
              r'Labels give whole-field and observed relative errors in percent. Predictions share a color range within each row; absolute errors use a separate range starting at zero.')
 
     # Ordered experimental conditions: marker shapes/styles distinguish phases.
