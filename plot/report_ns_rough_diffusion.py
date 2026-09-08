@@ -62,7 +62,7 @@ def figures(study, protocol):
             if col == 0: ax.set_ylabel(english[row] + '\ny')
             if col == 2: fig.colorbar(im, ax=list(axes[row, :3]), shrink=.68, pad=.015)
             if col == 4: fig.colorbar(im, ax=list(axes[row, 3:]), shrink=.68, pad=.015)
-    fig.suptitle(f'Rough NS reconstruction: fixed input {i}\nIdentical physical inputs and 500-point task observations; DiffusionPDE seed 0', fontsize=13)
+    fig.suptitle(f'Rough NS reconstruction: fixed input {i}\nIdentical inputs and masks; 500 observations per observed field; DiffusionPDE seed 0', fontsize=13)
     save(fig, study / 'report/ns_rough_reconstruction')
 
 
@@ -158,6 +158,7 @@ def main():
         lines.append(f"| {NAMES[r['task'],r['field']]} | {r['dm_minus_bak_pp']:+.2f} | [{r['paired_ci95_low_pp']:+.2f}, {r['paired_ci95_high_pp']:+.2f}] | {r['dm_lower_error_inputs']}/32 |")
     lines += ['', '## 范围与来源', '',
         '- 评测仅运行用户指定的 1000 步；独立 pilot 的短步数运行只验证实现，未计入结果。',
+        '- 每个被观测场使用 500 个观测值，联合任务对两个场各观测 500 个值；掩码逐条复用 bak 归档。',
         '- 沿用当前 DiffusionPDE 存档权重、物理尺度变换和引导参数，无 Rough 调参或重训练。原生 NS 引导为历史空间导数代理项，不是完整 NS 演化残差。',
         '- Rough 与 Smooth 的存档样本群体、观测掩码不同，跨分布误差差异仅作描述；本次可逐样本配对的是 Rough DiffusionPDE 与 Rough bak。',
         '- 每个输入仅一个采样种子，标准差反映输入间差异；不能据此判断跨种子稳定性，也不替代 1000 输入的全量评测。',
