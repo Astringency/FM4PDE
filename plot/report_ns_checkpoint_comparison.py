@@ -345,6 +345,53 @@ def spectra(args, protocol, paths):
     save(fig, args.output / 'ns_checkpoint_spectra')
 
 
+def seed_variance(args, protocol, paths):
+    """Separate observed three-seed dispersion from the error of the sample mean."""
+    import torch
+    rows, identities = [], []
+    for task in protocol['tasks']:
+        for variant in LABELS:
+            for i in protocol['evaluation_ids']:
+                keys = [(task, variant, i, seed) for seed in protocol['seeds']]
+                if not all(k in paths for k in keys):
+                    continue
+                samples = [torch.load(paths[k], map_location='cpu', weights_only=False) for k in keys]
+                errors = []
+                for j, field in enumerate(['a', 'u']):
+                    pred = torch.stack([s['prediction'][j].double() for s in samples])
+                    truth = samples[0]['truth'][j].double()
+                    mean = pred.mean(0)
+                    scale = float(truth.square().sum())
+                    individual = float((pred - truth).square().flatten(1).sum(1).mean()) / scale
+                    mean_error = float((mean - truth).square().sum()) / scale
+                    dispersion = float((pred - mean).square().flatten(1).sum(1).mean()) / scale
+                    assert np.isclose(individual, mean_error + dispersion, rtol=1e-12, atol=1e-14)
+                    errors.append(np.sqrt(mean_error))
+                    identities.append(dict(task=task, variant=variant, sample_id=i, field=field,
+                                           mean_individual_relative_squared_error=individual,
+                                           mean_prediction_relative_squared_error=mean_error,
+                                           within_three_seed_dispersion=dispersion,
+                                           dispersion_fraction=dispersion / individual if individual else 0.))
+                rows.append(dict(task=task, variant=variant, sample_id=i, calls=3,
+                                 primary_error=errors[1] if task == 'forward' else errors[0] if task == 'inverse' else max(errors),
+                                 rel_l2_a=errors[0], rel_l2_u=errors[1]))
+    csv_write(args.output / 'mean3_per_input.csv', rows)
+    csv_write(args.output / 'seed_variance_identity.csv', identities)
+    summary = []
+    for task in protocol['tasks']:
+        for variant in LABELS:
+            rr = [r for r in rows if r['task'] == task and r['variant'] == variant]
+            if len(rr) == 32:
+                a = np.array([r['primary_error'] for r in rr]) * 100
+                summary.append(dict(task=task, variant=variant, estimator='mean of three predictions',
+                                    inputs=32, calls_per_input=3, primary_mean_pct=a.mean(),
+                                    primary_sd_pct=a.std(ddof=1)))
+    csv_write(args.output / 'mean3_summary.csv', summary)
+    write(args.output / 'seed_variance_qa.json', dict(verified_field_identities=len(identities),
+          complete_mean3_groups=len(rows), expected_mean3_groups=32*3*6,
+          definition='Observed three-seed mean individual squared error equals mean-prediction squared error plus within-three-seed dispersion. This is an algebraic decomposition, not an unbiased estimate of population bias or posterior variance. Three calls are charged to every method.'))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--results', type=Path, required=True)
@@ -362,6 +409,7 @@ def main():
     summaries, paired, paths = audit(args, protocol)
     figures(args, protocol, paths)
     spectra(args, protocol, paths)
+    seed_variance(args, protocol, paths)
     lines = ['# NS checkpoint comparison', '', '32 matched Smooth inputs × 3 seeds × 3 tasks. Each table cell averages seed-level errors within each input, then reports mean ± sample SD (%) over 32 inputs. These are supplementary results, not the 1000-input main experiment.', '', '| Model / configuration / steps | Forward u | Inverse a | Joint max(a,u) |', '|---|---:|---:|---:|']
     for variant, label in LABELS.items():
         cells = []
