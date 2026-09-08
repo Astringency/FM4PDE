@@ -229,8 +229,8 @@ def figures(args, protocol, paths):
     import matplotlib.pyplot as plt
     fields = np.load(args.inputs / 'fields_masks.npz')
     i, seed = protocol['evaluation_ids'][0], 0
-    variants = [v['name'] for v in protocol['variants']] + ['DiffusionPDE_1000']
-    short = ['FM current\n100 steps', 'FM 260904\n100 steps', 'FM bak, common\n100 steps',
+    variants = ['current_common100', 'v260904_common100', 'bak_legacy100', 'DiffusionPDE_1000']
+    short = ['FM current\n100 steps', 'FM 260904\n100 steps',
              'FM bak, legacy\n100 steps', 'DiffusionPDE\n1000 steps']
     for task, field, j in [('forward', 'u', 1), ('inverse', 'a', 0), ('both', 'a', 0), ('both', 'u', 1)]:
         truth = fields[f'{field}_{i}'].squeeze()
@@ -240,7 +240,7 @@ def figures(args, protocol, paths):
             predictions.append(torch.load(path, map_location='cpu', weights_only=False)['prediction'][j].numpy().squeeze() if path else None)
         vmax = max(float(np.abs(x).max()) for x in [truth] + predictions if x is not None)
         emax = max(float(np.abs(x - truth).max()) for x in predictions if x is not None)
-        fig, axes = plt.subplots(2, 6, figsize=(15, 5.2), layout='constrained')
+        fig, axes = plt.subplots(2, 5, figsize=(13, 5.2), layout='constrained')
         im = axes[0, 0].imshow(truth, cmap='RdBu_r', vmin=-vmax, vmax=vmax, origin='lower')
         axes[0, 0].set_title('Reference')
         observed = (task, field) not in [('forward', 'u'), ('inverse', 'a')]
@@ -287,7 +287,8 @@ def main():
         cells = []
         for task in protocol['tasks']:
             r = next(r for r in summaries if r['task'] == task and r['variant'] == variant)
-            cells.append(f"{r['primary_error_mean_pct']:.2f} ± {r['primary_error_sd_pct']:.2f}" if r['complete_inputs'] == 32 else f"Incomplete finite outcomes: {r['finite_calls']}/96")
+            fmt = '.2e' if (r['primary_error_mean_pct'] or 0) > 10000 else '.2f'
+            cells.append(f"{r['primary_error_mean_pct']:{fmt}} ± {r['primary_error_sd_pct']:{fmt}}" if r['complete_inputs'] == 32 else f"Incomplete finite outcomes: {r['finite_calls']}/96")
         lines.append('| ' + label + ' | ' + ' | '.join(cells) + ' |')
     lines += ['', 'All specified checkpoints and failed/nonfinite outcomes are retained. The common-guidance comparison changes the checkpoint, saved architecture and normalizer. Backup legacy guidance is a separate configuration. No evaluation-score tuning occurred. Current and 260904 differ in architecture, numerical training precision, resume history and learning-rate trajectory; this is not a training-duration ablation.', '', 'DiffusionPDE references use the identical input fields, masks and nominal seeds, but were computed earlier across several GPUs. FM 100 steps uses 100 network evaluations; DiffusionPDE 100 and 1000 steps use 199 and 1999 respectively. Runtime values must not be pooled as a controlled speed benchmark.', '', 'Paired differences and pointwise 95% bootstrap intervals are in `paired_effects.csv`; all raw tensor and source hashes are in `audit_manifest.json`.']
     (args.output / 'RESULTS.md').write_text('\n'.join(lines)+'\n')
