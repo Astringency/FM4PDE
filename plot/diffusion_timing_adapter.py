@@ -27,7 +27,7 @@ class Float32(ast.NodeTransformer):
         return node
 
 
-def build(diffusion_root,pde,diagnostics=False):
+def build(diffusion_root,pde,diagnostics=False,native_precision=False):
     path=Path(diffusion_root)/'scripts'/f'generate_{MODULES[pde]}.py'
     tree=ast.parse(path.read_text())
     original=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='generate_'+MODULES[pde])
@@ -70,7 +70,10 @@ loss=[] if config['data']['name']=='Burgers' else {'global_a': [], 'global_u': [
     result='return x_final.detach(), x_final.detach()' if pde=='burger' else 'return a_final.detach(), u_final.detach()'
     fn=ast.parse('def predict(config, net, a_GT, u_GT, mask_a, mask_u):\n    pass').body[0]
     fn.body=preamble+prefix+[loop]+footer+ast.parse(result).body
-    module=Float32().visit(ast.Module(body=functions+[fn],type_ignores=[]));ast.fix_missing_locations(module)
+    module=ast.Module(body=functions+[fn],type_ignores=[])
+    if not native_precision:
+        module=Float32().visit(module)
+    ast.fix_missing_locations(module)
     source=ast.unparse(module)+'\n'
     import numpy as np
     import torch
