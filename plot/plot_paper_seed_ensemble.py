@@ -78,8 +78,9 @@ def plot(args):
                     series.append((label,values[:,column,:].mean(0)[1:],color,style))
                 for label,values,color,style in series:
                     assert np.isfinite(values).all() and (values>=0).all()
-                    ax.plot(k,np.where(values>0,values,np.nan),label=label,color=color,ls=style,lw=1.15)
-                ax.set_yscale('log')
+                    ax.plot(k,values,label=label,color=color,ls=style,lw=1.15)
+                ax.set_yscale('symlog',linthresh=1e-14,linscale=.3)
+                ax.set_ylim(bottom=max(0.0,ax.get_ylim()[0]))
                 ax.set_xlabel('Spatial mode' if pde=='burger' else 'Radial mode index' if pde in NONPERIODIC else 'Radial wavenumber')
                 ax.set_ylabel('Normalized shell energy' if column==0 else 'Normalized shell error energy')
                 ax.set_title(rf'${field}$: '+('energy' if column==0 else 'error'))
@@ -93,6 +94,7 @@ def plot(args):
         save(fig,'ensemble_spectra_'+pde,
             NAMES[pde]+' spectra for the single prediction and the average of three predictions, using '+transform+'. '
             'Curves average 32 input spectra, each normalized by its full reference-field energy. The left column shows reference and predicted energy; the right shows prediction-error energy. '
+            'The vertical scale is logarithmic above $10^{-14}$ and linear below it. '
             'All channels of a field contribute to its spectrum. The constant mode is excluded from the horizontal axis.')
     (args.output/'ensemble_figures.tex').write_text('\n'.join(captions))
     write(args.output/'figure_manifest.json',dict(full_study=manifest['full_study'],pdes=manifest['pdes'],

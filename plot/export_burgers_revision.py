@@ -158,7 +158,7 @@ def export(args):
     write_csv(args.output/'summary.csv', summary)
     lines = [r'\begin{table}[!htbp]', r'\FMTableMark{start}{tab:burgers-results}',
         r'\centering\scriptsize\setlength{\tabcolsep}{3pt}',
-        r'\caption{Burgers trajectory reconstruction under two observation patterns. Each entry is the mean $\pm$ sample SD of full-trajectory relative $L^2$ error (\%) over 1,000 inputs. Random observations contain 500 time--space points; structured observations contain 640 values at five physical-time levels. DiffusionPDE is evaluated on Smooth.}',
+        r'\caption{Burgers trajectory reconstruction under two observation patterns. Each entry is the mean $\pm$ sample SD of full-trajectory relative $L^2$ error (\%) over 1,000 inputs. Random observations contain 500 time--space points; structured observations contain 640 values at five physical-time levels. DiffusionPDE is evaluated on Smooth. Boldface and $\dagger$ mark the lowest and second-lowest means in each column.}',
         r'\label{tab:burgers-results}', r'\begin{tabular}{@{}lrrrrrr@{}}\toprule',
         r'& \multicolumn{3}{c}{Random} & \multicolumn{3}{c}{Structured} \\',
         r'\cmidrule(lr){2-4}\cmidrule(l){5-7}',
@@ -168,8 +168,17 @@ def export(args):
         for mode in ['random', 'structured']:
             for distribution in DISTRIBUTIONS:
                 row = index[(mode, distribution, method, steps)]
-                values.append('--' if not row['supported'] else r'\textit{Pending}' if not row['complete'] else
-                    f"${row['mean_percent']:.2f}\\pm{row['sd_percent']:.2f}$")
+                if not row['supported']:
+                    values.append('--')
+                elif not row['complete']:
+                    values.append(r'\textit{Pending}')
+                else:
+                    ranks = sorted({index[(mode,distribution,m,n)]['mean_percent']
+                                    for m,n in METHODS if index[(mode,distribution,m,n)]['complete']})
+                    value = f"{row['mean_percent']:.2f}"
+                    if row['mean_percent'] == ranks[0]: value = r'\mathbf{'+value+'}'
+                    elif row['mean_percent'] == ranks[1]: value += r'^{\dagger}'
+                    values.append(f"${value}\\pm{row['sd_percent']:.2f}$")
         label = method + (f' ({steps})' if steps else '')
         lines.append(label+' & '+' & '.join(values)+r' \\')
     lines += [r'\bottomrule\end{tabular}', r'\FMTableMark{end}{tab:burgers-results}', r'\end{table}']

@@ -21,7 +21,8 @@ sys.path.insert(0, str(ROOT))
 from run_paper_ablation_revision import PDES, digest
 from publication_style import error_number
 
-NONPERIODIC = {'poisson', 'helmholtz', 'darcy', 'steady_heat_conduction'}
+NONPERIODIC = {'poisson', 'helmholtz', 'darcy', 'reaction_diffusion',
+               'shallow_water', 'steady_heat_conduction'}
 NAMES = dict(poisson='Poisson', helmholtz='Helmholtz', darcy='Darcy',
              nsnonbounded='Navier--Stokes', burger='Burgers',
              reaction_diffusion='Reaction--Diff.', shallow_water='Shallow Water',
@@ -215,7 +216,10 @@ def analyze(args):
              r'\begin{tabular}{@{}llrrrr@{}}\toprule',
              r'PDE & Field & Draw 0 & Single avg. & Mean of 3 & Paired change [adjusted CI] \\\midrule']
     for row in summary:
-        stats = [f"${error_number(row[e+'_mean'])}\\pm{error_number(row[e+'_sd'])}$" for e in estimators]
+        small = max(row[e+'_mean'] for e in estimators) < .1
+        def number(value):
+            return f'{value:.4f}' if small and abs(value) >= .0001 else error_number(value)
+        stats = [f"${number(row[e+'_mean'])}\\pm{number(row[e+'_sd'])}$" for e in estimators]
         lines.append(f"{NAMES[row['pde']]} & ${row['field']}$ & "+' & '.join(stats)+
                      f" & ${error_number(row['paired_delta_pp'])}\\ [{error_number(row['family21_low'])},{error_number(row['family21_high'])}]$ \\\\")
     lines += [r'\bottomrule\end{tabular}\end{table}']
