@@ -28,7 +28,8 @@ from run_paper_ablation_revision import digest,write
 def freeze(args):
     from sampling.config import load_config
     inputs=args.inputs
-    assert not (inputs/'sampling_protocol.json').exists()
+    protocol_path=args.sampling_protocol or inputs/'sampling_protocol.json'
+    assert not protocol_path.exists()
     source=json.loads((inputs/'protocol.json').read_text())
     jobs=[]
     for cell in source['new_fm_cells']:
@@ -52,7 +53,7 @@ def freeze(args):
               'and observation sensitivity only; fixed archived guidance is not tuned.',
         metrics='Full 128x128 physical trajectory relative L2; per-input values, mean, n-1 standard deviation.',
         precision='FM network/state float32; Diffusion network float32, native state/time/residual float64; TF32 disabled.')
-    write(inputs/'sampling_protocol.json',protocol)
+    write(protocol_path,protocol)
     print('FROZEN',len(jobs),'calls',args.shards,'shards',flush=True)
 
 
@@ -69,8 +70,9 @@ def worker(args):
     torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
     torch.backends.cudnn.benchmark=False
     source=json.loads((args.inputs/'protocol.json').read_text())
-    protocol=json.loads((args.inputs/'sampling_protocol.json').read_text())
-    ph=digest(args.inputs/'sampling_protocol.json')
+    protocol_path=args.sampling_protocol or args.inputs/'sampling_protocol.json'
+    protocol=json.loads(protocol_path.read_text())
+    ph=digest(protocol_path)
     assert digest(args.inputs/'protocol.json')==protocol['input_protocol_sha256']
     assert digest(ROOT/'plot/diffusion_timing_adapter.py')==protocol['adapter_sha256']
     assert digest(Path(__file__))==protocol['runner_sha256']
@@ -84,7 +86,9 @@ def worker(args):
             host=socket.gethostname(),pid=os.getpid(),torch=torch.__version__,cuda=torch.version.cuda,
             gpu=torch.cuda.get_device_name(),visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
             commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()))
-        sys.path.insert(0,str(args.diffusion_root))
+        # Both repositories have a top-level data package. Keep FM imports
+        # first while making DiffusionPDE's pickle classes available.
+        sys.path.append(str(args.diffusion_root))
         fm=load_fm4pde_checkpoint_bundle(str(args.fm_weights),'burger','cuda:0',model_profile='recommended')
         with args.dm_weights.open('rb') as f:dm=pickle.load(f)['ema'].to('cuda:0').eval()
         dm.requires_grad_(False)
@@ -176,6 +180,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('mode',choices=['freeze','worker'])
     p.add_argument('--inputs',type=Path,required=True)
+    p.add_argument('--sampling-protocol',type=Path)
     p.add_argument('--output',type=Path)
     p.add_argument('--fm-weights',type=Path,required=True)
     p.add_argument('--dm-weights',type=Path,required=True)
