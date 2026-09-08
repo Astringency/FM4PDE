@@ -186,7 +186,7 @@ def aggregate(rows, protocol, output):
     return summary, effects
 
 
-def figures(args, protocol, paths):
+def figures(args, protocol, paths, *, only_tasks=None):
     import matplotlib.pyplot as plt
     fields = np.load(args.inputs / 'fields_masks.npz')
     i, seed = protocol['evaluation_ids'][0], 0
@@ -194,6 +194,8 @@ def figures(args, protocol, paths):
     names = ['260712 / current\n100 steps', '260712 / legacy\n100 steps',
              '260904 / current\n100 steps', '260904 / legacy\n100 steps', 'DiffusionPDE\n1000 steps']
     for task, field, j in [('forward', 'u', 1), ('inverse', 'a', 0), ('both', 'a', 0), ('both', 'u', 1)]:
+        if only_tasks is not None and task not in only_tasks:
+            continue
         truth = fields[f'{field}_{i}'].squeeze().astype(float)
         preds = []
         for variant in variants:
