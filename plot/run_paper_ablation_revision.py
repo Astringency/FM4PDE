@@ -11,6 +11,7 @@ import copy
 import csv
 import dataclasses
 import fcntl
+import functools
 import hashlib
 import json
 import math
@@ -53,11 +54,16 @@ def write(path, obj):
 
 def prepare(args):
     import torch
+    import scipy.io
     from sampling.config import load_config
     from sampling.data import load_ground_truth
     from scripts.tuning.make_inference_checkpoint import make_inference_checkpoint
     target = args.inputs
     target.mkdir(parents=True, exist_ok=True)
+    # The MATLAB loader otherwise reads the entire multi-GB file for each ID.
+    # Reuse one immutable raw file while extracting a PDE's fixed input cohort.
+    original_loadmat = scipy.io.loadmat
+    scipy.io.loadmat = functools.lru_cache(maxsize=1)(original_loadmat)
     recommendation_file = args.archive / 'outputs/tuning/six_pde_sampling_refine/recommended_params_standard.json'
     recommendations = json.loads(recommendation_file.read_text())
     summary_file = args.archive / 'outputs/ablations/summary_latest_unique.csv'
@@ -119,6 +125,7 @@ def prepare(args):
             clipping_candidates=[50.,100.,500.,1000.] if pde in ['poisson','nsnonbounded'] else [],
             tuning_observation_counts=[50,100,500] if pde in ['poisson','nsnonbounded'] else [500])
         write(protocol_path, protocol)
+        scipy.io.loadmat.cache_clear()
         print('PREPARED', pde, len(archived), flush=True)
 
 
