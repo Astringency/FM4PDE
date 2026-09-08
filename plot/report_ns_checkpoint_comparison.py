@@ -181,10 +181,10 @@ def audit(args, protocol):
             pred = data['prediction'][j].double()
             assert pred.shape == truth.shape and bool(torch.isfinite(pred).all())
             error = float((pred - truth.double()).norm() / truth.double().norm())
-            assert abs(error - r[f'rel_l2_{field}']) < 1e-12
+            assert np.isclose(error, r[f'rel_l2_{field}'], rtol=1e-12, atol=1e-12)
             errors.append(error)
         primary = errors[1] if task == 'forward' else errors[0] if task == 'inverse' else max(errors)
-        assert abs(primary - r['primary_error']) < 1e-12
+        assert np.isclose(primary, r['primary_error'], rtol=1e-12, atol=1e-12)
         rows.append(r)
         paths[task, variant, i, seed] = pt
     assert len(rows) == protocol['formal_calls']
