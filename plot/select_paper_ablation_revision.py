@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 import statistics
+import socket
+import time
 
 
 def main():
@@ -14,6 +16,21 @@ def main():
     a=p.parse_args()
     for pde in a.pdes:
         target=a.output/pde
+        assignment=target/'external_assignment.json'
+        if assignment.exists():
+            owner=json.loads(assignment.read_text())
+            protocol_hash=hashlib.sha256((a.inputs/pde/'protocol.json').read_bytes()).hexdigest()
+            assert owner['protocol_sha256']==protocol_hash
+            if socket.gethostname()!=owner['host']:
+                deadline=time.monotonic()+43200
+                for stage in owner['stages']:
+                    marker=target/f'{stage}_complete.json'
+                    while not marker.exists():
+                        if time.monotonic()>deadline:
+                            raise TimeoutError(f'{pde} {stage} results have not arrived from {owner["host"]}')
+                        print(f'Waiting for {pde} {stage} from {owner["host"]}',flush=True)
+                        time.sleep(30)
+                    assert json.loads(marker.read_text())['protocol_sha256']==protocol_hash
         selection=target/'selection.json'
         if selection.exists():
             print('EXISTS',selection);continue
