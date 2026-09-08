@@ -272,7 +272,7 @@ def audit(args, protocol):
     return summaries, paired, paths
 
 
-def figures(args, protocol, paths):
+def figures(args, protocol, paths, *, only_tasks=None):
     import torch
     import matplotlib.pyplot as plt
     fields = np.load(args.inputs / 'fields_masks.npz')
@@ -281,6 +281,8 @@ def figures(args, protocol, paths):
     short = ['FM 260712\n100 steps', 'FM 260904\n100 steps',
              'FM bak, legacy\n100 steps', 'DiffusionPDE\n1000 steps']
     for task, field, j in [('forward', 'u', 1), ('inverse', 'a', 0), ('both', 'a', 0), ('both', 'u', 1)]:
+        if only_tasks is not None and task not in only_tasks:
+            continue
         truth = fields[f'{field}_{i}'].squeeze()
         predictions = []
         for variant in variants:
