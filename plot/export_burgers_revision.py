@@ -50,7 +50,12 @@ def freeze_fm(args):
             metrics = list(csv.DictReader((run.parent/'metrics_per_sample.csv').open()))
             metrics.sort(key=lambda r: int(r['sample_index']))
             assert len(metrics) == len(payload['sol_final'])
-            assert torch.equal(masks['coef'], masks['sol']), (run, 'different trajectory masks')
+            metadata = json.loads((run.parent/'run_metadata.json').read_text())
+            # Burgers has one trajectory channel. The archived auxiliary mask
+            # differs, but its observation gradient has zero weight.
+            assert metadata['guidance']['zeta_obs_a'] == 0.0, run
+            assert metadata['guidance']['zeta_obs_u'] > 0.0, run
+            assert metadata['guidance']['pde_residual_region'] == 'full', run
             assert (masks['sol'].flatten(1).sum(1) == 500).all(), run
             sh = digest(run)
             run_sources[str(run)] = sh
