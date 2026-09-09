@@ -3,8 +3,9 @@
 This document prepares the full archive. The 2026-09-09 census used read-only
 SSH and local metadata generation. A subsequent authorized pilot archived
 exactly one completed 4,195-byte NS timing log; its evidence is described below.
-No full-study transfer has started. Existing GPU workers and their checkouts
-were not changed.
+After that pilot, the authorized completed-study batch began on 2026-09-09;
+its live completion record is described below. Existing GPU workers and their
+checkouts were not changed.
 
 ## Scope and capacity
 
@@ -130,6 +131,49 @@ bytes were checked again after the pilot and were unchanged. This validates
 the real remote lifecycle on a small relayed file; it does not claim a
 deliberately injected mid-transfer network failure or a completed large-copy
 stress test. No `--all-ready` transfer or GPU task was started.
+
+## Completed-study batch
+
+`review_completed_archive.py` binds the final study gates, rechecks all
+configuration metadata against the original census, and produces a separate
+reviewed inventory. The 07:13 UTC review approved 51 primary/dependency entries
+totalling 74,427,442,592 bytes (69.32 GiB), with no changed metadata or missing
+source. It includes the explicitly frozen NS 15,000-example study and its
+80-call timing. The K production directories and collector remain pending.
+`archive_completion_review.json` records the exact gates and per-entry reasons.
+
+The frozen execution inventory is
+`/home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.reviewed.json`,
+SHA256 `9a10fcc11367f8a74198837cece6da672068dce647f5743064a324d63e6b5dd4`.
+`run_reviewed_archive.py` runs each approved entry through `--execute` and then
+an independent `--verify`, strictly serially, from the local owned session
+`revision_archive_0909`. It retains separate per-entry command logs and atomically
+updates `execution_status.json` in that same local audit directory. The record
+contains verified bytes and receipt hashes. Failed entries are held with their
+logs preserved; no different target is replaced. The runner skips verified
+entries if explicitly resumed with the same reviewed inventory. It refuses
+changed inventories or unreviewed existing attempt logs.
+
+The remote archive script remains the tested, independent `6f5bfd5` checkout;
+new local review/orchestration code does not alter any remote producer. The
+completion record, rather than this preparation document, determines which
+entries have actually completed. Final paper assets and source bundles are
+managed separately by the root coordinator.
+
+At 07:32 UTC, all nine original ablation entries were verified. Reproduction
+review identified one further required dependency: the frozen 1060-row
+`archived_ablation_summary.csv` (3,837,690 bytes). Its SHA256 is exactly the
+publication manifest's `source_archive_sha256`. The root explicitly authorized
+this one small dependency transfer alongside the bulk to unblock the archive
+recomputation; it is the only concurrent-entry exception. The independent
+copy and verification completed, and its owned tmux session exited. It is
+stored at
+`ablations/revision_20260909/paper_revision_20260908/local_exports/archived_ablation_summary/archived_ablation_summary.csv`.
+`archive_inventory.addendum_summary.json` records the reviewed dependency;
+`ablation_archive_receipts.json` includes the complete study handoff and its
+receipt SHA256
+`5550c18e385300f589f3c558f7dcdfe59da8c704e9092c1e5572d42736ccc215`.
+The active 51-entry inventory was not rewritten to insert this addition.
 
 ## Install the exact script through Git, outside production
 

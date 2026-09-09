@@ -50,6 +50,9 @@ def catalog():
     for name in ['ablation_publication_snapshot', 'ablation_publication_tables', 'ablation_publication_figures', 'ensemble_complete']:
         add('ablation_export_' + name, 'local', AUDIT/'paper_revision_20260908'/name, 'ablations', 'paper_revision_20260908',
             'local_exports/' + name, 'Final complete numerical/figure export with source hashes and publication counts.')
+    add('ablation_original_summary', 'local', AUDIT/'paper_revision_20260908/archived_ablation_summary.csv', 'ablations', 'paper_revision_20260908',
+        'local_exports/archived_ablation_summary', 'Frozen 1060-row original summary required by the ablation collector; its SHA is source_archive_sha256 in the complete publication manifest.', role='dependency',
+        evidence_sha256={'archived_ablation_summary.csv':'2c077c491d51d556069e1b46a2fd8c4764dea02b0447648670c3785fa7299e0f'})
 
     for host in BASE:
         add('burgers_raw_' + host, host, BASE[host] + '/paper_revision_20260908/burgers_output_v3', 'main', 'burgers_revision_20260908',
