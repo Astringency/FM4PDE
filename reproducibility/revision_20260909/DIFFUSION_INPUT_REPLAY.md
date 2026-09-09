@@ -1,7 +1,7 @@
 # Original DiffusionPDE evaluation inputs
 
 The five frozen NPZ files contain the exact arrays used for the selected
-indices 0–999. Three retain float64 fields; NS retains the original float32
+indices 0–999. Four retain float64 fields; NS retains the original float32
 arrays, which its native sampler converts to float64. Darcy keeps its
 `H,W,N` axes. NS retains `w0` and the final `w` frame with a singleton final
 axis, as its generator reads `w[..., -1]`. The historical Burgers files use
