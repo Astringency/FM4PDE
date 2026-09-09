@@ -113,7 +113,7 @@ def numpy(value):
     return np.asarray(value)
 
 
-def check_saved_results(entry, arrays, result_root):
+def check_saved_results(entry, arrays, result_root, indices=(0, 17, 999)):
     import numpy as np
     records = []
     for cell in entry['selected_cells']:
@@ -129,7 +129,7 @@ def check_saved_results(entry, arrays, result_root):
             assert index not in indexed
             indexed[index] = path
         assert sorted(indexed) == list(range(1000))
-        for index in [0, 17, 999]:
+        for index in indices:
             path = indexed[index]
             with path.open('rb') as stream:
                 payload = CPUUnpickler(stream).load()
@@ -172,15 +172,18 @@ def check_saved_results(entry, arrays, result_root):
             for field, truth in targets.items():
                 truth = np.asarray(truth, dtype=np.float64)
                 pred = np.asarray(predictions[field], dtype=np.float64)
+                assert np.isfinite(pred).all() and np.isfinite(truth).all(), (path, field)
                 value = float(np.linalg.norm(pred - truth) / np.linalg.norm(truth))
                 recorded = float(metric['rel_l2_' + field])
                 assert np.isclose(value, recorded, rtol=2e-7, atol=1e-10), (path, field, value, recorded)
                 checks[field] = dict(recomputed=value, recorded=recorded, absolute_difference=abs(value - recorded))
                 mask_name = 'known_sensor' if pde == 'burger' else 'known_index_' + field
                 observed_key = 'obs_rel_l2_' + field
+                mask = masks[mask_name].astype(np.float64)
+                observed = float(np.linalg.norm((pred - truth) * mask) / np.linalg.norm(truth * mask))
+                checks[field]['observation_relative_l2'] = observed
+                checks[field]['observation_mse'] = float(np.square((pred - truth)[mask.astype(bool)]).mean())
                 if observed_key in metric and metric[observed_key] is not None:
-                    mask = masks[mask_name].astype(np.float64)
-                    observed = float(np.linalg.norm((pred - truth) * mask) / np.linalg.norm(truth * mask))
                     recorded_obs = float(metric[observed_key])
                     assert np.isclose(observed, recorded_obs, rtol=2e-7, atol=1e-10), (path, field, observed, recorded_obs)
                     checks[field]['observed_recomputed'] = observed
