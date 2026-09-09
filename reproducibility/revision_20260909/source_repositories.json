@@ -193,6 +193,10 @@
         {
           "revision": "3444bee1c90ad9246963db7d21b734cfe133c52b",
           "purpose": "Consolidated reproduction implementation used for completed conditional-sample scientific and manuscript checks"
+        },
+        {
+          "revision": "4a3240d96602e4d184a55cd5608ae62a5dcb3942",
+          "purpose": "Actual archived K-pool reproduction verifier and tested stable final-paper reconstruction implementation"
         }
       ]
     },
