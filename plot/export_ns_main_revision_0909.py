@@ -58,7 +58,8 @@ def main(a):
                     rows.append(dict(dist=dist,setting=setting,offset=i,error_a=errors[j,0],error_u=errors[j,1],
                         obs_a=obs[j,0],obs_u=obs[j,1],pde_mse=reported['pde_mse'],
                         observed_a=int(counts[j,0]),observed_u=int(counts[j,1]),nfe=receipt['nfe'],
-                        tf32=receipt['tf32'],gpu=receipt['gpu'],result=str(path)))
+                        tf32=receipt['tf32'],gpu=receipt['gpu'],
+                        runtime_batch_size=receipt['batch_size'],worker=receipt['worker'],result=str(path)))
                     seen.append(i)
             assert sorted(seen)==EVAL,(dist,setting,len(seen))
             checks.append(dict(dist=dist,setting=setting,n=len(seen),exact_ids=True))
