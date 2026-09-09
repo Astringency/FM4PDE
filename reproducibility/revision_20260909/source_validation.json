@@ -1,7 +1,7 @@
 {
   "status": "pass",
-  "source_trees": 57,
-  "files": 25454,
+  "source_trees": 58,
+  "files": 25977,
   "checks": "Independent tar contents compared to every Git blob object hash and executable mode",
   "records": [
     {
@@ -131,6 +131,14 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "f102392ff23e8df9b63592332fc16e38796aec99e48e9f02a96e8ad4dc92a148"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "3444bee1c90ad9246963db7d21b734cfe133c52b",
+      "files": 523,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "cbe7d61feddf0f93fb8ce9e797687f43c6d8dc610fd633f4a490a5ecc302da67"
     },
     {
       "repository": "FM4PDE",
