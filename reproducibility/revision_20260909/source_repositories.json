@@ -189,6 +189,10 @@
         {
           "revision": "0b770215d9ab44492fd60b11c13d1af1c63307f6",
           "purpose": "Final native baseline interface controller with 186 mask contracts and separately verified original-environment inference receipts"
+        },
+        {
+          "revision": "3444bee1c90ad9246963db7d21b734cfe133c52b",
+          "purpose": "Consolidated reproduction implementation used for completed conditional-sample scientific and manuscript checks"
         }
       ]
     },
