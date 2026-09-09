@@ -2,6 +2,13 @@
 
 FM4PDE is a Flow Matching codebase for generating, completing, and inverting PDE solution fields with observation and PDE residual guidance.
 
+## JMLR revision experiments
+
+The [September 2026 reproduction guide](reproducibility/revision_20260909/README.md)
+indexes the main and ablation experiments, frozen source versions, environments,
+and consolidated results under `outputs/main/` and `outputs/ablations/`.
+Use the recorded study configuration and model for reproducing a published row.
+
 ## Entrypoints
 
 ```bash

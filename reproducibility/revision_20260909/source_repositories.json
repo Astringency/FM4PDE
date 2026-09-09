@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "repositories": [
+    {
+      "name": "FM4PDE",
+      "location_relative_to_fm4pde": ".",
+      "retain_history": true,
+      "snapshots": [
+        {
+          "revision": "42bae4aa29cd66188d4ef1688e1410de9aacfc9c",
+          "purpose": "Four-PDE sampling confirmation, 2026-09-06"
+        },
+        {
+          "revision": "180cdcf04041c1543691e09422b110ba07e35826",
+          "purpose": "Matched inverse prediction timing, 2026-09-07"
+        },
+        {
+          "revision": "3f94ddb95c181dd470c4ea1511fab0bac0dc91ad",
+          "purpose": "Original five-PDE FM/Diffusion controlled timing"
+        },
+        {
+          "revision": "b59bd13d7b59e661ee4b5fa31a407b94a68ea987",
+          "purpose": "Eleven-PDE revision diagnosis and early reruns"
+        },
+        {
+          "revision": "afb810ec70afe3f78c32762cf3d2c68e0a251293",
+          "purpose": "Eleven-PDE revision, stored ensemble worker version"
+        },
+        {
+          "revision": "1176d2b4802a328882de449b4338922a7b037793",
+          "purpose": "Advection\u2013diffusion stored ensemble worker version"
+        },
+        {
+          "revision": "fec1a3384b2a54b3d2d9e672cc2069bea1a8b6df",
+          "purpose": "NS stored three-draw ensemble worker version"
+        },
+        {
+          "revision": "871f817df18268f3eb31f0221c75bad0eb834ad4",
+          "purpose": "Shallow-water stored ensemble worker version"
+        },
+        {
+          "revision": "c5b8dfb8a46e23e0bd753879dab067a630aa6524",
+          "purpose": "Burgers revision original formal workers"
+        },
+        {
+          "revision": "23d14d3066704170dcf471ce2f2556179111f9ba",
+          "purpose": "Burgers revision parallel formal workers"
+        },
+        {
+          "revision": "1f1573bfbc246b83e48a3b46402c8f2467488e0d",
+          "purpose": "Poisson K=1,3,10,100,1000 frozen production workers"
+        },
+        {
+          "revision": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+          "purpose": "New NS 15000-example frozen main evaluation"
+        },
+        {
+          "revision": "92887b3d1b746eb00441e1992597303d0b2d7678",
+          "purpose": "Postprocessing with independent NS residual audits and actual batch sizes"
+        },
+        {
+          "revision": "0d239b3d1ed1dae25e66bc4017cc972ae3d11a13",
+          "purpose": "New NS controlled FM/Diffusion timing"
+        },
+        {
+          "revision": "da6530ec5d230864367c32082311c55ebc6d0bad",
+          "purpose": "NS external shared-noise cross-device validation"
+        },
+        {
+          "revision": "f6fd77a48345bc95cb156340e5201f64ebfa9ea2",
+          "purpose": "NS checkpoint comparison, earlier retained protocol"
+        },
+        {
+          "revision": "75149ccbcc2fc6ff8d256bc2ec64aa80ac82fb33",
+          "purpose": "NS checkpoint comparison, final 32-input protocol"
+        },
+        {
+          "revision": "25b2c10a9f1cdd88308b92c30e0c9c53319a019b",
+          "purpose": "NS checkpoint step-count probe"
+        },
+        {
+          "revision": "1d8ba330370ee09f7c5a18ecdee150d73928d706",
+          "purpose": "NS guidance cross-comparison"
+        },
+        {
+          "revision": "16cf6f7e22a6c5c06ea4d7ab899ed3fe35717721",
+          "purpose": "NS loss study recovered source snapshot: all six protocol code hashes match existing producer HEAD"
+        },
+        {
+          "revision": "fa63208e271cce4ef187134ca5750b27bf42258a",
+          "purpose": "NS calibration recovered source snapshot: all six protocol code hashes match existing producer HEAD"
+        },
+        {
+          "revision": "edfc0472b20d37b9ab133ade825c7f18011c0806",
+          "purpose": "Retained NS acceleration source snapshot"
+        },
+        {
+          "revision": "b66dbcfb019f032bfdd675f37b89bd4ac7e031a5",
+          "purpose": "Retained NS acceleration source snapshot"
+        }
+      ]
+    },
+    {
+      "name": "DiffusionPDE",
+      "location_relative_to_fm4pde": "../DiffusionPDE",
+      "retain_history": true,
+      "snapshots": [
+        {
+          "revision": "151e721b9991404154ad4b430ab85cdaedbaa399",
+          "purpose": "Native diffusion sampling and controlled-timing adapter source"
+        }
+      ]
+    },
+    {
+      "name": "FM4PDEbaseline",
+      "location_relative_to_fm4pde": "../FM4PDEbaseline",
+      "retain_history": true,
+      "snapshots": [
+        {
+          "revision": "f88d9a64ca6a4e8ed27d3808e1fa6c4c8b2eb45f",
+          "purpose": "Archived baseline inference, matched inverse timing, and baseline data interfaces"
+        }
+      ]
+    }
+  ]
+}

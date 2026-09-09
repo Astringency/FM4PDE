@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "scope": "One completed 1000-draw pool plus separate K=1,3,10,100 timing runs; no new sampling",
+  "source": "server197:/research_data/users/zhangxifeng/C01Python/conditional_scaling_results_20260909/production/forward/offset1500",
+  "reference_commit": "92887b3d1b746eb00441e1992597303d0b2d7678",
+  "numerical_csv_byte_identical": true,
+  "mean_field_arrays_identical": 7,
+  "original_tensor_hashes_verified": 5,
+  "full_study_complete": false,
+  "old_exporter_sha256": "f4d76f86b4230d7f9508f22c2c08d7c321fafa930dcecc9faf51415595a47153",
+  "new_exporter_sha256": "14e7c78936fcc10a372a957dcd4a44a5665a609b6eddd7b7f8f65c0f31846cbb",
+  "verification_command": "python plot/export_conditional_sample_scaling.py --results RAW --inputs POISSON_FROZEN_INPUTS --selection FROZEN_SELECTION --output NEW_REPORT --allow-partial"
+}

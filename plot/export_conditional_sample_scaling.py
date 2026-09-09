@@ -10,6 +10,7 @@ import csv
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 import sys
@@ -31,12 +32,20 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--results',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--inputs',type=Path,
+                   help='Relocated Poisson input directory containing protocol.json, truths.pt, and weights.pth')
+    p.add_argument('--selection',type=Path,
+                   help='Relocated frozen selection JSON; its original receipt hash is required')
     p.add_argument('--allow-partial',action='store_true')
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
     torch.set_num_threads(2)
     mem={line.split(':')[0]:int(line.split()[1])*1024 for line in Path('/proc/meminfo').read_text().splitlines() if ':' in line}
+    gpu_inventory='unavailable (CPU-only audit; nvidia-smi is absent)'
+    if shutil.which('nvidia-smi'):
+        inventory=subprocess.run(['nvidia-smi','--query-gpu=index,name,memory.used,utilization.gpu','--format=csv'],capture_output=True,text=True)
+        gpu_inventory=inventory.stdout if inventory.returncode==0 else 'unavailable (nvidia-smi query failed)'
     resources=dict(memory_available_bytes=mem['MemAvailable'],load_average=list(os.getloadavg()),
-        gpu_inventory=subprocess.check_output(['nvidia-smi','--query-gpu=index,name,memory.used,utilization.gpu','--format=csv'],text=True),
+        gpu_inventory=gpu_inventory,
         export_device='cpu',export_threads=2)
     assert resources['memory_available_bytes']>=3*(1<<30),'Insufficient CPU memory for independent tensor audit'
     write(args.output/'resources.json',resources)
@@ -44,17 +53,25 @@ def main():
     assert envs
     recorded_source=Path(envs[0]['inputs'])
     source=recorded_source if recorded_source.is_absolute() else args.results.parent.parent/'conditional_scaling_20260909'/recorded_source
+    if args.inputs is not None:
+        source=args.inputs
     source=source.resolve()
     assert digest(source/'truths.pt')==envs[0]['truth_sha256']
     assert digest(source/'weights.pth')==envs[0]['weights_sha256']
     assert digest(source/'protocol.json')==envs[0]['protocol_sha256']
     original_truths=torch.load(source/'truths.pt',weights_only=False,map_location='cpu')
     protocol=json.loads((source/'protocol.json').read_text())
-    selection_path=ROOT/'plot/conditional_sample_scaling_selection.json'
+    selection_path=args.selection or ROOT/'plot/conditional_sample_scaling_selection.json'
     assert digest(selection_path)==envs[0]['selection_sha256']
     selection=json.loads(selection_path.read_text())
     expected=set()
     for e in envs:
+        # Relocation changes where bytes are read, never the frozen identity.
+        assert e['truth_sha256']==envs[0]['truth_sha256']
+        assert e['weights_sha256']==envs[0]['weights_sha256']
+        assert e['protocol_sha256']==envs[0]['protocol_sha256']
+        assert e['selection_sha256']==envs[0]['selection_sha256']
+        assert e['inputs']==envs[0]['inputs'],'Export each original host separately before merging compact results'
         alljobs=[(t,i) for t in e['args']['tasks'] for i in e['args']['offsets']]
         expected.update(v for j,v in enumerate(alljobs) if j%e['args']['num_shards']==e['args']['shard_index'])
         assert e['tf32'] and e['args']['fused_guidance'] and e['K']==KS
@@ -135,7 +152,8 @@ def main():
         original_input_truths_verified=True,frozen_guidance_configurations_verified=True,distinct_predictions_per_pool_verified=1000,
         accuracy_source='Mean of first K physical draws from the stored 1000-draw pool',
         timing_source='Separate synchronized execution for each K on the same GPU for each task/offset',
-        environments=envs,export_resources=resources,results=proofs,exporter_sha256=digest(__file__)))
+        environments=envs,export_resources=resources,results=proofs,exporter_sha256=digest(__file__),
+        resolved_inputs=str(source),resolved_selection=str(selection_path.resolve())))
 
 
 if __name__=='__main__':main()
