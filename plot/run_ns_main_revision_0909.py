@@ -221,6 +221,19 @@ def worker(a):
         # All full 100-step checks use development inputs only.
         base=run('sparse_joint','smooth',[DEV[0]],fused=False)
         ref=base[0]
+        # Full production runner reference includes its conditioning preparation.
+        import sampling.runner as runner
+        from contextlib import redirect_stdout, redirect_stderr
+        native_cfg=copy.deepcopy(base[2]);native_cfg.batch_size=1
+        native_cfg.initial_noise_source_indices=[0]
+        native_cfg.output_dir=str(a.output/'native_reference')
+        with (a.output/'native_reference.log').open('w') as log,redirect_stdout(log),redirect_stderr(log):
+            result=runner.run_single_ablation(native_cfg,bundle,ground_truth=base[4],observation_masks=base[5])
+        saved=torch.load(Path(result['run_dir'])/'result.pt',map_location='cpu',weights_only=False)
+        native=torch.cat([saved['coef_final'],saved['sol_final']],1)
+        native_difference=float((ref-native).norm()/native.norm())
+        assert native_difference<1e-7,native_difference
+        torch.save(dict(prediction=ref,native_difference=native_difference),a.output/'reference_prediction.pt')
         for setting in ['sparse_joint','sparse_inverse','full_inverse']:
             reference=run(setting,'smooth',[DEV[0]],fused=False)[0]
             for b in [1,4]:
@@ -241,7 +254,7 @@ def worker(a):
         b=rows[-1]['batch_size'];out=run('sparse_joint','smooth',(DEV*((b+3)//4))[:b])
         rows.append(out[1]);print('FULL_THROUGHPUT',json.dumps(out[1]),flush=True)
         write(a.output/'pilot_complete.json',dict(status='pass',checks=rows,hidden_target_invariance=True,
-             selected_batch_size=b,estimated_formal_seconds=15000/b*out[1]['seconds']*1.12))
+             native_relative_difference=native_difference,selected_batch_size=b,estimated_formal_seconds=15000/b*out[1]['seconds']*1.12))
         return
     if a.mode=='develop':
         rows=[];selected={}
