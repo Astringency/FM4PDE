@@ -120,6 +120,16 @@ python plot/audit_ns_main_residual_0909.py --audit "$NS_STUDY" --results "$NS_ST
 
 Publication requires all 15 cells × 1,000 examples, exact IDs 2000–2999, 100 NFEs, finite predictions, matching result/protocol hashes, independent raw error/observation recomputation and the extra NumPy residual audit. The root study layout expected by the residual audit includes the hashed `weights.pth`; retain the archive's recorded link/file mapping. No partial output constitutes this gate. The eight-table tool's copied CLI is documented in `legacy_scripts/README.md`.
 
+The completed eight-table candidate export can be checked independently against its preserved pre-update sources and the complete NS summary:
+
+```bash
+python reproducibility/revision_20260909/check_ns_table_export.py \
+  --paper "$PAPER" --study "$NS_STUDY" \
+  --export-root "$PAPER/audit/revision_0909/ns_table_updates"
+```
+
+This verifies all 312 displayed main/comparison cells and rank marks, unchanged source rows, complete input/output hashes and eight PDF pages. It writes `final_export_qa.json` beneath the audit directory, including explicit exceptions to any claim that Rough has the largest error. The preserved `prepared_sources.json` is the pre-update baseline, not the already integrated canonical CSVs; do not overwrite it when validating the final candidate export.
+
 NS timing is an independent 80-call study: 20 common inputs × two methods × 100/1000 steps. It uses strict float32 with TF32 disabled on one RTX4090. Restore DiffusionPDE commit `151e721b9991404154ad4b430ab85cdaedbaa399` for `--diffusion-root`. The production entries are `run_ns_main_revision_0909.py timing_prepare/timing_run`, `run_diffusion_fm_timing.py`, and `diffusion_timing_adapter.py`. Keep prediction tensors, generated effective sampler, complete telemetry, uncontended checks, checkpoint/source hashes and all 80 receipts.
 
 ```bash
