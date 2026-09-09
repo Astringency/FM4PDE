@@ -1,7 +1,7 @@
 {
   "status": "pass",
-  "source_trees": 53,
-  "files": 23460,
+  "source_trees": 57,
+  "files": 25454,
   "checks": "Independent tar contents compared to every Git blob object hash and executable mode",
   "records": [
     {
@@ -35,6 +35,14 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "2b13796ad99c5e6066abdef3c312c93c77d7b3de443c90abf2a26d24c66060ef"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "0b770215d9ab44492fd60b11c13d1af1c63307f6",
+      "files": 503,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "7247f5fd86e01183727c464c75ead5e3214d65d0710dae984fe302ea686713c6"
     },
     {
       "repository": "FM4PDE",
@@ -94,6 +102,14 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "20f50bec73eb0b8e883b5cc052412dba1538daaf",
+      "files": 496,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "fbee3ac95efd731f87b757034496ff9615e00686c76896091c0fd81c8889ba42"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "213874288f91bc06511b4e8cea4b54553ff05911",
       "files": 482,
       "all_git_blob_hashes_match": true,
@@ -139,6 +155,14 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "285cc36bfdd2230c917a9c9b5486ff8b978e2b8cc714fc38bbcff3a451db0176"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "611de50faf6e233d55c57f36a4fd62f9cb256e23",
+      "files": 498,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "e8d18bf597267ccd0f1a5b6bd01e8d49c188bca2a92ac2db395b42050cf99692"
     },
     {
       "repository": "FM4PDE",
@@ -299,6 +323,14 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "b815626c7e1c3f226d8d6136c096043f87874af4edae219f461ea6e86fb0e9e6"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "dfd487cb96afc30178fad22ccc30838c76db6404",
+      "files": 497,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "cd0f591cbe6d775b8af9063fa001713b10b84c80bfde237b05adcb25b77c601d"
     },
     {
       "repository": "FM4PDE",

@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 HERE = Path(__file__).resolve().parent
@@ -77,6 +78,37 @@ def verify_catalog_coverage(catalog, records):
         if repository.get('retain_history') and name not in histories:
             raise RuntimeError(f'Missing required Git history: {name}')
     return required
+
+
+def verify_history_coverage(archives, catalog, validation, restore_record):
+    """Recheck the frozen bundle selection without relying on original repos."""
+    prior = json.loads(restore_record.read_text())
+    selected = prior['bundles']
+    names = [bundle['repository'] for bundle in selected]
+    required = [repo['name'] for repo in json.loads(catalog.read_text())['repositories']]
+    if len(set(names)) != len(names) or set(names) != set(required):
+        raise RuntimeError('Frozen restore record does not cover each source repository')
+    arguments = []
+    for bundle in selected:
+        verify_record(archives, bundle)
+        sidecar = archives / Path(bundle['file']).with_suffix('.json')
+        record = json.loads(sidecar.read_text())
+        if any(record[key] != bundle[key]
+               for key in ('repository', 'file', 'bytes', 'sha256')):
+            raise RuntimeError(f'Frozen history selection differs from sidecar: {sidecar}')
+        arguments.extend(['--bundle', bundle['repository'] + '=' + sidecar.name])
+    # The prior report selects immutable bundles; all restore checks run afresh.
+    # Private clones are discarded when verification finishes, never source data.
+    with tempfile.TemporaryDirectory(prefix='fm4pde-source-verify-') as directory:
+        temporary = Path(directory)
+        output = temporary / 'coverage.json'
+        subprocess.run([sys.executable, str(HERE / 'verify_source_restore.py'),
+                        '--archives', str(archives), '--catalog', str(catalog.resolve()),
+                        '--validation', str(validation.resolve()),
+                        '--work', str(temporary / 'clones'), '--output', str(output),
+                        *arguments], check=True)
+        result = json.loads(output.read_text())
+        return result['source_trees']
 
 
 def capture_tree(repo, spec, dest):
@@ -190,6 +222,10 @@ def main():
                    help='Override a source repository location without changing the catalog')
     p.add_argument('--archive', type=Path, help='Source-tree .tar.gz to restore')
     p.add_argument('--destination', type=Path, help='New source checkout directory for restore')
+    p.add_argument('--validation', type=Path, default=HERE / 'source_validation.json',
+                   help='Recorded complete comparison of tar contents with Git objects')
+    p.add_argument('--restore-record', type=Path, default=HERE / 'source_restore_coverage.json',
+                   help='Frozen bundle selection; verify repeats the independent restore checks')
     args = p.parse_args()
     if args.mode == 'restore':
         if args.archive is None or args.destination is None:
@@ -206,8 +242,13 @@ def main():
         for record in records:
             verify_record(dest, record)
         required = verify_catalog_coverage(json.loads(args.catalog.read_text()), records)
+        restored = verify_history_coverage(dest, args.catalog, args.validation,
+                                           args.restore_record)
+        if restored != required:
+            raise RuntimeError('Restored version count differs from required source catalog')
         print(json.dumps(dict(status='pass', archives=len(manifests),
-                              required_source_versions=required, catalog_coverage=True)))
+                              required_source_versions=required, catalog_coverage=True,
+                              independent_bundle_restore=True)))
         return
     dest.mkdir(parents=True, exist_ok=True)
     catalog = json.loads(args.catalog.read_text())

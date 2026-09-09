@@ -52,9 +52,11 @@ FM4PDEbaseline；其原有许可证和署名随原代码保留。
 python reproducibility/revision_20260909/source_snapshots.py verify
 ```
 
-该命令同时核对文件内容和源版本清单的完整性；缺少任一指定版本或对应
-Git 历史时会报错。源码内容与原 Git 对象的逐文件比对记录见
-`source_validation.json`。
+该命令核对文件内容和源版本清单，并按 `source_restore_coverage.json`
+记录的 Git bundle 分别建立临时独立仓库，重新检查全部指定提交和源码树。
+检查不读取原仓库；缺少指定版本或记录的 Git 历史时会报错，其他旧版
+bundle 的存在不能代替它。临时仓库在检查后清理。
+源码内容与原 Git 对象的逐文件比对记录见 `source_validation.json`。
 
 例如，把计时所用 DiffusionPDE 版本恢复为本仓库内的可运行目录：
 
