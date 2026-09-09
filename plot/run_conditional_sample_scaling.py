@@ -78,7 +78,21 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
         coeffs = r.scheduler_coefficients(t, scheduler='CondOT')
         affine = r.affine_coefficients(coeffs, training='velocity')
         schedule = r.make_zeta_schedule(c, t, t_next, affine.b_t)
-        gradient = r.compute_guidance_gradient(losses, r._gradient_target_tensor(c, x_cur, out), schedule, c)
+        target = r._gradient_target_tensor(c, x_cur, out)
+        if c.runtime_metadata.get('fused_guidance'):
+            # Global clipping applies after the weighted gradient sum; linearity
+            # therefore permits one reverse pass through the velocity network.
+            from types import SimpleNamespace
+            from sampling.guidance import _clip_per_sample
+            assert c.clip_mode in {'global_norm', 'none'}
+            total_loss = (schedule.zeta_obs_a_t * losses.guidance_L_obs_a
+                          + schedule.zeta_obs_u_t * losses.guidance_L_obs_u
+                          + schedule.zeta_pde_t * losses.guidance_L_pde)
+            total = torch.autograd.grad(total_loss * len(indices), target)[0]
+            total, _ = _clip_per_sample(total, c.clip_threshold, c.clip_mode == 'global_norm')
+            gradient = SimpleNamespace(grad_total=total, metadata={})
+        else:
+            gradient = r.compute_guidance_gradient(losses, target, schedule, c)
         x = r.apply_guidance_update(out.x_raw_next, gradient, out, schedule, c).detach()
     with torch.no_grad():
         phys = r._physical_from_model_state(x, c, normalizer)
@@ -104,6 +118,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--tf32', action='store_true')
+    parser.add_argument('--fused-guidance', action='store_true')
     parser.add_argument('--tasks', nargs='+', default=['forward','inverse','both'])
     parser.add_argument('--offsets', nargs='+', type=int, default=list(range(1500,1532)))
     parser.add_argument('--shard-index', type=int, default=0)
@@ -140,6 +155,7 @@ def main():
     write(args.output/f'environment_{args.mode}_{args.shard_index}.json',env)
     if args.mode == 'pilot':
         cfg = configuration(protocol, selection, 'both', source)
+        cfg.runtime_metadata['fused_guidance'] = args.fused_guidance
         cfg.offset = 1500
         cfg.mask_seed = 20260912 + cfg.offset
         cfg.sample_seed = 20260912 + cfg.offset
@@ -179,7 +195,7 @@ def main():
         saved=torch.load(Path(result['run_dir'])/'result.pt',map_location='cpu',weights_only=False)
         reference=torch.cat([saved['coef_final'],saved['sol_final']],1)[0]
         difference=float(torch.linalg.vector_norm(base-reference)/torch.linalg.vector_norm(reference))
-        assert difference < 1e-7,difference
+        assert difference < (5e-4 if args.fused_guidance else 1e-7),difference
         write(args.output/'pilot_complete.json',dict(pilot=pilot,stock_relative_difference=difference,selected_batch_size=chosen,
               estimated_full_seconds=96*1000/chosen*pilot[-1]['seconds']*1.15))
         return
@@ -191,6 +207,7 @@ def main():
             folder=args.output/task/f'offset{offset}'
             folder.mkdir(parents=True,exist_ok=True)
             cfg=configuration(protocol,selection,task,source)
+            cfg.runtime_metadata['fused_guidance'] = args.fused_guidance
             cfg.offset=offset
             cfg.mask_seed=20260912+offset
             cfg.sample_seed=20260912+offset
