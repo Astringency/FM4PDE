@@ -337,3 +337,24 @@ frozen producer source snapshot. The original collector remains a deployment
 monitor and must not be invoked for offline archive review. Root's
 `k_relocation_validation.json` records the completed one-pool equivalence
 check; it is not a claim of full-study numerical migration validation.
+
+## Reconcile the completed execution
+
+The serial wrapper records one execute result and a separate destination
+verification result for each approved entry. The following local report
+cross-checks inventory identity, destination, byte count, receipt SHA256, and
+the wrapper's totals. It does not replace the actual `--verify` file reads.
+`--require-complete` exits with status 2 while approved entries remain pending
+and status 1 if the recorded evidence is inconsistent. Omit that flag for a
+progress snapshot. The single CSV addendum is included exactly once; the
+earlier tiny timing-log trial is already an entry in the main batch.
+
+```bash
+python reproducibility/revision_20260909/summarize_archive_execution.py \
+  --inventory /home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.reviewed.json \
+  --state /home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json \
+  --addendum-inventory /home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.addendum_summary.json \
+  --addendum-result /home/tat512/C01Python/audit/revision_archive_execution_20260909/addendum_summary.result.json \
+  --output /home/tat512/C01Python/audit/revision_archive_execution_20260909/reconciled_completion.json \
+  --require-complete
+```
