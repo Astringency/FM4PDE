@@ -111,7 +111,7 @@ neural baseline add `--predict --checkpoint VERIFIED_ORIGINAL_CHECKPOINT.pt`.
 Its SHA256 must match the original summary. For zero-training 4D-Var, add
 `--predict` without a checkpoint. VIVID without a checkpoint is rejected.
 The server197 FM environment supports the cache audit; it does not include
-NeuralOperator or DeepXDE. FNO/DeepONet inference requires the recorded
+NeuralOperator or DeepXDE. FNO/iFNO/DeepONet inference requires the recorded
 server193 baseline environment or a separately reconstructed equivalent
 environment. Do not replace their official implementations with available
 local approximations. The archived environment manifests identify the original
@@ -135,17 +135,48 @@ Three unit tests verify evaluation-vs-training seed precedence, static flag
 sharing without argument mutation, and rejection of altered arrays, source
 hashes or global IDs. Unit arrays are explicitly artificial test fixtures.
 All 186 complete summaries were fetched read-only and matched their previously
-recorded file hashes. The native APIs used here are present at all seven
-historical commits. Real-cache and saved-artifact checks require the completed
-18-cache manifest and remain a separate validation stage.
+recorded file hashes. The completed real-cache validation is retained in
+`verification_runs/baseline_frozen_replay/final_evidence/`. Its
+`validation_complete.json` has SHA256
+`cdf3add29c92763c51014e3f31df5329b73a482acc276878a16ecdaa576f1f30`.
+`delivery_manifest.json` binds every delivered evidence file; individual
+receipts retain their original execution paths and environment facts.
 
-For the light validation stage, audit indices 0, 17 and 999 for each distinct
-PDE/task/mask encoding, including NS endpoint and trajectory modes and both
-Burgers observation patterns. Check all 1,000 mask IDs in every selected cell;
-then run a small number of saved-model batches on CPU with two threads.
-No parameter, mask, field, axis or sample selection is changed in response to
-the outcomes. Any mismatch must be resolved at the interface or documented as
-an unavailable dependency before proceeding.
+The checks cover all 186 complete test mask contracts, including 138,000
+sample-specific mask records and the original empty contracts for full-field
+observations. Ten representative cells compare indices 0, 17 and 999 against
+30 original saved artifacts. Fields, channel names, axes, coordinates,
+observations, masks and the checked physical metadata are bitwise equal.
+These cases include both NS loader modes and both Burgers observation
+patterns. The six selected Burgers samples also match the previously archived
+truth/mask bundles bitwise. All 18 cache-file hashes and all arrays used by the
+native consumers pass their shape, dtype, finite-value and array-hash checks.
+
+Four original saved models were loaded without training and run on CPU using
+their original batches: 0--15, 16--31 and 992--999. This computes 160 predictions
+across four models and exports only the 12 requested examples. The native
+inference view has zero target and full-field tensors before model evaluation.
+No full-cell baseline inference was performed.
+
+| Model and task | CPU PyTorch | Largest relative difference from the three saved CUDA predictions |
+| --- | --- | --- |
+| RecFNO, Darcy sparse forward | 2.8.0+cu128 | 6.56892e-4 |
+| Senseiver, Poisson sparse inverse | 2.8.0+cu128 | 3.76026e-6 |
+| VoronoiCNN, Helmholtz joint reconstruction | 2.8.0+cu128 | 2.17279e-4 |
+| iFNO, Poisson full inverse | 2.12.1+cu130 | 3.63977e-4 |
+
+These finite differences are reported without treating cross-device predictions
+as bitwise equal. Full-precision values, individual comparisons, checkpoint
+hashes and normalization-tensor hashes are in
+`interface_validation_summary.json` and the 196 original receipts. The first
+three models used server197 with two CPU threads. Senseiver required the
+original FairScale 0.4.13 package, copied byte-for-byte from server193 into a
+private `PYTHONPATH`; its package manifest and archive are included. iFNO used
+the original server193 baseline environment with two CPU threads because
+server197 lacks its NeuralOperator dependencies. No model implementation or
+global environment was replaced. The final controller commit is `0b77021`;
+the individual receipts preserve earlier controller paths and identical wrapper
+source hashes when a completed check was reused.
 
 Replay receipts report the actual device, PyTorch version and TF32 flags.
 They do not claim to recreate the historical runtime environment. Optional
