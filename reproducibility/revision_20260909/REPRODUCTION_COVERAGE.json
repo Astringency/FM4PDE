@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Published main comparisons and retained revision ablations; distinguishes saved-result recomputation, inference, and training.",
-  "status": "all_input_freezes_and_diffusion_full_result_audit_pass_baseline_consumer_and_archive_addenda_tracked_separately",
+  "status": "input_freezes_diffusion_full_result_audit_and_baseline_native_consumer_pass_archive_addenda_tracked_separately",
   "result_archive_status_source": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json",
   "levels": {
     "saved_results": "Recompute tables/statistics from archived predictions or saved per-example metrics; these are distinct evidence levels.",
@@ -48,8 +48,8 @@
       "study": "156 original baseline main cells",
       "results": "156 selected results_raw.jsonl files, each1000 examples; 48 checkpoint selections, full original summaries/configs and saved mask identities are bound individually.",
       "inference": "48 unique checkpoints: 15 existing archived copies and33 new exact files; 761 selected metadata files. Fifteen native raw caches cover original test indices0..999 and both NS temporal flags.",
-      "verified": "baseline_addendum_independent_check.json; baseline_freeze_plan.json; BASELINE_FROZEN_REPLAY.md",
-      "limitation": "No large rerun is claimed. FNO/DeepONet require recorded native baseline dependencies; server197 FM environment does not contain all those packages."
+      "verified": "baseline_addendum_independent_check.json; baseline_freeze_plan.json; BASELINE_FROZEN_REPLAY.md; final_evidence/validation_complete.json and delivery_manifest.json: all 186 original main/Burgers data-mask contracts, 30 saved artifacts and four limited native-model replays pass.",
+      "limitation": "Four methods were checked on original CPU test batches, with 12 selected prediction exports and no full-cell rerun. Input/mask equality is bitwise; predictions differ from historical CUDA within the recorded ranges. FNO/DeepONet require recorded native dependencies; VIVID saved weights are unavailable."
     },
     {
       "study": "old Diffusion main",
@@ -138,5 +138,131 @@
     "recipe": "DIFFUSION_INPUT_REPLAY.md",
     "unique_checkpoints_joined_to_verified_archive": 5,
     "checkpoint_archive_receipt_sha256": "2b1940afb8090570e4ef00fb83ec125e3e2caae3a98e726579c69b0157e88f83"
+  },
+  "baseline_native_consumer_verification": {
+    "data_contract_cells": 186,
+    "mask_contract_sample_count": 138000,
+    "representative_cells": 10,
+    "bitwise_saved_artifact_comparisons": 30,
+    "burgers_bundle_bitwise_comparisons": 6,
+    "inference_cells": 4,
+    "exported_predictions": 12,
+    "executed_original_batch_groups": 12,
+    "executed_batch_examples": 160,
+    "full_cell_replays": 0,
+    "all_cache_float_arrays_finite": true,
+    "hidden_target_and_full_tensor_zero_checked_before_inference": true,
+    "status": "pass",
+    "complete": true,
+    "controller_commit": "0b770215d9ab44492fd60b11c13d1af1c63307f6",
+    "evidence_root": "verification_runs/baseline_frozen_replay/final_evidence",
+    "delivery_manifest_sha256": "9113d1531d09ae0854f0a68abce9a5cbc714e80c0521d4524b798a4fdef44af1",
+    "summary_sha256": "002b9e4331340b04efb3a46f380d7d826a61ed2bc78d94f6709228d7a2c2c8f5",
+    "validation_gate_sha256": "cdf3add29c92763c51014e3f31df5329b73a482acc276878a16ecdaa576f1f30",
+    "delivered_files": 228,
+    "delivered_bytes": 131334608,
+    "copied_original_receipts": 196,
+    "copied_original_predictions": 12,
+    "all_delivered_receipts_and_predictions_match_source_host_sha": true,
+    "cpu_threads": 2,
+    "full_historical_runtime_recreated": false,
+    "inferences": [
+      {
+        "pde": "darcy",
+        "method": "recfno",
+        "task": "sparse_forward",
+        "original_evaluation_commit": "d954121007d7f134126fda6a2f36fb9e4a266d2e",
+        "device": "cpu",
+        "torch_version": "2.8.0+cu128",
+        "original_runtime_recreated": false,
+        "checkpoint_sha256": "e6207e6b53376f08afb9bc16101bb959f4813dc5a1eb234c96a1cc309c4115de",
+        "original_batch_size": 16,
+        "executed_batch_sizes": [
+          16,
+          16,
+          8
+        ],
+        "selected_indices": [
+          0,
+          17,
+          999
+        ],
+        "prediction_max_abs_difference": 2.3769214749336243e-05,
+        "prediction_relative_difference_max": 0.0006568917299756984,
+        "receipt": "receipts/representative_000/replay_receipt.json"
+      },
+      {
+        "pde": "poisson",
+        "method": "senseiver",
+        "task": "sparse_inverse",
+        "original_evaluation_commit": "6cd749703f7abc2e542f0e055bd46cf765dba781",
+        "device": "cpu",
+        "torch_version": "2.8.0+cu128",
+        "original_runtime_recreated": false,
+        "checkpoint_sha256": "5c201bdf23116e660efa70f4ee71225223a129c9a74c4b0d07f3c6e590c1159e",
+        "original_batch_size": 16,
+        "executed_batch_sizes": [
+          16,
+          16,
+          8
+        ],
+        "selected_indices": [
+          0,
+          17,
+          999
+        ],
+        "prediction_max_abs_difference": 3.0994415283203125e-06,
+        "prediction_relative_difference_max": 3.7602566874144544e-06,
+        "receipt": "receipts/representative_001/replay_receipt.json"
+      },
+      {
+        "pde": "helmholtz",
+        "method": "voronoicnn",
+        "task": "sparse_solution",
+        "original_evaluation_commit": "d954121007d7f134126fda6a2f36fb9e4a266d2e",
+        "device": "cpu",
+        "torch_version": "2.8.0+cu128",
+        "original_runtime_recreated": false,
+        "checkpoint_sha256": "cbeea54250ae55c901e151a48d5cbd653252200bea8ea8437b4dde94dfd631ca",
+        "original_batch_size": 16,
+        "executed_batch_sizes": [
+          16,
+          16,
+          8
+        ],
+        "selected_indices": [
+          0,
+          17,
+          999
+        ],
+        "prediction_max_abs_difference": 0.00022462010383605957,
+        "prediction_relative_difference_max": 0.00021727934235425906,
+        "receipt": "receipts/representative_002/replay_receipt.json"
+      },
+      {
+        "pde": "poisson",
+        "method": "ifno",
+        "task": "inverse",
+        "original_evaluation_commit": "6cd749703f7abc2e542f0e055bd46cf765dba781",
+        "device": "cpu",
+        "torch_version": "2.12.1+cu130",
+        "original_runtime_recreated": false,
+        "checkpoint_sha256": "cc8c098ccc81946f504d7aed42ef345d03eb899afeb1637ea1ab5ff1a844b22e",
+        "original_batch_size": 16,
+        "executed_batch_sizes": [
+          16,
+          16,
+          8
+        ],
+        "selected_indices": [
+          0,
+          17,
+          999
+        ],
+        "prediction_max_abs_difference": 0.00025844573974609375,
+        "prediction_relative_difference_max": 0.00036397674691448026,
+        "receipt": "receipts/representative_006/replay_receipt.json"
+      }
+    ]
   }
 }
