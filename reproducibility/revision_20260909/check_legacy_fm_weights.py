@@ -24,6 +24,7 @@ def main():
     ap.add_argument('--output', type=Path, required=True)
     args = ap.parse_args()
     import torch
+    from freeze_baseline_inputs import identical
     torch.set_num_threads(2)
     if args.output.exists():
         raise FileExistsError(args.output)
@@ -50,8 +51,7 @@ def main():
         retained = {}
         for key in ['normalization', 'data_metadata', 'model_config']:
             if key in a or key in b:
-                # These selected checkpoint metadata are JSON-compatible.
-                retained[key] = json.dumps(a.get(key), sort_keys=True) == json.dumps(b.get(key), sort_keys=True)
+                retained[key] = identical(a.get(key), b.get(key))
                 assert retained[key], (row['pde'], key)
         row.update(slim_path=str(slim), inference_selection=selection,
                    selected_state_dict_exact=True, selected_state_tensor_count=len(hashes),
