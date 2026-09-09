@@ -16,15 +16,23 @@ def sha(p):
  return h.hexdigest()
 
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--inputs',type=Path,required=True);parser.add_argument('--results',type=Path,required=True);parser.add_argument('--paper',type=Path,required=True);args=parser.parse_args()
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--inputs',type=Path,required=True);parser.add_argument('--results',type=Path,required=True);parser.add_argument('--paper',type=Path,required=True);parser.add_argument('--pde-overrides',type=Path,help='JSON map of PDE to independent inputs/results paths');args=parser.parse_args()
  import torch
  torch.set_num_threads(2)
- protocol=json.loads((args.inputs/'protocol.json').read_text());ph=sha(args.inputs/'protocol.json')
- for a in protocol['artifacts']:assert sha(args.inputs/a['path'])==a['sha256'],a['path']
- data=np.load(args.inputs/'source/timing_truths.npz');masks=np.load(args.inputs/'masks.npz')
+ overrides=json.loads(args.pde_overrides.read_text()) if args.pde_overrides else {}
+ assert set(overrides)<=set(PDES)
+ protocols={};pde_protocols={};result_roots=set()
  all_rows=[];summary=[];telemetry={};audits=[];output_files={}
  for pde,label in zip(PDES,LABELS):
-  target=args.results/pde;complete=json.loads((target/'complete.json').read_text())
+  inputs=Path(overrides.get(pde,{}).get('inputs',args.inputs))
+  results=Path(overrides.get(pde,{}).get('results',args.results));result_roots.add(results)
+  if inputs not in protocols:
+   protocol=json.loads((inputs/'protocol.json').read_text());ph=sha(inputs/'protocol.json')
+   for a in protocol['artifacts']:assert sha(inputs/a['path'])==a['sha256'],a['path']
+   protocols[inputs]=(protocol,ph)
+  protocol,ph=protocols[inputs];pde_protocols[pde]=dict(inputs=str(inputs),results=str(results),protocol_sha256=ph)
+  data=np.load(inputs/'source/timing_truths.npz');masks=np.load(inputs/'masks.npz')
+  target=results/pde;complete=json.loads((target/'complete.json').read_text())
   assert complete['protocol_sha256']==ph and complete['calls']==80
   pilot=json.loads((target/'pilot.json').read_text());assert pilot['status']=='pass' and pilot['protocol_sha256']==ph
   assert all(r['repeat_max_abs']==r['hidden_max_abs']==r['reference_max_abs']==0 and r['observation_change_max_abs']>0 for r in pilot['checks'])
@@ -48,18 +56,20 @@ def main():
        v=d[field].double();t=d[field+'_truth'].double();err=float((v-t).norm()/t.norm())
        assert np.isclose(err,r['relative_l2'][0 if field=='coef' else 1],rtol=1e-6,atol=2e-8)
      uuid=r['uuid'];uuids.add(uuid)
-     if uuid not in telemetry:
-      telemetry[uuid]=[json.loads(x) for x in (args.results/f'telemetry_{uuid}.jsonl').read_text().splitlines()]
-     before=max((x for x in telemetry[uuid] if x['monotonic']<=r['start_monotonic']),key=lambda x:x['monotonic'])
-     after=min((x for x in telemetry[uuid] if x['monotonic']>=r['end_monotonic']),key=lambda x:x['monotonic'])
-     samples=[x for x in telemetry[uuid] if before['monotonic']<=x['monotonic']<=after['monotonic']]
+     telemetry_key=ph+':'+uuid
+     if telemetry_key not in telemetry:
+      telemetry[telemetry_key]=[json.loads(x) for x in (results/f'telemetry_{uuid}.jsonl').read_text().splitlines()]
+     before=max((x for x in telemetry[telemetry_key] if x['monotonic']<=r['start_monotonic']),key=lambda x:x['monotonic'])
+     after=min((x for x in telemetry[telemetry_key] if x['monotonic']>=r['end_monotonic']),key=lambda x:x['monotonic'])
+     samples=[x for x in telemetry[telemetry_key] if before['monotonic']<=x['monotonic']<=after['monotonic']]
      assert len(samples)>=3 and all(not s['foreign'] for s in samples),(pde,stem,'telemetry including call boundaries')
      rows.append(r);all_rows.append(r)
     assert len(rows)==20 and len({r['sample_id'] for r in rows})==20
     x=np.array([r['seconds'] for r in rows])
     summary.append(dict(pde=pde,method=method,steps=n,n=20,mean_seconds=float(x.mean()),sd_seconds=float(x.std(ddof=1)),min_seconds=float(x.min()),max_seconds=float(x.max()),median_seconds=float(np.median(x)),nfe=rows[0]['nfe'],finite_predictions=sum(r['finite'] for r in rows),uuid=rows[0]['uuid']))
   assert len(uuids)==1,(pde,uuids)
-  audits.append(dict(pde=pde,pilot=pilot,warmups=warmups,calls_verified=80,uuid=next(iter(uuids))))
+  audits.append(dict(pde=pde,pilot=pilot,warmups=warmups,calls_verified=80,uuid=next(iter(uuids)),protocol_sha256=ph))
+  data.close();masks.close()
  assert len(all_rows)==400 and len(summary)==20
  assert all(r['finite'] for r in all_rows), 'Non-finite predictions retained in raw results; explicit failure analysis is required before manuscript export'
  source=args.paper/'source_data';figdir=args.paper/'figures'
@@ -70,13 +80,15 @@ def main():
   output_files[str(f.relative_to(args.paper))]=sha(f)
  csvwrite('diffusion_fm_timing_summary.csv',summary);csvwrite('diffusion_fm_timing_calls.csv',all_rows)
  copy=source/'diffusion_fm_timing_protocol.json';shutil.copy2(args.inputs/'protocol.json',copy);output_files[str(copy.relative_to(args.paper))]=sha(copy)
+ for pde,item in overrides.items():
+  copy=source/f'diffusion_fm_timing_protocol_{pde}.json';shutil.copy2(Path(item.get('inputs',args.inputs))/'protocol.json',copy);output_files[str(copy.relative_to(args.paper))]=sha(copy)
  archive=source/'diffusion_fm_timing_audit.json.gz'
- with gzip.open(archive,'wt') as f:json.dump(dict(audits=audits,receipts=all_rows,telemetry=telemetry,environments=[json.loads(p.read_text()) for p in args.results.glob('environment_*.json')]),f)
+ with gzip.open(archive,'wt') as f:json.dump(dict(audits=audits,receipts=all_rows,telemetry=telemetry,pde_protocols=pde_protocols,environments=[json.loads(p.read_text()) for root in sorted(result_roots) for p in root.glob('environment_*.json')]),f)
  output_files[str(archive.relative_to(args.paper))]=sha(archive)
- plt.rcParams.update({'font.size':10,'pdf.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.linewidth':.6,'xtick.labelsize':10,'ytick.labelsize':9})
+ plt.rcParams.update({'font.size':9.1,'axes.labelsize':9.1,'legend.fontsize':9.1,'pdf.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.linewidth':.6,'xtick.labelsize':9.1,'ytick.labelsize':9.1})
  from publication_style import use_times_new_roman
  use_times_new_roman()
- fig,axes=plt.subplots(2,1,figsize=(8.2,6.4),layout='constrained')
+ fig,axes=plt.subplots(2,1,figsize=(6.0,6.4),layout='constrained')
  for ax,n in zip(axes,[100,1000]):
   x=np.arange(5)
   for j,method in enumerate(['FM4PDE','DiffusionPDE']):
@@ -84,14 +96,14 @@ def main():
    means=[r['mean_seconds'] for r in rs];sd=[r['sd_seconds'] for r in rs]
    bars=ax.bar(x+(j-.5)*.34,means,width=.32,yerr=sd,color=['#28628F','#BF6634'][j],label=method,capsize=4,error_kw={'elinewidth':1,'capthick':1},zorder=3)
    ceiling=max(r['mean_seconds']+r['sd_seconds'] for r in summary if r['steps']==n)
-   for b,m,s in zip(bars,means,sd):ax.text(b.get_x()+b.get_width()/2,m+s+.025*ceiling,f'{m:.2f} s',ha='center',va='bottom',fontsize=9)
+   for b,m,s in zip(bars,means,sd):ax.text(b.get_x()+b.get_width()/2,m+s+.025*ceiling,f'{m:.2f} s',ha='center',va='bottom',fontsize=9.1)
   ax.set_ylim(0,ceiling*(1.30 if n==100 else 1.21));ax.set_xticks(x,LABELS);ax.set_ylabel('Time per sample (s)')
-  ax.set_title(f'{n:,} sampling steps  ·  NFE: FM4PDE {n:,}, DiffusionPDE {2*n-1:,}',loc='left',fontsize=11,pad=10)
+  ax.set_title(f'{n:,} sampling steps  ·  NFE: FM4PDE {n:,}, DiffusionPDE {2*n-1:,}',loc='left',fontsize=9.1,pad=10)
   ax.grid(axis='y',alpha=.25,zorder=0);ax.set_axisbelow(True)
  axes[0].legend(loc='upper left',frameon=False,ncols=2)
- fig.suptitle('Single-sample sampling time\nMean ± sample SD over 20 inputs · RTX 4090 · float32',fontsize=12)
+ fig.suptitle('Single-sample sampling time\nMean ± sample SD over 20 inputs · RTX 4090 · float32',fontsize=10)
  for ext in ['pdf','png']:
-  p=figdir/f'diffusion_fm_timing.{ext}';fig.savefig(p,dpi=190,bbox_inches='tight');output_files[str(p.relative_to(args.paper))]=sha(p)
+  p=figdir/f'diffusion_fm_timing.{ext}';fig.savefig(p,dpi=190,bbox_inches='tight',pad_inches=.03);output_files[str(p.relative_to(args.paper))]=sha(p)
  plt.close(fig)
  lines=[r'\begin{table}[!htbp]',r'\centering\small',r'\setlength{\tabcolsep}{5pt}',r'\caption{Controlled sampling time: mean $\pm$ sample SD in seconds over 20 single-example calls per setting. All calls use the frozen protocol in Appendix~\ref{app:diffusion-fm-timing}.}',r'\label{tab:diffusion-fm-timing}',r'\begin{tabular}{@{}lrrrr@{}}\toprule',r' & \multicolumn{2}{c}{100 steps} & \multicolumn{2}{c}{1,000 steps} \\',r'PDE & FM4PDE & DiffusionPDE & FM4PDE & DiffusionPDE \\\midrule']
  for pde,label in zip(PDES,LABELS):
@@ -99,7 +111,7 @@ def main():
   lines.append(label.replace('–','--')+' & '+' & '.join(f"${r['mean_seconds']:.3f} \\pm {r['sd_seconds']:.3f}$" for r in rr)+r' \\')
  lines.extend([r'\bottomrule\end{tabular}',r'\end{table}'])
  p=source/'diffusion_fm_timing_table.tex';p.write_text('\n'.join(lines)+'\n');output_files[str(p.relative_to(args.paper))]=sha(p)
- manifest=dict(exporter_sha256=sha(Path(__file__)),protocol_sha256=ph,calls_verified=400,settings_verified=20,examples_per_setting=20,sd_ddof=1,source_prediction_errors_recomputed=True,source_truths_masks_verified=True,telemetry_uncontended=True,outputs=output_files,summary=summary)
+ manifest=dict(exporter_sha256=sha(Path(__file__)),protocol_sha256=sha(args.inputs/'protocol.json'),pde_protocols=pde_protocols,calls_verified=400,settings_verified=20,examples_per_setting=20,sd_ddof=1,source_prediction_errors_recomputed=True,source_truths_masks_verified=True,telemetry_uncontended=True,outputs=output_files,summary=summary)
  (source/'diffusion_fm_timing_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  print('AUDITED AND EXPORTED 400 calls, 20 mean/SD settings')
 
