@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Release the three K-study archive entries only after terminal scientific gates."""
 import argparse
+import csv
 import datetime as dt
 import hashlib
 import json
@@ -52,9 +53,12 @@ def check_local_gate(audit, review_path, review_sha):
         raise RuntimeError('Scientific review differs from the explicitly bound SHA')
     ready, ready_sha = read(audit / 'READY_FOR_PAPER_REVIEW.json')
     final, final_sha = read(Path(ready['manifest']))
+    csv_path = Path(ready['manifest']).parent / 'conditional_scaling_per_input.csv'
+    csv_sha = sha(csv_path.read_bytes())
     if not (review['status'] == 'pass' and review['complete']
             and review['ready_for_paper_review_sha256'] == ready_sha
-            and review['final_manifest_sha256'] == final_sha):
+            and review['final_manifest_sha256'] == final_sha
+            and review['per_input_csv_sha256'] == csv_sha):
         raise RuntimeError('Final scientific review has not approved these exact completion artifacts')
     if not (final['complete'] and final['physical_inputs'] == 32 and final['rows'] == 480
             and final['tasks'] == TASKS and final['K'] == KS
@@ -77,10 +81,59 @@ def check_local_gate(audit, review_path, review_sha):
             raise RuntimeError('Local collector is still active')
     return dict(scientific_review=review, scientific_review_sha256=review_sha,
                 ready_for_paper_review_sha256=ready_sha, final_manifest_sha256=final_sha,
-                terminal_status_sha256=state_sha)
+                per_input_csv_sha256=csv_sha, terminal_status_sha256=state_sha)
 
 
-def check_remote_gate(host, entry):
+def approved_results(audit, source_entries):
+    ready, _ = read(audit / 'READY_FOR_PAPER_REVIEW.json')
+    final, _ = read(Path(ready['manifest']))
+    approved = {host: {} for host in SHARDS}
+    environments = {host: {} for host in SHARDS}
+    with (Path(ready['manifest']).parent / 'conditional_scaling_per_input.csv').open() as handle:
+        rows = list(csv.DictReader(handle))
+    timings = {(r['task'], int(r['offset']), int(r['K'])): r for r in rows}
+    expected = {(task, offset, k) for task in TASKS for offset in range(1500, 1532) for k in KS}
+    if len(rows) != 480 or set(timings) != expected or len(final['source_manifests']) != 2:
+        raise RuntimeError('Approved CSV or source manifests do not contain the full cohort')
+    for manifest in final['source_manifests']:
+        if not manifest['complete'] or manifest['hash_verified_results'] != len(manifest['results']):
+            raise RuntimeError('Scientific review contains an incomplete source manifest')
+        hosts = set()
+        for result in manifest['results']:
+            owners = []
+            for host in SHARDS:
+                root = Path(source_entries['conditional_scaling_raw_' + host]['source_path'])
+                try:
+                    relative = str(Path(result['path']).relative_to(root))
+                except ValueError:
+                    continue
+                owners.append((host, relative))
+            if len(owners) != 1:
+                raise RuntimeError('Approved tensor source has no unique host/root binding')
+            host, relative = owners[0]
+            key = result['task'], result['offset'], result['K']
+            if relative != f'production/{key[0]}/offset{key[1]}/K{key[2]}.pt' or relative in approved[host]:
+                raise RuntimeError('Approved tensor path or cohort identity is inconsistent')
+            approved[host][relative] = result['sha256']
+            hosts.add(host)
+        if len(hosts) != 1:
+            raise RuntimeError('Source manifest mixes result hosts')
+        host = hosts.pop()
+        for env in manifest['environments']:
+            shard = env['args']['shard_index']
+            if shard in environments[host]:
+                raise RuntimeError('Duplicate approved shard environment')
+            environments[host][shard] = env
+    jobs = [(task, offset) for task in TASKS for offset in range(1500, 1532)]
+    for host, shards in SHARDS.items():
+        paths = {f'production/{task}/offset{offset}/K{k}.pt' for index, (task, offset) in enumerate(jobs)
+                 if index % 4 in shards for k in KS}
+        if set(approved[host]) != paths or set(environments[host]) != set(shards):
+            raise RuntimeError('Approved source manifest differs from the frozen static shard cohort')
+    return approved, environments, timings
+
+
+def check_remote_gate(host, entry, approved, approved_environments, timings):
     result = subprocess.run(['ssh', host, shlex.join([PYTHON[host], '-c', REMOTE_METADATA])],
                             input=json.dumps(dict(root=entry['source_path'], shards=SHARDS[host])),
                             capture_output=True, text=True, check=True, timeout=45)
@@ -91,6 +144,8 @@ def check_remote_gate(host, entry):
     completed = set()
     for row in metadata['shards']:
         env = row['environment']['data']
+        if env != approved_environments[row['shard']]:
+            raise RuntimeError('Producer environment differs from the scientifically approved export')
         expected = [list(job) for index, job in enumerate(jobs) if index % 4 == row['shard']]
         if row['producer_live'] or row['complete']['data']['jobs'] != expected:
             raise RuntimeError('Live or incomplete production shard: ' + host)
@@ -114,8 +169,14 @@ def check_remote_gate(host, entry):
                 and len(receipt['result_sha256']) == 64):
             raise RuntimeError('Duplicate or inconsistent production receipt')
         observed.add(key)
+        tensor_path = str(Path(row['path']).with_suffix('.pt'))
+        if receipt['result_sha256'] != approved.get(tensor_path):
+            raise RuntimeError('Current tensor receipt differs from the scientifically approved tensor SHA')
+        if any(float(receipt[field]) != float(timings[key][field])
+               for field in ('seconds', 'compute_seconds', 'peak_bytes')):
+            raise RuntimeError('Current timing receipt differs from the scientifically approved CSV')
         evidence[row['path']] = row['sha256']
-        evidence[str(Path(row['path']).with_suffix('.pt'))] = receipt['result_sha256']
+        evidence[tensor_path] = receipt['result_sha256']
     if observed != expected_receipts or completed != assigned:
         raise RuntimeError('Receipt cohort does not match frozen static shard assignment')
     return metadata, evidence
@@ -135,6 +196,7 @@ def main():
     source_entries = {entry['id']: entry for entry in original['entries']}
     audit = Path(source_entries['conditional_scaling_local_audit']['source_path'])
     gate = check_local_gate(audit, args.scientific_review, args.scientific_review_sha256)
+    approved, environments, timings = approved_results(audit, source_entries)
     entries = []
     remote_metadata = {}
     for identifier in IDS:
@@ -145,7 +207,8 @@ def main():
             raise RuntimeError('Unexpected original entry status')
         expected = {}
         if entry['source_host'] in SHARDS:
-            metadata, expected = check_remote_gate(entry['source_host'], entry)
+            host = entry['source_host']
+            metadata, expected = check_remote_gate(host, entry, approved[host], environments[host], timings)
             remote_metadata[entry['source_host']] = metadata
         # Count bytes and metadata only here. The serial executor independently
         # hashes every tensor and checks the receipt's tensor SHA before publish.
