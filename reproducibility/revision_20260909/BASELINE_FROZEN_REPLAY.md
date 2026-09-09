@@ -110,6 +110,12 @@ This default audits data/observations without model inference. For a saved
 neural baseline add `--predict --checkpoint VERIFIED_ORIGINAL_CHECKPOINT.pt`.
 Its SHA256 must match the original summary. For zero-training 4D-Var, add
 `--predict` without a checkpoint. VIVID without a checkpoint is rejected.
+The server197 FM environment supports the cache audit; it does not include
+NeuralOperator or DeepXDE. FNO/DeepONet inference requires the recorded
+server193 baseline environment or a separately reconstructed equivalent
+environment. Do not replace their official implementations with available
+local approximations. The archived environment manifests identify the original
+package versions.
 
 The selected indices are evaluated within their original complete test-batch
 boundaries, including the final short batch. Thus a three-index check can
