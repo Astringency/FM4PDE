@@ -49,7 +49,7 @@ def main():
             assert x.dtype == y.dtype and x.shape == y.shape and torch.equal(x, y), (row['pde'], name)
             hashes[name] = hashlib.sha256(x.detach().contiguous().numpy().tobytes()).hexdigest()
         retained = {}
-        for key in ['normalization', 'data_metadata', 'model_config']:
+        for key in ['normalizer', 'normalization', 'data_metadata', 'model_config', 'model_config_metadata']:
             if key in a or key in b:
                 retained[key] = identical(a.get(key), b.get(key))
                 assert retained[key], (row['pde'], key)
