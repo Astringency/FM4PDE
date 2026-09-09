@@ -103,6 +103,7 @@ def main():
     parser.add_argument('--selection', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--batch-size', type=int, default=64)
+    parser.add_argument('--tf32', action='store_true')
     parser.add_argument('--tasks', nargs='+', default=['forward','inverse','both'])
     parser.add_argument('--offsets', nargs='+', type=int, default=list(range(1500,1532)))
     parser.add_argument('--shard-index', type=int, default=0)
@@ -111,8 +112,8 @@ def main():
     assert 1 <= args.batch_size <= 1000
     torch.set_num_threads(2)
     torch.set_num_interop_threads(2)
-    torch.backends.cuda.matmul.allow_tf32 = False
-    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cuda.matmul.allow_tf32 = args.tf32
+    torch.backends.cudnn.allow_tf32 = args.tf32
     torch.backends.cudnn.benchmark = False
     args.output.mkdir(parents=True, exist_ok=True)
     source = args.inputs / 'poisson'
@@ -131,7 +132,7 @@ def main():
                commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
                script_sha256=digest(__file__), inputs=str(source), protocol_sha256=digest(source/'protocol.json'),
                selection_sha256=digest(args.selection), truth_sha256=protocol['truth_sha256'],
-               weights_sha256=protocol['weights_sha256'], tf32=False, K=KS,
+               weights_sha256=protocol['weights_sha256'], tf32=args.tf32, K=KS,
                random_source='1000-row IID Gaussian pool, selected row retained at every step',
                random_seed_formula='20260912 + physical_offset; each draw is a distinct canonical row',
                timing='CUDA-synchronized wall time; initial/bridge draws, 100 sampler steps, physical transform and within-batch average; excludes model/data loading and disk I/O',
@@ -161,7 +162,8 @@ def main():
             if base is None: base=pred[0].clone()
             else:
                 receipt['batch_vs_single_relative_difference'] = float(torch.linalg.vector_norm(pred[0]-base)/torch.linalg.vector_norm(base))
-                assert receipt['batch_vs_single_relative_difference'] < 2e-4,receipt
+                assert receipt['batch_vs_single_relative_difference'] < (5e-3 if args.tf32 else 2e-4),receipt
+            torch.save(dict(predictions=pred,receipt=receipt),args.output/f'full_pilot_batch{b}.pt')
             pilot.append(receipt)
             print('FULL_PILOT',json.dumps(receipt),flush=True)
         # Compare the fast loop against the unmodified production runner.
