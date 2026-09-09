@@ -387,3 +387,32 @@ separately reviewed batches; duplicate entry IDs or destinations are rejected.
   /home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/archive_inventory.baseline_addendum.json \
   /home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/execution_status.json
 ```
+
+The native DiffusionPDE addendum is frozen separately in
+`archive_inventory.diffusion_native_addendum.json` (SHA256
+`f934f3a4f9e97136d5e0367bf5ee06ce048689d27e4308a9b7dc77edc4c6a5d8`).
+Its three sibling destinations are under
+`main/revision_20260909/diffusion_original_main/native_frozen_inputs/`:
+`frozen_inputs_v3/`, `full_saved_prediction_audit/`, and `provenance/`.
+The total is 1,054,818,359 bytes, including exact native NPZ arrays, their
+manifest, the independent 26,000-example numerical audit and provenance.
+Derived MAT/HDF5 files remain reproducible verification products and are not
+duplicated in this archive.
+
+`verify_diffusion_archive_binding.py` associated all 26,000 prediction files
+and 19,000 existing metric JSON files with the already verified original
+results receipt, with no SHA mismatches. The other 7,000 examples use values
+stored in their original prediction pickle: 2,000 Burgers cases use
+`loss[-1]`, and the remaining 5,000 use `loss.global_a/global_u[-1]`.
+This is a metadata association of the completed numerical audit, not a new
+numerical recomputation. Its frozen report is
+`diffusion_archive_binding_validation.json`, SHA256
+`9f8809ac375b9e34f685064fedcc4212953ea142db6fb19d4bbd612156f60562`.
+The report also binds the ordered original mask-hash sequences for 50 groups,
+each containing 1,000 records (500 observed points per non-Burgers mask and
+640 per original Burgers mask).
+
+All entries are separate directory subtrees: adding a child directory inside
+an already verified entry would invalidate that entry's receipt. The ledger
+reconciler checks this relationship within and across batches in addition to
+rejecting exact duplicate destinations.
