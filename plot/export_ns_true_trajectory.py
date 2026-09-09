@@ -10,10 +10,32 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from publication_style import use_times_new_roman
-from run_ns_loss_study import sha, write
+
+
+def viscous_amplification_figure(radius, exact, secant, threshold):
+    """Render the analytic curves at the supplement's 5.4-inch display width."""
+    font = use_times_new_roman()
+    plt.rcParams.update({'font.size': 10, 'axes.titlesize': 10,
+                         'axes.labelsize': 10, 'xtick.labelsize': 10,
+                         'ytick.labelsize': 10, 'mathtext.fontset': 'stix',
+                         'axes.spines.top': False, 'axes.spines.right': False})
+    fig, ax = plt.subplots(figsize=(5.4, 3.35), layout='constrained')
+    ax.plot(radius, exact, color='#256493', lw=1.8, label=r'Exact viscous decay: $e^{-z}$')
+    ax.plot(radius, secant, color='#aa4b32', lw=1.8, ls='--', label=r'Endpoint secant: $(1-z/2)/(1+z/2)$')
+    ax.axhline(0, color='.5', lw=.7)
+    ax.axvline(threshold, color='.6', lw=.8, ls=':')
+    ax.annotate(f'Sign change at mode radius {threshold:.2f}', xy=(threshold, 0), xytext=(18, .38),
+                arrowprops=dict(arrowstyle='-', color='.4', lw=.8), fontsize=10)
+    ax.set(xlim=(0, 64), ylim=(-1.08, 1.05), xlabel='Radial Fourier-mode index', ylabel='Amplification factor',
+           title='Linear viscous term in the endpoint constraint\n' + r'$\nu=10^{-3},\quad\mathcal{T}=1$')
+    ax.grid(alpha=.15)
+    ax.legend(frameon=False, loc='upper right', fontsize=10)
+    return fig, font
 
 
 def main():
+    from run_ns_loss_study import sha, write
+
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ['audit', 'inputs', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
@@ -37,10 +59,10 @@ def main():
              r'Temporal diagnostic & RMS residual \\\midrule']
     labels = [('endpoint_secant_rms', r'Endpoint secant at $(\mathbf a+\mathbf u)/2$'),
               ('endpoint_drift_true_midpoint_rms', r'Endpoint drift at true $\omega(0.5)$'),
-              ('centered_2h_common_4_times_rms', r'Centered difference, $h=0.2$'),
-              ('centered_h_common_4_times_rms', r'Centered difference, $h=0.1$'),
-              ('trapezoid_integral_rms', r'Trapezoidal RHS integral, $h=0.1$'),
-              ('simpson_integral_rms', r'Simpson RHS integral, $h=0.1$')]
+              ('centered_2h_common_4_times_rms', r'Centered difference, $\Delta\tau=0.2$'),
+              ('centered_h_common_4_times_rms', r'Centered difference, $\Delta\tau=0.1$'),
+              ('trapezoid_integral_rms', r'Trapezoidal RHS integral, $\Delta\tau=0.1$'),
+              ('simpson_integral_rms', r'Simpson RHS integral, $\Delta\tau=0.1$')]
     for metric, label in labels:
         mean, sd = stats[metric]
         exponent = int(np.floor(np.log10(mean)))
@@ -59,19 +81,7 @@ def main():
     assert np.isclose((1 - nu*(2*np.pi*threshold)**2*T/2), 0, atol=1e-14)
     assert exact[0] == secant[0] == 1 and np.all(exact > 0)
     assert np.all(np.diff(exact) <= 0) and np.all(np.diff(secant) < 0)
-    font = use_times_new_roman()
-    plt.rcParams.update({'font.size': 11, 'axes.spines.top': False, 'axes.spines.right': False})
-    fig, ax = plt.subplots(figsize=(6.8, 3.5), layout='constrained')
-    ax.plot(radius, exact, color='#256493', lw=1.8, label=r'Exact viscous decay: $e^{-z}$')
-    ax.plot(radius, secant, color='#aa4b32', lw=1.8, ls='--', label=r'Endpoint secant: $(1-z/2)/(1+z/2)$')
-    ax.axhline(0, color='.5', lw=.7)
-    ax.axvline(threshold, color='.6', lw=.8, ls=':')
-    ax.annotate(f'Sign change at mode radius {threshold:.2f}', xy=(threshold, 0), xytext=(18, .38),
-                arrowprops=dict(arrowstyle='-', color='.4', lw=.8), fontsize=10)
-    ax.set(xlim=(0, 64), ylim=(-1.08, 1.05), xlabel='Radial Fourier-mode index', ylabel='Amplification factor',
-           title=r'Linear viscous term in the endpoint constraint · $\nu=10^{-3}$, $T=1$')
-    ax.grid(alpha=.15)
-    ax.legend(frameon=False, loc='upper right', fontsize=10)
+    fig, font = viscous_amplification_figure(radius, exact, secant, threshold)
     for ext in ['pdf', 'png']:
         fig.savefig(args.output / f'ns_viscous_amplification.{ext}', dpi=190, bbox_inches='tight')
     plt.close(fig)
