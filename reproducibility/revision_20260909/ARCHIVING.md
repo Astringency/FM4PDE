@@ -377,3 +377,13 @@ automatically after the addendum finishes. The remote archive helper remains
 the independent `FM4PDEArchive0909_6f5bfd5` checkout. No existing producer or
 active manifest is changed. Original MAT datasets and further Burgers/input
 dependencies are outside this addendum.
+
+After it completes, append the following pair to the reconciliation command
+to include this independent batch. Repeat `--additional-batch` for later
+separately reviewed batches; duplicate entry IDs or destinations are rejected.
+
+```bash
+--additional-batch \
+  /home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/archive_inventory.baseline_addendum.json \
+  /home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/execution_status.json
+```

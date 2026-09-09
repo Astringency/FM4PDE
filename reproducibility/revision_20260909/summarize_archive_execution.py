@@ -117,10 +117,40 @@ def main():
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--addendum-inventory', type=Path)
     parser.add_argument('--addendum-result', type=Path)
+    parser.add_argument('--additional-batch', type=Path, nargs=2, action='append',
+                        metavar=('INVENTORY', 'STATE'), default=[],
+                        help='Reconcile another independently frozen serial batch and merge its ledger')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--require-complete', action='store_true')
     args = parser.parse_args()
     report = summarize(args.inventory, args.state, args.addendum_inventory, args.addendum_result)
+    if args.additional_batch:
+        reports = [report] + [summarize(inventory, state)
+                              for inventory, state in args.additional_batch]
+        report = {
+            'observed_utc': dt.datetime.now(dt.timezone.utc).isoformat(),
+            'scope': 'Recorded independent archive verification outcomes across separately frozen batches.',
+            'target_host': reports[0]['target_host'], 'target_root': reports[0]['target_root'],
+            'batches': [{key: row[key] for key in ('status', 'inventories', 'execution_records',
+                                                  'planned_entries', 'verified_entries')}
+                        for row in reports],
+            'entries': [entry for row in reports for entry in row['entries']],
+            'issues': [issue for row in reports for issue in row['issues']],
+        }
+        for key in ('inventories', 'execution_records', 'held_entries'):
+            report[key] = [item for row in reports for item in row[key]]
+        for key in ('planned_entries', 'verified_entries', 'planned_bytes', 'verified_bytes'):
+            report[key] = sum(row[key] for row in reports)
+        for key in ('id', 'destination'):
+            values = [entry[key] for entry in report['entries']]
+            if len(values) != len(set(values)):
+                report['issues'].append('Repeated entry ' + key + ' across batches')
+        if any((row['target_host'], row['target_root']) != (report['target_host'], report['target_root'])
+               for row in reports):
+            report['issues'].append('Archive target differs across batches')
+        complete = all(row['status'] == 'complete_and_consistent' for row in reports)
+        report['status'] = ('inconsistent' if report['issues'] else
+                            'complete_and_consistent' if complete else 'in_progress')
     serialized = json.dumps(report, indent=2) + '\n'
     if args.output:
         args.output.write_text(serialized)
