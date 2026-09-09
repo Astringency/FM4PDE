@@ -9,6 +9,8 @@ import argparse
 import csv
 import hashlib
 import json
+import os
+import subprocess
 from pathlib import Path
 import sys
 import numpy as np
@@ -32,6 +34,12 @@ def main():
     p.add_argument('--allow-partial',action='store_true')
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
     torch.set_num_threads(2)
+    mem={line.split(':')[0]:int(line.split()[1])*1024 for line in Path('/proc/meminfo').read_text().splitlines() if ':' in line}
+    resources=dict(memory_available_bytes=mem['MemAvailable'],load_average=list(os.getloadavg()),
+        gpu_inventory=subprocess.check_output(['nvidia-smi','--query-gpu=index,name,memory.used,utilization.gpu','--format=csv'],text=True),
+        export_device='cpu',export_threads=2)
+    assert resources['memory_available_bytes']>=3*(1<<30),'Insufficient CPU memory for independent tensor audit'
+    write(args.output/'resources.json',resources)
     envs=[json.loads(x.read_text()) for x in args.results.glob('environment_run_*.json')]
     assert envs
     recorded_source=Path(envs[0]['inputs'])
@@ -127,7 +135,7 @@ def main():
         original_input_truths_verified=True,frozen_guidance_configurations_verified=True,distinct_predictions_per_pool_verified=1000,
         accuracy_source='Mean of first K physical draws from the stored 1000-draw pool',
         timing_source='Separate synchronized execution for each K on the same GPU for each task/offset',
-        environments=envs,results=proofs,exporter_sha256=digest(__file__)))
+        environments=envs,export_resources=resources,results=proofs,exporter_sha256=digest(__file__)))
 
 
 if __name__=='__main__':main()
