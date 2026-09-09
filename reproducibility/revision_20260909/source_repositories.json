@@ -197,6 +197,10 @@
         {
           "revision": "4a3240d96602e4d184a55cd5608ae62a5dcb3942",
           "purpose": "Actual archived K-pool reproduction verifier and tested stable final-paper reconstruction implementation"
+        },
+        {
+          "revision": "b911b2cbcabdd026c890e00074bc5d4462b62afc",
+          "purpose": "Executed final archived K-host comparison with unique shard-bound environment records; preserves directory-order differences as metadata"
         }
       ]
     },
