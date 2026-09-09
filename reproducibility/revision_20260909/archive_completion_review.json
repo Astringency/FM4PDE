@@ -1,0 +1,1157 @@
+{
+  "observed_utc": "2026-09-09T07:13:50.881323+00:00",
+  "reviewed_inventory_sha256": "9a10fcc11367f8a74198837cece6da672068dce647f5743064a324d63e6b5dd4",
+  "gates": {
+    "ablation": {
+      "path": "/home/tat512/C01Python/audit/paper_revision_20260908/ablation_publication_snapshot/manifest.json",
+      "sha256": "335822b26d1f777ca1dbd16fa3649fe7fa851a640d272fe4f8bac71805bf8d6a",
+      "reason": "All 744 required revisions complete; 316 original controls separately verified in place.",
+      "status": "pass"
+    },
+    "three_draw": {
+      "path": "/home/tat512/C01Python/audit/paper_revision_20260908/ensemble_complete/manifest.json",
+      "sha256": "ce21412bb13c2e8fe482c24a067a29e2d4ad4acf0c3e5350a71ac469d0649c3c",
+      "reason": "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+      "status": "pass"
+    },
+    "burgers": {
+      "path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_complete/manifest.json",
+      "sha256": "135ee3985d0d46ea57ff6878fb2dab873e5fcf9a683b90b53ba82d2e95532000",
+      "reason": "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+      "status": "pass"
+    },
+    "timing": {
+      "path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_ready_for_visual_review.json",
+      "sha256": "0684b5b0c5b291e7078e4e9373c9566c03bfc6cb53d92d75d5027b3d7983308f",
+      "reason": "Original 400-call timing audited; the final figure uses 320 original non-NS calls and 80 new NS calls.",
+      "status": "pass"
+    },
+    "matched_timing": {
+      "path": "/home/tat512/C01Python/audit/fm4pde_jmlr_matched_timing_20260907/report/matched_timing_manifest.json",
+      "sha256": "15abd38604ee61adb49c85e1dd01a424bf1ff475130c811e40e05cb337108ec4",
+      "reason": "All 1920 matched calls verified with zero recomputation discrepancy.",
+      "status": "pass"
+    },
+    "sampling_controls": {
+      "path": "/home/tat512/C01Python/audit/fm4pde_jmlr_sampling_20260906/completed_three_pde_report/sampling_confirmation_manifest.json",
+      "sha256": "871765f2f1154c5587f8b22154eabd2132a478c29fe1a841300f3705a4cb5e16",
+      "reason": "Final three-PDE report verifies 312 batches / 1248 example-runs per PDE over 32 registered inputs.",
+      "status": "pass"
+    },
+    "ns_supplement": {
+      "path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_complete_qa/complete_reporting_qa.json",
+      "sha256": "33bfc49b1063e9e20bd82c633e2a1f7c654a309ce279fb2d98088b7aeb9fe638",
+      "reason": "All 1728 loss-exchange calls and 1536 variance identity checks passed.",
+      "status": "pass"
+    },
+    "ns_calibration": {
+      "path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/calibration_complete_audit/calibration_audit_manifest.json",
+      "sha256": "5ce59a81b86ef55c13272a61a82e3efc4a99d20c814a609571b713432853c375",
+      "reason": "540 calibration and 576 evaluation calls, independent selection, paired-setting and ensemble-convexity checks complete.",
+      "status": "pass"
+    },
+    "ns_model_comparison": {
+      "path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/final_status.json",
+      "sha256": "3e3b514fe45aace755a851758d7ba97e4d11a34daffa1ac00dd0676b04c4b881",
+      "reason": "1152 model-comparison calls and 72 probes complete, including legitimate additional history.",
+      "status": "pass"
+    },
+    "ns_guidance_cross": {
+      "path": "/home/tat512/C01Python/audit/ns_guidance_cross_20260908/final_status.json",
+      "sha256": "cf21b7ec7be5e98f45d1639f3e268c47a1b3f50a74260836f212b7b1f13a1e54",
+      "reason": "All 576 guidance-cross calls complete.",
+      "status": "pass"
+    },
+    "ns_rough": {
+      "path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/final_status.json",
+      "sha256": "ca3936027f3d22cd203b906c506ca29a76b08972afda23696057a710116cfb42",
+      "reason": "All 96 rough Diffusion calls independently recomputed, no failures.",
+      "status": "pass"
+    },
+    "ns_main_owner": {
+      "path": "/home/tat512/C01Python/audit/ns_main_revision_0909/FINAL_HANDOFF.json",
+      "sha256": "3787c15af2ad3b97c722f74c51fc62c3bdb0f368a5d8d137074e9e49f447fb20",
+      "reason": "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+      "status": "pass"
+    },
+    "ns_main_rel_l2": {
+      "path": "/home/tat512/C01Python/audit/ns_main_revision_0909/tables/ns_main_validation.json",
+      "sha256": "124540d4415a4aceac55b955b8e655a86617a068b5d5e04d9de20621f984965b",
+      "reason": "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+      "status": "pass"
+    },
+    "ns_main_residual": {
+      "path": "/home/tat512/C01Python/audit/ns_main_revision_0909/tables/ns_main_residual_audit.json",
+      "sha256": "236181acd0b97c5ee25ff65d8ee13a3e613d67ee555e5b2fcb216dba60e5197b",
+      "reason": "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+      "status": "pass"
+    },
+    "original_fm_in_place": {
+      "path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/in_place_reference_checks.json",
+      "sha256": "954c439a8ea64b21afe2d45dfa329b16c4144854c1b4d8e27797a32d16b1fae0",
+      "status": "pass",
+      "reason": "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest."
+    },
+    "baseline_effective_counts_verified.csv": {
+      "path": "/home/tat512/C04Papers/fm4pde_jmlr/source_data/baseline_effective_counts_verified.csv",
+      "sha256": "694343ecf4c4448af53c4ef32be4031aaaf157640fa1b5f2b78f816d7291d85e",
+      "status": "recorded_published_provenance",
+      "reason": "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound."
+    },
+    "baseline_counts_archive.json.gz": {
+      "path": "/home/tat512/C04Papers/fm4pde_jmlr/source_data/baseline_counts_archive.json.gz",
+      "sha256": "fa19db2fb1d2e680c1aaa250ddf755711abf5c27854b59f2e09d0e07858481c3",
+      "status": "recorded_published_provenance",
+      "reason": "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound."
+    }
+  },
+  "decisions": [
+    {
+      "id": "existing_fm_main",
+      "original_status": "reference",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "existing_fm_ablations",
+      "original_status": "reference",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "baseline_evaluation_mother_tree",
+      "original_status": "reference",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "fm_training_checkpoint_library",
+      "original_status": "reference",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ablation_raw_server197",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 2755056410,
+      "metadata_hashes": 6719
+    },
+    {
+      "id": "ablation_raw_server193",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 1715488154,
+      "metadata_hashes": 1998
+    },
+    {
+      "id": "ablation_raw_server216",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 484937143,
+      "metadata_hashes": 836
+    },
+    {
+      "id": "ablation_frozen_inputs",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 7681817473,
+      "metadata_hashes": 11
+    },
+    {
+      "id": "ablation_canonical_results",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 3339270896,
+      "metadata_hashes": 7185
+    },
+    {
+      "id": "ablation_export_ablation_publication_snapshot",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 5570821,
+      "metadata_hashes": 2
+    },
+    {
+      "id": "ablation_export_ablation_publication_tables",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 45155,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "ablation_export_ablation_publication_figures",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 10902570,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "ablation_export_ensemble_complete",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All 1056 predictions across 11 PDEs complete; original three-draw study retained.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation",
+        "three_draw",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 12180308,
+      "metadata_hashes": 2
+    },
+    {
+      "id": "burgers_raw_server197",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 98741936,
+      "metadata_hashes": 376
+    },
+    {
+      "id": "burgers_raw_server193",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 509032936,
+      "metadata_hashes": 2146
+    },
+    {
+      "id": "burgers_raw_server216",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 1098435718,
+      "metadata_hashes": 4678
+    },
+    {
+      "id": "burgers_random_fm",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 1213053,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "burgers_burgers_inputs",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 508179664,
+      "metadata_hashes": 4
+    },
+    {
+      "id": "burgers_burgers_weights",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 217860425,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "burgers_burgers_complete",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 16707986,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "burgers_production_inputs",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 508179664,
+      "metadata_hashes": 4
+    },
+    {
+      "id": "burgers_selected_fm_weights",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 7000 new calls complete; original 150 random-FM tensor hashes verified in place.",
+        "All 316 unchanged control tensors present; all 150 original random-FM hashes match frozen manifest.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "burgers",
+        "original_fm_in_place"
+      ],
+      "logical_bytes": 385948627,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "conditional_scaling_raw_server197",
+      "original_status": "pending",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "conditional_scaling_raw_server216",
+      "original_status": "pending",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "conditional_scaling_inputs",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 744 required revisions complete; 316 original controls separately verified in place.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ablation"
+      ],
+      "logical_bytes": 186893840,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "conditional_scaling_local_audit",
+      "original_status": "pending",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "old_diffusion_main",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "baseline_counts_archive.json.gz"
+      ],
+      "logical_bytes": 10589530937,
+      "metadata_hashes": 19026
+    },
+    {
+      "id": "old_diffusion_weights",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "baseline_counts_archive.json.gz"
+      ],
+      "logical_bytes": 1307231713,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "diffusion_timing_study",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Original 400-call timing audited; the final figure uses 320 original non-NS calls and 80 new NS calls.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "timing"
+      ],
+      "logical_bytes": 11226323995,
+      "metadata_hashes": 7446
+    },
+    {
+      "id": "matched_baseline_timing",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 1920 matched calls verified with zero recomputation discrepancy.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "matched_timing"
+      ],
+      "logical_bytes": 1795410001,
+      "metadata_hashes": 1983
+    },
+    {
+      "id": "sampling_confirmation_local",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Final three-PDE report verifies 312 batches / 1248 example-runs per PDE over 32 registered inputs.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "sampling_controls"
+      ],
+      "logical_bytes": 5561356053,
+      "metadata_hashes": 2666
+    },
+    {
+      "id": "sampling_confirmation_original",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Final three-PDE report verifies 312 batches / 1248 example-runs per PDE over 32 registered inputs.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "sampling_controls"
+      ],
+      "logical_bytes": 3535715668,
+      "metadata_hashes": 5284
+    },
+    {
+      "id": "ns_loss_spectrum_20260907_local",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 1728 loss-exchange calls and 1536 variance identity checks passed.",
+        "540 calibration and 576 evaluation calls, independent selection, paired-setting and ensemble-convexity checks complete.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_supplement",
+        "ns_calibration"
+      ],
+      "logical_bytes": 4493880806,
+      "metadata_hashes": 5794
+    },
+    {
+      "id": "ns_checkpoint_comparison_20260908_local",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "1152 model-comparison calls and 72 probes complete, including legitimate additional history.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_model_comparison"
+      ],
+      "logical_bytes": 1158205927,
+      "metadata_hashes": 1430
+    },
+    {
+      "id": "ns_guidance_cross_20260908_local",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 576 guidance-cross calls complete.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_guidance_cross"
+      ],
+      "logical_bytes": 263407488,
+      "metadata_hashes": 629
+    },
+    {
+      "id": "ns_supplement_selected_models",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 1728 loss-exchange calls and 1536 variance identity checks passed.",
+        "540 calibration and 576 evaluation calls, independent selection, paired-setting and ensemble-convexity checks complete.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_supplement",
+        "ns_calibration"
+      ],
+      "logical_bytes": 1550123417,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_supplement_frozen_inputs",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 1728 loss-exchange calls and 1536 variance identity checks passed.",
+        "540 calibration and 576 evaluation calls, independent selection, paired-setting and ensemble-convexity checks complete.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_supplement",
+        "ns_calibration"
+      ],
+      "logical_bytes": 4432048,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "ns_matched_baseline_inputs",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 1728 loss-exchange calls and 1536 variance identity checks passed.",
+        "540 calibration and 576 evaluation calls, independent selection, paired-setting and ensemble-convexity checks complete.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_supplement",
+        "ns_calibration"
+      ],
+      "logical_bytes": 212132250,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "ns_supplement_origin_server193_ns_results_v3",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_supplement_origin_server193_ns_results_accelerated_v1",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_supplement_origin_server193_ns_results_accelerated_v2",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_supplement_origin_server197_ns_results_accelerated_v1",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_supplement_origin_server197_ns_results_accelerated_v2",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_supplement_origin_server216_ns_results_accelerated_v2",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_supplement_origin_server197_guidance_calibration_v1",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_rough_diffusion_server197",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 96 rough Diffusion calls independently recomputed, no failures.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_rough"
+      ],
+      "logical_bytes": 21156128,
+      "metadata_hashes": 30
+    },
+    {
+      "id": "ns_rough_diffusion_server193",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 96 rough Diffusion calls independently recomputed, no failures.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_rough"
+      ],
+      "logical_bytes": 42300175,
+      "metadata_hashes": 57
+    },
+    {
+      "id": "ns_rough_diffusion_server216",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 96 rough Diffusion calls independently recomputed, no failures.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_rough"
+      ],
+      "logical_bytes": 21156157,
+      "metadata_hashes": 30
+    },
+    {
+      "id": "ns_rough_diffusion_local",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "All 96 rough Diffusion calls independently recomputed, no failures.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_rough"
+      ],
+      "logical_bytes": 129660595,
+      "metadata_hashes": 131
+    },
+    {
+      "id": "ns_main_complete_local_ns_study",
+      "original_status": "pending",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 7149064114,
+      "metadata_hashes": 575
+    },
+    {
+      "id": "ns_main_a100_main_raw",
+      "original_status": "pending",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_main_rtx_main_raw",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_main_frozen_inputs",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_main_development_all_candidates",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 4209878,
+      "metadata_hashes": 2
+    },
+    {
+      "id": "ns_main_development_log",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 3143,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_main_pilot_all_raw",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 1248561,
+      "metadata_hashes": 5
+    },
+    {
+      "id": "ns_main_a100_batch_check",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 8522538,
+      "metadata_hashes": 2
+    },
+    {
+      "id": "ns_main_rtx_batch_check",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 2231085,
+      "metadata_hashes": 2
+    },
+    {
+      "id": "ns_main_a100_log",
+      "original_status": "pending",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 7924,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_main_rtx_log",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 13692,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_main_cross_a100_json",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 270,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "ns_main_cross_a100_pt",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 526541,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_main_cross_rtx4090_json",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 272,
+      "metadata_hashes": 1
+    },
+    {
+      "id": "ns_main_cross_rtx4090_pt",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 526541,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_main_timing80_raw",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_main_timing_inputs_and_models",
+      "original_status": "ready",
+      "decision": "not_selected",
+      "reasons": [
+        "Pending producer, alternate duplicate, or existing/reference-only source; not copied in this batch."
+      ]
+    },
+    {
+      "id": "ns_main_timing_log",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 4195,
+      "metadata_hashes": 0
+    },
+    {
+      "id": "ns_main_final400_timing_exports",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 1086339,
+      "metadata_hashes": 5
+    },
+    {
+      "id": "ns_main_original_training_run",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Owner explicitly froze all NS sources after final 15000-example and 80-call timing audits.",
+        "All 15000 tensors, finite predictions, NFE and independent observation/relative-error checks passed.",
+        "All 450 raw batches pass the independent float64 PDE, frozen-input/configuration/mask/runtime audit.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "ns_main_owner",
+        "ns_main_rel_l2",
+        "ns_main_residual"
+      ],
+      "logical_bytes": 5653282386,
+      "metadata_hashes": 3
+    },
+    {
+      "id": "published_baseline_metrics",
+      "original_status": "ready",
+      "decision": "approved",
+      "reasons": [
+        "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound.",
+        "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound.",
+        "All registered sources present; frozen metadata and known content hashes match. Full-file transfer SHA verification remains mandatory."
+      ],
+      "changed_metadata": [],
+      "gate_keys": [
+        "baseline_effective_counts_verified.csv",
+        "baseline_counts_archive.json.gz"
+      ],
+      "logical_bytes": 158228976,
+      "metadata_hashes": 156
+    }
+  ],
+  "approved_entries": 51,
+  "held_entries": 0,
+  "approved_bytes": 74427442592,
+  "pending_ids": [
+    "conditional_scaling_raw_server197",
+    "conditional_scaling_raw_server216",
+    "conditional_scaling_local_audit"
+  ]
+}
