@@ -358,3 +358,22 @@ python reproducibility/revision_20260909/summarize_archive_execution.py \
   --output /home/tat512/C01Python/audit/revision_archive_execution_20260909/reconciled_completion.json \
   --require-complete
 ```
+
+The separately authorized selected-baseline addendum is frozen in
+`archive_inventory.baseline_addendum.json`. It adds 33 checkpoints (450,678,652
+bytes), 761 metadata files (33,372,614 bytes), and 1,664,590 bytes of provenance.
+Its 15 remaining checkpoints are references to identical files in the matched
+baseline timing and NS baseline-input archives. All 48 mappings are retained
+in the addendum's `provenance/archive_dependency_bindings.json` destination.
+One metadata file is in `data_protocol/`; the other 760 are in `runs/`, so the
+metadata entry uses their common parent with an explicit file list.
+
+`run_baseline_archive_addendum.py` waits for the unchanged original batch to
+report completion, binds both reference receipts to its independent verify
+records, checks the 15 per-file hashes and byte counts, and only then invokes
+the same serial execute/verify wrapper. It refuses a prior batch with held
+entries. Its own local session is `revision_archive_baseline_0909`; it exits
+automatically after the addendum finishes. The remote archive helper remains
+the independent `FM4PDEArchive0909_6f5bfd5` checkout. No existing producer or
+active manifest is changed. Original MAT datasets and further Burgers/input
+dependencies are outside this addendum.
