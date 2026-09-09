@@ -173,6 +173,22 @@
         {
           "revision": "82b2d23f58b87cbffe4d50968cc9e22024c54692",
           "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "20f50bec73eb0b8e883b5cc052412dba1538daaf",
+          "purpose": "Actual native-precision historical Diffusion input freeze with original metric/final-loss references"
+        },
+        {
+          "revision": "dfd487cb96afc30178fad22ccc30838c76db6404",
+          "purpose": "Complete 26000-prediction CPU audit using the frozen native-precision inputs"
+        },
+        {
+          "revision": "611de50faf6e233d55c57f36a4fd62f9cb256e23",
+          "purpose": "Verified compact native MAT/HDF5 materialization and 26 unchanged numerical sampling configurations"
+        },
+        {
+          "revision": "0b770215d9ab44492fd60b11c13d1af1c63307f6",
+          "purpose": "Final native baseline interface controller with 186 mask contracts and separately verified original-environment inference receipts"
         }
       ]
     },
