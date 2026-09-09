@@ -17,7 +17,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT/'plot'))
 from run_paper_ablation_revision import digest,write
-from run_conditional_sample_scaling import KS
+from run_conditional_sample_scaling import KS,configuration
 
 
 def write_csv(path,rows):
@@ -34,6 +34,17 @@ def main():
     torch.set_num_threads(2)
     envs=[json.loads(x.read_text()) for x in args.results.glob('environment_run_*.json')]
     assert envs
+    recorded_source=Path(envs[0]['inputs'])
+    source=recorded_source if recorded_source.is_absolute() else args.results.parent.parent/'conditional_scaling_20260909'/recorded_source
+    source=source.resolve()
+    assert digest(source/'truths.pt')==envs[0]['truth_sha256']
+    assert digest(source/'weights.pth')==envs[0]['weights_sha256']
+    assert digest(source/'protocol.json')==envs[0]['protocol_sha256']
+    original_truths=torch.load(source/'truths.pt',weights_only=False,map_location='cpu')
+    protocol=json.loads((source/'protocol.json').read_text())
+    selection_path=ROOT/'plot/conditional_sample_scaling_selection.json'
+    assert digest(selection_path)==envs[0]['selection_sha256']
+    selection=json.loads(selection_path.read_text())
     expected=set()
     for e in envs:
         alljobs=[(t,i) for t in e['args']['tasks'] for i in e['args']['offsets']]
@@ -54,6 +65,11 @@ def main():
         assert len({hashlib.sha256(x.numpy().tobytes()).hexdigest() for x in canonical['predictions']})==1000
         assert canonical['offset']==offset and canonical['task']==task
         cfg=canonical['config']
+        expected_cfg=configuration(protocol,selection,task,recorded_source)
+        expected_cfg.offset=offset;expected_cfg.mask_seed=20260912+offset;expected_cfg.sample_seed=20260912+offset
+        assert cfg==expected_cfg.asdict()
+        original_pair=torch.cat([original_truths[offset].coef,original_truths[offset].sol],dim=1)[0].double()
+        assert torch.equal(truth,original_pair)
         assert cfg['num_steps']==100 and cfg['num_obs']==500 and cfg['noise_level']==0
         from sampling.masks import make_pair_masks
         masks=make_pair_masks((1,1,128,128),(1,1,128,128),cfg['num_obs'],cfg['sensor_mode'],cfg['shared_mask'],cfg['mask_seed'])
@@ -108,6 +124,7 @@ def main():
         complete=completed==expected,conditional_trajectories=len(completed)*1000,
         independent_timing_trajectories=len(completed)*sum(KS),hash_verified_results=len(proofs),
         all_fields_finite=True,variance_identity_verified=True,batch_noise_prefixes_verified=True,
+        original_input_truths_verified=True,frozen_guidance_configurations_verified=True,distinct_predictions_per_pool_verified=1000,
         accuracy_source='Mean of first K physical draws from the stored 1000-draw pool',
         timing_source='Separate synchronized execution for each K on the same GPU for each task/offset',
         environments=envs,results=proofs,exporter_sha256=digest(__file__)))
