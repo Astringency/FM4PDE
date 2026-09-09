@@ -1,6 +1,6 @@
 # Revision study entry points
 
-All commands below are entry-point recipes, not evidence that a new run was executed. Use the source version, environment, checkpoint, and frozen protocol recorded for the study. A full current checkout alone does not make an earlier experiment byte-identical: source snapshots and environment records in this directory provide the corresponding versions.
+Commands below describe study entry points. Actual CPU relocation checks are reported separately in `RELOCATION_TEST.md` and its JSON; the recipes do not imply new sampling was executed. Use the source version, environment, checkpoint, and frozen protocol recorded for the study. A full current checkout alone does not make an earlier experiment byte-identical: source snapshots and environment records in this directory provide the corresponding versions.
 
 ## Paths and result ownership
 
@@ -41,23 +41,12 @@ The exact numerical source boundary is:
 
 The original study has 1,060 configurations. Eight PDEs contribute 744 revised runs; 316 original records remain unchanged. Most factor sweeps use ID input 0. The six temporal studies and Poisson endpoint-correction controls retain their original scope. The old NS checkpoint is used here.
 
-Tracked execution sequence:
-
-```bash
-python plot/run_paper_ablation_revision.py prepare --archive "$ORIGINAL_ARCHIVE" --inputs "$ABL/inputs"
-python plot/run_paper_ablation_revision.py diagnose --inputs "$ABL/inputs" --output "$REPLAY/results" --pdes "$PDE"
-python plot/select_paper_ablation_revision.py --inputs "$ABL/inputs" --output "$REPLAY/results" --pdes "$PDE"
-python plot/run_paper_ablation_revision.py rerun --inputs "$ABL/inputs" --output "$REPLAY/results" --pdes "$PDE"
-```
-
-The commands show the selection stages; exact formal replay uses the already frozen per-PDE output `selection.json` and input protocol rather than selecting from formal inputs again. For a replay that skips diagnosis, first restore each frozen `selection.json` beneath `$REPLAY/results/<pde>/`. Preparation must target a new directory, not overwrite a preserved input cache. `plot/run_paper_revision_queue.py` can coordinate declared per-PDE stages; it is not needed for postprocessing.
-
-Merge the verified revised fields with the retained original records:
+For **offline recomputation**, first provide an eleven-PDE results view. Each `$ARCHIVED_RESULTS_VIEW/<pde>` must contain that PDE's frozen `selection.json`, completion markers, `main/` and `ensemble/` raw results. The archive inventory designates `outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results/` for this unified tree, with the original host directories also preserved. Confirm that transfer and its checksum receipt have completed before using it. An independently constructed view must select exactly one authoritative directory per PDE. Existing absolute `records.json` paths are not portable. Rebuild a new snapshot from raw before plotting:
 
 ```bash
 python plot/collect_paper_ablation_fields.py \
   --archive "$ABL/archived_ablation_summary.csv" --inputs "$ABL/inputs" \
-  --results "$ABL/output" --original-root "$ABL/original_predictions" \
+  --results "$ARCHIVED_RESULTS_VIEW" --original-root "$ORIGINAL_RESULTS_ROOT" \
   --output "$REPLAY/ablation_publication_snapshot"
 python plot/export_paper_ablation_tables.py --source "$REPLAY/ablation_publication_snapshot" --output "$REPLAY/ablation_tables"
 python plot/plot_paper_ablation_fields.py --source "$REPLAY/ablation_publication_snapshot" --output "$REPLAY/ablation_figures" \
@@ -65,21 +54,39 @@ python plot/plot_paper_ablation_fields.py --source "$REPLAY/ablation_publication
 python plot/plot_paper_ablation_sweeps.py --source "$REPLAY/ablation_publication_snapshot" --output "$REPLAY/ablation_figures"
 ```
 
-Required data: original summary CSV, all original records referenced by that CSV, each PDE's input/weight/protocol/selection files, revised `result.pt`, `curves.csv` and receipts. Verify the actual collector's `--archive` input is the CSV, not the root archive directory. `legacy_scripts/paper_audit/revision_0909/qa_ablation_delivery.py` preserves the independent field-error checks and the final 85-figure verification; its paper paths must be restored explicitly. None of these steps calls for rerunning deleted main-text NS calibration/residual-selection sections.
+`$ORIGINAL_RESULTS_ROOT` precedes the portion of `source_result` after `/FM4PDE/`, which already starts with `outputs/ablations/`. For the still-preserved server197 originals this root is `/research_data/users/zhangxifeng/C01Python/FM4PDE`; an archived replacement must preserve that suffix or supply a corresponding view. The local `original_predictions/` used in this regression contains only 45 of the 316 unchanged raw predictions. The other 271 retain their exact archived summary values, but cannot be independently recomputed from this local subset. All 744 revised raw predictions are present.
+
+The reusable CPU regression creates relative symlinks without copying raw data, then recomputes the old and new paths under the same two-thread environment. It checks all 1,060 records, 20 tables, the complete original three-draw study and 80 applicable figures. An optional `--result-map` JSON maps each PDE to its authoritative archived directory; `--inputs`, `--original-root`, `--snapshot` and `--ensemble` can override their default study subdirectories. Use a new output directory each time:
+
+```bash
+python reproducibility/revision_20260909/check_ablation_relocation.py \
+  --study "$ABL" --result-map "$PDE_RESULTS_MAP_JSON" \
+  --original-root "$ORIGINAL_RESULTS_ROOT" \
+  --output "$REPLAY/ablation_relocation"
+```
+
+For **new sampling with the frozen formal protocol**, use the recorded producer checkout and environment. Restore each frozen `selection.json` beneath a fresh `$NEW_RESULTS/<pde>/`, and run:
+
+```bash
+python plot/run_paper_ablation_revision.py rerun --inputs "$ABL/inputs" --output "$NEW_RESULTS" --pdes "$PDE"
+```
+
+Repeat for the eight revised PDEs. Collect the new output using `--results "$NEW_RESULTS"`; do not accidentally point that comparison at `$ARCHIVED_RESULTS_VIEW`. Unchanged controls still come from the original summary and original-result root. Re-estimating selection is a separate experiment. The historical `prepare` → `diagnose` → `select_paper_ablation_revision.py` stages require the original dataset/checkpoint/configuration sources and recommendation JSON; they are not prerequisites for recomputing frozen archived outputs. If preparation is necessary, target a fresh input directory and use the recorded source version, not current default YAML. `run_paper_revision_queue.py` is a sampling coordinator, not an offline collector.
+
+Required data: original summary CSV, each PDE's frozen inputs/protocol/selection, revised `result.pt`, `curves.csv` and receipts, and the original control predictions needed by the requested plots. Weights are needed for new sampling; these CPU ablation collectors do not load them. Verify the actual collector's `--archive` input is the CSV, not the root archive directory. `legacy_scripts/paper_audit/revision_0909/qa_ablation_delivery.py` preserves the independent field-error checks and the final 85-figure verification; its paper paths must be restored explicitly. None of these steps calls for rerunning deleted main-text NS calibration/residual-selection sections.
 
 ## Eleven-PDE, 32-input, three-draw study and spectra
 
 This is the original 1,056-prediction study, with 21 reported fields and input offsets 1500–1531. Keep the old NS model and frozen observation layout. It is distinct from the new K-scaling study.
 
 ```bash
-python plot/run_paper_ablation_revision.py ensemble --inputs "$ABL/inputs" --output "$REPLAY/results" --pdes "$PDE"
-python plot/export_paper_seed_ensemble.py --inputs "$ABL/inputs" --results "$ABL/output" --output "$REPLAY/ensemble_complete" \
+python plot/export_paper_seed_ensemble.py --inputs "$ABL/inputs" --results "$ARCHIVED_RESULTS_VIEW" --output "$REPLAY/ensemble_complete" \
   --plan reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_ANALYSIS_PLAN.md
 python plot/plot_paper_seed_ensemble.py --source "$REPLAY/ensemble_complete" --output "$REPLAY/ensemble_figures" \
   --contract reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_CHART_CONTRACT.md
 ```
 
-The exporter retains single draws and physical-field averages, uses input-level sample SD and paired bootstrap, and verifies complete field/seed coverage. Its output NPZ/CSV/manifest files are inputs for the eleven spectra. Preserve `analysis_plan.md`/plan hash and all saved prediction tensors; do not count three draws as three independent physical inputs.
+These commands reanalyze archived raw predictions. For new sampling, first restore each PDE's frozen selection beneath `$NEW_RESULTS/<pde>/`, run `python plot/run_paper_ablation_revision.py ensemble --inputs "$ABL/inputs" --output "$NEW_RESULTS" --pdes "$PDE"` for all eleven PDEs, and pass that same `$NEW_RESULTS` to the exporter only after completion. The exporter retains single draws and physical-field averages, uses input-level sample SD and paired bootstrap, and verifies complete field/seed coverage. Its output NPZ/CSV/manifest files are inputs for the eleven spectra. Preserve `analysis_plan.md`/plan hash and all saved prediction tensors; do not count three draws as three independent physical inputs. `collect_conditional_sample_scaling.py` belongs to the separate new K study and is not an offline collector for this original three-draw study.
 
 Matched Poisson/Darcy baseline frequency diagnostics use `plot/export_matched_spectra.py --study "$MATCHED_STUDY" --output "$REPLAY/spectra"`, then `plot/plot_paper_frequency_revision.py --source "$REPLAY/spectra" --output "$REPLAY/frequency_figures"`. Required artifacts include matched predictions, masks/truth and baseline source mappings. The plotting source contains 1,216 spectral records. `legacy_scripts/paper_audit/revision_0909/rank_frequency_table.py` preserves the final unrounded ranking rule for the four displayed metrics. `plot/spectral_diagnostics.py` implements the common FFT/DCT and field-filtering definitions.
 

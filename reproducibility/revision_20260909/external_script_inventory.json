@@ -76,16 +76,16 @@
     {
       "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/ns_table_update.py",
       "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/ns_table_update.py",
-      "source_sha256": "c9d84e51dace45f51a1481fb303e582a0d09ed2ade99bb72a0b94ab7dc52521a",
-      "copy_sha256": "c9d84e51dace45f51a1481fb303e582a0d09ed2ade99bb72a0b94ab7dc52521a",
-      "bytes": 18220,
+      "source_sha256": "4c061390021d14f53d422c8008f0951329112be5c8d6b0f79bc11debbe7ca035",
+      "copy_sha256": "4c061390021d14f53d422c8008f0951329112be5c8d6b0f79bc11debbe7ca035",
+      "bytes": 19287,
       "purpose": "Gate and export the eight NS main-comparison tables, recompute all affected row ranks, macros and wins from raw unrounded statistics.",
       "required_inputs": [
         "paper/source_data/main_figure_values.csv",
         "paper/audit/table_value_provenance.csv",
         "paper/source_data/diffusion_comparison_summary.csv and manifest",
         "paper main TeX/preamble",
-        "NS collection_complete.json, validation, 15000 per-sample rows and 15-cell summary",
+        "NS collection_complete.json, validation, independent full residual/runtime audit, 15000 per-sample rows and 15-cell summary",
         "prepared_sources.json before replacing original NS cells"
       ],
       "outputs": [
@@ -2398,5 +2398,5 @@
       "source_status": "already tracked; do not duplicate or modify production code"
     }
   ],
-  "recipe_sha256": "57d6dc2fb53405a1b77ce996a0d883704f5690d57f8b4a71a16cc25881907ced"
+  "recipe_sha256": "d654029194861f596db7488c0b1bfc030b19c2ece8085743d07616b0734c5339"
 }

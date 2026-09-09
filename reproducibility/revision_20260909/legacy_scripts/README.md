@@ -35,7 +35,7 @@ python reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_090
   --paper "$PAPER" --study "$NS_STUDY" --output "$PAPER/audit/revision_0909/ns_table_updates"
 ```
 
-Its `export` mode requires complete collection, the independent raw audit, 15 complete cells of 1,000 examples, and agreement with all 15,000 per-sample records. It writes candidate fragments beneath `paper/audit` only. Its copied version is a snapshot of an active audit tool; refresh that copy and manifest if the original changes during final integration. Do not replace the frozen old source statistics before the prepared-source gate has been used.
+Its `export` mode requires complete collection, the independent raw audit, 15 complete cells of 1,000 examples, and agreement with all 15,000 per-sample records. It additionally requires `tables/ns_main_residual_audit.json` to pass on the complete study, including frozen truth/configuration/masks and runtime batch/device assignments, with matching protocol, selection and model hashes. It writes candidate fragments beneath `paper/audit` only. Its copied version is a snapshot of an active audit tool; refresh that copy and manifest if the original changes during final integration. Do not replace the frozen old source statistics before the prepared-source gate has been used.
 
 The four `launch*.sh` files and two collectors preserve historical host, GPU, checkout and shard settings. They are provenance records, not current launch instructions. The old checkpoint finalizer includes fixed historical narrative values and must not be used to generate new-main-experiment conclusions. The complete old-NS loss check belongs to the supplement's original checkpoint study; it does not use the new 44M NS model.
 

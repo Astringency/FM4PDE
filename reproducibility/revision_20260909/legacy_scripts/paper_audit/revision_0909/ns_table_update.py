@@ -139,14 +139,14 @@ def prepare(a):
   existing=json.loads(target.read_text())
   assert all(existing[k]==prepared[k] for k in ['main','provenance','diffusion']),'Frozen baseline changed; choose a fresh audit output directory'
  else:writejson(target,prepared)
- writejson(a.output/'pending_updates.json',dict(status='awaiting_complete_NS_results',required_cells=15,examples_per_cell=1000,example_ids=[2000,2999],required_files=[str(a.study/'collection_complete.json')]+[str(a.study/'tables'/x) for x in ['ns_main_summary.csv','ns_main_per_sample.csv','ns_main_validation.json']],table_labels=LABELS,main_fm_target_entries=18,diffusion_fm_entries=4,ranking='All methods in each displayed PDE/distribution/field row; smaller unrounded mean is better; exact ties share rank.',statistics_to_recompute=['Macro mean over 12 PDE-distribution means for each of the six setting/field combinations','Best and second-best counts and cell lists for every main-table method','FM4PDE versus DiffusionPDE at 100 and 1000 steps: mean and SD ordering, per field and PDE','Rough-is-largest statements across each method and PDE','Any overall macro mean or rank-count derivative in figures, summaries, reviewer responses'],source_files_to_update=[str(sources['main_values']),str(sources['provenance']),str(sources['diffusion_values']),str(sources['diffusion_manifest'])],derived_files_to_regenerate=['source_data/main_tables/{full-forward,full-inverse,sparse-forward,sparse-inverse,sparse-joint}-results.tex','source_data/complete_main_tables.tex','source_data/diffusion_comparison_{forward,inverse,both}.tex','figures/main_comparisons.pdf and .png (archived mean-error charts; currently not referenced by the main manuscript)','Main/reviewer-map/response text assertions identified by table label'],limitations='New NS examples are distinct from archived baseline examples. Do not infer paired test significance. No ablation, original three-seed, Burgers, non-NS, or physics-baseline data change.'))
+ writejson(a.output/'pending_updates.json',dict(status='awaiting_complete_NS_results',required_cells=15,examples_per_cell=1000,example_ids=[2000,2999],required_files=[str(a.study/'collection_complete.json')]+[str(a.study/'tables'/x) for x in ['ns_main_summary.csv','ns_main_per_sample.csv','ns_main_validation.json','ns_main_residual_audit.json']],table_labels=LABELS,main_fm_target_entries=18,diffusion_fm_entries=4,ranking='All methods in each displayed PDE/distribution/field row; smaller unrounded mean is better; exact ties share rank.',statistics_to_recompute=['Macro mean over 12 PDE-distribution means for each of the six setting/field combinations','Best and second-best counts and cell lists for every main-table method','FM4PDE versus DiffusionPDE at 100 and 1000 steps: mean and SD ordering, per field and PDE','Rough-is-largest statements across each method and PDE','Any overall macro mean or rank-count derivative in figures, summaries, reviewer responses'],source_files_to_update=[str(sources['main_values']),str(sources['provenance']),str(sources['diffusion_values']),str(sources['diffusion_manifest'])],derived_files_to_regenerate=['source_data/main_tables/{full-forward,full-inverse,sparse-forward,sparse-inverse,sparse-joint}-results.tex','source_data/complete_main_tables.tex','source_data/diffusion_comparison_{forward,inverse,both}.tex','figures/main_comparisons.pdf and .png (archived mean-error charts; currently not referenced by the main manuscript)','Main/reviewer-map/response text assertions identified by table label'],limitations='New NS examples are distinct from archived baseline examples. Do not infer paired test significance. No ablation, original three-seed, Burgers, non-NS, or physics-baseline data change.'))
  return prepared
 
 def require_complete(a):
- required=[a.study/'collection_complete.json']+[a.study/'tables'/x for x in ['ns_main_summary.csv','ns_main_per_sample.csv','ns_main_validation.json']]
+ required=[a.study/'collection_complete.json']+[a.study/'tables'/x for x in ['ns_main_summary.csv','ns_main_per_sample.csv','ns_main_validation.json','ns_main_residual_audit.json']]
  missing=[str(x) for x in required if not x.is_file()]
  if missing:raise RuntimeError('Export blocked: required complete-result files are absent: '+', '.join(missing))
- complete=json.loads(required[0].read_text());validation=json.loads(required[3].read_text())
+ complete=json.loads(required[0].read_text());validation=json.loads(required[3].read_text());residual=json.loads(required[4].read_text())
  assert complete['status']=='complete'
  assert validation['status']=='pass' and validation['examples']==15000
  assert all(validation[k] is True for k in ['all_predictions_finite','all_nfe_100','all_result_hashes_match'])
@@ -154,6 +154,15 @@ def require_complete(a):
  wanted={(dist.lower(),spec[0]) for dist in DISTS for spec in SPECS.values()}
  checks=unique_index(validation['cells'],lambda r:(r['dist'],r['setting']))
  assert set(checks)==wanted and all(r['n']==1000 and r['exact_ids'] is True for r in checks.values())
+ assert residual['status']=='pass' and residual['complete'] is True and residual['examples']==15000
+ assert all(residual[k] is True for k in ['analytic_constant_and_fourier_mode_checks','all_frozen_configurations_match','all_truths_equal_frozen_source_cache','all_protocol_and_selection_hashes_match','all_observation_counts_and_masks_match','all_runtime_batches_and_device_assignments_match'])
+ residual_cells=unique_index(residual['cells'],lambda r:(r['dist'],r['setting']))
+ assert set(residual_cells)==wanted and all(r['n']==1000 for r in residual_cells.values())
+ protocol_path=a.study/'inputs/protocol.json';selection_path=a.study/'selection.json'
+ protocol=json.loads(protocol_path.read_text())
+ assert residual['protocol_sha256']==sha(protocol_path) and residual['selection_sha256']==sha(selection_path)
+ assert residual['model_weights_sha256']==protocol['model']['weights_sha256']==sha(a.study/'weights.pth')
+ required += [protocol_path,selection_path]
  summary=unique_index(readcsv(required[1]),lambda r:(r['dist'],r['setting']))
  assert set(summary)==wanted and all(int(r['n'])==1000 for r in summary.values())
  per=readcsv(required[2]);assert len(per)==15000

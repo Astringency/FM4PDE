@@ -2,6 +2,8 @@
 
 本次仅只读审查源码、冻结协议、当前文件布局及参数解析；未执行 GPU、远程操作、collector 或生产程序。审查范围为新源码/环境整理工具，以及新 NS、K-scaling、744 个消融重跑、原三次预测平均和 Burgers 的主要入口。归档脚本尚在完善，不据此判断归档已经完成。
 
+后续受授权完成的 CPU 路径迁移回归另见 `RELOCATION_TEST.md` / `RELOCATION_TEST.json`。其中对 744 修订消融和原三次预测研究从 raw 重新导出，使用新的 11-PDE 相对链接视图，并更新 `STUDY_RECIPES.md` 的独立采样/离线复算分支。下文保留首次静态核查依据；其“未执行 collector”的范围仅指首次核查。
+
 最初识别的 Git 身份阻断已修复并实查通过；K exporter 的显式输入重定位已有单池回归证据。其余应在交付复现入口前落实：Burgers 登记跨研究引用的 FM 权重；NS 输入中的绝对符号链接解析到归档内实体；消融提供按 PDE 汇合后的结果视图，并重新生成带新路径的作图索引。其余问题主要是明确入口参数和区分旧结果核查与新采样。
 
 ## 1. 源码解包目录不能直接通过计时程序的 Git 版本断言
@@ -82,6 +84,8 @@ assert git_head_of_diffusion == protocol['diffusion_commit']
 迁移时应保存这些目标实体，或在新的读取视图中建立归档内可解析的链接，并逐项通过 protocol `artifacts` 的原哈希。仅复制旧符号链接不能在删除旧位置后复核计时。`export_diffusion_fm_timing.py --pde-overrides` 的 `nsnonbounded.inputs` 应指向这个完整的**新 NS timing_inputs**；不能用主 NS 的 endpoint-pair `inputs` 代替。`nsnonbounded.results` 应指向下层有 `nsnonbounded/` 的结果目录。
 
 ## 4. 744 消融与原三次平均需要显式的按 PDE 结果汇合视图
+
+**已提供实际路径回归：** `check_ablation_relocation.py` 建立相对链接视图并从 raw 新建 snapshot。相同两线程环境下，原路径与新路径的 1,060 条记录（除读取路径）、未舍入 CSV、20 张表和 84 个三次预测频谱数组严格一致。历史 ablation snapshot 另有至多约 $4\times10^{-15}$ 的浮点归约差，未改变显示数值或排名；该差异独立记录，未改旧数据或计算公式。本地缺失的 271 个 unchanged raw 仍属于归档完整性事项，不能由本回归代替。
 
 `collect_paper_ablation_fields.py` 和 `export_paper_seed_ensemble.py` 都只接受一个 `--results` 根目录，随后读取 `<results>/<pde>/...`。当前本地 `paper_revision_20260908/output/` 并不是一个完全独立的实体树：
 
