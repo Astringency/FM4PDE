@@ -2,11 +2,13 @@
 
 本次仅只读审查源码、冻结协议、当前文件布局及参数解析；未执行 GPU、远程操作、collector 或生产程序。审查范围为新源码/环境整理工具，以及新 NS、K-scaling、744 个消融重跑、原三次预测平均和 Burgers 的主要入口。归档脚本尚在完善，不据此判断归档已经完成。
 
-有四项应在交付复现入口前具体落实：恢复目录必须具有正确 Git 身份；Burgers 必须登记跨研究引用的 FM 权重；NS 输入中的绝对符号链接必须解析到归档内实体；消融必须提供按 PDE 汇合后的结果视图，并重新生成带新路径的作图索引。其余问题主要是明确入口参数和区分旧结果核查与新采样。
+最初识别的 Git 身份阻断已修复并实查通过；K exporter 的显式输入重定位已有单池回归证据。其余应在交付复现入口前落实：Burgers 登记跨研究引用的 FM 权重；NS 输入中的绝对符号链接解析到归档内实体；消融提供按 PDE 汇合后的结果视图，并重新生成带新路径的作图索引。其余问题主要是明确入口参数和区分旧结果核查与新采样。
 
 ## 1. 源码解包目录不能直接通过计时程序的 Git 版本断言
 
-**已反馈根代理，根代理正在修复。** 本次最初读取的 `source_snapshots.py::restore_tree` 仅解出源文件并写 `.FM4PDE_SOURCE.json`，没有独立 `.git`。README 的恢复示例将 DiffusionPDE 解到当前 FM4PDE 仓库内。此时 `git rev-parse HEAD` 会向父目录查找并返回 FM4PDE 的 HEAD，而非 DiffusionPDE 的版本；若解到任何 Git 仓库外，则直接报错。
+**已解决：根提交 `7a3dd7a`。** 复查新版 `restore_tree` 从哈希校验过的 bundle 克隆、detach 并验证 HEAD/tree；本地 DiffusionPDE、FM4PDEbaseline 恢复目录均有独立 `.git`，实际 HEAD/tree 与各自 manifest 相符。README 已同步。以下保留原问题及其影响，说明为何需要真实 checkout。
+
+本次最初读取的 `source_snapshots.py::restore_tree` 仅解出源文件并写 `.FM4PDE_SOURCE.json`，没有独立 `.git`。README 的恢复示例将 DiffusionPDE 解到当前 FM4PDE 仓库内。此时 `git rev-parse HEAD` 会向父目录查找并返回 FM4PDE 的 HEAD，而非 DiffusionPDE 的版本；若解到任何 Git 仓库外，则直接报错。
 
 直接受影响的代码是 `plot/run_diffusion_fm_timing.py` 中两条断言：
 
@@ -98,7 +100,7 @@ assert git_head_of_diffusion == protocol['diffusion_commit']
 
 ## 5. K-scaling：两个 `--inputs` 的层级不同，collector 仍属于原部署
 
-根代理新增的 exporter `--inputs` / `--selection` 解决了核心旧路径依赖：它从迁移后文件读字节，但用 environment 中记录的旧 source 字符串重建原 config，随后核验 protocol/truth/weight/selection 哈希。这一职责划分正确；本次未覆盖根代理正在执行的 1,000-draw CPU 路径回归。
+根代理新增的 exporter `--inputs` / `--selection` 解决了核心旧路径依赖：它从迁移后文件读字节，但用 environment 中记录的旧 source 字符串重建原 config，随后核验 protocol/truth/weight/selection 哈希。这一职责划分正确。已读取根新增 `k_relocation_validation.json`：server197 forward/offset1500 的完整 1000-draw 池及五份 K 原始结果通过哈希核验，新旧 exporter 的数值 CSV 逐字相同、7 个数组逐元素相同。该证据仅涵盖这一输入/任务，不是整个研究的迁移回归。
 
 必须在文档中明确：
 
