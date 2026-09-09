@@ -59,7 +59,8 @@
         "build_clean": true
       }
     ],
-    "final_revision_complete": false
+    "final_revision_complete": false,
+    "storage_scope": "The historical working-draft archive and replay paths are retained locally only; neither full directory is included in the server197 delivery."
   },
   "historical_implementation_note": "The top-level script_sha256, readme_sha256, tested_receipt_sha256, coverage, fixed_findings, and actual_rebuild fields preserve the earlier implementation/working-draft review; current final versions are recorded in final_rebuild.",
   "superseded_final_capture": {
@@ -76,7 +77,8 @@
     "known_issue": "Default bibtex8 returned exit code 0 while reporting missing 88591lat.csf and produced a nonalphabetical main bibliography. The corrected -8 mode changes only bibliography ordering; it must not be represented as byte-equivalent to the superseded bibliography.",
     "correction_review_in_final_archive": "audit/revision_0909/conditional_scaling_final_review/bibliography_build_0909/corrected_build_review.json",
     "correction_review_sha256": "e0be27974f4f1e1f8fb78e90f50076427a9a1a210e69ab7a9402a7fc26783e51",
-    "correction_scope": "build_all.sh only: explicit bibtex8 -8 and one extra pdflatex pass for bibliography-bearing documents. All four TeX sources and all 30 main bibitem keys/entry texts unchanged. PDF text changed only on main/reviewer bibliography pages 187\u2013190; all text before References unchanged. Supplement/response complete layout text unchanged. Nine reference pages visually reviewed without clipping or overlap."
+    "correction_scope": "build_all.sh only: explicit bibtex8 -8 and one extra pdflatex pass for bibliography-bearing documents. All four TeX sources and all 30 main bibitem keys/entry texts unchanged. PDF text changed only on main/reviewer bibliography pages 187\u2013190; all text before References unchanged. Supplement/response complete layout text unchanged. Nine reference pages visually reviewed without clipping or overlap.",
+    "storage_scope": "The complete immutable v1 archive, capture/verify/build evidence, proof JSON and logs are included in the server197 delivery scope. Its writable verification_root/paper subtree is retained locally only and can be restored again from the archive."
   },
   "final_rebuild": {
     "status": "pass",
@@ -199,6 +201,27 @@
     ],
     "warning_free_build": false,
     "diagnostic_interpretation": "No unresolved references/citations, rerun requests, multiply-defined labels, overfull boxes, or bibliography errors. The remaining 86/86/3 underfull lines and seven font-substitution warning lines in each main document match the pre-existing typesetting diagnostics; they are disclosed rather than described as a warning-free build.",
-    "boundaries": "PDF bytes may differ due to compilation metadata; complete pdftotext -layout output is compared byte-for-byte, and immutable archived PDF/source/figure hashes are separately verified. This rebuild performs no statistical computation, training, or new sampling."
+    "boundaries": "PDF bytes may differ due to compilation metadata; complete pdftotext -layout output is compared byte-for-byte, and immutable archived PDF/source/figure hashes are separately verified. This rebuild performs no statistical computation, training, or new sampling.",
+    "storage_scope": "The complete immutable v2 archive and capture/verify/stable-build evidence, full_helper_report and logs are included in the server197 delivery scope. The restored_paper path is a local-only writable copy that can be regenerated with the helper."
+  },
+  "delivery_scope": {
+    "server": "197",
+    "scope_is_not_a_transfer_completion_receipt": true,
+    "complete_immutable_archives": [
+      "paper_assets",
+      "paper_assets_final_20260909"
+    ],
+    "evidence_and_log_roots": [
+      "verification_runs/final_paper_restore_20260909T105415Z",
+      "verification_runs/final_paper_v2_20260909T110400Z"
+    ],
+    "evidence_roots_include_complete_proof_json_and_logs_but_exclude_writable_paper_subtrees": true,
+    "local_only_directories": [
+      "verification_runs/paper_assets_working_0731",
+      "verification_runs/paper_rebuild_0731",
+      "verification_runs/final_paper_restore_20260909T105415Z/paper",
+      "verification_runs/final_paper_v2_20260909T110400Z/stable_rebuild/paper"
+    ],
+    "local_only_reason": "Historical working-draft copies are retained locally; final writable rebuilt paper copies are reproducible from the two immutable archives and are not duplicated in the server197 delivery."
   }
 }
