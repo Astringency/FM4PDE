@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 
 HERE = Path(__file__).resolve().parent
+DEFAULT_ARCHIVE = HERE / 'paper_assets_final_20260909'
 STEMS = ('fm4pde_jmlr_revision_0906',
          'fm4pde_jmlr_revision_scoped_reviewer_map_0906',
          'supplement', 'response_to_reviewers_scoped_0906')
@@ -148,8 +149,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('capture', 'verify', 'restore'))
     parser.add_argument('--paper', type=Path)
-    parser.add_argument('--archive', type=Path, default=HERE / 'paper_assets')
-    parser.add_argument('--destination', type=Path, default=HERE / 'paper_assets')
+    parser.add_argument('--archive', type=Path, default=DEFAULT_ARCHIVE)
+    parser.add_argument('--destination', type=Path, default=DEFAULT_ARCHIVE)
     parser.add_argument('--stage', choices=('working-draft', 'final'), default='final')
     args = parser.parse_args()
     if args.mode == 'capture':
