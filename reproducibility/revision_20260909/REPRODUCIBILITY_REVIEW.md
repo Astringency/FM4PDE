@@ -4,7 +4,7 @@
 
 截至本次说明更新，真实 Git 恢复、Burgers FM 专用权重副本、NS 主/计时链接实体化、十一类 PDE 结果视图及全部 316 个原始对照均已落实。完整 server197 消融重算见 `RELOCATION_SERVER197.md`；新 NS 的 15,000 例实际归档 CPU 重算见 `NS_ARCHIVED_RECOMPUTATION.md`；18 个 baseline 原生缓存、186 个数据/掩码协议和四个模型的小批次真实推理见 `BASELINE_FROZEN_REPLAY.md`。这些事实分别由对应报告及哈希支持。
 
-K 的四个生产分片和 collector 已结束，全部 480 个结果回执、96,000 条 canonical 轨迹和 106,944 条实际计时轨迹通过；完整 compact 数值、统计和三图审阅也通过。其三项结果归档尚在传输，未声称 server197 目标上的完整 K 数值重算已经执行。最终命令和来源边界见 `STUDY_RECIPES.md`。其余 64 项正式结果归档已独立校验，见 `ARCHIVE_COMPLETED_64.md`。
+K 的四个生产分片和 collector 已结束，全部 480 个结果回执、96,000 条 canonical 轨迹和 106,944 条实际计时轨迹通过；完整 compact 数值、统计和三图审阅也通过。其三项结果归档也已于 19:38:49 完成独立校验，至此全部 67 项完成，见 `ARCHIVE_COMPLETED_67.md`。随后从实际 server197 目标读取全部 96 池及 480 条 compact 数据的 CPU 数值重算也通过，见 `K_ARCHIVED_RECOMPUTATION.md`。最终命令和来源边界见 `STUDY_RECIPES.md`；先前 64 项记录保留为历史证据。
 
 ## 1. 源码解包目录不能直接通过计时程序的 Git 版本断言
 
@@ -26,7 +26,7 @@ assert git_head_of_diffusion == protocol['diffusion_commit']
 
 应从经过 SHA256 核验的 Git bundle 克隆到新目录，再 detach 到指定 commit，并核对 HEAD 与 tree。运行 FM 程序时也要进入对应生产 checkout，不能从最新主仓库执行历史计时再传一个旧 Diffusion 目录。其他生产器通常只记录 Git HEAD，未全部断言；错误父仓库身份在这些程序中会造成错误的来源记录而不是立即失败。
 
-首次已只读核查清单中 23 个 FM、一个 DiffusionPDE 和一个 FM4PDEbaseline tree，均可在本地 Git 解析，且没有 tracked symlink；因此当前 catalog 没有因 `restore_tree` 拒绝 symlink 而额外失效的已知条目。后续完整源码核验扩大到 58 版本（47 FM、3 Diffusion、8 baseline），25,977 文件内容/权限及三个独立 Git bundle 恢复均通过，记录见 `source_restore_coverage.json`（SHA `c6520ee4a698fedbc86ca7b001936c01aca3227055300fc0e68c85630586ebbc`）。`collect_environments.py` 的解释器路径由 `--python` 明确提供，读取包元数据而不导入 torch/初始化 CUDA；未发现需要修正的路径解析问题。它产生的是事后环境观测，不是可安装的完整环境锁，README 已准确限定这一点。
+首次已只读核查清单中 23 个 FM、一个 DiffusionPDE 和一个 FM4PDEbaseline tree，均可在本地 Git 解析，且没有 tracked symlink；因此当前 catalog 没有因 `restore_tree` 拒绝 symlink 而额外失效的已知条目。后续完整源码核验最终扩大到 60 版本（49 FM、3 Diffusion、8 baseline），70 归档、27,029 文件内容/权限及三个独立 Git bundle 恢复均通过，记录见 `source_restore_coverage.json`（SHA `dd6228c136845aeb2836293fc92ff008aeba3ad8659e3cb0361a0e07fa4079a1`）。`collect_environments.py` 的解释器路径由 `--python` 明确提供，读取包元数据而不导入 torch/初始化 CUDA；未发现需要修正的路径解析问题。它产生的是事后环境观测，不是可安装的完整环境锁，README 已准确限定这一点。
 
 ## 2. Burgers 的 FM 权重不在 `burgers_weights/`
 
@@ -108,7 +108,7 @@ assert git_head_of_diffusion == protocol['diffusion_commit']
 
 ## 5. K-scaling：两个 `--inputs` 的层级不同，collector 仍属于原部署
 
-**2026-09-09 后续完整审阅已通过。** 本节单池回归之后，四个分片、两份完整 host export、全部 480 compact 行及 672 数组已经过完整复核。数值审阅完成 2,361 项比较；科学审阅 SHA 为 `8d3a539b5118a72981c4b62a340968d4880e1631693fdf4357a114aa5d4d0801`。三项 K 归档仍待复制和独立校验结束；目标归档的后续实际复算入口是 `verify_conditional_scaling_summary.py --paper ... --audit ... --output ...`，详见 `STUDY_RECIPES.md`，不是原 collector。
+**2026-09-09 后续完整审阅已通过。** 本节单池回归之后，四个分片、两份完整 host export、全部 480 compact 行及 672 数组已经过完整复核。数值审阅完成 2,361 项比较；科学审阅 SHA 为 `8d3a539b5118a72981c4b62a340968d4880e1631693fdf4357a114aa5d4d0801`。三项 K 归档现已全部复制并独立校验，完整目标路径复算也已完成。`K_ARCHIVED_RECOMPUTATION.md` 记录 96 池重导出的 480 行及 672 数组精确一致、原源文件前后 SHA 不变，以及独立 compact checker 的 2,361 项比较；初次环境记录排列顺序断言和修正后的完整重跑均保留。实际入口是 `verify_conditional_scaling_archived_host.py` 和 `verify_conditional_scaling_summary.py --paper ... --audit ... --output ...`，不是原 collector。
 
 根代理新增的 exporter `--inputs` / `--selection` 解决了核心旧路径依赖：它从迁移后文件读字节，但用 environment 中记录的旧 source 字符串重建原 config，随后核验 protocol/truth/weight/selection 哈希。这一职责划分正确。已读取根新增 `k_relocation_validation.json`：server197 forward/offset1500 的完整 1000-draw 池及五份 K 原始结果通过哈希核验，新旧 exporter 的数值 CSV 逐字相同、7 个数组逐元素相同。该证据仅涵盖这一输入/任务，不是整个研究的迁移回归。
 
@@ -132,4 +132,4 @@ python plot/export_conditional_sample_scaling.py \
 
 ## 结论边界
 
-原始路径字符串保留在冻结协议中作为来源信息；实际读取使用已校验的目标实体和明确入口参数。首次识别的具体实体、视图和 Git 身份问题已由本页列出的后续操作落实。完整消融和新 NS 已从实际 server197 归档执行 CPU 数值复算；K 的源端完整数值与科学审阅通过，但目标复制和随后的目标路径复算尚未完成。环境记录、文件校验、保存结果复算、原权重推理和重新训练仍是不同层次。未保存的六个 VIVID 权重及原 Diffusion HEAD 缺失等历史限制见 `REPRODUCTION_COVERAGE.md`，不因归档工作完成而消失。
+原始路径字符串保留在冻结协议中作为来源信息；实际读取使用已校验的目标实体和明确入口参数。首次识别的具体实体、视图和 Git 身份问题已由本页列出的后续操作落实。完整消融、新 NS 和完整 K 研究均已从实际 server197 归档执行 CPU 数值复算；全部 67 项结果归档也已独立校验。环境记录、文件校验、保存结果复算、原权重推理和重新训练仍是不同层次。未保存的六个 VIVID 权重及原 Diffusion HEAD 缺失等历史限制见 `REPRODUCTION_COVERAGE.md`，不因归档工作完成而消失。

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "scope": "Published main comparisons and retained revision ablations; distinguishes saved-result recomputation, inference, and training.",
-  "status": "input_freezes_diffusion_full_result_audit_and_baseline_native_consumer_pass_archive_addenda_tracked_separately",
-  "result_archive_status_source": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json",
+  "status": "saved_result_replays_and_native_interface_checks_pass_all_67_result_archives_verified",
+  "result_archive_status_source": "archive_completed_67_entries.json",
   "levels": {
     "saved_results": "Recompute tables/statistics from archived predictions or saved per-example metrics; these are distinct evidence levels.",
     "inference": "Use actual selected checkpoint, normalization, exact test inputs/masks, configuration and original source/environment.",
@@ -32,10 +32,10 @@
     },
     {
       "study": "new conditional K scaling",
-      "results": "All four shards and the collector terminated completely: 96000 canonical trajectories, 106944 total timed trajectories, 480 receipts, 32 inputs and three tasks. Independent compact-field/statistical review passes all 2361 comparisons; table ranking and three figures pass.",
+      "results": "All four shards and the collector terminated completely: 96000 canonical trajectories, 106944 total timed trajectories, 480 receipts, 32 inputs and three tasks. Independent compact-field/statistical review passes all 2361 comparisons; table ranking and three figures pass. Complete CPU replay from actual server197 archives also passes: all96 pools,480 CSV rows and672 arrays; host CSV/NPZ bytes match exactly, followed by2361 compact comparisons.",
       "inference": "The completed producer records bind the fixed Poisson cohort, selected checkpoint, observations, source/precision settings and canonical draw pools. Accuracy uses nested pool prefixes; timing uses separate measured executions for each K. Frozen inputs and raw results are included in the approved archive inventory.",
-      "verified": "paper/audit/revision_0909/conditional_scaling_final_review/{final_scientific_review,numerical_review,independent_scientific_review,visual_review}.json; archive_inventory.conditional_scaling_final.json",
-      "limitation": "Final scientific review is complete; three archive entries totaling14385940996 bytes started transfer at2026-09-09T18:37:55+08:00 and still require copy/verify completion. Compact verification binds host exports but relies on upstream raw/PDE/stochastic-path audits. Results concern this fixed-model Poisson cohort, not universal inputwise improvement."
+      "verified": "paper/audit/revision_0909/conditional_scaling_final_review/{final_scientific_review,numerical_review,independent_scientific_review,visual_review}.json; archive_inventory.conditional_scaling_final.json; K_ARCHIVED_RECOMPUTATION.md/.json; archive_completed_67_entries.json",
+      "limitation": "All three result archives and the complete saved-result replay pass. No new inference, training or latency measurement was performed. The independent compact checker retains the original declared numerical tolerance; raw-host CSV/arrays agree exactly. One original environment-list iteration order differs, but complete per-shard records are identical. Results concern this fixed-model Poisson cohort, not universal inputwise improvement."
     },
     {
       "study": "Burgers extension",
@@ -63,7 +63,7 @@
       "results": "Per-study raw predictions, frozen inputs, model choices, protocols, telemetry and final CSV/NPZ figure sources are explicitly covered by named inventory entries.",
       "inference": "Use the corresponding original source snapshot and frozen model/input directories, never the new NS main model for old NS ablations.",
       "verified": "STUDY_RECIPES.md and each immutable study complete audit",
-      "limitation": "Inventory inclusion is not an actual fresh-inference check; bulk completion is tracked separately."
+      "limitation": "All corresponding result entries are independently archived. Inventory inclusion and saved-result recomputation do not establish fresh inference or historical retraining; use each study's actual verification scope."
     }
   ],
   "baseline_selected_counts": {
@@ -331,12 +331,26 @@
     "archive_entries": 3,
     "archive_bytes": 14385940996,
     "archive_transfer_started_local": "2026-09-09T18:37:55+08:00",
-    "archive_complete": false,
-    "archive_status_at_documentation_update": "transfer_started_copy_and_verify_not_yet_complete",
+    "archive_complete": true,
+    "archive_status_at_documentation_update": "all_three_entries_independently_copied_and_verified",
     "archive_destinations": {
       "conditional_scaling_raw_server197": "ablations/revision_20260909/conditional_scaling_20260909/server197/results",
       "conditional_scaling_raw_server216": "ablations/revision_20260909/conditional_scaling_20260909/server216/results",
       "conditional_scaling_local_audit": "ablations/revision_20260909/conditional_scaling_20260909/local_audit"
-    }
-  }
+    },
+    "archive_completed_local": "2026-09-09T19:38:49+08:00",
+    "actual_destination_replay_complete": true,
+    "actual_destination_replay_report": "K_ARCHIVED_RECOMPUTATION.json",
+    "actual_destination_replay_report_sha256": "4a598e5e941531d479ae72206a717003632d659252dff86143c0dd22264e5223",
+    "actual_destination_compact_review_sha256": "64858dff8a58ca64e100e39d41239852ca13d2b9ce551d592f846c246ff53bfc",
+    "actual_destination_source_files": 1381,
+    "actual_destination_numeric_csv_comparisons": 7680,
+    "actual_destination_arrays_exact": 672,
+    "actual_destination_all_source_hashes_unchanged": true
+  },
+  "result_archive_status_sha256": "8f8e252898ce9bd7d9207136bf2225bc1412ee5bf36485821f6399adc9baabc0",
+  "result_archive_complete": true,
+  "result_archive_verified_entries": 67,
+  "result_archive_planned_files": 194202,
+  "result_archive_bytes": 94486625572
 }

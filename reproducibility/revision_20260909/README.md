@@ -29,11 +29,12 @@
 原生产目录保留；复制成功以文件校验结果为准。
 各研究当前是否已经归档，见 [归档清单](archive_inventory.json) 和
 [归档说明](ARCHIVING.md)。正在运行或尚未通过完整核验的研究不得标记为完成。
-已完成的 64 项材料及其逐项校验记录见
-[已完成归档](ARCHIVE_COMPLETED_64.md)。Poisson 样本数实验的四个分片、完整数值、
-统计和图形审阅已通过，另三项结果归档正在传输；在独立复制校验结束前，
-不能将这三项标为归档完成。其精确清单为
-`archive_inventory.conditional_scaling_final.json`。
+全部 67 项材料已于 2026-09-09 19:38:49（UTC+8）完成复制与独立校验，
+共 194,202 个计划文件、94,486,625,572 字节；见
+[完整归档记录](ARCHIVE_COMPLETED_67.md) 和 `archive_completed_67_entries.json`。
+此前的 64 项记录保留为历史证据。Poisson 样本数实验的三项归档另有精确清单
+`archive_inventory.conditional_scaling_final.json`。这些完成记录不替代下述数值复算、
+模型推理或环境恢复的各自证据。
 
 ## 代码入口
 
@@ -52,10 +53,16 @@
 外部比较方法的源版本保存在本目录的源码归档中，包括 DiffusionPDE 和
 FM4PDEbaseline；其原有许可证和署名随原代码保留。
 
-在 FM4PDE 根目录核验源码归档：
+server197 默认 shell 没有 `python`。在 FM4PDE 根目录先指定已实际测试的解释器：
 
 ```bash
-python reproducibility/revision_20260909/source_snapshots.py verify
+FM_PYTHON=/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python
+```
+
+以下 CPU 核验与恢复命令使用该解释器。历史推理和计时仍须恢复各自记录的环境。核验源码归档：
+
+```bash
+"$FM_PYTHON" reproducibility/revision_20260909/source_snapshots.py verify
 ```
 
 该命令核对文件内容和源版本清单，并按 `source_restore_coverage.json`
@@ -63,16 +70,16 @@ python reproducibility/revision_20260909/source_snapshots.py verify
 检查不读取原仓库；缺少指定版本或记录的 Git 历史时会报错，其他旧版
 bundle 的存在不能代替它。临时仓库在检查后清理。
 源码内容与原 Git 对象的逐文件比对记录见 `source_validation.json`。
-2026-09-09 的完整核对覆盖 58 个版本（47 个 FM4PDE、3 个 DiffusionPDE、
-8 个 FM4PDEbaseline），25,977 个文件的内容和执行权限均与 Git 对象一致；
-三个独立 bundle 恢复也通过。`source_restore_coverage.json` 的 SHA256 为
-`c6520ee4a698fedbc86ca7b001936c01aca3227055300fc0e68c85630586ebbc`。
+2026-09-09 的完整核对覆盖 60 个版本（49 个 FM4PDE、3 个 DiffusionPDE、
+8 个 FM4PDEbaseline），27,029 个文件的内容和执行权限均与 Git 对象一致；
+70 个附带归档和三个独立 bundle 恢复也通过。`source_restore_coverage.json` 的 SHA256 为
+`dd6228c136845aeb2836293fc92ff008aeba3ad8659e3cb0361a0e07fa4079a1`。
 这些是已登记的实验和核验版本；原 Diffusion 历史运行没有记录的 HEAD 仍不据此补认。
 
 例如，把计时所用 DiffusionPDE 版本恢复为本仓库内的可运行目录：
 
 ```bash
-python reproducibility/revision_20260909/source_snapshots.py restore \
+"$FM_PYTHON" reproducibility/revision_20260909/source_snapshots.py restore \
   --archive reproducibility/revision_20260909/source_snapshots/DiffusionPDE-151e721b9991.tar.gz \
   --destination reproducibility/revision_20260909/dependencies/DiffusionPDE
 ```
@@ -109,8 +116,8 @@ NS 主实验允许 TF32，受控采样时间实验关闭 TF32。Poisson 样本�
 论文归档完成后，在 FM4PDE 根目录核验并重新编译四份文稿：
 
 ```bash
-python reproducibility/revision_20260909/paper_assets.py verify
-python reproducibility/revision_20260909/build_reproduction_paper.py \
+"$FM_PYTHON" reproducibility/revision_20260909/paper_assets.py verify
+"$FM_PYTHON" reproducibility/revision_20260909/build_reproduction_paper.py \
   --output reproducibility/revision_20260909/verification_runs/paper_rebuild
 ```
 
@@ -121,6 +128,8 @@ TeX 包、`pdflatex`、`bibtex8`、`pdftotext` 和 `pdfinfo`。图表的数值�
 `STUDY_RECIPES.md` 使用归档原始结果执行，重新编译本身不代替数值核验。
 其中 K 的 compact 数值复算使用已恢复论文的 `source_data/conditional_scaling_0909`
 和 K 归档的 `local_audit/{server197,server216}`，无需启动原生产 collector。
+完整的 96 池原始结果及 480 条 compact 统计已从实际 server197 归档复算通过；
+命令、逐项差异和原文件不变记录见 [K 归档复算](K_ARCHIVED_RECOMPUTATION.md)。
 `paper_assets_final_20260909/` 的 final 标记说明论文整合与排版核验完成；服务器结果迁移
 是否完成仍以各研究的归档校验记录为准。
 

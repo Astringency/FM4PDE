@@ -2,11 +2,11 @@
 
 This document records preparation and execution of the archive. Historical
 observations below retain their original dates and do not describe the current
-completion state. As of this documentation update, the first 64 entries have
-completed copying and independent verification (`ARCHIVE_COMPLETED_64.md`).
-The complete K scientific review has passed, and its three entries are being
-transferred under `archive_inventory.conditional_scaling_final.json`; final
-copy/verify completion is still pending. Source/package delivery is tracked
+completion state. The final 67 entries completed copying and independent verification on
+2026-09-09 at 19:38:49 +08:00 (`ARCHIVE_COMPLETED_67.md`): 194,202 planned
+files and 94,486,625,572 bytes. The final ledger `archive_completed_67_entries.json`
+has SHA256 `8f8e252898ce9bd7d9207136bf2225bc1412ee5bf36485821f6399adc9baabc0`.
+The earlier 64-entry ledger and initial inventories remain historical evidence. Source/package delivery is tracked
 separately from experiment-data copying.
 
 The 2026-09-09 census used read-only
@@ -80,9 +80,9 @@ copied by `--all-ready` because their complete outcomes already occur in a
 primary collected study. `reference_only` and `already_at_target` are never
 copy sources. All original directories remain untouched.
 
-The K production and collector entries stay `pending` until the four shard
+In the initial census, the K production and collector entries remained `pending` until the four shard
 completion receipts, 480 aggregate rows, 96 complete K=1000 pools, and final
-scientific checks pass. The NS local study stays pending until all 15,000
+scientific checks passed. Those gates and the subsequent separate archive transfers are now complete. The initial NS local study likewise stayed pending until all 15,000
 examples, the collection gate, and the independent residual audit pass. Logs
 of active producers are also pending. A directory's existence or stable size
 does not establish completion. Legitimate recorded attempts within each
@@ -354,8 +354,11 @@ frozen producer source snapshot. The original collector remains a deployment
 monitor and must not be invoked for offline archive review. Root's
 `k_relocation_validation.json` records the completed one-pool equivalence
 check. Subsequent complete source-host numerical/scientific review is
-recorded in the final K review; it is distinct from the planned post-copy
-server197 compact-data replay in `STUDY_RECIPES.md`.
+recorded in the final K review. The complete post-copy server197 raw-pool
+and compact-data replay has now also passed; `K_ARCHIVED_RECOMPUTATION.md`
+records the actual commands, unchanged source hashes, exact numerical results
+and environment-record ordering difference. The recipes retain the earlier
+one-pool check as historical evidence.
 
 ## Reconcile the completed execution
 
@@ -475,7 +478,8 @@ Its scientific review SHA256 is
 `8d3a539b5118a72981c4b62a340968d4880e1631693fdf4357a114aa5d4d0801`.
 The three entries total 14,385,940,996 bytes and started transfer at
 2026-09-09 18:37:55 +08:00. This preparation approval does not establish
-completed destination copying or verification. The original 70-entry census
+completed destination copying or verification by itself. The later 67-entry
+ledger now supplies those completed destination receipts for all three K entries. The original 70-entry census
 is preserved; use this separate final inventory for K source/destination
 bindings. Its `local_audit` entry contains both completed host exports used
 by the compact numerical checker.
