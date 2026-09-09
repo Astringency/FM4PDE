@@ -41,6 +41,13 @@ def main(args):
         failed = [i for i, row in enumerate(previous['checks']) if row['returncode']]
         assert not failed or failed == [len(previous['checks'])-1]
         prior = {(r['kind'], r['run']):r for r in previous['checks'] if r['returncode'] == 0}
+    if args.external_receipts:
+        for external in json.loads(args.external_receipts.read_text()):
+            key = external['kind'], external['run']
+            assert key not in prior and external['returncode'] == 0
+            assert sha256(external['copied_receipt']) == external['copied_receipt_sha256']
+            assert external['source_host'] == 'server193'
+            prior[key] = external
     configs = {c['raw']:c for c in plan['effective_configs']}
     entries = {e['id']:e for e in manifest['entries']}
     prepared = {}
@@ -94,7 +101,7 @@ def main(args):
         if key in prior:
             original = prior[key]
             prior_output = Path(original['command'][original['command'].index('--output')+1])
-            saved_receipt = prior_output/'replay_receipt.json'
+            saved_receipt = Path(original.get('copied_receipt', prior_output/'replay_receipt.json'))
             saved = json.loads(saved_receipt.read_text())
             assert saved['status'] == 'pass' and saved['complete_test_mask_contract_checked']
             assert saved['original_summary_sha256'] == record['sha256']
@@ -107,7 +114,7 @@ def main(args):
             assert saved['selected_indices'] == ([] if kind == 'mask_contract' else [0,17,999])
             assert saved['predicts'] == bool(kind != 'mask_contract' and record['predict'])
             row = dict(original, reused_receipt=str(saved_receipt), reused_receipt_sha256=sha256(saved_receipt),
-                       reuse_reason='Identical wrapper/source commit per cell, unchanged full cache hashes and original summary/config hashes; missing optional Senseiver import is unrelated to completed data checks and RecFNO inference.')
+                       reuse_reason='Identical wrapper and original source commit per cell, unchanged full cache hashes and original summary/config hashes. Individual receipts preserve their actual CPU environment and any original-host dependency boundary.')
             receipt['checks'].append(row)
             (args.output/'progress.json').write_text(json.dumps(receipt, indent=2)+'\n')
             print('REUSED_PASS', kind, index, flush=True)
@@ -144,4 +151,5 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--resume-from', type=Path)
     p.add_argument('--resume-progress-sha256')
+    p.add_argument('--external-receipts', type=Path)
     main(p.parse_args())
