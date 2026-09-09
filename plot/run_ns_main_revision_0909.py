@@ -216,6 +216,24 @@ def worker(a):
         indices=[EVAL.index(i) if i in EVAL else DEV.index(i) for i in ids]
         pred,receipt=infer(c,bundle,gt,masks,indices,steps=steps,fused=fused)
         return pred,receipt,c,fields,gt,masks
+    if a.mode=='batch_check':
+        reference=run('sparse_joint','smooth',[DEV[0]],fused=False)[0]
+        if a.tf32:
+            torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
+            strict=run('sparse_joint','smooth',[DEV[0]],fused=False)[0]
+            torch.backends.cuda.matmul.allow_tf32=True;torch.backends.cudnn.allow_tf32=True
+            precision_difference=float((reference-strict).norm()/strict.norm())
+            assert precision_difference<.005,precision_difference
+        else:precision_difference=0.
+        ids=(DEV*((a.batch_size+3)//4))[:a.batch_size]
+        pred,receipt,*_=run('sparse_joint','smooth',ids)
+        difference=float((pred[0]-reference[0]).norm()/reference[0].norm())
+        assert difference<(.005 if a.tf32 else .0003),difference
+        receipt.update(batch_vs_single_relative=difference,tf32_vs_strict_relative=precision_difference,
+                       status='pass',tf32=a.tf32)
+        torch.save(dict(prediction=pred,reference=reference,receipt=receipt),a.output/'batch_check.pt')
+        write(a.output/'batch_check.json',receipt);print('BATCH_CHECK',json.dumps(receipt),flush=True)
+        return
     if a.mode=='pilot':
         rows=[]
         # All full 100-step checks use development inputs only.
@@ -273,10 +291,11 @@ def worker(a):
     selection=json.loads(a.selection.read_text());assert selection['protocol_sha256']==ph
     sh=digest(a.selection)
     lock=(a.output/f'worker_{a.shard}.lock').open('a+');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    jobs=[(d,s,start) for d in a.dists for s in a.settings for start in range(0,1000,a.batch_size)]
+    assert 0<=a.start<a.stop<=1000
+    jobs=[(d,s,start) for d in a.dists for s in a.settings for start in range(a.start,a.stop,a.batch_size)]
     for j,(dist,setting,start) in enumerate(jobs):
-        if j%a.shards!=a.shard:continue
-        ids=EVAL[start:start+a.batch_size];folder=a.output/dist/setting;folder.mkdir(parents=True,exist_ok=True)
+        if a.shards>1 and j%a.shards!=a.shard:continue
+        ids=EVAL[start:min(a.stop,start+a.batch_size)];folder=a.output/dist/setting;folder.mkdir(parents=True,exist_ok=True)
         path=folder/f'offset{ids[0]}.pt';rp=path.with_suffix('.json')
         if rp.exists():
             old=json.loads(rp.read_text());assert old['selection_sha256']==sh and old['result_sha256']==digest(path);continue
@@ -325,11 +344,12 @@ def timing_run(a):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('mode',choices=['prepare','pilot','develop','run','timing_prepare','timing_run'])
+    p.add_argument('mode',choices=['prepare','pilot','batch_check','develop','run','timing_prepare','timing_run'])
     p.add_argument('--inputs',type=Path,required=True);p.add_argument('--output',type=Path)
     p.add_argument('--weights',type=Path);p.add_argument('--selection',type=Path)
     p.add_argument('--batch-size',type=int,default=64);p.add_argument('--tf32',action='store_true')
     p.add_argument('--shard',type=int,default=0);p.add_argument('--shards',type=int,default=1)
+    p.add_argument('--start',type=int,default=0);p.add_argument('--stop',type=int,default=1000)
     p.add_argument('--dists',nargs='+',default=['id','smooth','rough']);p.add_argument('--settings',nargs='+',default=list(SETTINGS))
     p.add_argument('--timing-source',type=Path);p.add_argument('--diffusion-root',type=Path)
     a=p.parse_args()
