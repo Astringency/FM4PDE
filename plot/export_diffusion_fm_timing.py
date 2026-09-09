@@ -30,7 +30,12 @@ def main():
    protocol=json.loads((inputs/'protocol.json').read_text());ph=sha(inputs/'protocol.json')
    for a in protocol['artifacts']:assert sha(inputs/a['path'])==a['sha256'],a['path']
    protocols[inputs]=(protocol,ph)
-  protocol,ph=protocols[inputs];pde_protocols[pde]=dict(inputs=str(inputs),results=str(results),protocol_sha256=ph)
+  protocol,ph=protocols[inputs]
+  artifact_hashes={a['path']:a['sha256'] for a in protocol['artifacts']}
+  diffusion_name={'burger':'burgers','nsnonbounded':'ns-nonbounded'}.get(pde,pde)
+  pde_protocols[pde]=dict(inputs=str(inputs),results=str(results),protocol_sha256=ph,
+   fm_weights_sha256=artifact_hashes[f'weights/fm_{pde}.pth'],
+   diffusion_weights_sha256=artifact_hashes[f'weights/pretrained-{diffusion_name}.pkl'])
   data=np.load(inputs/'source/timing_truths.npz');masks=np.load(inputs/'masks.npz')
   target=results/pde;complete=json.loads((target/'complete.json').read_text())
   assert complete['protocol_sha256']==ph and complete['calls']==80
@@ -111,7 +116,7 @@ def main():
   lines.append(label.replace('–','--')+' & '+' & '.join(f"${r['mean_seconds']:.3f} \\pm {r['sd_seconds']:.3f}$" for r in rr)+r' \\')
  lines.extend([r'\bottomrule\end{tabular}',r'\end{table}'])
  p=source/'diffusion_fm_timing_table.tex';p.write_text('\n'.join(lines)+'\n');output_files[str(p.relative_to(args.paper))]=sha(p)
- manifest=dict(exporter_sha256=sha(Path(__file__)),protocol_sha256=sha(args.inputs/'protocol.json'),pde_protocols=pde_protocols,calls_verified=400,settings_verified=20,examples_per_setting=20,sd_ddof=1,source_prediction_errors_recomputed=True,source_truths_masks_verified=True,telemetry_uncontended=True,outputs=output_files,summary=summary)
+ manifest=dict(exporter_sha256=sha(Path(__file__)),protocol_sha256=sha(args.inputs/'protocol.json'),protocol_scope='protocol_sha256 identifies the default inputs; pde_protocols records each effective protocol and both weight hashes',pde_protocols=pde_protocols,calls_verified=400,settings_verified=20,examples_per_setting=20,sd_ddof=1,source_prediction_errors_recomputed=True,source_truths_masks_verified=True,telemetry_uncontended=True,outputs=output_files,summary=summary)
  (source/'diffusion_fm_timing_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  print('AUDITED AND EXPORTED 400 calls, 20 mean/SD settings')
 
