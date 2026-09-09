@@ -54,8 +54,18 @@ def export_host(host,info,dest):
     command=shlex.join([info['python'],base+'/conditional_scaling_export_20260909/plot/export_conditional_sample_scaling.py',
       '--results',base+'/conditional_scaling_results_20260909/production',
       '--output',base+'/conditional_scaling_results_20260909/export'])
-    with (dest/'export.log').open('w') as log:
-        subprocess.run(['ssh',host,command],stdout=log,stderr=subprocess.STDOUT,check=True)
+    session='conditional_scaling_export_0909'
+    remote_log=base+'/conditional_scaling_results_20260909/export.log'
+    shell_command=command+' > '+shlex.quote(remote_log)+' 2>&1'
+    launcher=shlex.join(['tmux','new-session','-d','-s',session,shell_command])
+    subprocess.run(['ssh',host,launcher],check=True)
+    while True:
+        observed=subprocess.run(['ssh',host,shlex.join(['tmux','has-session','-t',session])],capture_output=True)
+        if observed.returncode==1:break
+        if observed.returncode not in (0,255):raise RuntimeError(observed.stderr.decode())
+        # SSH observation failure is not a terminal exporter observation.
+        time.sleep(10)
+    subprocess.run(['scp',host+':'+remote_log,str(dest/'export.log')],check=True)
     for name in ['conditional_scaling_per_input.csv','conditional_scaling_fields.npz','conditional_scaling_manifest.json']:
         subprocess.run(['scp',host+':'+base+'/conditional_scaling_results_20260909/export/'+name,str(dest/name)],check=True)
     manifest=json.loads((dest/'conditional_scaling_manifest.json').read_text())
