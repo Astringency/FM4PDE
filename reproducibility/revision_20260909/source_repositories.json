@@ -184,6 +184,14 @@
         {
           "revision": "151e721b9991404154ad4b430ab85cdaedbaa399",
           "purpose": "Native diffusion sampling and controlled-timing adapter source"
+        },
+        {
+          "revision": "d494d733c583db167095ce9fc6b3593750b8ef8e",
+          "purpose": "Retained historical Poisson/Darcy/NS generator changes; original evaluation HEAD was not recorded, so this is source history rather than a proven run identity"
+        },
+        {
+          "revision": "2eb3c94d8122d2367c8f8a6cf9d2929c0bfee42d",
+          "purpose": "Retained historical Helmholtz generator change; original evaluation HEAD was not recorded, so this is source history rather than a proven run identity"
         }
       ]
     },
