@@ -1,0 +1,1545 @@
+{
+  "observed_utc": "2026-09-09T09:55:01.946602+00:00",
+  "scope": "Recorded independent archive verification outcomes across separately frozen batches.",
+  "target_host": "server197",
+  "target_root": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs",
+  "batches": [
+    {
+      "status": "complete_and_consistent",
+      "inventories": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.reviewed.json",
+          "sha256": "9a10fcc11367f8a74198837cece6da672068dce647f5743064a324d63e6b5dd4"
+        },
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.addendum_summary.json",
+          "sha256": "6ed77247847f30f2c0b4f25a7981f50204f85ae94120742ebfe5e0b395cfbd87"
+        }
+      ],
+      "execution_records": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json",
+          "sha256": "fda91b8facbc548c8e252d3a268abee2594f8dea5cfb0b9c0dbeca600b2a08a1"
+        },
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/addendum_summary.result.json",
+          "sha256": "5e824d164a5a19dba01a53a38a48a1c05ca67af639fe21fe55c358389fe761a6"
+        }
+      ],
+      "planned_entries": 52,
+      "verified_entries": 52
+    },
+    {
+      "status": "complete_and_consistent",
+      "inventories": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/archive_inventory.baseline_addendum.json",
+          "sha256": "20dd2b9635a0d7fe01cb2beed728ee33a6baa16ca4f7cf0fc927f68039468a4a"
+        }
+      ],
+      "execution_records": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/execution_status.json",
+          "sha256": "e10e162a118bc12a2db42fa81ae9a08ac1a3d53ec48e5c6ff35d1d33f64e0cff"
+        }
+      ],
+      "planned_entries": 3,
+      "verified_entries": 3
+    },
+    {
+      "status": "complete_and_consistent",
+      "inventories": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_baseline_second_addendum_20260909/archive_inventory.baseline_second_addendum.json",
+          "sha256": "c1a28bd70312c15d424a2cbbdf0d56320c1ebe4cbe3052c8dfaca38eedccaa34"
+        }
+      ],
+      "execution_records": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_baseline_second_addendum_20260909/execution_status.json",
+          "sha256": "fdf989c6cd588a93159dad7e3fa8bb452a8443a81a8d4d205f801753723a8b9d"
+        }
+      ],
+      "planned_entries": 6,
+      "verified_entries": 6
+    },
+    {
+      "status": "complete_and_consistent",
+      "inventories": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_diffusion_native_addendum_20260909/archive_inventory.diffusion_native_addendum.json",
+          "sha256": "f934f3a4f9e97136d5e0367bf5ee06ce048689d27e4308a9b7dc77edc4c6a5d8"
+        }
+      ],
+      "execution_records": [
+        {
+          "path": "/home/tat512/C01Python/audit/revision_archive_diffusion_native_addendum_20260909/execution_status.json",
+          "sha256": "37d87cc4a8c2ca570f5ef213cbc371992258f7d48fa26c01a8e316d7056312cf"
+        }
+      ],
+      "planned_entries": 3,
+      "verified_entries": 3
+    }
+  ],
+  "entries": [
+    {
+      "id": "ablation_raw_server197",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/server197/output",
+      "planned_bytes": 2755056410,
+      "planned_files": 20067,
+      "bytes": 2755056410,
+      "receipt_sha256": "32b5d5eaf08165ca643b2a42ac2a404e1f294575ae2429f440bc0a7f4c8eaebb",
+      "finished_utc": "2026-09-09T07:15:11.148018+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_raw_server193",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/paper_revision_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/server193/output",
+      "planned_bytes": 1715488154,
+      "planned_files": 5827,
+      "bytes": 1715488154,
+      "receipt_sha256": "53f821fd77300b7de06cc10cb37d3a7e34eaa73a2e82300ef3d745dd53b99e5c",
+      "finished_utc": "2026-09-09T07:20:30.591331+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_raw_server216",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data1/zjinzxf2025/C01Python/paper_revision_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/server216/output",
+      "planned_bytes": 484937143,
+      "planned_files": 2350,
+      "bytes": 484937143,
+      "receipt_sha256": "102fa5cfd0482495819b45b30f5bd19365ea00ed7c4b7ac32cde400b7ac65f44",
+      "finished_utc": "2026-09-09T07:23:18.462834+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_frozen_inputs",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/inputs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/frozen_inputs",
+      "planned_bytes": 7681817473,
+      "planned_files": 33,
+      "bytes": 7681817473,
+      "receipt_sha256": "282286084f8eaee573913af1de4a008fe2ba4f3da7e6f395f3ed00f6fe10a77d",
+      "finished_utc": "2026-09-09T07:24:10.082761+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_canonical_results",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results",
+      "planned_bytes": 3339270896,
+      "planned_files": 22248,
+      "bytes": 3339270896,
+      "receipt_sha256": "2cb95e006363fae995bcad00fd0d3deba20450558bf7de9f8f4cd427ee666108",
+      "finished_utc": "2026-09-09T07:27:33.757919+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_export_ablation_publication_snapshot",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ablation_publication_snapshot",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ablation_publication_snapshot",
+      "planned_bytes": 5570821,
+      "planned_files": 3,
+      "bytes": 5570821,
+      "receipt_sha256": "03c49beb4e6e49deb3d5a96fab8aa278e8887665923da16428cdea13ea2e3f72",
+      "finished_utc": "2026-09-09T07:27:48.428085+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_export_ablation_publication_tables",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ablation_publication_tables",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ablation_publication_tables",
+      "planned_bytes": 45155,
+      "planned_files": 20,
+      "bytes": 45155,
+      "receipt_sha256": "de3620e931ab000ae591daf841257b57637c610135dbbabb0f2dafe41f78e005",
+      "finished_utc": "2026-09-09T07:28:02.660289+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_export_ablation_publication_figures",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ablation_publication_figures",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ablation_publication_figures",
+      "planned_bytes": 10902570,
+      "planned_files": 59,
+      "bytes": 10902570,
+      "receipt_sha256": "cfd0aa61030f6d316620d3c2e4cb83521e604dccda3ed33fd1aaa6a0b20dd18a",
+      "finished_utc": "2026-09-09T07:28:17.402261+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_export_ensemble_complete",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ensemble_complete",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ensemble_complete",
+      "planned_bytes": 12180308,
+      "planned_files": 33,
+      "bytes": 12180308,
+      "receipt_sha256": "97549172579daf53c0cb8c52e0bca7b3463c86bb90377c8d956af3dfdbddf46c",
+      "finished_utc": "2026-09-09T07:28:32.170700+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_raw_server197",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/burgers_output_v3",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/server197/burgers_output_v3",
+      "planned_bytes": 98741936,
+      "planned_files": 762,
+      "bytes": 98741936,
+      "receipt_sha256": "f434190512f61197de7f76aaa79fa3f6247262f9baeda9ce95ca9d29ab3ac71f",
+      "finished_utc": "2026-09-09T07:28:45.395528+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_raw_server193",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/paper_revision_20260908/burgers_output_v3",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/server193/burgers_output_v3",
+      "planned_bytes": 509032936,
+      "planned_files": 4320,
+      "bytes": 509032936,
+      "receipt_sha256": "592643c69266523b0ff0cf3d65ba2d2357a9381be19ed3366acbe4013fe9cd02",
+      "finished_utc": "2026-09-09T07:30:53.029176+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_raw_server216",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data1/zjinzxf2025/C01Python/paper_revision_20260908/burgers_output_v3",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/server216/burgers_output_v3",
+      "planned_bytes": 1098435718,
+      "planned_files": 9438,
+      "bytes": 1098435718,
+      "receipt_sha256": "ae7d35c0921830159ad111f9060f0428585ec0cee063cad3b76df7af28a187ba",
+      "finished_utc": "2026-09-09T07:37:21.921074+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_random_fm",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/burgers_fm_random",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/server197/burgers_fm_random",
+      "planned_bytes": 1213053,
+      "planned_files": 2,
+      "bytes": 1213053,
+      "receipt_sha256": "143d977690530698d2962f6c93f53865d09ac0e3f19ec68995338f142f54362e",
+      "finished_utc": "2026-09-09T07:37:35.247732+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_burgers_inputs",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_inputs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/local/burgers_inputs",
+      "planned_bytes": 508179664,
+      "planned_files": 11,
+      "bytes": 508179664,
+      "receipt_sha256": "f7da88939f6c111614f14ca1b424a8fcfc27369820c8751b0efdb6658bc8fb0e",
+      "finished_utc": "2026-09-09T07:38:13.428946+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_burgers_weights",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_weights",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/local/burgers_weights",
+      "planned_bytes": 217860425,
+      "planned_files": 1,
+      "bytes": 217860425,
+      "receipt_sha256": "16c6659b7eb03f0f89836b8ada7eacf575c3a54db24bd7be3fe926d3aa5767d1",
+      "finished_utc": "2026-09-09T07:38:37.202742+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_burgers_complete",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_complete",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/local/burgers_complete",
+      "planned_bytes": 16707986,
+      "planned_files": 4,
+      "bytes": 16707986,
+      "receipt_sha256": "7dfb03a340d79a5de98a736118f3b41e211b182906fdb014afd928e234d1cb9b",
+      "finished_utc": "2026-09-09T07:38:52.199070+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_production_inputs",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/burgers_inputs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/server197/burgers_inputs",
+      "planned_bytes": 508179664,
+      "planned_files": 11,
+      "bytes": 508179664,
+      "receipt_sha256": "0c982f5b9054ab3ed23875bd7f01fc444c036c3b745621fdd51a1693be561cee",
+      "finished_utc": "2026-09-09T07:39:06.167457+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "burgers_selected_fm_weights",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/inputs/burger/weights.pth",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908/selected_models/fm",
+      "planned_bytes": 385948627,
+      "planned_files": 1,
+      "bytes": 385948627,
+      "receipt_sha256": "f6ec4e86b4423d8c12b0706c57d5af4bace4ff9eb8daa2fb0299618a3c69aa8a",
+      "finished_utc": "2026-09-09T07:39:19.573381+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "conditional_scaling_inputs",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/paper_revision_20260908/inputs/poisson",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/conditional_scaling_20260909/frozen_inputs/poisson",
+      "planned_bytes": 186893840,
+      "planned_files": 3,
+      "bytes": 186893840,
+      "receipt_sha256": "6e97850c5754fcbb1238851ef8da46fa07ec90bd4e73964046d8163a3262ace3",
+      "finished_utc": "2026-09-09T07:39:32.815649+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "old_diffusion_main",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data1/zjinzxf2025/C01Python/DiffusionPDE/outputs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/diffusion_original_main/server216/outputs",
+      "planned_bytes": 10589530937,
+      "planned_files": 64071,
+      "bytes": 10589530937,
+      "receipt_sha256": "eac63f60b048608e06aa60ad3264c5ea9fd7b91780db9b70cc3c7e5037712255",
+      "finished_utc": "2026-09-09T08:44:30.739729+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "old_diffusion_weights",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data0/zhangxf/Models/pretrained-models",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/diffusion_original_main/selected_models",
+      "planned_bytes": 1307231713,
+      "planned_files": 6,
+      "bytes": 1307231713,
+      "receipt_sha256": "2b1940afb8090570e4ef00fb83ec125e3e2caae3a98e726579c69b0157e88f83",
+      "finished_utc": "2026-09-09T08:51:47.535684+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "diffusion_timing_study",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/diffusion_fm_timing_20260907/local_study",
+      "planned_bytes": 11226323995,
+      "planned_files": 14926,
+      "bytes": 11226323995,
+      "receipt_sha256": "ff8d351b55750c69922e0ffa3934644588534d90bb3e3f917b3648300f87648c",
+      "finished_utc": "2026-09-09T09:02:46.825903+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "matched_baseline_timing",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/fm4pde_jmlr_matched_timing_20260907",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/matched_baseline_timing_20260907/local_study",
+      "planned_bytes": 1795410001,
+      "planned_files": 3999,
+      "bytes": 1795410001,
+      "receipt_sha256": "f02e1db7f9f04bc073dd4b94638f98594c091ced9100a3b7d904ce72e4006fd3",
+      "finished_utc": "2026-09-09T09:04:28.596965+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "sampling_confirmation_local",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/fm4pde_jmlr_sampling_20260906",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/sampling_confirmation_20260906/local_study",
+      "planned_bytes": 5561356053,
+      "planned_files": 9362,
+      "bytes": 5561356053,
+      "receipt_sha256": "0adef41bcecc75f8b2032a12c7678a5a6e39f91b036c757d83a75bc52ca30705",
+      "finished_utc": "2026-09-09T09:11:06.574716+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "sampling_confirmation_original",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/FM4PDE_jmlr_20260906/revision_results",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/sampling_confirmation_20260906/server193/revision_results",
+      "planned_bytes": 3535715668,
+      "planned_files": 15816,
+      "bytes": 3535715668,
+      "receipt_sha256": "24b287ce83ce390d3c19791dd6795ee196032df43135c271f5d4bec580d1e78c",
+      "finished_utc": "2026-09-09T09:25:27.340998+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_loss_spectrum_20260907_local",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/ns_loss_spectrum_20260907/local_study",
+      "planned_bytes": 4493880806,
+      "planned_files": 12075,
+      "bytes": 4493880806,
+      "receipt_sha256": "5904ae8aeef6529064b57cba15ce0bb63de64fb1fdbec1f14bf42e2b35b20dfa",
+      "finished_utc": "2026-09-09T09:29:54.603660+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_checkpoint_comparison_20260908_local",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/ns_checkpoint_comparison_20260908/local_study",
+      "planned_bytes": 1158205927,
+      "planned_files": 2942,
+      "bytes": 1158205927,
+      "receipt_sha256": "d5f096a0e8fe850e7a612629e1f35c74b7e98a81d99275a0fa4d06e22b6734e1",
+      "finished_utc": "2026-09-09T09:30:54.760593+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_guidance_cross_20260908_local",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/ns_guidance_cross_20260908",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/ns_guidance_cross_20260908/local_study",
+      "planned_bytes": 263407488,
+      "planned_files": 1296,
+      "bytes": 263407488,
+      "receipt_sha256": "9dcfcc08d90380c4f026edeb6254ddf4bdee246ecf539f349ae49206ff0d83b4",
+      "finished_utc": "2026-09-09T09:31:19.353630+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_supplement_selected_models",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/ns_loss_spectrum_20260907/calibration_weights",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/ns_loss_spectrum_20260907/selected_models",
+      "planned_bytes": 1550123417,
+      "planned_files": 1,
+      "bytes": 1550123417,
+      "receipt_sha256": "f72634b9325f36655d2aa3a74403a69fae87547854c32b471232b716908a6be0",
+      "finished_utc": "2026-09-09T09:31:39.055903+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_supplement_frozen_inputs",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/ns_loss_spectrum_20260907/inputs_v2",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/ns_loss_spectrum_20260907/frozen_inputs",
+      "planned_bytes": 4432048,
+      "planned_files": 2,
+      "bytes": 4432048,
+      "receipt_sha256": "a3aa55226405849d99f82a5c9fa08cf0f3e8dc0a4b0b2112d2584524528fd7c5",
+      "finished_utc": "2026-09-09T09:31:52.213043+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_matched_baseline_inputs",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/ns_loss_spectrum_20260907/baseline_inputs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/ns_loss_spectrum_20260907/baseline_inputs",
+      "planned_bytes": 212132250,
+      "planned_files": 19,
+      "bytes": 212132250,
+      "receipt_sha256": "49b9fca6a5ac90b0c2ccc2692bfbae315924184f705290b0d217f10e19c5ae66",
+      "finished_utc": "2026-09-09T09:32:05.487999+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_rough_diffusion_server197",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/ns_rough_diffusion_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_rough_diffusion_20260908/server197/output",
+      "planned_bytes": 21156128,
+      "planned_files": 60,
+      "bytes": 21156128,
+      "receipt_sha256": "dfc129e45b930b872b5b06931048370637a5a42155bf91ff4097ddb90d096cf3",
+      "finished_utc": "2026-09-09T09:32:18.704837+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_rough_diffusion_server193",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/ns_rough_diffusion_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_rough_diffusion_20260908/server193/output",
+      "planned_bytes": 42300175,
+      "planned_files": 114,
+      "bytes": 42300175,
+      "receipt_sha256": "4c65e8c997ed74c944634e31e9a3d7e07aca841e9b3083f5c8e85c3bde075e30",
+      "finished_utc": "2026-09-09T09:32:49.020846+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_rough_diffusion_server216",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data1/zjinzxf2025/C01Python/ns_rough_diffusion_20260908/output",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_rough_diffusion_20260908/server216/output",
+      "planned_bytes": 21156157,
+      "planned_files": 61,
+      "bytes": 21156157,
+      "receipt_sha256": "5da6baf10205db5e157807b8c846cec573d43fb4c63c7d97dc2b8060192033e6",
+      "finished_utc": "2026-09-09T09:33:12.121922+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_rough_diffusion_local",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_rough_diffusion_20260908/local_study",
+      "planned_bytes": 129660595,
+      "planned_files": 255,
+      "bytes": 129660595,
+      "receipt_sha256": "e223d0de1d63a31bda8aa57d3f08914a4aa64ed3e4a839e1edc0128782f3e31c",
+      "finished_utc": "2026-09-09T09:33:35.137208+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_complete_local_ns_study",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/ns_main_revision_0909",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/local/complete_local_ns_study",
+      "planned_bytes": 7149064114,
+      "planned_files": 1146,
+      "bytes": 7149064114,
+      "receipt_sha256": "290c44ef780b62c9aa85e933cbdd79e23257166faec147c6fe5f90489d467262",
+      "finished_utc": "2026-09-09T09:40:07.079642+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_development_all_candidates",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSMainRevision0909/development",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/development_all_candidates",
+      "planned_bytes": 4209878,
+      "planned_files": 6,
+      "bytes": 4209878,
+      "receipt_sha256": "12c9be7365a75136fc7f2edae247b5b2fbea382b620a1a27c150517a28535929",
+      "finished_utc": "2026-09-09T09:40:20.354444+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_development_log",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSMainRevision0909/development.log",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/development_log",
+      "planned_bytes": 3143,
+      "planned_files": 1,
+      "bytes": 3143,
+      "receipt_sha256": "4a86794c68559ccb14c632b495d8d25a8846841ed31ee962dc0903c1e2d8953a",
+      "finished_utc": "2026-09-09T09:40:33.539797+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_pilot_all_raw",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSMainRevision0909/pilot_tf32",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/pilot_all_raw",
+      "planned_bytes": 1248561,
+      "planned_files": 13,
+      "bytes": 1248561,
+      "receipt_sha256": "7a151e31a87eb1e0780a811ccd4339b9cd4734689f34113665c1799d358c0d45",
+      "finished_utc": "2026-09-09T09:40:46.724824+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_a100_batch_check",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSMainRevision0909/batch_check64",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/a100_batch_check",
+      "planned_bytes": 8522538,
+      "planned_files": 3,
+      "bytes": 8522538,
+      "receipt_sha256": "d48a2eb9f7ca9b379fd544d19968008cdabe7e50208f983959562a78fbf3e71f",
+      "finished_utc": "2026-09-09T09:40:59.929592+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_rtx_batch_check",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/NSMainWorker0909/batch_check16",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/rtx_batch_check",
+      "planned_bytes": 2231085,
+      "planned_files": 3,
+      "bytes": 2231085,
+      "receipt_sha256": "6aaedf26542fd46818e05dbf2ea9f7af6d89e72e79ccbe5b3e1c7c44bfc2f614",
+      "finished_utc": "2026-09-09T09:41:15.877766+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_a100_log",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSMainRevision0909/main.log",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/a100_log",
+      "planned_bytes": 7924,
+      "planned_files": 1,
+      "bytes": 7924,
+      "receipt_sha256": "fba2c6865a078dacf3b08e39c873c543c957359d737493209586d7a68db60c21",
+      "finished_utc": "2026-09-09T09:41:29.071433+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_rtx_log",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/NSMainWorker0909/main.log",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/rtx_log",
+      "planned_bytes": 13692,
+      "planned_files": 1,
+      "bytes": 13692,
+      "receipt_sha256": "0ef991c69f114b2c4b9490b044a654641fc535fc41fa51a3e2b61f51a5e1c1eb",
+      "finished_utc": "2026-09-09T09:41:44.040355+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_cross_a100_json",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSCrossCheck0909/cross_result.json",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/cross_a100_json",
+      "planned_bytes": 270,
+      "planned_files": 1,
+      "bytes": 270,
+      "receipt_sha256": "5a573045ce733b832c9d8d0581e2dd9c955983df9aca29d64f9c02fe649612a2",
+      "finished_utc": "2026-09-09T09:41:57.260452+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_cross_a100_pt",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/NSCrossCheck0909/cross_result.pt",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/cross_a100_pt",
+      "planned_bytes": 526541,
+      "planned_files": 1,
+      "bytes": 526541,
+      "receipt_sha256": "5abf054bf4a4607e6d113cb2b219aa0cde2f5283523317e11d4711f732a80d76",
+      "finished_utc": "2026-09-09T09:42:10.455030+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_cross_rtx4090_json",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/NSCrossCheck0909/cross_result.json",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/cross_rtx4090_json",
+      "planned_bytes": 272,
+      "planned_files": 1,
+      "bytes": 272,
+      "receipt_sha256": "0dec7ff303aa114c8f44c23a57d11797b74dd2189fb24a509fab8a981099dcbd",
+      "finished_utc": "2026-09-09T09:42:26.530989+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_cross_rtx4090_pt",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/NSCrossCheck0909/cross_result.pt",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/cross_rtx4090_pt",
+      "planned_bytes": 526541,
+      "planned_files": 1,
+      "bytes": 526541,
+      "receipt_sha256": "e3bf8665cd124c27f980c8bdfa8c56f89257a9ec4e460a8752d2ddba4bdc128c",
+      "finished_utc": "2026-09-09T09:42:41.518479+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_timing_log",
+      "status": "verified",
+      "source_host": "server193",
+      "source_path": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+      "planned_bytes": 4195,
+      "planned_files": 1,
+      "bytes": 4195,
+      "receipt_sha256": "2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc",
+      "finished_utc": "2026-09-09T09:42:56.345565+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_final400_timing_exports",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/ns_main_section_updates/timing_export",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/local/final400_timing_exports",
+      "planned_bytes": 1086339,
+      "planned_files": 13,
+      "bytes": 1086339,
+      "receipt_sha256": "6219b7d0b8d8a30c2c53f62eb170871abcf3b82d87e3865241b96437c73de4b4",
+      "finished_utc": "2026-09-09T09:43:10.652008+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ns_main_original_training_run",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained/formal/nsnonbounded/260904-170053-nsnonbounded-batch32-epoch300-accum1-bfloat16",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/original_training_run",
+      "planned_bytes": 5653282386,
+      "planned_files": 19,
+      "bytes": 5653282386,
+      "receipt_sha256": "b8da95731e7decf19b9981d9990e020eb4a5fa855d08fc18cd28bbd38a9aa59e",
+      "finished_utc": "2026-09-09T09:43:57.023712+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "published_baseline_metrics",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/large_storage/zhangxf/outputs/FM4PDEbaseline/runs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/runs",
+      "planned_bytes": 158228976,
+      "planned_files": 156,
+      "bytes": 158228976,
+      "receipt_sha256": "053e2a14fad52695d7e7db4587abd580b8ce46ce4eb00f4820e94b64018c5060",
+      "finished_utc": "2026-09-09T09:44:10.230309+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "ablation_original_summary",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/archived_ablation_summary.csv",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/archived_ablation_summary",
+      "planned_bytes": 3837690,
+      "planned_files": 1,
+      "bytes": 3837690,
+      "receipt_sha256": "5550c18e385300f589f3c558f7dcdfe59da8c704e9092c1e5572d42736ccc215",
+      "finished_utc": "2026-09-09T07:32:24.886848+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_selected_checkpoints_addendum",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/large_storage/zhangxf/outputs/FM4PDEbaseline/runs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/checkpoints/runs",
+      "planned_bytes": 450678652,
+      "planned_files": 33,
+      "bytes": 450678652,
+      "receipt_sha256": "98dfa686b9cfa0e5d576d42b08cd2907046410018e06abeb3add170eb5734ed8",
+      "finished_utc": "2026-09-09T09:44:33.637779+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_selected_metadata_addendum",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/large_storage/zhangxf/outputs/FM4PDEbaseline",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/metadata",
+      "planned_bytes": 33372614,
+      "planned_files": 761,
+      "bytes": 33372614,
+      "receipt_sha256": "f6e6e7515cfc4c6395f31363c27848a0bf833b28622bd7cddcb93e5057e70220",
+      "finished_utc": "2026-09-09T09:44:52.077826+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_selected_dependency_provenance",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/evidence",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/provenance",
+      "planned_bytes": 1664590,
+      "planned_files": 4,
+      "bytes": 1664590,
+      "receipt_sha256": "0b5c921cd143c5bd223adc227fc4e08d9da0140fb2d1fd869087859deefe433e",
+      "finished_utc": "2026-09-09T09:45:06.295148+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_second_checkpoints",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/large_storage/zhangxf/outputs/FM4PDEbaseline/runs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/burgers_checkpoints/runs",
+      "planned_bytes": 49144970,
+      "planned_files": 6,
+      "bytes": 49144970,
+      "receipt_sha256": "ebaa1f52f891b1464ba29deece7b58501cedf7c6d425d3b14e762e4510b6216c",
+      "finished_utc": "2026-09-09T09:45:37.768122+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_second_metadata",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/large_storage/zhangxf/outputs/FM4PDEbaseline/runs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/burgers_metadata/runs",
+      "planned_bytes": 3454371,
+      "planned_files": 168,
+      "bytes": 3454371,
+      "receipt_sha256": "9461526ebd69ed83440712e016b9f9303f77b7e291ca2205dd255a3926369dc5",
+      "finished_utc": "2026-09-09T09:45:50.770622+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_second_frozen_inputs",
+      "status": "verified",
+      "source_host": "server197",
+      "source_path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/legacy_baseline_freeze_20260909/frozen_inputs",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/frozen_inputs",
+      "planned_bytes": 3935091434,
+      "planned_files": 19,
+      "bytes": 3935091434,
+      "receipt_sha256": "914251918c177c78e4ce80c195e9a9fc47668ea4492420e2e7473a9479cfae6b",
+      "finished_utc": "2026-09-09T09:46:31.220549+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_second_selected_provenance",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/reproduction_coverage",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/second_provenance",
+      "planned_bytes": 9679500,
+      "planned_files": 14,
+      "bytes": 9679500,
+      "receipt_sha256": "1edf2e89eda50dd77c654774f46bb72658d9f318f52accdee68511fe6b90ba42",
+      "finished_utc": "2026-09-09T09:46:45.821659+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_native_consumer_evidence",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/baseline_frozen_replay/final_evidence",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/native_consumer_evidence",
+      "planned_bytes": 131376063,
+      "planned_files": 229,
+      "bytes": 131376063,
+      "receipt_sha256": "90d696d18af37e883e18be82dcb627e7205f0688af58d2d649993863d1b9fb17",
+      "finished_utc": "2026-09-09T09:47:05.490479+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "baseline_second_completion_provenance",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/revision_archive_baseline_second_addendum_20260909/evidence",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/second_completion_provenance",
+      "planned_bytes": 123741,
+      "planned_files": 3,
+      "bytes": 123741,
+      "receipt_sha256": "8aae527e05beb17343bd4d84de6041349a3f5faa4acb6f1a8f2f734eb335a6f8",
+      "finished_utc": "2026-09-09T09:47:19.634894+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "diffusion_native_frozen_inputs_v3",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data1/zjinzxf2025/C01Python/FM4PDE_reproduction_20260909/diffusion_native_inputs_20260909/frozen_inputs_v3",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/diffusion_original_main/native_frozen_inputs/frozen_inputs_v3",
+      "planned_bytes": 1049911134,
+      "planned_files": 6,
+      "bytes": 1049911134,
+      "receipt_sha256": "d2719be7c219211016c3dd3abfe9d711f73b195e94e4863876c2c0a717603d4f",
+      "finished_utc": "2026-09-09T09:53:08.499831+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "diffusion_native_full_saved_prediction_audit",
+      "status": "verified",
+      "source_host": "server216",
+      "source_path": "/data1/zjinzxf2025/C01Python/FM4PDE_reproduction_20260909/diffusion_native_inputs_20260909/full_saved_prediction_audit",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/diffusion_original_main/native_frozen_inputs/full_saved_prediction_audit",
+      "planned_bytes": 4726664,
+      "planned_files": 3,
+      "bytes": 4726664,
+      "receipt_sha256": "8c05969c0f6ed636ddaa75d87a06a4c017a327c5f4ab6a241c79bec125b02aa2",
+      "finished_utc": "2026-09-09T09:53:27.097918+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    },
+    {
+      "id": "diffusion_native_provenance",
+      "status": "verified",
+      "source_host": "local",
+      "source_path": "/home/tat512/C01Python/audit/revision_archive_diffusion_native_addendum_20260909/evidence",
+      "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/diffusion_original_main/native_frozen_inputs/provenance",
+      "planned_bytes": 180561,
+      "planned_files": 9,
+      "bytes": 180561,
+      "receipt_sha256": "79108dc499e104453dd528a4e9f1613ca0269f1742d2732a600b5ac26e1ee741",
+      "finished_utc": "2026-09-09T09:53:41.324478+00:00",
+      "checks": {
+        "execute_status": true,
+        "verify_status": true,
+        "destinations_match": true,
+        "bytes_match": true,
+        "receipt_hashes_match": true,
+        "receipt_hash_format": true,
+        "state_receipt_matches": true,
+        "state_bytes_match": true
+      }
+    }
+  ],
+  "issues": [],
+  "inventories": [
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.reviewed.json",
+      "sha256": "9a10fcc11367f8a74198837cece6da672068dce647f5743064a324d63e6b5dd4"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/archive_inventory.addendum_summary.json",
+      "sha256": "6ed77247847f30f2c0b4f25a7981f50204f85ae94120742ebfe5e0b395cfbd87"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/archive_inventory.baseline_addendum.json",
+      "sha256": "20dd2b9635a0d7fe01cb2beed728ee33a6baa16ca4f7cf0fc927f68039468a4a"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_baseline_second_addendum_20260909/archive_inventory.baseline_second_addendum.json",
+      "sha256": "c1a28bd70312c15d424a2cbbdf0d56320c1ebe4cbe3052c8dfaca38eedccaa34"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_diffusion_native_addendum_20260909/archive_inventory.diffusion_native_addendum.json",
+      "sha256": "f934f3a4f9e97136d5e0367bf5ee06ce048689d27e4308a9b7dc77edc4c6a5d8"
+    }
+  ],
+  "execution_records": [
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json",
+      "sha256": "fda91b8facbc548c8e252d3a268abee2594f8dea5cfb0b9c0dbeca600b2a08a1"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/addendum_summary.result.json",
+      "sha256": "5e824d164a5a19dba01a53a38a48a1c05ca67af639fe21fe55c358389fe761a6"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_baseline_addendum_20260909/execution_status.json",
+      "sha256": "e10e162a118bc12a2db42fa81ae9a08ac1a3d53ec48e5c6ff35d1d33f64e0cff"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_baseline_second_addendum_20260909/execution_status.json",
+      "sha256": "fdf989c6cd588a93159dad7e3fa8bb452a8443a81a8d4d205f801753723a8b9d"
+    },
+    {
+      "path": "/home/tat512/C01Python/audit/revision_archive_diffusion_native_addendum_20260909/execution_status.json",
+      "sha256": "37d87cc4a8c2ca570f5ef213cbc371992258f7d48fa26c01a8e316d7056312cf"
+    }
+  ],
+  "held_entries": [],
+  "planned_entries": 64,
+  "verified_entries": 64,
+  "planned_bytes": 80100684576,
+  "verified_bytes": 80100684576,
+  "status": "complete_and_consistent"
+}
