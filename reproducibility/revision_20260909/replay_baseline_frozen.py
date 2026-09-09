@@ -27,6 +27,8 @@ def tensors(value, prefix=''):
     result = {}
     if isinstance(value, (torch.Tensor, np.ndarray)):
         array = value.detach().cpu().contiguous().numpy() if isinstance(value, torch.Tensor) else np.ascontiguousarray(value)
+        if np.issubdtype(array.dtype, np.inexact):
+            assert np.isfinite(array).all(), 'Nonfinite cache array: '+prefix
         result[prefix] = dict(shape=list(value.shape), dtype=str(value.dtype),
                               sha256=hashlib.sha256(array.tobytes(order='C')).hexdigest())
     elif isinstance(value, dict):
@@ -158,6 +160,12 @@ def main(cli):
         refs = {int(r['sample_ordinal']): r for r in
                 map(json.loads, cli.reference_manifest.read_text().splitlines())}
         assert len(refs) == 1000
+    observation_bundle = None
+    if cli.observation_bundle:
+        assert args.pde == 'burger' and cli.observation_bundle_sha256
+        assert sha256(cli.observation_bundle) == cli.observation_bundle_sha256
+        observation_bundle = torch.load(cli.observation_bundle, map_location='cpu', weights_only=False)
+        assert torch.equal(torch.as_tensor(observation_bundle['sample_ids']), torch.arange(1000))
     report = dict(status='running', original_commit=revision, original_summary=summary,
         original_summary_sha256=cli.summary_sha256, original_config_sha256=cli.config_sha256,
         cache_file_sha256=entry['cache_sha256'], original_mat_provenance=payload['provenance'],
@@ -212,6 +220,11 @@ def main(cli):
                 item=item, ordinal=index, batch_index=start // args.batch_size, run_metadata={},
                 predictive_std=None, posterior_samples=None, metrics={})
             comparison = dict(index=index, global_sample_id=current['global_sample_id'], batch_size=stop-start)
+            if observation_bundle is not None:
+                assert_equal(current['target_fields'], observation_bundle['truth'][index], 'bundle.truth')
+                assert_equal(current['mask'].bool(), observation_bundle['mask'][index].bool(), 'bundle.mask')
+                comparison['archived_burgers_truth_and_mask_bitwise_equal'] = True
+                comparison['archived_burgers_bundle_sha256'] = cli.observation_bundle_sha256
             if refs is not None:
                 ref = refs[index]
                 path = cli.reference_root / Path(ref['artifact_path']).name
@@ -258,6 +271,8 @@ if __name__ == '__main__':
     p.add_argument('--checkpoint-sha256')
     p.add_argument('--reference-manifest', type=Path)
     p.add_argument('--reference-root', type=Path)
+    p.add_argument('--observation-bundle', type=Path)
+    p.add_argument('--observation-bundle-sha256')
     p.add_argument('--indices', default='0,17,999')
     p.add_argument('--predict', action='store_true')
     p.add_argument('--device', default='cpu')

@@ -62,6 +62,11 @@ def main(args):
         if kind != 'mask_contract':
             command += ['--reference-manifest', str(actual_path(summary['sample_manifest_path'])),
                         '--reference-root', str(actual_path(summary['sample_artifact_dir']))]
+            if summary['pde'] == 'burger':
+                mode = 'structured' if summary['sensor_mode'] == 'time_slices_per_sample' else 'random'
+                bundle = plan['burgers_bundles'][mode]
+                command += ['--observation-bundle', bundle['path'],
+                            '--observation-bundle-sha256', bundle['sha256']]
             if record['predict']:
                 assert summary['baseline'] != 'vivid'
                 command += ['--predict', '--checkpoint', str(actual_path(summary['checkpoint_path']))]
