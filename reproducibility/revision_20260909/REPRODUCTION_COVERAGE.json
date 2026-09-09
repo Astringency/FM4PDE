@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "scope": "Published main comparisons and retained revision ablations; distinguishes saved-result recomputation, inference, and training.",
+  "status": "frozen_data_verified_native_interface_smoke_and_archive_addenda_pending",
+  "result_archive_status_source": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json",
+  "levels": {
+    "saved_results": "Recompute tables/statistics from archived predictions or saved per-example metrics; these are distinct evidence levels.",
+    "inference": "Use actual selected checkpoint, normalization, exact test inputs/masks, configuration and original source/environment.",
+    "training": "Recreate the original training data split, model initialization, optimizer/schedule and hardware/software history; inference weights alone do not establish this."
+  },
+  "studies": [
+    {
+      "study": "original FM main five-PDE comparisons",
+      "results": "Existing server197 FM4PDE/outputs/main includes predictions/truth/masks/configs; paper source CSVs bind selected cells.",
+      "inference": "All five config-selected original checkpoint containers exist in FM4PDE/outputs/pretrained; every selected parameter and retained normalization/model metadata equals its archived ablation slim checkpoint.",
+      "verified": "verification_runs/reproduction_coverage/old_main_fm_inference_equivalence.json",
+      "limitation": "No full repeat of all historical main sampling; file-container SHA differs from the slim inference copy by design."
+    },
+    {
+      "study": "new NS main and timing",
+      "results": "15,000 predictions, 450 batches, all 15 cells n=1000; independent NumPy relative-L2/observation/PDE and runtime/config/hash audits pass. Controlled timing has 80 new NS calls and retains 320 other-PDE calls.",
+      "inference": "Frozen three input NPZs, selection, 44,121,218-parameter checkpoint, masks, per-host source/precision settings and selected Diffusion checkpoint are listed in NS inventory.",
+      "verified": "check_ns_table_export.py / check_ns_timing_statistics.py; ns_main_residual_audit.json in study tables.",
+      "limitation": "CPU relocated NS audit and final archive receipts belong to the separate NS owner; original hardware partitions and formal TF32 differ from strict timing protocol."
+    },
+    {
+      "study": "744 revised + 316 original ablations; original three-draw study",
+      "results": "Complete actual archive replay: all 1060 records reread, 20 numerical TeX tables match; 1056 three-draw predictions yield identical summary and 84 spectral arrays.",
+      "inference": "All eleven frozen PDE input/weight/protocol directories, selected revision settings and original control results are archived or verified in place.",
+      "verified": "RELOCATION_SERVER197.json / RELOCATION_SERVER197_ARTIFACTS.json",
+      "limitation": "80 figures agree in data/labels; PNG pixels differ with renderer versions. Preserve final fonts and local plotting environment for publication rendering."
+    },
+    {
+      "study": "new conditional K scaling",
+      "results": "Separate completed-pool relocation check passed; final full experiment remains owned by K producer/collector.",
+      "inference": "Fixed Poisson input cohort, old Poisson selected checkpoint and full trajectory pools; per-K subsets are bound to same pool.",
+      "verified": "k_relocation_validation.json",
+      "limitation": "One-pool relocation success is not all-pool completion; use complete collector gate before claiming final whole-study coverage."
+    },
+    {
+      "study": "Burgers extension",
+      "results": "7000 new FM/Diffusion calls plus frozen original FM and 30000 independently recomputed baseline per-example scores. Six saved truth/mask bundles cover both geometries and three distributions.",
+      "inference": "Selected FM and Diffusion models are archived. Six baseline checkpoints exist; three native raw caches preserve initial_1d in addition to saved truth/masks.",
+      "verified": "burgers_complete export and protocol.json; baseline_per_input.csv preserves original prediction SHA and common-mask checks.",
+      "limitation": "Six VIVID cells trained an inverse operator for 20 epochs but set save_checkpoint=False; no trained state was saved. Their saved results can be recomputed, but original-checkpoint inference is unavailable."
+    },
+    {
+      "study": "156 original baseline main cells",
+      "results": "156 selected results_raw.jsonl files, each1000 examples; 48 checkpoint selections, full original summaries/configs and saved mask identities are bound individually.",
+      "inference": "48 unique checkpoints: 15 existing archived copies and33 new exact files; 761 selected metadata files. Fifteen native raw caches cover original test indices0..999 and both NS temporal flags.",
+      "verified": "baseline_addendum_independent_check.json; baseline_freeze_plan.json; BASELINE_FROZEN_REPLAY.md",
+      "limitation": "No large rerun is claimed. FNO/DeepONet require recorded native baseline dependencies; server197 FM environment does not contain all those packages."
+    },
+    {
+      "study": "old Diffusion main",
+      "results": "26 saved prediction/observation-index cells (13 tasks at100/1000 steps), each exactly1000 IDs0..999, with per-example metric JSON and frozen configs.",
+      "inference": "Five pretrained-model files are planned for archive; exact historical MAT input arrays still need a separate native-precision freeze.",
+      "verified": "verification_runs/reproduction_coverage/old_diffusion_input_selection.json",
+      "limitation": "Saved pickle records omit truth; float32 baseline caches cannot replace native float64 truth for this study. Exact five-MAT subset provenance has been reported to root."
+    },
+    {
+      "study": "remaining retained spectra, sampling and NS diagnostics",
+      "results": "Per-study raw predictions, frozen inputs, model choices, protocols, telemetry and final CSV/NPZ figure sources are explicitly covered by named inventory entries.",
+      "inference": "Use the corresponding original source snapshot and frozen model/input directories, never the new NS main model for old NS ablations.",
+      "verified": "STUDY_RECIPES.md and each immutable study complete audit",
+      "limitation": "Inventory inclusion is not an actual fresh-inference check; bulk completion is tracked separately."
+    }
+  ],
+  "baseline_selected_counts": {
+    "main_cells": 156,
+    "main_checkpoints": 48,
+    "main_reused_checkpoints": 15,
+    "main_new_checkpoints": 33,
+    "burgers_cells": 30,
+    "burgers_checkpoints": 6,
+    "burger_var4d_without_training": 6,
+    "burger_vivid_trained_but_no_saved_weights": 6,
+    "native_raw_cache_files": 18
+  },
+  "training_boundary": "Large historical training MAT collections are not copied. The retained original source paths/commits, data protocols, train/val split records, model configs, training histories and checkpoint normalization permit reconstruction only when the original training data or an independently verified regeneration is supplied. This review does not claim that historical training was repeated or that unavailable VIVID weights are recovered.",
+  "baseline_frozen_input_verification": {
+    "status": "pass",
+    "complete": true,
+    "cache_files": 18,
+    "cache_bytes": 3935063876,
+    "source_mat_files": 15,
+    "source_mat_bytes": 94737481264,
+    "source_mats_copied": false,
+    "elapsed_seconds": 850.2886207103729,
+    "manifest_sha256": "feb694a06731452bdae3b10f5bc6812107f7ff481c82b200d22c8e9c8f20f3ba",
+    "all_source_slice_checks_exact": true,
+    "all_save_reload_checks_exact": true,
+    "original_ids_exact": true,
+    "selected_cells": 186
+  }
+}
