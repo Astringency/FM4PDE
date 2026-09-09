@@ -7,6 +7,7 @@ This wrapper does not invoke its training-data-dependent eval-only CLI.
 import argparse
 import copy
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -130,6 +131,23 @@ def validate_cache(payload, entry, summary, args):
     return raw
 
 
+def make_native_task(registry, raw, args):
+    options = dict(num_sensors=args.num_sensors if args.task.startswith('sparse') else None,
+        sensor_mode=args.sensor_mode, sensor_budget_mode=args.sensor_budget_mode,
+        noise_level=args.noise_level, seed=args.sensor_seed, experiment_mode=args.experiment_mode,
+        build_voronoi_grid=args.baseline in {'recfno', 'voronoicnn', 'var4d', 'vivid'})
+    if 'condition_mode' in inspect.signature(registry.make_task).parameters:
+        options.update(condition_mode=getattr(args, 'condition_mode', 'mixed'),
+                       condition_probabilities=getattr(args, 'condition_probabilities', None))
+    else:
+        # Five older selected revisions predate the multi-condition API.
+        # Every selected task at those revisions uses the original task modes.
+        assert args.task != 'sparse_solution_multicondition'
+        assert getattr(args, 'condition_mode', 'mixed') == 'mixed'
+        assert getattr(args, 'condition_probabilities', None) is None
+    return registry.make_task(registry.to_canonical(raw, args.pde), args.pde, args.task, **options)
+
+
 def main(cli):
     import torch
     torch.set_num_threads(2)
@@ -161,13 +179,7 @@ def main(cli):
     assert len(bindings) == 1 and bindings[0]['config_sha256'] == cli.config_sha256
     assert args.load_full_trajectory in entry['supported_load_full_trajectory']
     registry = build_default_registry()
-    task = registry.make_task(registry.to_canonical(raw, args.pde), args.pde, args.task,
-        num_sensors=args.num_sensors if args.task.startswith('sparse') else None,
-        sensor_mode=args.sensor_mode, sensor_budget_mode=args.sensor_budget_mode,
-        noise_level=args.noise_level, seed=args.sensor_seed, experiment_mode=args.experiment_mode,
-        build_voronoi_grid=args.baseline in {'recfno', 'voronoicnn', 'var4d', 'vivid'},
-        condition_mode=getattr(args, 'condition_mode', 'mixed'),
-        condition_probabilities=getattr(args, 'condition_probabilities', None))
+    task = make_native_task(registry, raw, args)
     dataset = PDEBatchDataset(task)
     expected_masks = json.loads(summary['split_mask_manifest'])['test']
     actual_masks = native._split_mask_manifest(dataset, None, dataset)['test']
