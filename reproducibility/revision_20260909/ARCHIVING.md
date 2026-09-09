@@ -1,8 +1,10 @@
 # Revision result archive: inventory and controlled transfer
 
-This document prepares the archive; it does **not** report that any result has
-been transferred. The 2026-09-09 census used read-only SSH and local metadata
-generation. Existing GPU workers and their checkouts were not changed.
+This document prepares the full archive. The 2026-09-09 census used read-only
+SSH and local metadata generation. A subsequent authorized pilot archived
+exactly one completed 4,195-byte NS timing log; its evidence is described below.
+No full-study transfer has started. Existing GPU workers and their checkouts
+were not changed.
 
 ## Scope and capacity
 
@@ -100,8 +102,34 @@ trees; they check repeated execution, refusal of different data, pending
 states, frozen hashes, corrupted transfers, link materialization, selected
 files, source mutation, archive verification, and persisted task recovery
 without launching duplicate tmux sessions. Tmux/child execution is mocked in
-the two persistence unit tests; remote endurance has not been exercised on
-production data.
+the two persistence unit tests. The separate real pilot below exercised
+remote tmux promotion, fresh verification, and completed-job recovery.
+
+## Completed small real-data pilot
+
+`archive_pilot_validation.json` records a successful one-file pilot using the
+exact committed script at `6f5bfd51de24fceeba5e39e362a4de513176c842`. That code
+was transferred by a verified 16,397,311-byte Git bundle and restored to the
+new independent checkout
+`/research_data/users/zhangxifeng/C01Python/FM4PDEArchive0909_6f5bfd5`.
+The canonical FM4PDE Git checkout remained clean at its original commit.
+
+The source was the completed server193
+`/home/zhangxf/C01Python/NSMainRevision0909/timing.log`, copied to the formal
+`main/revision_20260909/ns_main_revision_0909/server193/timing_log/timing.log`.
+Source and destination both contain 4,195 bytes and have SHA256
+`8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a`.
+The archive receipt SHA256 is
+`2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc`.
+
+Actual `_promote` and fresh `_verify` helpers ran in independent tmux sessions;
+both completed with empty stderr and their sessions automatically exited.
+`--resume-job` returned the recorded promotion result and did not create a
+third job. The two local orchestrator sessions also exited. Original source
+bytes were checked again after the pilot and were unchanged. This validates
+the real remote lifecycle on a small relayed file; it does not claim a
+deliberately injected mid-transfer network failure or a completed large-copy
+stress test. No `--all-ready` transfer or GPU task was started.
 
 ## Install the exact script through Git, outside production
 

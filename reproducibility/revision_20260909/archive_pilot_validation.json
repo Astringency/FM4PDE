@@ -1,0 +1,255 @@
+{
+  "status": "passed",
+  "observed_utc": "2026-09-09T07:07:24.434592+00:00",
+  "scope": "One 4195-byte completed real source log only; no all-ready execution, GPU launch, canonical/producer Git update, or source deletion. Resume attaches to the completed promotion job; no deliberate mid-copy network-failure injection.",
+  "resource_check_before": {
+    "cpu_count": 112,
+    "loadavg": [
+      2.00244140625,
+      2.2080078125,
+      2.24853515625
+    ],
+    "memory_available_GiB_approx": 922,
+    "disk_available_bytes": 4338630062080
+  },
+  "source_after": {
+    "source_path": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+    "bytes": 4195,
+    "sha256": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+  },
+  "remote": {
+    "canonical_head": "bea62781585c897af1b9cded623e6f4105b4d879",
+    "canonical_git_status": "",
+    "independent_head": "6f5bfd51de24fceeba5e39e362a4de513176c842",
+    "independent_git_status": "",
+    "archive": {
+      "path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log/timing.log",
+      "bytes": 4195,
+      "sha256": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a",
+      "receipt_sha256": "2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc",
+      "receipt": {
+        "archive_script_sha256": "6ea79745e17b0f08324d8bb9570922edc9ad59ca526abea5f6428f5cca1e56b6",
+        "archived_utc": "2026-09-09T07:04:39.130584+00:00",
+        "content_bytes": 4195,
+        "files": {
+          "timing.log": {
+            "bytes": 4195,
+            "kind": "file",
+            "sha256": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+          }
+        },
+        "source": {
+          "completion_requirement": "Owner collection_complete, 15000-example validation, and residual audit must pass before pending entries are promoted.",
+          "dereference_symlinks": false,
+          "destination_relative": "main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+          "evidence_sha256": {
+            "timing.log": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+          },
+          "id": "ns_main_timing_log",
+          "observed": {
+            "exists": true,
+            "files": 1,
+            "id": "ns_main_timing_log",
+            "logical_bytes": 4195,
+            "metadata_sha256": {},
+            "missing": [],
+            "recorded_commits": [],
+            "recorded_script_hashes": [],
+            "resolved_source": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+            "source_kind": "file",
+            "symlinks": []
+          },
+          "owner_inventory": "/home/tat512/C01Python/audit/ns_main_revision_0909/ARCHIVE_INVENTORY.json",
+          "producer_commit": null,
+          "purpose": "Original controlled timing console log.",
+          "role": "primary",
+          "source_host": "server193",
+          "source_kind": "file",
+          "source_path": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+          "status": "ready"
+        },
+        "source_preserved": true,
+        "version": 1
+      }
+    },
+    "jobs": [
+      {
+        "path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.archive_jobs/9676fbffcc8d1c8b49086ebd",
+        "session": "archive0909_9676fbffcc8d1c8b49086ebd",
+        "session_exists": false,
+        "request": {
+          "mode": "_promote",
+          "payload": {
+            "stage": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.incoming/ns_main_timing_log-240edc9555374910934de03910e601f7",
+            "expected": {
+              "timing.log": {
+                "kind": "file",
+                "bytes": 4195,
+                "sha256": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+              }
+            }
+          },
+          "entry": {
+            "id": "ns_main_timing_log",
+            "source_host": "server193",
+            "source_path": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+            "destination_relative": "main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+            "purpose": "Original controlled timing console log.",
+            "status": "ready",
+            "role": "primary",
+            "dereference_symlinks": false,
+            "producer_commit": null,
+            "owner_inventory": "/home/tat512/C01Python/audit/ns_main_revision_0909/ARCHIVE_INVENTORY.json",
+            "completion_requirement": "Owner collection_complete, 15000-example validation, and residual audit must pass before pending entries are promoted.",
+            "observed": {
+              "id": "ns_main_timing_log",
+              "exists": true,
+              "source_kind": "file",
+              "symlinks": [],
+              "metadata_sha256": {},
+              "recorded_commits": [],
+              "recorded_script_hashes": [],
+              "resolved_source": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+              "logical_bytes": 4195,
+              "files": 1,
+              "missing": []
+            },
+            "source_kind": "file",
+            "evidence_sha256": {
+              "timing.log": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+            }
+          },
+          "nonce": "da91f5a49c374b9ba4051bfd5fcca9a8",
+          "script": "/research_data/users/zhangxifeng/C01Python/FM4PDEArchive0909_6f5bfd5/reproducibility/revision_20260909/archive_results.py",
+          "script_sha256": "6ea79745e17b0f08324d8bb9570922edc9ad59ca526abea5f6428f5cca1e56b6"
+        },
+        "started": {
+          "pid": 2253271,
+          "started_utc": "2026-09-09T07:04:39.066199+00:00"
+        },
+        "result": {
+          "state": "complete",
+          "job": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.archive_jobs/9676fbffcc8d1c8b49086ebd",
+          "result": {
+            "status": "archived",
+            "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+            "bytes": 4195,
+            "receipt_sha256": "2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc"
+          },
+          "finished_utc": "2026-09-09T07:04:39.136701+00:00"
+        },
+        "stderr": ""
+      },
+      {
+        "path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.archive_jobs/c8e86c679c0abb99e5009d24",
+        "session": "archive0909_c8e86c679c0abb99e5009d24",
+        "session_exists": false,
+        "request": {
+          "mode": "_verify",
+          "payload": {
+            "id": "ns_main_timing_log",
+            "source_host": "server193",
+            "source_path": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+            "destination_relative": "main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+            "purpose": "Original controlled timing console log.",
+            "status": "ready",
+            "role": "primary",
+            "dereference_symlinks": false,
+            "producer_commit": null,
+            "owner_inventory": "/home/tat512/C01Python/audit/ns_main_revision_0909/ARCHIVE_INVENTORY.json",
+            "completion_requirement": "Owner collection_complete, 15000-example validation, and residual audit must pass before pending entries are promoted.",
+            "observed": {
+              "id": "ns_main_timing_log",
+              "exists": true,
+              "source_kind": "file",
+              "symlinks": [],
+              "metadata_sha256": {},
+              "recorded_commits": [],
+              "recorded_script_hashes": [],
+              "resolved_source": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+              "logical_bytes": 4195,
+              "files": 1,
+              "missing": []
+            },
+            "source_kind": "file",
+            "evidence_sha256": {
+              "timing.log": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+            }
+          },
+          "entry": {
+            "id": "ns_main_timing_log",
+            "source_host": "server193",
+            "source_path": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+            "destination_relative": "main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+            "purpose": "Original controlled timing console log.",
+            "status": "ready",
+            "role": "primary",
+            "dereference_symlinks": false,
+            "producer_commit": null,
+            "owner_inventory": "/home/tat512/C01Python/audit/ns_main_revision_0909/ARCHIVE_INVENTORY.json",
+            "completion_requirement": "Owner collection_complete, 15000-example validation, and residual audit must pass before pending entries are promoted.",
+            "observed": {
+              "id": "ns_main_timing_log",
+              "exists": true,
+              "source_kind": "file",
+              "symlinks": [],
+              "metadata_sha256": {},
+              "recorded_commits": [],
+              "recorded_script_hashes": [],
+              "resolved_source": "/home/zhangxf/C01Python/NSMainRevision0909/timing.log",
+              "logical_bytes": 4195,
+              "files": 1,
+              "missing": []
+            },
+            "source_kind": "file",
+            "evidence_sha256": {
+              "timing.log": "8895e943187125c5d8d9a36d643cde67f4d4db2a0972062473a1dd7349c12f8a"
+            }
+          },
+          "nonce": "56ccb835f68a41a89727ba2c69aa99aa",
+          "script": "/research_data/users/zhangxifeng/C01Python/FM4PDEArchive0909_6f5bfd5/reproducibility/revision_20260909/archive_results.py",
+          "script_sha256": "6ea79745e17b0f08324d8bb9570922edc9ad59ca526abea5f6428f5cca1e56b6"
+        },
+        "started": {
+          "pid": 2253948,
+          "started_utc": "2026-09-09T07:05:15.318202+00:00"
+        },
+        "result": {
+          "state": "complete",
+          "job": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.archive_jobs/c8e86c679c0abb99e5009d24",
+          "result": {
+            "status": "verified",
+            "destination": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log",
+            "bytes": 4195,
+            "receipt_sha256": "2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc"
+          },
+          "finished_utc": "2026-09-09T07:05:15.385979+00:00"
+        },
+        "stderr": ""
+      }
+    ],
+    "own_request_jobs_after_resume": [
+      "c8e86c679c0abb99e5009d24",
+      "9676fbffcc8d1c8b49086ebd"
+    ]
+  },
+  "local_sessions_after": {
+    "revision_archive_pilot_0909": false,
+    "revision_archive_verify_0909": false
+  },
+  "bundle": {
+    "commit": "6f5bfd51de24fceeba5e39e362a4de513176c842",
+    "bundle": "/home/tat512/C01Python/audit/revision_archive_pilot_20260909/archive_6f5bfd5.bundle",
+    "bytes": 16397311,
+    "sha256": "37530fbf2653741b65e6ef63643c67c58869cae3765ae61da13f2adf47be1363",
+    "verify_stdout": "The bundle contains this ref:\n6f5bfd51de24fceeba5e39e362a4de513176c842 refs/archive/revision_20260909_6f5bfd5\nThe bundle records a complete history.\nThe bundle uses this hash algorithm: sha1\n",
+    "verify_stderr": "/home/tat512/C01Python/audit/revision_archive_pilot_20260909/archive_6f5bfd5.bundle is okay\n"
+  },
+  "logs": {
+    "execute.jsonl": "{\"id\": \"ns_main_timing_log\", \"status\": \"ready\", \"role\": \"primary\", \"source_host\": \"server193\", \"source_path\": \"/home/zhangxf/C01Python/NSMainRevision0909/timing.log\", \"destination_relative\": \"main/revision_20260909/ns_main_revision_0909/server193/timing_log\"}\n{\"archive_request_nonce\": \"da91f5a49c374b9ba4051bfd5fcca9a8\", \"entry\": \"ns_main_timing_log\", \"mode\": \"_promote\"}\n{\"persistent_archive_job\": \"/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.archive_jobs/9676fbffcc8d1c8b49086ebd\", \"state\": \"running\"}\n{\"status\": \"archived\", \"destination\": \"/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log\", \"bytes\": 4195, \"receipt_sha256\": \"2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc\"}\n",
+    "execute.stderr.log": "",
+    "verify.jsonl": "{\"id\": \"ns_main_timing_log\", \"status\": \"ready\", \"role\": \"primary\", \"source_host\": \"server193\", \"source_path\": \"/home/zhangxf/C01Python/NSMainRevision0909/timing.log\", \"destination_relative\": \"main/revision_20260909/ns_main_revision_0909/server193/timing_log\"}\n{\"archive_request_nonce\": \"56ccb835f68a41a89727ba2c69aa99aa\", \"entry\": \"ns_main_timing_log\", \"mode\": \"_verify\"}\n{\"persistent_archive_job\": \"/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/.archive_jobs/c8e86c679c0abb99e5009d24\", \"state\": \"running\"}\n{\"status\": \"verified\", \"destination\": \"/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log\", \"bytes\": 4195, \"receipt_sha256\": \"2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc\"}\n",
+    "verify.stderr.log": "",
+    "resume.jsonl": "{\"status\": \"archived\", \"destination\": \"/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server193/timing_log\", \"bytes\": 4195, \"receipt_sha256\": \"2ef6e8d88a16c9a8d75b19f40b1130d8129c5740345c4128b26afccb821718fc\"}\n"
+  }
+}
