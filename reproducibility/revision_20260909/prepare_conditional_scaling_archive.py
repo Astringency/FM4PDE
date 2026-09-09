@@ -225,7 +225,10 @@ def main():
     # Detect updates to review, readiness, final plot manifest, or terminal state.
     if check_local_gate(audit, args.scientific_review, args.scientific_review_sha256) != gate:
         raise RuntimeError('Final local gate changed during source inventory')
-    prior = [entry for path in args.prior_inventory for entry in json.loads(path.read_text())['entries']]
+    # Earlier inventories also retain pending/reference-only observations;
+    # only executable entries own archive destinations in those batches.
+    prior = [entry for path in args.prior_inventory for entry in json.loads(path.read_text())['entries']
+             if entry['status'] == 'ready' and entry['role'] in ('primary', 'dependency')]
     check_overlap(prior + entries)
     args.output.mkdir(parents=True)
     evidence_dir = args.output / 'evidence'
