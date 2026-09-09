@@ -105,7 +105,7 @@ def main():
         ax.fill_between(KS,[r['q25_seconds'] for r in vals],[r['q75_seconds'] for r in vals],color='#255F85',alpha=.13)
         ax.plot(KS,np.array(KS)*med[0],'--',color='#777777',lw=.9,label=r'$K$ times $K=1$')
         ax.set_xscale('log');ax.set_yscale('log');ax.set_xticks(KS,labels=[str(k) for k in KS]);ax.minorticks_off()
-        ax.set_title(name);ax.set_xlabel('Conditional samples, $K$');ax.set_ylabel('Sampling time (s)')
+        ax.set_title(name);ax.set_xlabel('Conditional samples, $K$');ax.set_ylabel('Estimate latency (s)')
         ax.grid(axis='y',color='#DDDDDD',lw=.4)
     axes[0].legend(loc='upper left',frameon=False,handlelength=1.6)
     save(fig,'conditional_scaling_time')
@@ -148,7 +148,7 @@ def main():
     figure_lines=[]
     captions={
       'accuracy':r'Poisson reconstruction error versus the number of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. Every draw uses 100 stochastic Euler steps; field averages are formed before evaluating $\operatorname{RelL2}$.',
-      'time':r'Sampling time for Poisson conditional-sample averages, including the physical-field average. Curves show medians over 32 inputs and shaded bands the interquartile range. Samples are processed in batches of at most 64 on an A100 or A800 GPU; all values of $K$ for an input are measured on the same device. The dashed line is the serial reference $K$ times the measured $K=1$ median, not a separately timed serial experiment.',
+      'time':r'Latency of averaged Poisson estimates, including batch preparation, generation, physical-field conversion, transfer, and averaging. Curves show medians over 32 inputs and shaded bands the interquartile range. Samples are processed in batches of at most 64 on an A100 or A800 GPU; all values of $K$ for an input are measured on the same device. The dashed line is the serial reference $K$ times the measured $K=1$ median, not a separately timed serial experiment. This latency definition differs from the FM4PDE--DiffusionPDE sampling-time comparison, which isolates the sampling computation.',
       'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with averages of $K=1,3,10,100,1000$ predictions. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}$ in percent. Observations and guidance parameters are fixed across columns.'}
     for name,caption in captions.items():
         figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/conditional_scaling_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
