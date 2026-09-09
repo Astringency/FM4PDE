@@ -17,6 +17,13 @@ def read_json(path):
     return json.loads(data), hashlib.sha256(data).hexdigest()
 
 
+def overlapping_subtrees(rows):
+    destinations = {row['destination']: row['id'] for row in rows}
+    return [f"Overlapping archive subtrees: {destinations[str(parent)]} contains {row['id']}"
+            for row in rows for parent in Path(row['destination']).parents
+            if str(parent) in destinations]
+
+
 def summarize(inventory_path, state_path, addendum_inventory=None, addendum_result=None):
     inventory, inventory_sha = read_json(inventory_path)
     state, state_sha = read_json(state_path)
@@ -94,6 +101,7 @@ def summarize(inventory_path, state_path, addendum_inventory=None, addendum_resu
     if state.get('verified_bytes', 0) != sum(r['verify']['bytes'] for r in main_verified):
         issues.append('Main-batch verified bytes differ from its per-entry records')
     verified_rows = [row for row in rows if row['status'] == 'verified']
+    issues.extend(overlapping_subtrees(rows))
     complete = (len(verified_rows) == len(planned) and not issues
                 and state['status'] == 'complete')
     return {
@@ -148,6 +156,7 @@ def main():
         if any((row['target_host'], row['target_root']) != (report['target_host'], report['target_root'])
                for row in reports):
             report['issues'].append('Archive target differs across batches')
+        report['issues'].extend(overlapping_subtrees(report['entries']))
         complete = all(row['status'] == 'complete_and_consistent' for row in reports)
         report['status'] = ('inconsistent' if report['issues'] else
                             'complete_and_consistent' if complete else 'in_progress')
