@@ -97,6 +97,22 @@
         {
           "revision": "b66dbcfb019f032bfdd675f37b89bd4ac7e031a5",
           "purpose": "Retained NS acceleration source snapshot"
+        },
+        {
+          "revision": "7a3dd7a96d438ed72b0c093fc483ae9639349743",
+          "purpose": "Portable relocated K export and source/environment reproduction helpers"
+        },
+        {
+          "revision": "07654510f6a6caf2858bd22358cddb39ddf7ef7f",
+          "purpose": "Final independent NS residual audit with frozen device and runtime-batch validation"
+        },
+        {
+          "revision": "6f5bfd51de24fceeba5e39e362a4de513176c842",
+          "purpose": "Completed-study result archiving tool and remote persistent jobs"
+        },
+        {
+          "revision": "a4a0aef5eeddf2e82a957053982ee353ad0be171",
+          "purpose": "Full NS table/source integration and publication checks after complete data gates"
         }
       ]
     },

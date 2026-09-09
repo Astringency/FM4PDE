@@ -19,6 +19,7 @@
 └── reproducibility/revision_20260909/
     ├── source_snapshots/              # 源代码及Git历史的完整归档
     ├── environments/                  # 实际使用环境的版本记录
+    ├── paper_assets/                  # 论文源码、图表数据、审稿材料和核验代码
     └── legacy_scripts/                # 原先在仓库外的必要统计和核验代码
 ```
 
@@ -35,6 +36,7 @@
 - [源版本清单](source_repositories.json)：正式运行和必要辅助计算使用的版本及用途。
 - `source_snapshots.py`：保存、验证和恢复指定版本的源码；同时保留 Git 历史。
 - `collect_environments.py`：只读记录既有服务器的包版本，不安装或更改环境。
+- `paper_assets.py`：保存并逐文件核对论文及图表来源；主实验和消融共用的论文材料存于 `paper_assets/`。
 
 现有 `plot/`、`sampling/`、`models/`、`data/`、`training/`、`scripts/` 和
 `configs/` 保留各自职责。已经在仓库内的代码不再复制一套。
@@ -83,6 +85,22 @@ NS 主实验允许 TF32，受控采样时间实验关闭 TF32。Poisson 样本�
 `environment*.json`、配置和运行记录说明每次实验实际采用的设置。
 `*.requirements.txt` 是安装包清单，不能替代 CUDA、驱动和硬件记录。
 原有 `environment.yml` 不应被当作所有历史实验共同使用的环境。
+
+论文归档完成后，在 FM4PDE 根目录核验并重新编译四份文稿：
+
+```bash
+python reproducibility/revision_20260909/paper_assets.py verify
+python reproducibility/revision_20260909/paper_assets.py restore \
+  --destination reproducibility/revision_20260909/verification_runs/paper_rebuild
+bash reproducibility/revision_20260909/verification_runs/paper_rebuild/build_all.sh
+python reproducibility/revision_20260909/paper_assets.py verify
+```
+
+恢复要求目标目录尚不存在，使重新编译保留原归档。编译需要论文原有的
+TeX 包、`pdflatex` 和 `bibtex8`。图表的数值重算按
+`STUDY_RECIPES.md` 使用归档原始结果执行，重新编译本身不代替数值核验。
+`paper_assets/` 的 final 标记说明论文整合与排版核验完成；服务器结果迁移
+是否完成仍以各研究的归档校验记录为准。
 
 冻结的评估输入和选定权重随对应研究保存。训练原数据及未采用的历史模型
 不整体复制；其原位置、已核对的数据生成信息及训练记录按来源清单保留。
