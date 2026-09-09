@@ -146,7 +146,9 @@ def main(cli):
     expected_masks = json.loads(summary['split_mask_manifest'])['test']
     actual_masks = native._split_mask_manifest(dataset, None, dataset)['test']
     assert actual_masks == expected_masks, 'Original complete test mask contract differs'
-    indices = list(range(1000)) if cli.indices == 'all' else [int(i) for i in cli.indices.split(',')]
+    indices = (list(range(1000)) if cli.indices == 'all' else [] if cli.indices == 'none'
+               else [int(i) for i in cli.indices.split(',')])
+    assert indices or not cli.predict, 'Prediction requires at least one selected index'
     assert len(set(indices)) == len(indices) and all(0 <= i < 1000 for i in indices)
     assert not cli.output.exists(), 'Use a fresh verification output directory'
     cli.output.mkdir(parents=True)
