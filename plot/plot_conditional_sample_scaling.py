@@ -19,6 +19,45 @@ KS=[1,3,10,100,1000]
 FIELDS=[('forward','u','Forward'),('inverse','a','Inverse'),('both','a','Joint'),('both','u','Joint')]
 COLORS={'a':'#A77522','u':'#255F85'}
 TASKS={'forward':'Forward','inverse':'Inverse','both':'Joint'}
+FIGURE_WIDTH_IN=6.0
+ORDINARY_FONT_PT=9.3
+
+
+def figure_layout(kind):
+    """Fixed-width canvases for the JMLR six-inch text block."""
+    if kind=='accuracy':
+        return plt.subplots(2,2,figsize=(FIGURE_WIDTH_IN,4.7),layout='constrained')
+    if kind=='time':
+        fig,axes=plt.subplots(1,3,figsize=(FIGURE_WIDTH_IN,2.85))
+        fig.subplots_adjust(left=.105,right=.955,bottom=.235,top=.78,wspace=.39)
+        fig.supxlabel('Conditional samples, $K$',y=.025,fontsize=ORDINARY_FONT_PT)
+        fig.supylabel('Estimate latency (s)',x=.012,fontsize=ORDINARY_FONT_PT)
+        return fig,axes
+    if kind=='reconstructions':
+        fig,axes=plt.subplots(4,6,figsize=(FIGURE_WIDTH_IN,4.9))
+        fig.subplots_adjust(left=.105,right=.865,top=.935,bottom=.035,wspace=.10,hspace=.34)
+        return fig,axes
+    raise ValueError(kind)
+
+
+def ranked_mean(value,means):
+    """Rank unrounded values; exact ties share the same distinct-value rank."""
+    ordered=sorted(set(means))
+    shown=error_number(value)
+    if value==ordered[0]:
+        return r'\mathbf{'+shown+'}'
+    if len(ordered)>1 and value==ordered[1]:
+        return shown+r'^{\dagger}'
+    return shown
+
+
+def publication_style():
+    font=use_times_new_roman()
+    plt.rcParams.update({'font.size':ORDINARY_FONT_PT,'axes.titlesize':ORDINARY_FONT_PT,
+        'axes.labelsize':ORDINARY_FONT_PT,'xtick.labelsize':ORDINARY_FONT_PT,
+        'ytick.labelsize':ORDINARY_FONT_PT,'legend.fontsize':ORDINARY_FONT_PT,
+        'axes.spines.top':False,'axes.spines.right':False,'axes.linewidth':.6})
+    return font
 
 
 def write_csv(path,rows):
@@ -77,17 +116,17 @@ def main():
     write_csv(args.output/'conditional_scaling_timing.csv',timing)
     si={(r['task'],r['field'],r['K']):r for r in summary}
     ti={(r['task'],r['K']):r for r in timing}
-    font=use_times_new_roman()
-    plt.rcParams.update({'font.size':10,'axes.titlesize':10,'axes.labelsize':10,'xtick.labelsize':9,'ytick.labelsize':9,
-                         'legend.fontsize':9,'axes.spines.top':False,'axes.spines.right':False,'axes.linewidth':.6})
+    font=publication_style()
     generated=[]
     def save(fig,name):
         for ext in ['pdf','png']:
             path=args.figures/f'{name}.{ext}'
-            fig.savefig(path,dpi=240,bbox_inches='tight',facecolor='white')
+            # Preserve the exact six-inch PDF width: a tight bounding box can
+            # silently shrink all text when the PDF is included at \linewidth.
+            fig.savefig(path,dpi=240,bbox_inches=None,facecolor='white')
             generated.append(dict(path=str(path),sha256=digest(path)))
         plt.close(fig)
-    fig,axes=plt.subplots(2,2,figsize=(7.1,4.6),layout='constrained')
+    fig,axes=figure_layout('accuracy')
     for ax,(task,field,name) in zip(axes.flat,FIELDS):
         vals=[si[task,field,k] for k in KS]
         mean=np.array([r['mean_percent'] for r in vals])
@@ -98,20 +137,21 @@ def main():
         ax.set_xlabel('Conditional samples, $K$');ax.set_ylabel('Relative error (%)')
         ax.grid(axis='y',color='#DDDDDD',lw=.4);ax.set_ylim(bottom=0)
     save(fig,'conditional_scaling_accuracy')
-    fig,axes=plt.subplots(1,3,figsize=(7.1,2.65),layout='constrained')
+    fig,axes=figure_layout('time')
     for ax,(task,name) in zip(axes,TASKS.items()):
         vals=[ti[task,k] for k in KS];med=np.array([r['median_seconds'] for r in vals])
-        ax.plot(KS,med,'o-',color='#255F85',markersize=4,lw=1.1,label='Batched')
+        ax.plot(KS,med,'o-',color='#255F85',markersize=4,lw=1.1,label='Measured latency')
         ax.fill_between(KS,[r['q25_seconds'] for r in vals],[r['q75_seconds'] for r in vals],color='#255F85',alpha=.13)
-        ax.plot(KS,np.array(KS)*med[0],'--',color='#777777',lw=.9,label=r'$K$ times $K=1$')
+        ax.plot(KS,np.array(KS)*med[0],'--',color='#777777',lw=.9,label=r'Serial reference: $K$ times $K=1$')
         ax.set_xscale('log');ax.set_yscale('log');ax.set_xticks(KS,labels=[str(k) for k in KS]);ax.minorticks_off()
-        ax.set_title(name);ax.set_xlabel('Conditional samples, $K$');ax.set_ylabel('Estimate latency (s)')
+        ax.set_title(name)
         ax.grid(axis='y',color='#DDDDDD',lw=.4)
-    axes[0].legend(loc='upper left',frameon=False,handlelength=1.6)
+    handles,labels=axes[0].get_legend_handles_labels()
+    fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(.52,1.0),
+               ncols=2,frameon=False,handlelength=1.6,columnspacing=1.2)
     save(fig,'conditional_scaling_time')
     # The first predeclared evaluation offset is used without inspecting errors.
-    fig,axes=plt.subplots(4,6,figsize=(7.1,5.75))
-    fig.subplots_adjust(left=.065,right=.94,top=.95,bottom=.025,wspace=.12,hspace=.28)
+    fig,axes=figure_layout('reconstructions')
     for row,(task,field,name) in enumerate(FIELDS):
         j=0 if field=='a' else 1;key=f'{task}_1500'
         vals=[arrays[key+'_truth'][j]]+[arrays[key+f'_K{k}'][j] for k in KS]
@@ -120,30 +160,30 @@ def main():
             im=ax.imshow(v,origin='lower',extent=[0,1,0,1],cmap='cividis',norm=Normalize(lo,hi),interpolation='nearest')
             ax.set_xticks([]);ax.set_yticks([])
             for spine in ax.spines.values():spine.set_visible(False)
-            if row==0:ax.set_title('Truth' if col==0 else f'$K={KS[col-1]}$',fontsize=10,pad=5)
+            if row==0:ax.set_title('Truth' if col==0 else f'$K={KS[col-1]}$',fontsize=ORDINARY_FONT_PT,pad=5)
             if col==0:
-                ax.set_ylabel(name+'\n'+rf'$\mathbf{{{field}}}$',fontsize=9)
+                ax.set_ylabel(name+'\n'+rf'$\mathbf{{{field}}}$',fontsize=ORDINARY_FONT_PT)
             else:
                 err=index[task,1500,KS[col-1]][f'rel_l2_{field}']*100
-                ax.set_xlabel(f'{err:.2f}%',fontsize=9,labelpad=2)
+                ax.set_xlabel(f'{err:.2f}%',fontsize=ORDINARY_FONT_PT,labelpad=2)
         pos=axes[row,-1].get_position()
-        cax=fig.add_axes([.95,pos.y0,.012,pos.height])
-        cb=fig.colorbar(im,cax=cax);cb.ax.tick_params(labelsize=9,pad=2,width=.4);cb.outline.set_linewidth(.4)
+        cax=fig.add_axes([.89,pos.y0,.014,pos.height])
+        cb=fig.colorbar(im,cax=cax,format='%.2g');cb.ax.tick_params(labelsize=ORDINARY_FONT_PT,pad=2,width=.4);cb.outline.set_linewidth(.4)
         cb.locator=matplotlib.ticker.MaxNLocator(nbins=3);cb.update_ticks()
     save(fig,'conditional_scaling_reconstructions')
-    lines=[r'\begin{table}[!htbp]\centering\small',r'\caption{Conditional-sample averaging for Poisson over 32 ID inputs. Relative errors are mean $\pm$ sample standard deviation in percent. Boldface marks the lowest mean and $\dagger$ the second-lowest within each field.}',
-        r'\label{tab:conditional-scaling}',r'\begin{tabular}{rcccc}\toprule',
-        r'$K$ & Forward $\operatorname{RelL2}_u$ & Inverse $\operatorname{RelL2}_a$ & Joint $\operatorname{RelL2}_a$ & Joint $\operatorname{RelL2}_u$ \\\midrule']
-    ranks={(t,f):sorted(KS,key=lambda k:si[t,f,k]['mean_percent']) for t,f,_ in FIELDS}
+    lines=[r'\begin{table}[!htbp]\centering\small',r'\setlength{\tabcolsep}{4pt}',
+        r'\begin{tabular}{@{}rcccc@{}}\toprule',
+        r'$K$ & Forward & Inverse & Joint & Joint \\',
+        r' & $\operatorname{RelL2}_u$ & $\operatorname{RelL2}_a$ & $\operatorname{RelL2}_a$ & $\operatorname{RelL2}_u$ \\\midrule']
     for k in KS:
         cells=[]
         for t,f,_ in FIELDS:
-            r=si[t,f,k];mean=error_number(r['mean_percent'])
-            if k==ranks[t,f][0]:mean=r'\mathbf{'+mean+'}'
-            elif k==ranks[t,f][1]:mean+=r'^{\dagger}'
+            r=si[t,f,k];mean=ranked_mean(r['mean_percent'],[si[t,f,j]['mean_percent'] for j in KS])
             cells.append('$'+mean+r'\,\pm\,'+error_number(r['sd_percent'])+'$')
         lines.append(str(k)+' & '+' & '.join(cells)+r' \\')
-    lines += [r'\bottomrule\end{tabular}\end{table}']
+    lines += [r'\bottomrule\end{tabular}',
+        r'\caption{Conditional-sample averaging for Poisson over 32 ID inputs. Relative errors are mean $\pm$ sample standard deviation in percent. Boldface marks the lowest mean and $\dagger$ the second-lowest distinct mean within each field. Ranking uses unrounded values; exact ties share a rank.}',
+        r'\label{tab:conditional-scaling}',r'\end{table}']
     (args.output/'conditional_scaling_table.tex').write_text('\n'.join(lines)+'\n')
     figure_lines=[]
     captions={
@@ -155,7 +195,8 @@ def main():
     (args.output/'conditional_scaling_figures.tex').write_text('\n'.join(figure_lines)+'\n')
     write(args.output/'conditional_scaling_final_manifest.json',dict(complete=True,physical_inputs=32,tasks=list(TASKS),K=KS,
           canonical_trajectories=96000,timed_trajectories=106944,rows=len(rows),bootstrap_resamples=100000,
-          simultaneous_interval_comparisons=16,plot_font=font,figure_files=generated,source_manifests=manifests,
+          simultaneous_interval_comparisons=16,plot_font=font,figure_width_inches=FIGURE_WIDTH_IN,
+          ordinary_font_points=ORDINARY_FONT_PT,figure_files=generated,source_manifests=manifests,
           plotter_sha256=digest(__file__)))
     print('COMPLETE: 32 offsets, three tasks, five K, 96000 conditional trajectories; 480 timings',flush=True)
 
