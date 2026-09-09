@@ -221,6 +221,31 @@ These are supplemental diagnostics on the old model, not alternate source rows f
 
 The new K-scaling workflow is already tracked: `plot/run_conditional_sample_scaling.py`, `validate_conditional_sample_scaling.py`, `export_conditional_sample_scaling.py`, `collect_conditional_sample_scaling.py`, and `plot_conditional_sample_scaling.py`. Its inputs and selection are explicit CLI arguments. It uses K ∈ {1,3,10,100,1000}, 32 Poisson inputs and forward/inverse/joint tasks; do not mix its raw rows or checkpoint scope into the old three-draw study. Its complete protocol and final inventory govern exact output paths.
 
+The four shards and collector have now terminated completely: all 96,000 canonical trajectories, 106,944 total timed trajectories and 480 result receipts passed their completion gates. Independent verification passed 2,361 compact-field/statistical comparisons, twenty unrounded table cells, sixteen adjusted paired intervals, fifteen latency summaries and the three standalone figures. The final scientific review is `paper/audit/revision_0909/conditional_scaling_final_review/final_scientific_review.json`, SHA `8d3a539b5118a72981c4b62a340968d4880e1631693fdf4357a114aa5d4d0801`; its final data-manifest SHA is `9a6579ef292c7bf3e2c5d3d42cb27144a389f3a537de61f599c72374141bbe18`.
+
+The approved `archive_inventory.conditional_scaling_final.json` has SHA `c473fa1979647f40144b515cbae49550b8b17edcdda6f628bbc29b98452f9ad9`. Its three entries total 14,385,940,996 bytes. Transfer started at 2026-09-09 18:37:55 +08:00 and is not yet declared complete. Require the independent copy/verify receipt for each entry before replaying from the destination. The target mapping is:
+
+```bash
+K_STUDY=/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/conditional_scaling_20260909
+K_AUDIT="$K_STUDY/local_audit"
+# Original raw layouts:
+# "$K_STUDY/server197/results/production"
+# "$K_STUDY/server216/results/production"
+# Compact host exports used by the checker:
+# "$K_AUDIT/server197" and "$K_AUDIT/server216"
+```
+
+Restore the final paper assets into a separate working copy and set `$PAPER` to it. Its `source_data/conditional_scaling_0909` contains the final merged CSV/NPZ and summaries. Set `$REPLAY` to a fresh verification directory. The following command writes a new JSON report beneath it; `--output` is a new report filename, not an existing frozen result or a directory:
+
+```bash
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 \
+  python reproducibility/revision_20260909/verify_conditional_scaling_summary.py \
+  --paper "$PAPER" --audit "$K_AUDIT" \
+  --output "$REPLAY/conditional_scaling/numerical_review.json"
+```
+
+The checker recomputes both field errors and observation MSEs from all 480 physical means, then checks the twenty mean/SD/pointwise-interval summaries, sixteen paired intervals and fifteen latency summaries. It also compares every merged numerical row and all 672 arrays with the two complete host exports. Those manifests retain all 480 raw-result checksums for exactly 96 distinct task/input groups. Original absolute source-path strings are preserved as provenance; the command reads the explicit `--paper` and `--audit` roots and does not rewrite those records. Raw-pool identity, PDE residuals and stochastic-noise correspondence remain established by the upstream host audits, rather than being newly reconstructed by this compact-data check. The checker does not sample models or grant a new scientific/visual review. The prior one-pool path-regression receipt remains historical evidence alongside this complete verification.
+
 Training-curve rendering uses:
 
 ```bash

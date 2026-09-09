@@ -32,10 +32,10 @@
     },
     {
       "study": "new conditional K scaling",
-      "results": "Separate completed-pool relocation check passed; final full experiment remains owned by K producer/collector.",
-      "inference": "Fixed Poisson input cohort, old Poisson selected checkpoint and full trajectory pools; per-K subsets are bound to same pool.",
-      "verified": "k_relocation_validation.json",
-      "limitation": "One-pool relocation success is not all-pool completion; use complete collector gate before claiming final whole-study coverage."
+      "results": "All four shards and the collector terminated completely: 96000 canonical trajectories, 106944 total timed trajectories, 480 receipts, 32 inputs and three tasks. Independent compact-field/statistical review passes all 2361 comparisons; table ranking and three figures pass.",
+      "inference": "The completed producer records bind the fixed Poisson cohort, selected checkpoint, observations, source/precision settings and canonical draw pools. Accuracy uses nested pool prefixes; timing uses separate measured executions for each K. Frozen inputs and raw results are included in the approved archive inventory.",
+      "verified": "paper/audit/revision_0909/conditional_scaling_final_review/{final_scientific_review,numerical_review,independent_scientific_review,visual_review}.json; archive_inventory.conditional_scaling_final.json",
+      "limitation": "Final scientific review is complete; three archive entries totaling14385940996 bytes started transfer at2026-09-09T18:37:55+08:00 and still require copy/verify completion. Compact verification binds host exports but relies on upstream raw/PDE/stochastic-path audits. Results concern this fixed-model Poisson cohort, not universal inputwise improvement."
     },
     {
       "study": "Burgers extension",
@@ -291,5 +291,52 @@
     "within_original_tolerance": true,
     "new_inference_or_training": false,
     "full_evidence_archive": "Final paper_assets audit/revision_0909/ns_archive_recompute; no duplicate experiment-data entry."
+  },
+  "conditional_scaling_final_verification": {
+    "scientific_status": "pass",
+    "scientific_review_complete": true,
+    "producer_shards": 4,
+    "all_producers_terminated": true,
+    "collector_exited": true,
+    "physical_inputs": 32,
+    "tasks": 3,
+    "K": [
+      1,
+      3,
+      10,
+      100,
+      1000
+    ],
+    "canonical_trajectories": 96000,
+    "total_timed_trajectories": 106944,
+    "result_receipts": 480,
+    "compact_rows": 480,
+    "compact_array_keys": 672,
+    "independent_scalar_comparisons": 2361,
+    "numerical_review_sha256": "ddd971464563c257d144e878c739f3f990318cde135a9b4ccd59c902a5e80a62",
+    "maximum_absolute_differences": {
+      "field_error": 3.608224830031759e-15,
+      "observation_mse": 8.673617379884035e-19,
+      "statistics": 4.440892098500626e-16
+    },
+    "scientific_review_sha256": "8d3a539b5118a72981c4b62a340968d4880e1631693fdf4357a114aa5d4d0801",
+    "final_manifest_sha256": "9a6579ef292c7bf3e2c5d3d42cb27144a389f3a537de61f599c72374141bbe18",
+    "ready_for_paper_review_sha256": "af3e633cb97c3a117e9851baf886c2aaf4a0428bac37b5e2e5691a7c0a6f83b3",
+    "per_input_csv_sha256": "8ed0f415b54b407913ca1adb1f9a184773caabe15bea97f3e376f9fb2e49693a",
+    "standalone_figures_reviewed": 3,
+    "unrounded_table_cells_reviewed": 20,
+    "source_scope": "All compact CSV values and arrays equal two complete host exports covering96 task/input groups and480 raw-result checksums. Independent raw-pool/PDE/stochastic-path correspondence is established by upstream audits, not repeated by the compact checker.",
+    "archive_inventory": "archive_inventory.conditional_scaling_final.json",
+    "archive_inventory_sha256": "c473fa1979647f40144b515cbae49550b8b17edcdda6f628bbc29b98452f9ad9",
+    "archive_entries": 3,
+    "archive_bytes": 14385940996,
+    "archive_transfer_started_local": "2026-09-09T18:37:55+08:00",
+    "archive_complete": false,
+    "archive_status_at_documentation_update": "transfer_started_copy_and_verify_not_yet_complete",
+    "archive_destinations": {
+      "conditional_scaling_raw_server197": "ablations/revision_20260909/conditional_scaling_20260909/server197/results",
+      "conditional_scaling_raw_server216": "ablations/revision_20260909/conditional_scaling_20260909/server216/results",
+      "conditional_scaling_local_audit": "ablations/revision_20260909/conditional_scaling_20260909/local_audit"
+    }
   }
 }
