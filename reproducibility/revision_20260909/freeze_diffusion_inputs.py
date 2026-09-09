@@ -152,7 +152,15 @@ def check_saved_results(entry, arrays, result_root):
                 predictions = {'a': numpy(payload['coef_final']).reshape(128, 128),
                                'u': numpy(payload['sol_final']).reshape(128, 128)}
             metric_path = root / 'metrics' / pde / task / (path.stem + '_metrics_final.json')
-            metric = json.loads(metric_path.read_text())
+            if metric_path.exists():
+                metric = json.loads(metric_path.read_text())
+                metric_source = 'metrics_final.json'
+            else:
+                # The original Burgers tree did not export metric JSON. Its
+                # recorded final loss is the final physical relative-L2 error.
+                assert pde == 'burger' and isinstance(payload['loss'], list) and payload['loss']
+                metric = {'rel_l2_u': float(payload['loss'][-1])}
+                metric_source = 'original pickle loss[-1] (no separate metric JSON)'
             checks = {}
             for field, truth in targets.items():
                 truth = np.asarray(truth, dtype=np.float64)
@@ -171,8 +179,9 @@ def check_saved_results(entry, arrays, result_root):
                     checks[field]['observed_recomputed'] = observed
                     checks[field]['observed_recorded'] = recorded_obs
             records.append(dict(study=cell['study'], pde=pde, task=task, index=index,
-                                result_path=str(path), result_sha256=sha(path), metrics_path=str(metric_path),
-                                metrics_sha256=sha(metric_path), field_errors=checks,
+                                result_path=str(path), result_sha256=sha(path), metric_source=metric_source,
+                                metrics_path=str(metric_path) if metric_path.exists() else None,
+                                metrics_sha256=sha(metric_path) if metric_path.exists() else None, field_errors=checks,
                                 observation_masks={key: array_info(value) for key, value in masks.items()},
                                 observation_counts={key: int(value.sum()) for key, value in masks.items()}))
     return records
