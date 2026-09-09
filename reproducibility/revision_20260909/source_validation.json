@@ -1,7 +1,7 @@
 {
   "status": "pass",
-  "source_trees": 29,
-  "files": 11235,
+  "source_trees": 51,
+  "files": 23321,
   "checks": "Independent tar contents compared to every Git blob object hash and executable mode",
   "records": [
     {
@@ -38,6 +38,14 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "123662a2ce457f89a8455901dcc57009bd09af59",
+      "files": 478,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "4adffe8e62b9085308c1a91af4c0549be3b3c58e8d221480dd4ee08d87cf290a"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "16cf6f7e22a6c5c06ea4d7ab899ed3fe35717721",
       "files": 336,
       "all_git_blob_hashes_match": true,
@@ -70,6 +78,14 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "213874288f91bc06511b4e8cea4b54553ff05911",
+      "files": 482,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "96e0ab6473b0c8d0f9e9b9e8a22168db071444c254308e6dd6a79fd45d930627"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "23d14d3066704170dcf471ce2f2556179111f9ba",
       "files": 384,
       "all_git_blob_hashes_match": true,
@@ -94,6 +110,14 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "41c63cd03bf06b44c7e2a2011d8ca09d1f50e4f1",
+      "files": 235,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "f7911af0c14dae3fe8179ce8df43c973e1c1532169cc795590a9bf3c88a3d026"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "42bae4aa29cd66188d4ef1688e1410de9aacfc9c",
       "files": 312,
       "all_git_blob_hashes_match": true,
@@ -107,6 +131,14 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "3c15248e944b1e56ccaa2c1869b0471ee177d429e301fca1a8381d40a494908a"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "750ad53a2fce548a9ff9483379e73a8b04a55da2",
+      "files": 479,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "d9a3f0965d133c8776e2b6593f552322972653cce51be40555607d1e0dd3b955"
     },
     {
       "repository": "FM4PDE",
@@ -126,11 +158,43 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "7a4faca39fd950f723fe7fe163596dd171e1f123",
+      "files": 295,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "7efea70e342a8326bf88d1ac0c41304b3f91c4ee248cad84aecf421600bb6c61"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "82b2d23f58b87cbffe4d50968cc9e22024c54692",
+      "files": 292,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "87e269c90a24de50953db817a6174b406754aa92c037152c946224fb05f09206"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "84729143a27c80ef01e71df565520b7fa69892e0",
+      "files": 490,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "94721bc8d9becf160af4ad633a2ca8434b1312d638993da31c5dc8a3db3f3e30"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "871f817df18268f3eb31f0221c75bad0eb834ad4",
       "files": 381,
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "217278cbd56308b929ac9536bf86b4164c3ebb70f80b3b408550edc65fece6af"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "8878738923d52d005c9cf567bef52fc1a5be1f42",
+      "files": 299,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "d850eb65cdd97aa1902ed77f75d642990f691cfd97ef6b270a10b56ea830c747"
     },
     {
       "repository": "FM4PDE",
@@ -155,6 +219,22 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "297aff5240903d87cc5ad2d94c00be626afe73c0ee3e209d3d6b1d48965c0355"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "a4afc82ea33f65e52b85c071995971164e6837a8",
+      "files": 235,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "db806ca488cdd14289dbd5c9bb651b73bc60b34e093920cc6ac8ed183b441732"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "a7399f9320e6fc01727e83ef7bc7dc5d4ce8046e",
+      "files": 292,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "a646447d7de9292133dac3fc8de931423441a6d423d12981deee49a7525dd0d9"
     },
     {
       "repository": "FM4PDE",
@@ -190,11 +270,27 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "d20be120953e0dffadabedd85aca1e8203b5b1d7",
+      "files": 298,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "a6304221f7fd8b125d45dd6747a9852d5861e929679c76b8410fd45b9880387b"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "da6530ec5d230864367c32082311c55ebc6d0bad",
       "files": 395,
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "b815626c7e1c3f226d8d6136c096043f87874af4edae219f461ea6e86fb0e9e6"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "e4351366436ec912109ec71aa719476d620ef4f7",
+      "files": 467,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "81998794cc05da8729f19bb77092aed4d1495460e4765d679b3a19f147685ea3"
     },
     {
       "repository": "FM4PDE",
@@ -206,11 +302,35 @@
     },
     {
       "repository": "FM4PDE",
+      "commit": "efb5037ef708e9455e0dea4c0817080a092f9d22",
+      "files": 490,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "e51fe594c9f88d1f3314febfa93c58a5afb7eab2a37a45fd535a0283d6483616"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "files": 247,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "1bf23bbb63a4c29e320d05ab65593e2e0be0a12537b0c2262b7fee233ec63d22"
+    },
+    {
+      "repository": "FM4PDE",
       "commit": "f6fd77a48345bc95cb156340e5201f64ebfa9ea2",
       "files": 362,
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "3ac956b42d9abcdf68c65931630048536d0b560c691f8d3f7ef0fb5bd74db88a"
+    },
+    {
+      "repository": "FM4PDE",
+      "commit": "f8a2c2ed262e73d3c21bbda8d45c49bb051e0136",
+      "files": 464,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "2567902617750bf09632944516b64ae46064ab8a393941925d422f9143fc4c8f"
     },
     {
       "repository": "FM4PDE",
@@ -227,6 +347,62 @@
       "all_git_blob_hashes_match": true,
       "executable_modes_match": true,
       "archive_sha256": "d51894c1bb326efbfb3fb56aeb2d0609ff64a64be9e965f147e2d195c4b6d389"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "29d1958a32b1e2c68ee228b8fe23003497105c88",
+      "files": 941,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "601f9a1d812f745820da3576e3ec53b58abe04d03cf4afe4752e2100c3e5125a"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "3a47c287e9c6a3e57f64db06f4d84e054f1c68b3",
+      "files": 932,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "a885c063bd3b8fc984e7881ed0981a530fb89e7f22d6c1ff1e6936cc327b25a7"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "3bf389f8b71c94b74f51a316972bd70ce0b8c527",
+      "files": 941,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "f5fb14b2b152c0e433d3dbc23b607a84e39cabf084f94fbdfcf34eabd3eeb196"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "6cd749703f7abc2e542f0e055bd46cf765dba781",
+      "files": 934,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "3869fa039bfc202caacb71f7ac47327351c609580573d4f2fe0f3619c960a873"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "c32cc007798a33d49490987eeb87280f7a020033",
+      "files": 932,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "efcfbd2ec67ab8f50236762d6749dfb19745c09cf276af018450af4cbc3a1d35"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "d12b6b7dc652259881c80221e4d581b9d551df6e",
+      "files": 929,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "259cf59369be2d0b395eced07dae1a2ac3e5304470902a8e024ee9b7dcc0ed02"
+    },
+    {
+      "repository": "FM4PDEbaseline",
+      "commit": "d954121007d7f134126fda6a2f36fb9e4a266d2e",
+      "files": 934,
+      "all_git_blob_hashes_match": true,
+      "executable_modes_match": true,
+      "archive_sha256": "6b1e1750719501fa965b29b9f5ffb5221407bc273624b398d5789fa313b4ae92"
     },
     {
       "repository": "FM4PDEbaseline",

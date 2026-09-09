@@ -32,6 +32,8 @@
 ## 代码入口
 
 - [实验复现步骤](STUDY_RECIPES.md)：按主实验和消融实验列出采样、核验、统计及绘图命令。
+- [复现范围](REPRODUCTION_COVERAGE.md)：逐项说明可复算的统计、可重新推理的模型，以及历史训练记录的缺项。
+- [基线评估入口](BASELINE_FROZEN_REPLAY.md)：用原程序版本、权重和评估数据重建观测与预测。
 - [外部脚本清单](external_script_inventory.json)：补入仓库的脚本、原位置及内容校验值。
 - [源版本清单](source_repositories.json)：正式运行和必要辅助计算使用的版本及用途。
 - `source_snapshots.py`：保存、验证和恢复指定版本的源码；同时保留 Git 历史。
@@ -48,6 +50,10 @@ FM4PDEbaseline；其原有许可证和署名随原代码保留。
 ```bash
 python reproducibility/revision_20260909/source_snapshots.py verify
 ```
+
+该命令同时核对文件内容和源版本清单的完整性；缺少任一指定版本或对应
+Git 历史时会报错。源码内容与原 Git 对象的逐文件比对记录见
+`source_validation.json`。
 
 例如，把计时所用 DiffusionPDE 版本恢复为本仓库内的可运行目录：
 

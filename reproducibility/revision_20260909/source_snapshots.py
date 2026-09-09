@@ -59,6 +59,26 @@ def verify_record(root, record):
         raise RuntimeError(f'Checksum mismatch: {path}')
 
 
+def verify_catalog_coverage(catalog, records):
+    """Require every named source version, even if other archives are intact."""
+    trees = {(r['repository'], r['commit']): r for r in records if r.get('tree')}
+    histories = {r['repository'] for r in records
+                 if r.get('format') == 'self-contained Git bundle'}
+    required = 0
+    for repository in catalog['repositories']:
+        name = repository['name']
+        for snapshot in repository['snapshots']:
+            revision = snapshot['revision']
+            matches = [r for (repo, commit), r in trees.items()
+                       if repo == name and commit.startswith(revision)]
+            if len(matches) != 1:
+                raise RuntimeError(f'Missing or ambiguous required source: {name}@{revision}')
+            required += 1
+        if repository.get('retain_history') and name not in histories:
+            raise RuntimeError(f'Missing required Git history: {name}')
+    return required
+
+
 def capture_tree(repo, spec, dest):
     commit = git(repo, 'rev-parse', '--verify', spec['revision'] + '^{commit}')
     name = spec['name'] + '-' + commit[:12]
@@ -182,9 +202,12 @@ def main():
         manifests = sorted(dest.glob('*.json'))
         if not manifests:
             raise RuntimeError('No source archives to verify')
-        for path in manifests:
-            verify_record(dest, json.loads(path.read_text()))
-        print(json.dumps(dict(status='pass', archives=len(manifests))))
+        records = [json.loads(path.read_text()) for path in manifests]
+        for record in records:
+            verify_record(dest, record)
+        required = verify_catalog_coverage(json.loads(args.catalog.read_text()), records)
+        print(json.dumps(dict(status='pass', archives=len(manifests),
+                              required_source_versions=required, catalog_coverage=True)))
         return
     dest.mkdir(parents=True, exist_ok=True)
     catalog = json.loads(args.catalog.read_text())

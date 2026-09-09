@@ -113,6 +113,66 @@
         {
           "revision": "a4a0aef5eeddf2e82a957053982ee353ad0be171",
           "purpose": "Full NS table/source integration and publication checks after complete data gates"
+        },
+        {
+          "revision": "123662a2ce457f89a8455901dcc57009bd09af59",
+          "purpose": "Actual server197 ablation numerical replay and documented rendering environments"
+        },
+        {
+          "revision": "f8a2c2ed262e73d3c21bbda8d45c49bb051e0136",
+          "purpose": "Six-inch Poisson sample-count figure layout; unchanged full-data statistics"
+        },
+        {
+          "revision": "e4351366436ec912109ec71aa719476d620ef4f7",
+          "purpose": "Independent CPU replay of complete new NS main results"
+        },
+        {
+          "revision": "213874288f91bc06511b4e8cea4b54553ff05911",
+          "purpose": "Native baseline input freeze retaining original loader semantics and exact selected arrays"
+        },
+        {
+          "revision": "84729143a27c80ef01e71df565520b7fa69892e0",
+          "purpose": "Native baseline frozen-input replay interface and bounded CPU validation"
+        },
+        {
+          "revision": "efb5037ef708e9455e0dea4c0817080a092f9d22",
+          "purpose": "Tensor and normalization equivalence audit of five historical FM inference models"
+        },
+        {
+          "revision": "750ad53a2fce548a9ff9483379e73a8b04a55da2",
+          "purpose": "Archive-receipt-gated NS CPU replay observer"
+        },
+        {
+          "revision": "8878738923d52d005c9cf567bef52fc1a5be1f42",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "a7399f9320e6fc01727e83ef7bc7dc5d4ce8046e",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "d20be120953e0dffadabedd85aca1e8203b5b1d7",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "a4afc82ea33f65e52b85c071995971164e6837a8",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "41c63cd03bf06b44c7e2a2011d8ca09d1f50e4f1",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "7a4faca39fd950f723fe7fe163596dd171e1f123",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
+        },
+        {
+          "revision": "82b2d23f58b87cbffe4d50968cc9e22024c54692",
+          "purpose": "Original FM main sampling source recorded by run_metadata.json; per-run mapping in old_fm_actual_source_commits.json"
         }
       ]
     },
@@ -135,6 +195,34 @@
         {
           "revision": "f88d9a64ca6a4e8ed27d3808e1fa6c4c8b2eb45f",
           "purpose": "Archived baseline inference, matched inverse timing, and baseline data interfaces"
+        },
+        {
+          "revision": "29d1958a32b1e2c68ee228b8fe23003497105c88",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
+        },
+        {
+          "revision": "3a47c287e9c6a3e57f64db06f4d84e054f1c68b3",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
+        },
+        {
+          "revision": "3bf389f8b71c94b74f51a316972bd70ce0b8c527",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
+        },
+        {
+          "revision": "6cd749703f7abc2e542f0e055bd46cf765dba781",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
+        },
+        {
+          "revision": "c32cc007798a33d49490987eeb87280f7a020033",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
+        },
+        {
+          "revision": "d12b6b7dc652259881c80221e4d581b9d551df6e",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
+        },
+        {
+          "revision": "d954121007d7f134126fda6a2f36fb9e4a266d2e",
+          "purpose": "Original selected baseline evaluation source; per-run binding in baseline_actual_evaluation_commits.json"
         }
       ]
     }
