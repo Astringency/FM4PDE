@@ -1,0 +1,95 @@
+{
+  "protocol_sha256": "be205a366d1b41a8505e9bbb0811c7726136fafd28269d4a0e59f3ad02991b12",
+  "task_updates": {
+    "both": {
+      "clip_threshold": 50.0
+    },
+    "forward": {
+      "clip_threshold": 100.0
+    },
+    "inverse": {
+      "clip_threshold": 50.0
+    }
+  },
+  "evidence": {
+    "both": {
+      "chosen": "clip50",
+      "mean_errors_by_field": {
+        "clip50": {
+          "a": 0.2904504138515596,
+          "u": 0.07246119397692266
+        },
+        "archived": {
+          "a": 6.424155177854468,
+          "u": 0.8163996899161745
+        },
+        "clip1000": {
+          "a": 0.32628125583053014,
+          "u": 0.0960085840409906
+        },
+        "clip500": {
+          "a": 0.29102481056339347,
+          "u": 0.07304071932387488
+        },
+        "clip100": {
+          "a": 0.2905191573998478,
+          "u": 0.07250360898860042
+        }
+      },
+      "diagnostic_runs_per_candidate": 12,
+      "fields": [
+        "a",
+        "u"
+      ]
+    },
+    "forward": {
+      "chosen": "clip100",
+      "mean_errors_by_field": {
+        "clip50": {
+          "u": 0.05836978061878951
+        },
+        "archived": {
+          "u": 0.09967742433730992
+        },
+        "clip1000": {
+          "u": 0.0951380457077529
+        },
+        "clip500": {
+          "u": 0.05856423915453754
+        },
+        "clip100": {
+          "u": 0.05835110256205991
+        }
+      },
+      "diagnostic_runs_per_candidate": 4,
+      "fields": [
+        "u"
+      ]
+    },
+    "inverse": {
+      "chosen": "clip50",
+      "mean_errors_by_field": {
+        "clip50": {
+          "a": 0.2895039320368867
+        },
+        "archived": {
+          "a": 0.2895039247637531
+        },
+        "clip1000": {
+          "a": 0.3205440640615222
+        },
+        "clip500": {
+          "a": 0.2914316622381811
+        },
+        "clip100": {
+          "a": 0.2903293134398475
+        }
+      },
+      "diagnostic_runs_per_candidate": 4,
+      "fields": [
+        "a"
+      ]
+    }
+  },
+  "selection_reason": "Disjoint four-input diagnostics; field-wise selection; original input 0 and ensemble inputs unused."
+}
