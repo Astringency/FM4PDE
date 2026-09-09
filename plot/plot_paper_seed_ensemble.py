@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FixedLocator, NullLocator
 
 from publication_style import use_times_new_roman, error_number
 from export_paper_seed_ensemble import NAMES, NONPERIODIC
@@ -27,11 +28,11 @@ def plot(args):
     args.output.mkdir(parents=True, exist_ok=True)
     use_times_new_roman()
     plt.rcParams.update({'font.size':9,'axes.titlesize':9,'axes.labelsize':9,
-        'xtick.labelsize':8,'ytick.labelsize':8,'font.family':'serif',
+        'xtick.labelsize':9,'ytick.labelsize':9,'font.family':'serif',
         'font.serif':['Times New Roman'],'mathtext.fontset':'custom',
         'mathtext.rm':'Times New Roman','mathtext.it':'Times New Roman:italic',
         'mathtext.bf':'Times New Roman:bold','pdf.fonttype':42,'ps.fonttype':42})
-    outputs, captions = {}, []
+    outputs, captions, tick_checks = {}, [], []
     def save(fig, stem, caption):
         for ext in ['pdf', 'png']:
             path=args.output/f'{stem}.{ext}'
@@ -41,14 +42,14 @@ def plot(args):
         captions.extend([r'\begin{figure}[!htbp]',r'\centering',
             r'\includegraphics[width=\linewidth]{figures/'+stem+'.pdf}',
             r'\caption{'+caption+'}',r'\label{fig:'+stem.replace('_','-')+'}',r'\end{figure}',''])
-    fig, ax = plt.subplots(figsize=(6.2, max(2.7, .24*len(rows)+.8)))
+    fig, ax = plt.subplots(figsize=(6.0, max(2.7, .24*len(rows)+.8)))
     for i, row in enumerate(rows):
         point, lo, hi = [float(row[k]) for k in ['paired_delta_pp','family21_low','family21_high']]
         color = BLUE if row['field']=='a' else GOLD
         ax.plot([lo, hi], [i, i],color=color,lw=1.5)
         ax.plot(point,i,'o' if row['field']=='a' else 's',color=color,ms=4)
         ax.text(1.015,i,'$'+error_number(point,signed=True)+'$',transform=ax.get_yaxis_transform(),
-                ha='left',va='center',fontsize=8,color=INK,clip_on=False)
+                ha='left',va='center',fontsize=9,color=INK,clip_on=False)
     ax.axvline(0,color=INK,lw=.7,ls='--')
     ax.set_yticks(range(len(rows)),[NAMES[r['pde']].replace('--','–')+rf"  ${r['field']}$" for r in rows])
     ax.invert_yaxis()
@@ -62,7 +63,7 @@ def plot(args):
         'Negative values indicate lower error; the right-hand labels give mean changes in percentage points. Intervals use the paired bootstrap with a Bonferroni adjustment for the 21 field comparisons; blue circles and gold squares denote $a$ and $u$, respectively.')
     for pde in manifest['pdes']:
         fields=['u'] if pde=='burger' else ['a','u']
-        fig, axes=plt.subplots(len(fields),2,figsize=(6.2,2.15*len(fields)+.3),squeeze=False)
+        fig, axes=plt.subplots(len(fields),2,figsize=(6.0,2.15*len(fields)+.3),squeeze=False)
         for i, field in enumerate(fields):
             prefix=pde+'__'+field+'__'
             reference=shells[prefix+'reference']
@@ -81,14 +82,32 @@ def plot(args):
                     ax.plot(k,values,label=label,color=color,ls=style,lw=1.15)
                 ax.set_yscale('symlog',linthresh=1e-14,linscale=.3)
                 ax.set_ylim(bottom=max(0.0,ax.get_ylim()[0]))
+                # Keep the original symlog scale and limits, but avoid crowded
+                # labels in the short linear region near zero.
+                lower, upper = ax.get_ylim()
+                first = int(np.ceil(np.log10(max(lower, 1e-12))))
+                last = int(np.floor(np.log10(upper)))
+                stride = max(1, int(np.ceil((last - first + 1) / 6)))
+                ticks = ([0.0] if lower == 0 else []) + [10.0**e for e in range(first, last + 1, stride)]
+                ax.yaxis.set_major_locator(FixedLocator(ticks))
+                ax.yaxis.set_minor_locator(NullLocator())
                 ax.set_xlabel('Spatial mode' if pde=='burger' else 'Radial mode index' if pde in NONPERIODIC else 'Radial wavenumber')
                 ax.set_ylabel('Normalized shell energy' if column==0 else 'Normalized shell error energy')
                 ax.set_title(rf'${field}$: '+('energy' if column==0 else 'error'))
                 ax.spines[['top','right']].set_visible(False)
                 ax.grid(alpha=.12)
-                if i==0:ax.legend(frameon=False,fontsize=7.5)
+                if i==0:ax.legend(frameon=False,fontsize=9)
         fig.suptitle(NAMES[pde].replace('--','–'),fontsize=10)
         fig.tight_layout()
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        for ax in axes.flat:
+            boxes = sorted((label.get_window_extent(renderer) for label in ax.get_yticklabels()
+                            if label.get_visible() and label.get_text()), key=lambda box: box.y0)
+            gaps = [b.y0-a.y1 for a,b in zip(boxes, boxes[1:])]
+            assert not gaps or min(gaps) >= 2.0, (pde, ax.get_title(), gaps)
+            tick_checks.append(dict(pde=pde, panel=ax.get_title(), major_ticks=len(boxes),
+                                    minimum_label_gap_pt=min(gaps)*72/fig.dpi if gaps else None))
         transform=('Fourier modes along space, summed across physical time' if pde=='burger' else
                    'radially grouped DCT-II modes' if pde in NONPERIODIC else 'radially grouped spatial Fourier modes')
         save(fig,'ensemble_spectra_'+pde,
@@ -99,7 +118,7 @@ def plot(args):
     (args.output/'ensemble_figures.tex').write_text('\n'.join(captions))
     write(args.output/'figure_manifest.json',dict(full_study=manifest['full_study'],pdes=manifest['pdes'],
         analysis_sha256=digest(args.source/'manifest.json'),contract_sha256=digest(args.contract),
-        plotter_sha256=digest(Path(__file__)),outputs=outputs))
+        plotter_sha256=digest(Path(__file__)),tick_label_checks=tick_checks,outputs=outputs))
     print('PLOTTED ensemble effects and',len(manifest['pdes']),'PDE spectra',flush=True)
 
 

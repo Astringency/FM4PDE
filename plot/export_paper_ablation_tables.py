@@ -9,6 +9,26 @@ from run_paper_ablation_revision import PDES, digest
 from export_paper_seed_ensemble import NAMES
 
 PHASES = [('stochastic','S'),('deterministic','D'),('hybrid_d2s',r'D$\to$S'),('hybrid_s2d',r'S$\to$D')]
+RANK_NOTE = r' Boldface and $\dagger$ mark the lowest and second-lowest values within each row; ranks use unrounded values and exact ties share a rank.'
+
+
+def ranked_numbers(values, formatter=None):
+    """Rank comparable values before formatting, retaining exact ties."""
+    formatter=formatter or tex_number
+    ranks=sorted(set(float(v) for v in values if v is not None and np.isfinite(v)))
+    cells=[]
+    for value in values:
+        number=formatter(value)
+        if ranks and value==ranks[0]:number=r'\mathbf{'+number+'}'
+        elif len(ranks)>1 and value==ranks[1]:number='{'+number+r'}^{\dagger}'
+        cells.append('$'+number+'$')
+    return cells
+
+
+def diagnostic_number(value):
+    if value==0:return '0'
+    mantissa, exponent=f'{value:.2e}'.split('e')
+    return f'{mantissa}\\times10^{{{int(exponent)}}}'
 
 
 def tex_number(value):
@@ -29,10 +49,11 @@ def table(caption, label, header, rows, font_size='scriptsize'):
     return '\n'.join([
         r'\begin{table}[!htbp]',rf'\FMTableMark{{start}}{{{label}}}',
         r'\centering'+'\\'+font_size+r'\setlength{\tabcolsep}{3pt}',
-        r'\renewcommand{\arraystretch}{1.10}',r'\caption{'+caption+'}',
-        r'\label{'+label+'}',r'\begin{tabular}{@{}'+'ll'+'r'*(len(header)-2)+r'@{}}\toprule',
+        r'\renewcommand{\arraystretch}{1.10}',
+        r'\begin{tabular}{@{}'+'ll'+'r'*(len(header)-2)+r'@{}}\toprule',
         ' & '.join(header)+r' \\\midrule',
         *[' & '.join(row)+r' \\' for row in rows],r'\bottomrule\end{tabular}',
+        r'\caption{'+caption+'}',r'\label{'+label+'}',
         rf'\FMTableMark{{end}}{{{label}}}',r'\end{table}',''])
 
 
@@ -55,27 +76,34 @@ def export(args):
             values=[]
             for _,query in columns:
                 r=get(pde,group,**dict({'task':'both'},**(base or {}),**query))
-                values.append('$'+tex_number(100*r['rel_l2_'+field])+'$')
-            rows.append([NAMES[pde],f'${field}$',*values])
-        text=table(caption,label,['PDE','Field',*[c[0] for c in columns]],rows,font_size=font_size)
+                values.append(100*r['rel_l2_'+field])
+            rows.append([NAMES[pde],f'${field}$',*ranked_numbers(values)])
+        text=table(caption+RANK_NOTE,label,['PDE','Field',*[c[0] for c in columns]],rows,font_size=font_size)
         (args.output/name).write_text(text)
         outputs[name]=dict(label=label,rows=len(rows),group=group)
     units='Relative field errors in percent on the main ID sample; coefficient and solution are reported separately. '
 
-    # Directional targets and both joint fields, including Burgers trajectory u.
-    rows=[]
-    for task,title in [('forward','Forward'),('inverse','Inverse'),('both','Joint')]:
+    # Directional target errors and their observed-field/PDE diagnostics.
+    # Joint reconstructions are displayed as four-component guidance figures.
+    for task,title,field,observed in [('forward','Forward','u','a'),('inverse','Inverse','a','u')]:
+        rows=[]
         for pde in PDES:
-            if pde=='burger' and task!='both':continue
-            scored=['u'] if task=='forward' or pde=='burger' else ['a'] if task=='inverse' else ['a','u']
-            for field in scored:
-                values=['$'+tex_number(100*get(pde,'guidance_components',task=task,guidance_components=g)['rel_l2_'+field])+'$'
-                        for g in ['noguide','pde_only','obs_only','obs_pde']]
-                rows.append([NAMES[pde],title+f' ${field}$',*values])
-    name='ablation_guidance_fields.tex'
-    (args.output/name).write_text(table(units+'Guidance components at 100 stochastic steps.',
-        'tab:ablation-guidance-complete',['PDE','Task / field','No guide','PDE only','Obs. only','Obs.+PDE'],rows))
-    outputs[name]=dict(label='tab:ablation-guidance-complete',rows=len(rows),group='guidance_components')
+            if pde=='burger':continue
+            selected=[get(pde,'guidance_components',task=task,guidance_components=g)
+                      for g in ['noguide','pde_only','obs_only','obs_pde']]
+            for metric,values,formatter in [
+                (rf'$\operatorname{{RelL2}}_{field}$ (\%)',[100*r['rel_l2_'+field] for r in selected],tex_number),
+                (rf'$\mathcal L_{{\mathrm{{obs}},{observed}}}$',[r['diagnostics']['L_obs_'+observed] for r in selected],diagnostic_number),
+                (r'$\mathcal L_{\mathrm{PDE},h}$',[r['diagnostics']['L_pde'] for r in selected],diagnostic_number)]:
+                rows.append([NAMES[pde] if 'RelL2' in metric else '',metric,*ranked_numbers(values,formatter)])
+        name=f'ablation_guidance_{task}_metrics.tex'
+        label='tab:ablation-guidance-complete' if task=='forward' else 'tab:ablation-guidance-inverse'
+        caption=(title+rf' guidance ablation on ID input 0 for each paired PDE, using 100 stochastic Euler steps and 500 observations of ${observed}$. '
+                 +rf'The target error is $\operatorname{{RelL2}}_{field}$; $\mathcal L_{{\mathrm{{obs}},{observed}}}$ is the unweighted observation MSE of the conditioning field. '
+                 +r'$\mathcal L_{\mathrm{PDE},h}$ is evaluated on the generated pair. All diagnostics are evaluated even when their guidance term is inactive. '
+                 +r'Physical-loss magnitudes are compared only within the same PDE and residual definition.'+RANK_NOTE)
+        (args.output/name).write_text(table(caption,label,['PDE','Metric','No guide','PDE only','Obs. only','Obs.+PDE'],rows,font_size='footnotesize'))
+        outputs[name]=dict(label=label,rows=len(rows),group='guidance_components')
 
     rows=[]
     for task,title in [('forward','Forward'),('inverse','Inverse'),('both','Joint')]:
@@ -83,13 +111,10 @@ def export(args):
             if pde=='burger' and task!='both':continue
             values=[get(pde,'guidance_components',task=task,guidance_components=g)['diagnostics']['L_pde']
                     for g in ['obs_only','obs_pde']]
-            def diagnostic_number(x):
-                mantissa, exponent=f'{x:.3e}'.split('e')
-                return f'${mantissa}\\times10^{{{int(exponent)}}}$'
-            rows.append([NAMES[pde],title,*[diagnostic_number(x) for x in values]])
+            rows.append([NAMES[pde],title,*ranked_numbers(values,diagnostic_number)])
     name='ablation_physics_diagnostics.tex'
     (args.output/name).write_text(table('Physical loss at the final reconstructed state, with observation-only and combined guidance. '
-        'Values use the PDE-specific residual definition and normalization; comparisons are within a row.',
+        'Values use the PDE-specific residual definition and normalization; comparisons are within a row.'+RANK_NOTE,
         'tab:ablation-guidance-residuals',['PDE','Task','Obs. only','Obs.+PDE'],rows))
     outputs[name]=dict(label='tab:ablation-guidance-residuals',rows=len(rows),group='guidance_components')
 
@@ -139,9 +164,9 @@ def export(args):
     rows=[]
     for pde,field in fields:
         values=np.array([100*get(pde,'statistics_stability',task='both',sample_seed=seed)['rel_l2_'+field] for seed in range(5)])
-        rows.append([NAMES[pde],f'${field}$',*[f'${tex_number(x)}$' for x in values],f'${tex_number(values.mean())}\\pm{tex_number(values.std(ddof=1))}$'])
+        rows.append([NAMES[pde],f'${field}$',*ranked_numbers(values),f'${tex_number(values.mean())}\\pm{tex_number(values.std(ddof=1))}$'])
     name='ablation_stability_fields.tex'
-    (args.output/name).write_text(table('Inference and observation-mask seeds on the main ID sample. Each field error is a percentage; the final column gives the mean and sample SD across five seeds.',
+    (args.output/name).write_text(table('Inference and observation-mask seeds on the main ID sample. Each field error is a percentage; the final column gives the mean and sample SD across five seeds. Ranking compares the five individual draws only.'+RANK_NOTE,
         'tab:ablation-stability',['PDE','Field',*[str(x) for x in range(5)],r'Mean $\pm$ SD'],rows))
     outputs[name]=dict(label='tab:ablation-stability',rows=len(rows),group='statistics_stability')
     (args.output/'table_manifest.json').write_text(json.dumps(dict(final_ready=manifest['final_ready'],
