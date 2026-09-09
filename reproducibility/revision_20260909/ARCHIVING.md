@@ -416,3 +416,34 @@ All entries are separate directory subtrees: adding a child directory inside
 an already verified entry would invalidate that entry's receipt. The ledger
 reconciler checks this relationship within and across batches in addition to
 rejecting exact duplicate destinations.
+
+The second baseline addendum is independently frozen in
+`archive_inventory.baseline_second_addendum.json`, SHA256
+`c1a28bd70312c15d424a2cbbdf0d56320c1ebe4cbe3052c8dfaca38eedccaa34`.
+Its six entries total 4,128,870,079 bytes: six additional Burgers checkpoints,
+168 metadata files, 18 native input caches and their manifest, 14 selected
+provenance files, the complete consumer evidence directory, and the completion
+binding records. Every destination is a separate leaf under
+`main/revision_20260909/legacy_baseline_extracts/dependencies/`.
+The native consumer delivery has 228 listed files plus its manifest; the
+builder independently checked all 229 files and all 14 provenance files.
+The frozen proposal retains its historical pending status. Readiness is
+established by the later external completion gate, SHA256
+`cdf3add29c92763c51014e3f31df5329b73a482acc276878a16ecdaa576f1f30`,
+bound to delivery manifest
+`9113d1531d09ae0854f0a68abce9a5cbc714e80c0521d4524b798a4fdef44af1`.
+This gate covers 186 complete mask contracts, ten saved-field cells with
+three examples each, and four original models with small CPU inference
+batches. It does not claim full inference for all 186 cells.
+
+`run_serial_archive_after.py` accepts `--inventory`, its frozen
+`--inventory-sha256`, the predecessor's `--after-state`, and the predecessor's
+`--after-inventory-sha256`. It waits until every predecessor entry is verified
+and the execute, verify, and status receipt hashes agree. The second batch's
+local session is `revision_archive_baseline_second_0909` and waits for the
+first baseline addendum. The third batch's session is
+`revision_archive_diffusion_native_0909` and waits for this second batch.
+Both use the unchanged remote helper and exit automatically on completion.
+Append their inventory/state pairs as further `--additional-batch` arguments
+to the ledger command; no concurrent copy or changes to an active inventory
+are needed.
