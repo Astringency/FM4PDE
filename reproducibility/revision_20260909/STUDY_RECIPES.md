@@ -185,6 +185,8 @@ python plot/audit_ns_main_residual_0909.py --audit "$NS_STUDY" --results "$NS_ST
 
 Publication requires all 15 cells × 1,000 examples, exact IDs 2000–2999, 100 NFEs, finite predictions, matching result/protocol hashes, independent raw error/observation recomputation and the extra NumPy residual audit. The root study layout expected by the residual audit includes the hashed `weights.pth`; retain the archive's recorded link/file mapping. No partial output constitutes this gate. The eight-table tool's copied CLI is documented in `legacy_scripts/README.md`.
 
+The complete new-NS study has now actually been reread from `outputs/main/revision_20260909/ns_main_revision_0909/local/complete_local_ns_study` on server197. [NS_ARCHIVED_RECOMPUTATION.md](NS_ARCHIVED_RECOMPUTATION.md) gives the precise archived-path command, isolated source commit, environment and report. All 15,000 examples and 450 batches reproduce the five stored metrics and 15-cell mean/SD values under the frozen reductions; independent residual/runtime checks also match. The separate float64 FFT residual diagnostic remains within the original CUDA-float32 comparison tolerance. All 1,146 source files retain their hashes. This 158.7-second, two-thread CPU check repeats only saved-result computations. Its exact report SHA is `5ca94e91a2c2315103dd40739e30d081660756b1665929b6d48f112ff8c4568f`; full evidence is included with the final paper-assets audit archive. No model sampling or training is implied.
+
 The completed eight-table candidate export can be checked independently against its preserved pre-update sources and the complete NS summary:
 
 ```bash

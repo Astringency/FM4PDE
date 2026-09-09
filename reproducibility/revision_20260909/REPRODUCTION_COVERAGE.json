@@ -18,10 +18,10 @@
     },
     {
       "study": "new NS main and timing",
-      "results": "15,000 predictions, 450 batches, all 15 cells n=1000; independent NumPy relative-L2/observation/PDE and runtime/config/hash audits pass. Controlled timing has 80 new NS calls and retains 320 other-PDE calls.",
+      "results": "Actual server197 archive CPU recomputation passes for 15000 examples, 450 batches and 15 cells: five per-example numeric metrics and ten mean/SD columns exactly match frozen reductions; independent residual/runtime report matches. All 1146 source files retain hashes before/after. Controlled timing has 80 new NS calls and retains 320 other-PDE calls.",
       "inference": "Frozen three input NPZs, selection, 44,121,218-parameter checkpoint, masks, per-host source/precision settings and selected Diffusion checkpoint are listed in NS inventory.",
-      "verified": "check_ns_table_export.py / check_ns_timing_statistics.py; ns_main_residual_audit.json in study tables.",
-      "limitation": "CPU relocated NS audit and final archive receipts belong to the separate NS owner; original hardware partitions and formal TF32 differ from strict timing protocol."
+      "verified": "NS_ARCHIVED_RECOMPUTATION.md/.json/_MANIFEST.json; check_ns_table_export.py / check_ns_timing_statistics.py.",
+      "limitation": "This is saved-result recomputation, not new model inference or training. Alternative NumPy float64 PDE residuals differ slightly from stored CUDA float32 values within the original tolerance and do not replace frozen results. Formal TF32/hardware settings remain distinct from controlled timing."
     },
     {
       "study": "744 revised + 316 original ablations; original three-draw study",
@@ -264,5 +264,32 @@
         "receipt": "receipts/representative_006/replay_receipt.json"
       }
     ]
+  },
+  "ns_archived_saved_result_recomputation": {
+    "status": "pass",
+    "complete": true,
+    "report": "NS_ARCHIVED_RECOMPUTATION.json",
+    "report_sha256": "5ca94e91a2c2315103dd40739e30d081660756b1665929b6d48f112ff8c4568f",
+    "delivery_manifest": "NS_ARCHIVED_RECOMPUTATION_MANIFEST.json",
+    "delivery_manifest_sha256": "786ab15fb01b1c5898efe41660306dba7958e8b7e8e3e231d0d85bfa898ce163",
+    "source_archive": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/local/complete_local_ns_study",
+    "archive_receipt_sha256": "290c44ef780b62c9aa85e933cbdd79e23257166faec147c6fe5f90489d467262",
+    "examples": 15000,
+    "cells": 15,
+    "raw_batches": 450,
+    "frozen_reduction_per_example_columns_exact": 5,
+    "frozen_reduction_mean_sd_columns_exact": 10,
+    "independent_residual_runtime_report_equal": true,
+    "source_files": 1146,
+    "source_bytes": 7149064114,
+    "source_full_hashes_unchanged": true,
+    "cpu_only": true,
+    "threads": 2,
+    "seconds": 158.6977213397622,
+    "independent_float64_pde_vs_stored_float32_max_absolute": 1.9179106894307019e-07,
+    "independent_float64_pde_vs_stored_float32_max_relative": 1.102904492267298e-05,
+    "within_original_tolerance": true,
+    "new_inference_or_training": false,
+    "full_evidence_archive": "Final paper_assets audit/revision_0909/ns_archive_recompute; no duplicate experiment-data entry."
   }
 }
