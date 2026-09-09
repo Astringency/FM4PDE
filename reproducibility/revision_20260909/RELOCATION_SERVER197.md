@@ -2,6 +2,8 @@
 
 **The numerical results agree.** On 2026-09-09, the completed server197 archive was reread in an isolated Git checkout using two CPU threads and no CUDA. All 744 revised ablations, 316 original controls and 1,056 original three-draw predictions were checked. The 80 figures were regenerated with the server rendering environment; their pixels are not claimed to match the final local figures.
 
+The separate complete replay of all 15,000 new-main NS predictions from their verified server197 archive also passed. Its exact numerical comparisons, immutable-input checks and repeat command are in [NS_ARCHIVED_RECOMPUTATION.md](NS_ARCHIVED_RECOMPUTATION.md); it uses the new main model's saved results, while this ablation study retains the old model.
+
 ## Actual paths and source versions
 
 The raw study is `/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908`. The authoritative subdirectories are `frozen_inputs/`, `canonical_results/`, and `local_exports/{ablation_publication_snapshot,ensemble_complete}`. The original CSV is `local_exports/archived_ablation_summary/archived_ablation_summary.csv` (SHA256 `2c077c491d51d556069e1b46a2fd8c4764dea02b0447648670c3785fa7299e0f`). Their archive checks completed before the replay.
