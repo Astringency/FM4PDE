@@ -63,6 +63,9 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
     grid = r.make_time_grid(c.time_grid, c.num_steps, device='cuda:0', eta=c.time_grid_eta)
     torch.cuda.synchronize()
     torch.cuda.reset_peak_memory_stats()
+    calls = {'count':0}
+    def count_call(*_): calls['count'] += 1
+    hook = net.model.register_forward_hook(count_call)
     start = time.perf_counter()
     x = r._sample_initial_noise(c, gt, 'cuda:0')
     for step in range(steps):
@@ -100,11 +103,13 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
         mean = torch.cat([phys.coef, phys.sol], dim=1).double().mean(0).float()
     torch.cuda.synchronize()
     seconds = time.perf_counter()-start
+    hook.remove()
+    assert calls['count'] == steps
     peak = torch.cuda.max_memory_allocated()
     pred = torch.cat([phys.coef, phys.sol], dim=1).detach().cpu()
     assert torch.isfinite(pred).all()
     return pred, mean.cpu(), dict(seconds=seconds, peak_bytes=peak, batch_size=len(indices),
-                                 seed_indices=list(indices), num_steps=steps)
+                                 seed_indices=list(indices), num_steps=steps, nfe=calls['count'])
 
 
 def main():
@@ -150,7 +155,7 @@ def main():
                weights_sha256=protocol['weights_sha256'], tf32=args.tf32, K=KS,
                random_source='1000-row IID Gaussian pool, selected row retained at every step',
                random_seed_formula='20260912 + physical_offset; each draw is a distinct canonical row',
-               timing='CUDA-synchronized wall time; initial/bridge draws, 100 sampler steps, physical transform and within-batch average; excludes model/data loading and disk I/O',
+               timing='CUDA-synchronized wall time from first batch preparation through all 100-step predictions, transfers and physical-space mean; excludes checkpoint/input-file loading and output disk I/O; compute_seconds additionally isolates the synchronized sampler/physical-transform core',
                args={k:str(v) if isinstance(v,Path) else v for k,v in vars(args).items()})
     write(args.output/f'environment_{args.mode}_{args.shard_index}.json',env)
     if args.mode == 'pilot':
@@ -195,7 +200,7 @@ def main():
         saved=torch.load(Path(result['run_dir'])/'result.pt',map_location='cpu',weights_only=False)
         reference=torch.cat([saved['coef_final'],saved['sol_final']],1)[0]
         difference=float(torch.linalg.vector_norm(base-reference)/torch.linalg.vector_norm(reference))
-        assert difference < (5e-4 if args.fused_guidance else 1e-7),difference
+        assert difference < (5e-4 if (args.tf32 or args.fused_guidance) else 1e-7),difference
         write(args.output/'pilot_complete.json',dict(pilot=pilot,stock_relative_difference=difference,selected_batch_size=chosen,
               estimated_full_seconds=96*1000/chosen*pilot[-1]['seconds']*1.15))
         return
@@ -221,11 +226,16 @@ def main():
                     assert digest(dest)==old['result_sha256']
                     continue
                 predictions=[]; batches=[]
+                torch.cuda.synchronize()
+                total_start=time.perf_counter()
                 for start in range(0,k,args.batch_size):
                     pred,_,receipt=fast_sample(cfg,truths[offset],bundle,range(start,min(k,start+args.batch_size)))
                     predictions.append(pred); batches.append(receipt)
+                    print('BATCH',task,offset,k,start,start+len(pred),f"{receipt['seconds']:.3f}s",flush=True)
                 pred=torch.cat(predictions)
                 average=pred.double().mean(0).float()
+                torch.cuda.synchronize()
+                total_seconds=time.perf_counter()-total_start
                 truth=torch.cat([truths[offset].coef,truths[offset].sol],1)[0]
                 errors={f:float(torch.linalg.vector_norm((average[j]-truth[j]).double())/torch.linalg.vector_norm(truth[j].double()))
                         for j,f in enumerate(['a','u'])}
@@ -233,7 +243,7 @@ def main():
                              mask_seed=cfg.mask_seed,sample_seed=cfg.sample_seed,config=cfg.asdict())
                 torch.save(payload,dest)
                 row=dict(task=task,offset=offset,K=k,errors=errors,
-                         seconds=sum(x['seconds'] for x in batches),
+                         seconds=total_seconds,compute_seconds=sum(x['seconds'] for x in batches),
                          peak_bytes=max(x['peak_bytes'] for x in batches),batches=batches,
                          num_steps=100,nfe_per_draw=100,result_sha256=digest(dest),script_sha256=digest(__file__))
                 write(receipt_path,row)
