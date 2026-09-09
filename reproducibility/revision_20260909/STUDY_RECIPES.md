@@ -37,6 +37,38 @@ The exact numerical source boundary is:
 
 `plot/run_revision_sampling.py` with its check/audit/summarize/export companions is the separate fixed-input sampling-confirmation study. Its small-sample results must not be substituted for a 1,000-example main table.
 
+## Exact historical baseline inputs and checkpoint inference
+
+The selected historical matrix contains 156 main cells plus 30 Burgers cells. `baseline_freeze_plan.json` maps them to original evaluation summaries/configurations and eighteen native raw caches. The baseline addenda preserve 54 selected neural checkpoints (48 main and six Burgers), with fifteen main files referenced from already identical archived copies. They do not copy the unrelated multi-terabyte results parent or the full training MAT collections.
+
+`BASELINE_FROZEN_REPLAY.md` gives the complete command for `replay_baseline_frozen.py`, including the original summary/configuration hashes, selected cache manifest, historical evaluation commit and saved-artifact references. Resolve those fields from the addendum's `archive_dependency_bindings.json` and the exact cache run bindings. The target cache directory is `outputs/main/revision_20260909/legacy_baseline_extracts/dependencies/frozen_inputs`; first require its independent copy/verify receipt. Preserve its manifest SHA `feb694a06731452bdae3b10f5bc6812107f7ff481c82b200d22c8e9c8f20f3ba`.
+
+The default wrapper operation audits all 1,000 sample/mask identities while checking selected saved artifacts; `--predict --checkpoint` separately enables native checkpoint inference within original test-batch boundaries. Use a checkout of the original evaluation commit, rather than the cache loader's current default version. The original training `eval_only` CLI is unsuitable for cache-only inference because it first loads training/validation data. FNO/DeepONet need their recorded native dependencies, absent from the server197 FM environment. Six Burgers VIVID cells did not save their trained inverse operator and cannot rerun the original learned model from test caches. Six 4D-Var cells use per-instance optimization without a trained checkpoint. Neither case justifies substituting another method's weights.
+
+## Old Diffusion saved results and native input view
+
+These historical 26 cells contain 26,000 original predictions (13 tasks at 100 and 1,000 steps), distinct from the newer Burgers and NS comparisons. After verification of the old-result and native-input archive receipts, the following reproduces their full saved-result statistics on CPU from the exact frozen NPZ truth and original masks. It reads neither the large original MAT files nor model weights:
+
+```bash
+FM_ARCHIVE_REPO=/research_data/users/zhangxifeng/C01Python/FM4PDE
+OLD_DM="$FM_ARCHIVE_REPO/outputs/main/revision_20260909/diffusion_original_main"
+DIFF_NATIVE_INPUTS="$OLD_DM/native_frozen_inputs/frozen_inputs_v3"
+DIFF_OLD_RESULTS="$OLD_DM/server216/outputs"
+
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 \
+  python reproducibility/revision_20260909/audit_diffusion_native_inputs.py \
+  --frozen-inputs "$DIFF_NATIVE_INPUTS" \
+  --manifest-sha256 818bdbfc3c7e4888110f92eda0fd1a2d9bf5e5fbe98874c749ee80f3eff04f15 \
+  --result-root "$DIFF_OLD_RESULTS" \
+  --output "$REPLAY/diffusion_native_checks"
+```
+
+The complete source-side numerical check has already passed. It compared 19,000 available metric JSON files and 7,000 stored final-loss references (2,000 scalar Burgers losses and 5,000 paired-field loss dictionaries), with maximum absolute field-error difference 2.6646e-14. Every prediction and available metric file then matched the independently verified destination archive SHA. The immutable reference summaries live under `$OLD_DM/native_frozen_inputs/full_saved_prediction_audit`; the source-side full check and subsequent destination hash association are separate evidence, not a claim that the whole numerical audit already reran at the destination.
+
+For **new native inference**, use `materialize_diffusion_inputs.py` and the full commands in `DIFFUSION_INPUT_REPLAY.md`. This constructs compact MAT v5/HDF5 files from the verified NPZs and emits 26 native `generate_pde.py` commands; it does not start sampling. The exact keys, dtypes and axes are preserved, including Darcy `H,W,N` and NS's singleton final frame. The generated files have their own hashes and are not the original MATs. Only the data, weight and new output paths change; original numerical settings remain fixed. Use the emitted CLI so the recovery direction, unobserved-field guidance and offsets are applied correctly. Check device-dependent observation masks against archived masks before treating a new trajectory as the same-observation experiment.
+
+Four old native files equal the corresponding baseline Smooth source MATs by whole-file SHA. The old unsuffixed Burgers MAT instead equals the baseline ID source and must not replace the revised Burgers comparison. The original Diffusion run records do not retain their producer Git HEAD. The captured `151e721` implementation and earlier `d494d733`/`2eb3c94` trees supply source history, not a recovered original run identity. `REPRODUCTION_COVERAGE.md/json` separates this limitation from the complete input/output correspondence checks.
+
 ## 744 revised ablations and the unchanged original controls
 
 The original study has 1,060 configurations. Eight PDEs contribute 744 revised runs; 316 original records remain unchanged. Most factor sweeps use ID input 0. The six temporal studies and Poisson endpoint-correction controls retain their original scope. The old NS checkpoint is used here.

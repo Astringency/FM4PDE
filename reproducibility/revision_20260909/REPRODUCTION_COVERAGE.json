@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Published main comparisons and retained revision ablations; distinguishes saved-result recomputation, inference, and training.",
-  "status": "frozen_data_verified_native_interface_smoke_and_archive_addenda_pending",
+  "status": "all_input_freezes_and_diffusion_full_result_audit_pass_baseline_consumer_and_archive_addenda_tracked_separately",
   "result_archive_status_source": "/home/tat512/C01Python/audit/revision_archive_execution_20260909/execution_status.json",
   "levels": {
     "saved_results": "Recompute tables/statistics from archived predictions or saved per-example metrics; these are distinct evidence levels.",
@@ -53,10 +53,10 @@
     },
     {
       "study": "old Diffusion main",
-      "results": "26 saved prediction/observation-index cells (13 tasks at100/1000 steps), each exactly1000 IDs0..999, with per-example metric JSON and frozen configs.",
-      "inference": "Five pretrained-model files are planned for archive; exact historical MAT input arrays still need a separate native-precision freeze.",
-      "verified": "verification_runs/reproduction_coverage/old_diffusion_input_selection.json",
-      "limitation": "Saved pickle records omit truth; float32 baseline caches cannot replace native float64 truth for this study. Exact five-MAT subset provenance has been reported to root."
+      "results": "All26000 saved predictions in26 cells were recomputed from native-precision frozen truth and original saved masks. Field errors match19000 metric JSON references and7000 original final-loss records.",
+      "inference": "Five original pretrained-model files are archived. Five exact native-field NPZ caches retain source MAT/array hashes and original IDs 0..999. The completed materializer generates five native MAT/HDF5 subsets and 26 CLI configurations, preserves all array dtypes/axes and numerical settings, and passes 15 original-loader checks without model inference.",
+      "verified": "verification_runs/reproduction_coverage/diffusion_full_validation.json; diffusion_full_cell_summary.csv; diffusion_native_frozen_manifest.json",
+      "limitation": "Original producer HEAD was not recorded. Current151e721 and historical d494d733/2eb3c94 source trees are retained as known source history, not falsely identified as the original run HEAD. Original Burger native source is byte-identical to baseline ID; revised published Burger comparisons use separate new inputs."
     },
     {
       "study": "remaining retained spectra, sampling and NS diagnostics",
@@ -92,5 +92,51 @@
     "all_save_reload_checks_exact": true,
     "original_ids_exact": true,
     "selected_cells": 186
+  },
+  "diffusion_full_verification": {
+    "status": "pass",
+    "cells": 26,
+    "examples": 26000,
+    "native_cache_bytes": 1049683094,
+    "metric_json_examples": 19000,
+    "final_loss_examples": 7000,
+    "max_relative_l2_absolute_difference": 2.6645352591003757e-14,
+    "max_observation_relative_l2_absolute_difference": 1.7763568394002505e-15,
+    "relative_tolerance": 2e-07,
+    "absolute_tolerance": 1e-10,
+    "sample_sd_ddof": 1,
+    "cuda_initialized": false,
+    "elapsed_seconds": 58.87271165847778,
+    "frozen_manifest_sha256": "818bdbfc3c7e4888110f92eda0fd1a2d9bf5e5fbe98874c749ee80f3eff04f15",
+    "full_validation_sha256": "2f5b87038ee657c5a9ca44995e6ed4ea339d7d61da9c5795b07094b8aa999941",
+    "per_example_checks_sha256": "c6225bdce35750fa51f5828577fa3b44804709a428b9078ab4ce2f8bccebb1d0",
+    "archive_hash_join_status": "pass",
+    "archive_hash_join_pickle_files": 26000,
+    "archive_hash_join_metric_json_files": 19000,
+    "archive_hash_join_mask_groups": 50,
+    "archive_hash_join_sha256": "9f8809ac375b9e34f685064fedcc4212953ea142db6fb19d4bbd612156f60562",
+    "fallback_reference_counts": {
+      "scalar_loss_last": 2000,
+      "field_global_loss_last": 5000
+    }
+  },
+  "diffusion_native_materialization": {
+    "status": "pass",
+    "native_files": 5,
+    "generated_configurations": 26,
+    "original_loader_checks": 15,
+    "full_arrays_dtype_and_values_exact": true,
+    "only_three_path_fields_changed": true,
+    "models_executed": 0,
+    "cuda_initialized": false,
+    "original_config_hashes_joined_to_verified_archive": 26,
+    "report_sha256": "63ce23f0b3d9494bc27844a9a90c0d648607d33b1765e9f297a1c249667398c5",
+    "independent_review_sha256": "472b4fa21860ffcfb95d137400080c5ee5937727183f8a914d5ac647d8e69aa5",
+    "source_commit": "151e721b9991404154ad4b430ab85cdaedbaa399",
+    "original_producer_identity_recovered": false,
+    "derived_native_files_archived": false,
+    "recipe": "DIFFUSION_INPUT_REPLAY.md",
+    "unique_checkpoints_joined_to_verified_archive": 5,
+    "checkpoint_archive_receipt_sha256": "2b1940afb8090570e4ef00fb83ec125e3e2caae3a98e726579c69b0157e88f83"
   }
 }

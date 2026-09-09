@@ -1,0 +1,71 @@
+{
+  "archive_script_sha256": "6ea79745e17b0f08324d8bb9570922edc9ad59ca526abea5f6428f5cca1e56b6",
+  "archived_utc": "2026-09-09T08:51:36.713965+00:00",
+  "content_bytes": 1307231713,
+  "files": {
+    "pretrained-burgers.pkl": {
+      "bytes": 217860425,
+      "kind": "file",
+      "sha256": "a24eddebaff43e477e015e8a0f4869e27bc0aeaae224f24f319c16e3dad50edf"
+    },
+    "pretrained-darcy.pkl": {
+      "bytes": 217874254,
+      "kind": "file",
+      "sha256": "95327e84b9822299a8094f06c079b88835871bdc3cf62956386e9efe68a14f25"
+    },
+    "pretrained-helmholtz.pkl": {
+      "bytes": 217874262,
+      "kind": "file",
+      "sha256": "d2664cb5e791b35d6b37d4e2d2000d4b20f23be790c6374f4a3756b4325dedb6"
+    },
+    "pretrained-ns-bounded.pkl": {
+      "bytes": 217874265,
+      "kind": "file",
+      "sha256": "0dc8437ac0e82d390cb4063dc01fa6f67386cd4ede42db4f2d3436b4f84661d7"
+    },
+    "pretrained-ns-nonbounded.pkl": {
+      "bytes": 217874251,
+      "kind": "file",
+      "sha256": "7e98f7e6b5d8a019073a7275cb66cec47e3886456d9b16f60bcbb8496de4b4e0"
+    },
+    "pretrained-poisson.pkl": {
+      "bytes": 217874256,
+      "kind": "file",
+      "sha256": "bbba358b94487e193e71304d9bf83c597d2de0be5a07ac916524056d04f47759"
+    }
+  },
+  "source": {
+    "completion_review": {
+      "baseline_counts_archive.json.gz": {
+        "path": "/home/tat512/C04Papers/fm4pde_jmlr/source_data/baseline_counts_archive.json.gz",
+        "reason": "Published legacy comparison metric identities and effective counts; exact selected raw metric files are SHA-bound.",
+        "sha256": "fa19db2fb1d2e680c1aaa250ddf755711abf5c27854b59f2e09d0e07858481c3",
+        "status": "recorded_published_provenance"
+      }
+    },
+    "destination_relative": "main/revision_20260909/diffusion_original_main/selected_models",
+    "evidence_sha256": {},
+    "id": "old_diffusion_weights",
+    "observed": {
+      "exists": true,
+      "files": 6,
+      "id": "old_diffusion_weights",
+      "logical_bytes": 1307231713,
+      "metadata_sha256": {},
+      "missing": [],
+      "recorded_commits": [],
+      "recorded_script_hashes": [],
+      "resolved_source": "/data0/zhangxf/Models/pretrained-models",
+      "source_kind": "directory",
+      "symlinks": []
+    },
+    "purpose": "Native pretrained models required by the original five-PDE comparison.",
+    "role": "dependency",
+    "source_host": "server216",
+    "source_kind": "directory",
+    "source_path": "/data0/zhangxf/Models/pretrained-models",
+    "status": "ready"
+  },
+  "source_preserved": true,
+  "version": 1
+}
