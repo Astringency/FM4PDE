@@ -8,6 +8,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -19,6 +20,29 @@ def sha256(path):
         for block in iter(lambda: stream.read(8 << 20), b''):
             h.update(block)
     return h.hexdigest()
+
+
+def verify_checkout(path):
+    """Compare actual file bytes with Git blobs, without EOL clean filters.
+
+    Historical VIVID blobs contain CRLF although their tracked attributes
+    request LF. Filtered git-diff reports those unmodified checkouts as dirty.
+    Raw blob identity checks the source that Python actually reads.
+    """
+    tree = subprocess.check_output(['git', '-C', str(path), 'ls-tree', '-r', '-z', 'HEAD'])
+    count = 0
+    for row in tree.split(b'\0'):
+        if not row:
+            continue
+        info, name = row.split(b'\t', 1)
+        mode, kind, expected = info.split()
+        assert kind == b'blob', 'Nested repositories need an explicit source dependency gate'
+        file = path / os.fsdecode(name)
+        content = os.fsencode(os.readlink(file)) if mode == b'120000' else file.read_bytes()
+        digest = hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
+        assert digest == expected.decode(), 'Tracked source bytes differ: '+str(file)
+        count += 1
+    return count
 
 
 def tensors(value, prefix=''):
@@ -116,7 +140,7 @@ def main(cli):
     revision = subprocess.check_output(['git', '-C', str(cli.baseline_code),
                                         'rev-parse', 'HEAD'], text=True).strip()
     assert revision == summary['commit_hash'], 'Use the original evaluation commit'
-    subprocess.run(['git', '-C', str(cli.baseline_code), 'diff', '--quiet', 'HEAD', '--'], check=True)
+    source_files = verify_checkout(cli.baseline_code)
     sys.path.insert(0, str(cli.baseline_code.resolve()))
     from baselines import run as native
     from baselines.common.data_adapter import PDEBatchDataset, build_default_registry, pde_collate
@@ -166,7 +190,8 @@ def main(cli):
         assert sha256(cli.observation_bundle) == cli.observation_bundle_sha256
         observation_bundle = torch.load(cli.observation_bundle, map_location='cpu', weights_only=False)
         assert torch.equal(torch.as_tensor(observation_bundle['sample_ids']), torch.arange(1000))
-    report = dict(status='running', original_commit=revision, original_summary=summary,
+    report = dict(status='running', original_commit=revision, original_source_files_verified=source_files,
+        source_check='Exact working-file bytes versus original Git blobs; no EOL clean filters', original_summary=summary,
         original_summary_sha256=cli.summary_sha256, original_config_sha256=cli.config_sha256,
         cache_file_sha256=entry['cache_sha256'], original_mat_provenance=payload['provenance'],
         cache_manifest_sha256=sha256(cli.cache_manifest), arrays=entry['tensors'],
