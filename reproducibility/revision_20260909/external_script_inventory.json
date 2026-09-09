@@ -1,0 +1,2402 @@
+{
+  "schema_version": 1,
+  "scope": "Local repository-external code and registered specifications for the 2026-09-09 paper revision.",
+  "originals_preserved": true,
+  "no_gpu_or_remote_actions": true,
+  "source_data_executable_scripts_found": 0,
+  "copied": [
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/qa_ablation_delivery.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/qa_ablation_delivery.py",
+      "source_sha256": "b9a8069d1a602a619b5fbe7492a938ad9255dc3d5256cf9285ee72d7db9417ae",
+      "copy_sha256": "b9a8069d1a602a619b5fbe7492a938ad9255dc3d5256cf9285ee72d7db9417ae",
+      "bytes": 5942,
+      "purpose": "Verify 1060 selected ablation records, independently recompute 744 revised raw field errors, check 85 figures and copy only validated figure outputs.",
+      "required_inputs": [
+        "paper_revision_20260908/ablation_publication_snapshot/{records,manifest}.json",
+        "archived_ablation_summary.csv",
+        "all referenced original and revised result.pt/curves.csv/receipts",
+        "paper/audit/revision_0909 ablation section and four figure directories"
+      ],
+      "outputs": [
+        "paper/audit/revision_0909/ablation_delivery_qa.json",
+        "paper/figures: 85 PDF and 85 PNG copied after checks"
+      ],
+      "dependencies": [
+        "NumPy",
+        "PyTorch (CPU)",
+        "Pillow",
+        "Poppler pdftotext",
+        "paper workspace; historical absolute paths"
+      ],
+      "imports": [
+        "PIL",
+        "collections",
+        "concurrent.futures",
+        "csv",
+        "hashlib",
+        "json",
+        "numpy",
+        "pathlib",
+        "re",
+        "shutil",
+        "subprocess",
+        "torch",
+        "xml.etree.ElementTree"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/rank_frequency_table.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/rank_frequency_table.py",
+      "source_sha256": "07e5f301520e32d2ec295f0fec5af5e95f46cc81046dff55e2893546d67513de",
+      "copy_sha256": "07e5f301520e32d2ec295f0fec5af5e95f46cc81046dff55e2893546d67513de",
+      "bytes": 2172,
+      "purpose": "Rank matched Poisson/Darcy frequency-band diagnostics from unrounded means, including distance-to-one energy-ratio ranking.",
+      "required_inputs": [
+        "paper/source_data/frequency_band_summary.csv"
+      ],
+      "outputs": [
+        "paper/audit/revision_0909/frequency_table_ranked.tex"
+      ],
+      "dependencies": [
+        "Python standard library",
+        "paper workspace; historical absolute base path"
+      ],
+      "imports": [
+        "csv",
+        "pathlib"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/ns_table_update.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/ns_table_update.py",
+      "source_sha256": "c9d84e51dace45f51a1481fb303e582a0d09ed2ade99bb72a0b94ab7dc52521a",
+      "copy_sha256": "c9d84e51dace45f51a1481fb303e582a0d09ed2ade99bb72a0b94ab7dc52521a",
+      "bytes": 18220,
+      "purpose": "Gate and export the eight NS main-comparison tables, recompute all affected row ranks, macros and wins from raw unrounded statistics.",
+      "required_inputs": [
+        "paper/source_data/main_figure_values.csv",
+        "paper/audit/table_value_provenance.csv",
+        "paper/source_data/diffusion_comparison_summary.csv and manifest",
+        "paper main TeX/preamble",
+        "NS collection_complete.json, validation, 15000 per-sample rows and 15-cell summary",
+        "prepared_sources.json before replacing original NS cells"
+      ],
+      "outputs": [
+        "paper/audit/revision_0909/ns_table_updates: frozen baseline, eight candidate table fragments, three candidate source CSVs, macro/win statistics and compiled preview"
+      ],
+      "dependencies": [
+        "Python standard library",
+        "pdflatex and paper TeX dependencies"
+      ],
+      "imports": [
+        "__future__",
+        "argparse",
+        "copy",
+        "csv",
+        "hashlib",
+        "json",
+        "math",
+        "pathlib",
+        "re",
+        "statistics",
+        "subprocess"
+      ],
+      "replay_mode": "cli: supply --paper, --study and --output explicitly; refresh snapshot if the active source changes",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/check_ns_timing_statistics.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/check_ns_timing_statistics.py",
+      "source_sha256": "e6f42022c5736094db7a3d214ea8b861e9a72d0db766bb673c070626ac01178b",
+      "copy_sha256": "e6f42022c5736094db7a3d214ea8b861e9a72d0db766bb673c070626ac01178b",
+      "bytes": 3949,
+      "purpose": "Independently recompute the 80 completed NS timing receipts and combined five-PDE speed-ratio ranges.",
+      "required_inputs": [
+        "NS timing_results/nsnonbounded: complete.json and 80 receipts",
+        "NS tables/ns_timing_summary.csv",
+        "paper/source_data/diffusion_fm_timing_summary.csv"
+      ],
+      "outputs": [
+        "paper/audit/revision_0909/ns_timing_review/independent_statistics.json"
+      ],
+      "dependencies": [
+        "Python standard library",
+        "paper and NS study paths"
+      ],
+      "imports": [
+        "collections",
+        "csv",
+        "hashlib",
+        "json",
+        "math",
+        "pathlib",
+        "statistics"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/prepare_ns_effective_settings.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/prepare_ns_effective_settings.py",
+      "source_sha256": "cbabe3344eb812039feecc30d85db2c58a519713da1e5241fc83453fe058153b",
+      "copy_sha256": "cbabe3344eb812039feecc30d85db2c58a519713da1e5241fc83453fe058153b",
+      "bytes": 4081,
+      "purpose": "Extract actual effective NS configurations from one validated 16-example batch per cell; settings evidence only, not the complete accuracy gate.",
+      "required_inputs": [
+        "NS selection.json",
+        "NS main_results/{id,smooth,rough}/{five settings}/offset2700.{pt,json}"
+      ],
+      "outputs": [
+        "paper/audit/revision_0909/ns_effective_settings/{effective_settings.json,main_hyperparameter_rows.tex}"
+      ],
+      "dependencies": [
+        "PyTorch (CPU)",
+        "paper and NS study paths"
+      ],
+      "imports": [
+        "collections",
+        "hashlib",
+        "json",
+        "pathlib",
+        "torch"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/inspect_data_metadata.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/inspect_data_metadata.py",
+      "source_sha256": "42ee59bf50db13f7774498cf660cf9fa18c43a058170ea81af65f6c32e7d1f03",
+      "copy_sha256": "42ee59bf50db13f7774498cf660cf9fa18c43a058170ea81af65f6c32e7d1f03",
+      "bytes": 2914,
+      "purpose": "Read selected HDF5/MAT dataset headers and parameter metadata without loading full field arrays.",
+      "required_inputs": [
+        "/large_storage/zhangxf/PDEdata: named PDE data files"
+      ],
+      "outputs": [
+        "JSON lines on stdout"
+      ],
+      "dependencies": [
+        "NumPy",
+        "h5py",
+        "SciPy",
+        "original dataset hierarchy"
+      ],
+      "imports": [
+        "h5py",
+        "json",
+        "numpy",
+        "pathlib",
+        "scipy.io"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/redraw_ns_viscous_amplification.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_audit/revision_0909/redraw_ns_viscous_amplification.py",
+      "source_sha256": "cbf87b35f681690b4e8919e98c4ef567581c788658706f966a11bbb84575c0d5",
+      "copy_sha256": "cbf87b35f681690b4e8919e98c4ef567581c788658706f966a11bbb84575c0d5",
+      "bytes": 5853,
+      "purpose": "CPU-only linear viscous illustration and final-width QA; prove unchanged analytic expressions and archived anchor points.",
+      "required_inputs": [
+        "FM4PDE/plot/export_ns_true_trajectory.py and git HEAD",
+        "paper/source_data/ns_temporal_diagnostic_report.json"
+      ],
+      "outputs": [
+        "paper/audit/revision_0909/ns_viscous_figure: PDF/PNG, preview and qa.json"
+      ],
+      "dependencies": [
+        "NumPy",
+        "Matplotlib",
+        "Times New Roman fonts",
+        "git",
+        "pdflatex",
+        "Poppler",
+        "FM4PDE plot modules"
+      ],
+      "imports": [
+        "ast",
+        "export_ns_true_trajectory",
+        "hashlib",
+        "json",
+        "numpy",
+        "pathlib",
+        "shutil",
+        "subprocess",
+        "sys",
+        "xml.etree.ElementTree"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/verify_overlap.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/verify_overlap.py",
+      "source_sha256": "5b0c3c6e495e0c0cd4758661948eeb2c5ead47bafc026d61d5d046739cf789f9",
+      "copy_sha256": "5b0c3c6e495e0c0cd4758661948eeb2c5ead47bafc026d61d5d046739cf789f9",
+      "bytes": 1837,
+      "purpose": "Compare 36 duplicate inverse 100-step predictions across the original checkpoint study and step probe, retaining both studies.",
+      "required_inputs": [
+        "results_v2/evaluation/inverse and step_probe/evaluation/inverse: four declared inputs, three seeds, three model variants"
+      ],
+      "outputs": [
+        "overlap_100_step.csv",
+        "overlap_100_step_qa.json"
+      ],
+      "dependencies": [
+        "PyTorch (CPU)",
+        "Python standard library"
+      ],
+      "imports": [
+        "csv",
+        "hashlib",
+        "json",
+        "pathlib",
+        "torch"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/finalize_reports.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/finalize_reports.py",
+      "source_sha256": "dbba8f081d35e3bd876f0b06c4df1c60496fb36fca6ab086f3bda767a85410a1",
+      "copy_sha256": "dbba8f081d35e3bd876f0b06c4df1c60496fb36fca6ab086f3bda767a85410a1",
+      "bytes": 8373,
+      "purpose": "Finalize the historical 32-input/three-seed checkpoint study and 4-input step-probe report; narrative includes frozen historical values and is not a new-main-results exporter.",
+      "required_inputs": [
+        "report_v2 and step_probe_report complete manifests/summary.csv",
+        "report_v2 six PDF files",
+        "overlap_100_step_qa.json"
+      ],
+      "outputs": [
+        "RESULTS.md",
+        "final_status.json"
+      ],
+      "dependencies": [
+        "Python standard library",
+        "Poppler pdffonts"
+      ],
+      "imports": [
+        "csv",
+        "datetime",
+        "hashlib",
+        "json",
+        "pathlib",
+        "subprocess"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/collect_until_complete.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/collect_until_complete.py",
+      "source_sha256": "58e12b4c796c0806d32f6117b786dfd680091b4d3035ba0787a407c984672eb8",
+      "copy_sha256": "58e12b4c796c0806d32f6117b786dfd680091b4d3035ba0787a407c984672eb8",
+      "bytes": 2125,
+      "purpose": "Preserve the original checkpoint-study collection/completion conditions and remote source locations.",
+      "required_inputs": [
+        "historical remote checkpoint comparison results_v2 or step_probe trees"
+      ],
+      "outputs": [
+        "local result tree, progress and completion JSON; invokes repository report entry points when complete"
+      ],
+      "dependencies": [
+        "Python standard library",
+        "ssh",
+        "rsync",
+        "original network access"
+      ],
+      "imports": [
+        "collections",
+        "datetime",
+        "json",
+        "pathlib",
+        "subprocess",
+        "time"
+      ],
+      "replay_mode": "archived orchestration; do not execute without rebasing historical host/path settings",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/collect_step_probe.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/collect_step_probe.py",
+      "source_sha256": "7115d33699396aa96cb119ae06c74f3ef073f03677813957380ddc0beef1a7a9",
+      "copy_sha256": "7115d33699396aa96cb119ae06c74f3ef073f03677813957380ddc0beef1a7a9",
+      "bytes": 1735,
+      "purpose": "Preserve the original checkpoint-study collection/completion conditions and remote source locations.",
+      "required_inputs": [
+        "historical remote checkpoint comparison results_v2 or step_probe trees"
+      ],
+      "outputs": [
+        "local result tree, progress and completion JSON; invokes repository report entry points when complete"
+      ],
+      "dependencies": [
+        "Python standard library",
+        "ssh",
+        "rsync",
+        "original network access"
+      ],
+      "imports": [
+        "datetime",
+        "json",
+        "pathlib",
+        "subprocess",
+        "time"
+      ],
+      "replay_mode": "archived orchestration; do not execute without rebasing historical host/path settings",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch.sh",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/launch.sh",
+      "source_sha256": "4c1cedcb91c6f4180d80e79f583548134eba94da1daea8280415ed35feeb06ad",
+      "copy_sha256": "4c1cedcb91c6f4180d80e79f583548134eba94da1daea8280415ed35feeb06ad",
+      "bytes": 1218,
+      "purpose": "Preserve the exact original study/probe launch commands, frozen checkout names, shard placement, and checkpoint-map argument.",
+      "required_inputs": [
+        "historical checkout and frozen NS inputs",
+        "weights_map.json on the designated host",
+        "historical CUDA/Python environment"
+      ],
+      "outputs": [
+        "historical results or results_v2 or step_probe tree and worker logs"
+      ],
+      "dependencies": [
+        "bash",
+        "tmux",
+        "CUDA",
+        "PyTorch",
+        "repo run_ns_checkpoint_comparison.py or run_ns_checkpoint_step_probe.py"
+      ],
+      "imports": [],
+      "replay_mode": "archived launch record only; paths/GPU assignments are historical, not a current launch recommendation",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch_v2_197.sh",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/launch_v2_197.sh",
+      "source_sha256": "71c688fe9034e23341c45e9be37e7e81ddb2b8f312ccf1b41ebc53a5fa890182",
+      "copy_sha256": "71c688fe9034e23341c45e9be37e7e81ddb2b8f312ccf1b41ebc53a5fa890182",
+      "bytes": 1254,
+      "purpose": "Preserve the exact original study/probe launch commands, frozen checkout names, shard placement, and checkpoint-map argument.",
+      "required_inputs": [
+        "historical checkout and frozen NS inputs",
+        "weights_map.json on the designated host",
+        "historical CUDA/Python environment"
+      ],
+      "outputs": [
+        "historical results or results_v2 or step_probe tree and worker logs"
+      ],
+      "dependencies": [
+        "bash",
+        "tmux",
+        "CUDA",
+        "PyTorch",
+        "repo run_ns_checkpoint_comparison.py or run_ns_checkpoint_step_probe.py"
+      ],
+      "imports": [],
+      "replay_mode": "archived launch record only; paths/GPU assignments are historical, not a current launch recommendation",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch_v2_216.sh",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/launch_v2_216.sh",
+      "source_sha256": "c7659f82318b69b487e4136d3fe79b2a03abf1d81db830003f329a37f63019ff",
+      "copy_sha256": "c7659f82318b69b487e4136d3fe79b2a03abf1d81db830003f329a37f63019ff",
+      "bytes": 1312,
+      "purpose": "Preserve the exact original study/probe launch commands, frozen checkout names, shard placement, and checkpoint-map argument.",
+      "required_inputs": [
+        "historical checkout and frozen NS inputs",
+        "weights_map.json on the designated host",
+        "historical CUDA/Python environment"
+      ],
+      "outputs": [
+        "historical results or results_v2 or step_probe tree and worker logs"
+      ],
+      "dependencies": [
+        "bash",
+        "tmux",
+        "CUDA",
+        "PyTorch",
+        "repo run_ns_checkpoint_comparison.py or run_ns_checkpoint_step_probe.py"
+      ],
+      "imports": [],
+      "replay_mode": "archived launch record only; paths/GPU assignments are historical, not a current launch recommendation",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch_step_probe.sh",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_checkpoint_comparison_20260908/launch_step_probe.sh",
+      "source_sha256": "9d37bb7f158f85d7d7bdc2e86897589105bc5748721742f6b5500ccb913cbfdc",
+      "copy_sha256": "9d37bb7f158f85d7d7bdc2e86897589105bc5748721742f6b5500ccb913cbfdc",
+      "bytes": 1496,
+      "purpose": "Preserve the exact original study/probe launch commands, frozen checkout names, shard placement, and checkpoint-map argument.",
+      "required_inputs": [
+        "historical checkout and frozen NS inputs",
+        "weights_map.json on the designated host",
+        "historical CUDA/Python environment"
+      ],
+      "outputs": [
+        "historical results or results_v2 or step_probe tree and worker logs"
+      ],
+      "dependencies": [
+        "bash",
+        "tmux",
+        "CUDA",
+        "PyTorch",
+        "repo run_ns_checkpoint_comparison.py or run_ns_checkpoint_step_probe.py"
+      ],
+      "imports": [],
+      "replay_mode": "archived launch record only; paths/GPU assignments are historical, not a current launch recommendation",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/check_burgers_parallel.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/paper_revision_20260908/check_burgers_parallel.py",
+      "source_sha256": "1015f2f907c45d479056c94669463ba137f115b1ea127304aaa2778a5064253c",
+      "copy_sha256": "1015f2f907c45d479056c94669463ba137f115b1ea127304aaa2778a5064253c",
+      "bytes": 4870,
+      "purpose": "Verify all 7000 Burgers jobs, preservation of 4448 existing calls, redistribution of 2552 calls, exact native pilots, receipt/tensor hashes, and worker ownership.",
+      "required_inputs": [
+        "burgers_parallel_assignment_2242.json",
+        "burgers_inputs/sampling_protocol_v3.json",
+        "burgers_results_{193,197,216}: result tensors/receipts, pilots, executors and generated workers"
+      ],
+      "outputs": [
+        "burgers_parallel_validation.json"
+      ],
+      "dependencies": [
+        "Python standard library"
+      ],
+      "imports": [
+        "argparse",
+        "datetime",
+        "hashlib",
+        "json",
+        "pathlib"
+      ],
+      "replay_mode": "historical study root via __file__; pass --require-complete for publication coverage",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_complete_qa/verify_complete_reporting.py",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/ns_loss_spectrum_20260907/ns_complete_qa/verify_complete_reporting.py",
+      "source_sha256": "2da1dae05e8febe24143f7a1cbd32a036268479d924b146026c162fff221108b",
+      "copy_sha256": "2da1dae05e8febe24143f7a1cbd32a036268479d924b146026c162fff221108b",
+      "bytes": 6399,
+      "purpose": "Independently reconcile the complete old-NS 1728-call loss study, input-level bootstrap, conditional-mean identity and spectral error decomposition.",
+      "required_inputs": [
+        "inputs_v2/source.json",
+        "ns_complete_audit",
+        "ns_complete_report and ns_complete_report_v2",
+        "ns_guidance_report and ns_guidance_report_v2",
+        "ns_strategy_report complete summaries/manifests"
+      ],
+      "outputs": [
+        "ns_complete_qa/complete_reporting_qa.json"
+      ],
+      "dependencies": [
+        "NumPy",
+        "Python standard library"
+      ],
+      "imports": [
+        "collections",
+        "csv",
+        "hashlib",
+        "json",
+        "numpy",
+        "pathlib"
+      ],
+      "replay_mode": "historical_context_required",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ABLATION_CHART_CONTRACT.md",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/contracts/ABLATION_CHART_CONTRACT.md",
+      "source_sha256": "7d41322c921464556ce7b7c4e5d156a84ff87fdec8e36e0e481b265921e40fc0",
+      "copy_sha256": "7d41322c921464556ce7b7c4e5d156a84ff87fdec8e36e0e481b265921e40fc0",
+      "bytes": 3369,
+      "purpose": "Preserve the registered analysis/figure contract consumed or hashed by the existing ablation/three-seed exporters.",
+      "required_inputs": [
+        "not applicable: registered specification"
+      ],
+      "outputs": [
+        "no computation"
+      ],
+      "dependencies": [
+        "readable Markdown"
+      ],
+      "imports": [],
+      "replay_mode": "immutable protocol document; supply this path to --contract or --plan",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ENSEMBLE_ANALYSIS_PLAN.md",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_ANALYSIS_PLAN.md",
+      "source_sha256": "41b833094d96c3c26e426a113019ce01302a98e86b08a71ab5d4a02b3f7b603d",
+      "copy_sha256": "41b833094d96c3c26e426a113019ce01302a98e86b08a71ab5d4a02b3f7b603d",
+      "bytes": 3015,
+      "purpose": "Preserve the registered analysis/figure contract consumed or hashed by the existing ablation/three-seed exporters.",
+      "required_inputs": [
+        "not applicable: registered specification"
+      ],
+      "outputs": [
+        "no computation"
+      ],
+      "dependencies": [
+        "readable Markdown"
+      ],
+      "imports": [],
+      "replay_mode": "immutable protocol document; supply this path to --contract or --plan",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/ENSEMBLE_CHART_CONTRACT.md",
+      "destination": "reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_CHART_CONTRACT.md",
+      "source_sha256": "6f36ece90c610a4939d86f727e120a94ca537c38f8e817dcaec50335aa7c4111",
+      "copy_sha256": "6f36ece90c610a4939d86f727e120a94ca537c38f8e817dcaec50335aa7c4111",
+      "bytes": 2823,
+      "purpose": "Preserve the registered analysis/figure contract consumed or hashed by the existing ablation/three-seed exporters.",
+      "required_inputs": [
+        "not applicable: registered specification"
+      ],
+      "outputs": [
+        "no computation"
+      ],
+      "dependencies": [
+        "readable Markdown"
+      ],
+      "imports": [],
+      "replay_mode": "immutable protocol document; supply this path to --contract or --plan",
+      "original_preserved": true,
+      "numerical_or_inference_code_changed": false
+    }
+  ],
+  "inspected_external_scripts": [
+    {
+      "source_path": "/home/tat512/C01Python/audit/bak_full_inventory_20260908/compare_diffusion.py",
+      "sha256": "e4ae026fce77eecd6a4c5c10958b5d006bcdabd11a905b774c460be5b818f25c",
+      "bytes": 6350,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_build_findings.py",
+      "sha256": "f8dde2c921b6ec83c0ccbd4e6e968d28382243750e60e84f8960b60e356be559",
+      "bytes": 17191,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_burgers_dynamic.py",
+      "sha256": "ec983c7a5eccf95903ad993d06a5f3b09cd1089f0941b86cf0dac40733489478",
+      "bytes": 8906,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_dynamic.py",
+      "sha256": "98c31ab9b62f6b2e15b0caee51fd1ddd2840d22f90db4582ea8fc7a4696f72a5",
+      "bytes": 7868,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_extra_dynamic.py",
+      "sha256": "6638e738c022d980fa3111f94392cb009a4ab655cc699d14b40e31451653d1e8",
+      "bytes": 8788,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_extremes.py",
+      "sha256": "5e1f5cf384307ca06ff8839699e06742de4b296a583edb93d7271b4aaa358b84",
+      "bytes": 2104,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_fno_dynamic.py",
+      "sha256": "6c3c58ad6ca18de986d5f08cfb7fc98335f03d95e684df9d8bb3884c008d1d53",
+      "bytes": 7892,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_gpu_precision.py",
+      "sha256": "7a362598c4f9eb10a352432eedf6770c0dc1959a7dad78407f794524034a65cc",
+      "bytes": 3536,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_lbfgs_budget.py",
+      "sha256": "3003e858e98c1aae2ded1588ba6b27b489f4ff446b649df099212ef77a4bbec3",
+      "bytes": 1227,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_pdeopt.py",
+      "sha256": "a12e7c8ea7b341fa9865389ee9fc1a936c0706614957b35cd2f19578ba9667cf",
+      "bytes": 5458,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_simple_controls.py",
+      "sha256": "1e34143813cd8213e8e0c1bb412253ff7016ef8f586b3327f842fab55c38b7f4",
+      "bytes": 1723,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/baseline_training_inventory.py",
+      "sha256": "ab84462783dcb086d784819038b438171857e1e25ea542022cbc279a938a125d",
+      "bytes": 2365,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/check_workbooks.py",
+      "sha256": "4303f15e976347fea1e554e5b43c18d1feb0391bf95f035fee49aa8c608cd7aa",
+      "bytes": 3547,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/compare_joint_masks.py",
+      "sha256": "c022829cd3885a51aa05177844e0026493155d99c2ca50ec615c1d5ad23545be",
+      "bytes": 1931,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_burgers_aligned_truth.py",
+      "sha256": "d160fcade53b90bc3d218518f4dba5d6b9fe840e1e18d8f4e708414f425704c1",
+      "bytes": 1820,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_confirm_training_selection.py",
+      "sha256": "c3e98c8e5fbb13b2fd0b33515e3f6df38750927d4afcd74c2ef1224fb5870901",
+      "bytes": 695,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_cross_method_truth.py",
+      "sha256": "d031b208a17430e324d1fee63ceac794e1362d4f4da6ed0824948350419b0844",
+      "bytes": 2831,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_manifest_links.py",
+      "sha256": "83682e0c5fe8b65bbc6a2237af87a0cb6e049bc54b506cc5f82c6e06e5ea7eab",
+      "bytes": 2773,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_poisson_fingerprints.py",
+      "sha256": "041add53855c09fbb6d3d32ac5d1f1ef51714cc7e2fe17a8ab7f3ea395eaa7c4",
+      "bytes": 4047,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_protocol_archives.py",
+      "sha256": "f07dc02bc4468c2e13313031567a8e6145c18b51dc758ce666b5fd3fd81b9308",
+      "bytes": 1727,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_raw_anchor.py",
+      "sha256": "2861b6e56c2608980c548f246b1d0856a54e7f8ab9d4c26e9405f60759b513b4",
+      "bytes": 1248,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_roundtrip_pairing.py",
+      "sha256": "65150ce1054f48ab267cf3e3169da378d4503c710f78d4c39c16c4256e2d7a5e",
+      "bytes": 4473,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/data_shapes.py",
+      "sha256": "015deb5b97bb510e5ab4d8b9e50d4da240321ef566ec81bf75e060da5c656cc0",
+      "bytes": 1212,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/finalize_audit.py",
+      "sha256": "14b27236e254a1ef906004a54997baef59b41d8f13475735d74ae4bc955ca1b6",
+      "bytes": 17667,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_batch_gradient.py",
+      "sha256": "efa045a3a27058f2ee5919765a4d7b36024d4a68fcff1796c1a8a3bab413d942",
+      "bytes": 1651,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_burgers_protocol.py",
+      "sha256": "3812ba2c9b5597dd44eb47f471a8e198cf28eaeb8df2d1f79e4dd09633956074",
+      "bytes": 2093,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_compile_findings.py",
+      "sha256": "504569c1bffbd524406cdb6530d9efb04635df55904b7c04f2f17e748cba1fef",
+      "bytes": 15640,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_hash_provenance.py",
+      "sha256": "a8c3abc33c8f778515a6257e7ce367fc139c14d65f28621035111be94650216f",
+      "bytes": 1262,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_inventory.py",
+      "sha256": "8c152a1e20adae62a2652f54fcb026282d5a602633f24a7117560a60e11aeef5",
+      "bytes": 2742,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_local_math.py",
+      "sha256": "c56a1b21859f2278d347d2f91567a39c1f214f17714df5052f273e373ea037b9",
+      "bytes": 4229,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_main_inventory_fast.py",
+      "sha256": "b79f02c46dbbd85f69cee069cec4775c265f4eabb07ec6909f0e0e63a340f81b",
+      "bytes": 2723,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_real_controls.py",
+      "sha256": "94e23e8c33485cf28582f3e041bceddd89ede6e39b83697bae6a20c650b46de2",
+      "bytes": 10469,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_replay_discrepancy.py",
+      "sha256": "ccd62c7317e73c97259665dd1ec8898fd70e5ce1ed0c744410fcc302fe5ef833",
+      "bytes": 1259,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/fm_training_state.py",
+      "sha256": "050e323f587d3cb5d40da1ad2543930559d7f2128ceb17a8bb692517a278ea4e",
+      "bytes": 1529,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/independent_metrics.py",
+      "sha256": "49b7cc4adbbb68e0a57f6cbfafb011109a2c7f8165741bde1d0180f4a2477d6e",
+      "bytes": 2738,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/recompute_results.py",
+      "sha256": "bfb27370d7fe5335131c422ae0d514f2dce0cedd8e3e9e8c4ea8d5ef0a1291dc",
+      "bytes": 20700,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/test_independent_metrics.py",
+      "sha256": "8020a10a32174996cd5bdf0b481f9c8f0daa733dfac43f9bdd17e3fe38db29f5",
+      "bytes": 1955,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks/validate_audit_artifacts.py",
+      "sha256": "3b8dd218b6c8448ba554d7f6f399b94e287dba1c03eeef8399e1a7375e8f04ef",
+      "bytes": 3886,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_074843/checks/independent_metrics.py",
+      "sha256": "49b7cc4adbbb68e0a57f6cbfafb011109a2c7f8165741bde1d0180f4a2477d6e",
+      "bytes": 2738,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_074843/checks/prepare_zeta_trial.py",
+      "sha256": "b37e37a97ada1713fd9702bebd0ff437d73552d9652717ec44915576bf0e0dd9",
+      "bytes": 4833,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_074843/checks/run_full_zeta_trial.py",
+      "sha256": "f87cd28fa6d80c1e92ff919d69f0984aa27166ec584175c1b4d8d01c01436f80",
+      "bytes": 13261,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_090109/checks/compile_diagnostics.py",
+      "sha256": "4279ac97a09d87b58d83afe76876e2e2ea2135450b62c37c423c63e0b4b976aa",
+      "bytes": 6911,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_090109/checks/independent_metrics.py",
+      "sha256": "49b7cc4adbbb68e0a57f6cbfafb011109a2c7f8165741bde1d0180f4a2477d6e",
+      "bytes": 2738,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_090109/checks/run_diagnostics.py",
+      "sha256": "0fa1135a344290f088818c4f1faffbef77e1cb9a4f1e5487ea942329bad1a813",
+      "bytes": 17134,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_090109/checks/stage_inputs.py",
+      "sha256": "092017ad421bd3fb764b3179a7fdb81d7e1891889eefe4e1890f8582eb58c922",
+      "bytes": 1816,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_090109/checks/validate_observations.py",
+      "sha256": "68255de8fd2f265014eb1dd93b9da263ee4e845218f5ffae8a64e95d9fe10c2b",
+      "bytes": 1622,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_115740/checks/compile_sweep.py",
+      "sha256": "4b6fcad7b1764e46cfe04100f3c2210849fa353fcd775dfc2d213d6c9ccf7679",
+      "bytes": 8888,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_115740/checks/independent_metrics.py",
+      "sha256": "49b7cc4adbbb68e0a57f6cbfafb011109a2c7f8165741bde1d0180f4a2477d6e",
+      "bytes": 2738,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_115740/checks/plot_sweep.py",
+      "sha256": "e9b6110771d51f70c99e9851d0c70ba2429d88918ffb09956b16f32c2bf9e1e9",
+      "bytes": 1831,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_115740/checks/run_diagnostics.py",
+      "sha256": "36e9f63499607d0cfa7454ee7dc9165c6dc8d39f256c7cced555b684e3b33a4c",
+      "bytes": 18743,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_115740/checks/run_sweep.py",
+      "sha256": "c75a5d9ff1b5df5c4e1b8f4e7d19a3260f529d09003684e51ecf8b2831570591",
+      "bytes": 2097,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_123016/checks/analyze_final_error.py",
+      "sha256": "421212be73e55d019eac03a6c52c8324adbfb4bbfe887220e9aef443035f9d6c",
+      "bytes": 2314,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_123016/checks/capture_environment.py",
+      "sha256": "3fb657b90f2669981c9641d70955c507cbc0be66b1941011d67ab2d50da758c6",
+      "bytes": 1582,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_123016/checks/probe_joint_cpu.py",
+      "sha256": "72760ead290c2b56cc94908e98c6340ed7c905e7254a568491f072d24619c531",
+      "bytes": 8926,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_123016/checks/verify_joint.py",
+      "sha256": "f97f14f013362add0f5886f0482271f6ba4d68af706a06c2a3cc6a3070728a3d",
+      "bytes": 7959,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_123016/checks/verify_joint_initial_exact_coordinate_check.py",
+      "sha256": "bfacc6a12c3bc96a3d0e22a93d6bb5202cc9f64e08a729e8504595ba94cadb07",
+      "bytes": 7648,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_123016/checks/write_report.py",
+      "sha256": "c84d1d0d27e835f160c7710c45969291bfe6488f440a4c54fbb54e0bf4ee39ef",
+      "bytes": 18448,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_125725/checks/capture_environment.py",
+      "sha256": "3fb657b90f2669981c9641d70955c507cbc0be66b1941011d67ab2d50da758c6",
+      "bytes": 1582,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_125725/checks/independent_metrics.py",
+      "sha256": "49b7cc4adbbb68e0a57f6cbfafb011109a2c7f8165741bde1d0180f4a2477d6e",
+      "bytes": 2738,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_125725/checks/run_mask_comparison.py",
+      "sha256": "95f88e6d1120ce903c23bb269d46328d7dc5999f3749cb45dfe30a9c539fa075",
+      "bytes": 13799,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_125725/checks/summarize_results.py",
+      "sha256": "19bb899fbdaee64b653dcaff35d53ff79acc2a9c246d0dfdadc8a2b24ad5539e",
+      "bytes": 14189,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_125725/checks/test_independent_metrics.py",
+      "sha256": "8020a10a32174996cd5bdf0b481f9c8f0daa733dfac43f9bdd17e3fe38db29f5",
+      "bytes": 1955,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_134242/checks/capture_environment.py",
+      "sha256": "3fb657b90f2669981c9641d70955c507cbc0be66b1941011d67ab2d50da758c6",
+      "bytes": 1582,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_134242/checks/pdeopt_direction.py",
+      "sha256": "21d104197f1ed52efce1564e0b4103393d9c6f4a87dce15f538f955b81b9fe06",
+      "bytes": 11986,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_134242/checks/verify_adam_formula.py",
+      "sha256": "51c64a289cefb2271d7c1aa6dff4f3c13d9c339611078a953b3bc39d807bedb6",
+      "bytes": 4440,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_134242/checks/verify_adam_formula_initial.py",
+      "sha256": "3a1c6b30903073faa241b6ec49afac6e470758a9f4f33df7292d3591b441213b",
+      "bytes": 4350,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_134242/checks/write_report.py",
+      "sha256": "93b6ddf9b2ecc4aca41c76c005d82935dc14ba3536f55daa73f2182605d207e2",
+      "bytes": 14047,
+      "disposition": "historical_forensic_check",
+      "reason": "Historical baseline/configuration/math investigation; official current generators and frozen code versions are the reproducible entry points. Keep original evidence archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/burger/diffusion_diagnostic_reference.py",
+      "sha256": "552d659d4bd9178bc683016ebeeb27e6708337fc88f413513f3fb222e46d9455",
+      "bytes": 4320,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/burger/diffusion_effective_sampler.py",
+      "sha256": "13c641240e93e0de527493aabd2df83108dbf8215c8d55adeeceb19db168a6e1",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/darcy/diffusion_diagnostic_reference.py",
+      "sha256": "c0bbf658db33e4b816a992fb1d0bd54377aa0a5bd47a9b985292d0f106afaec5",
+      "bytes": 5581,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/darcy/diffusion_effective_sampler.py",
+      "sha256": "ac8710d525133849c1c774fb169fad6466c59aca90c7ef674c78bfed31fee040",
+      "bytes": 5061,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/helmholtz/diffusion_diagnostic_reference.py",
+      "sha256": "b2844efc24809b059b4faccc56a3e3d55f3000f6271cd07e5d415a644978d5e7",
+      "bytes": 5547,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/helmholtz/diffusion_effective_sampler.py",
+      "sha256": "cb9ea860742d1da9d1209698a67230a5b18c18c1df40855409f759a8aa410317",
+      "bytes": 5104,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/nsnonbounded/diffusion_diagnostic_reference.py",
+      "sha256": "c02ba7141f730df6be4f7f673e0ac8c69f871d6a5312a756bdd4b27b2c09336d",
+      "bytes": 5625,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/nsnonbounded/diffusion_effective_sampler.py",
+      "sha256": "354bf9463bb00c3584407bd9477112131b6e3efe7fcae30862dd01fde511dba8",
+      "bytes": 5185,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/poisson/diffusion_diagnostic_reference.py",
+      "sha256": "21147244e14c317294d475aebae0808378b170fdd882c6874e742a562cecbeef",
+      "bytes": 5512,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/diffusion_fm_revision_20260907/timing_results_v2/poisson/diffusion_effective_sampler.py",
+      "sha256": "44e29d9c6b4d6594f106c838c58de84c2953e5154e494c1b5f51faec0347b229",
+      "bytes": 5071,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/collect_step_probe.py",
+      "sha256": "7115d33699396aa96cb119ae06c74f3ef073f03677813957380ddc0beef1a7a9",
+      "bytes": 1735,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/collect_until_complete.py",
+      "sha256": "58e12b4c796c0806d32f6117b786dfd680091b4d3035ba0787a407c984672eb8",
+      "bytes": 2125,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/finalize_reports.py",
+      "sha256": "dbba8f081d35e3bd876f0b06c4df1c60496fb36fca6ab086f3bda767a85410a1",
+      "bytes": 8373,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch.sh",
+      "sha256": "4c1cedcb91c6f4180d80e79f583548134eba94da1daea8280415ed35feeb06ad",
+      "bytes": 1218,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch_step_probe.sh",
+      "sha256": "9d37bb7f158f85d7d7bdc2e86897589105bc5748721742f6b5500ccb913cbfdc",
+      "bytes": 1496,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch_v2_197.sh",
+      "sha256": "71c688fe9034e23341c45e9be37e7e81ddb2b8f312ccf1b41ebc53a5fa890182",
+      "bytes": 1254,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/launch_v2_216.sh",
+      "sha256": "c7659f82318b69b487e4136d3fe79b2a03abf1d81db830003f329a37f63019ff",
+      "bytes": 1312,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/verify_overlap.py",
+      "sha256": "5b0c3c6e495e0c0cd4758661948eeb2c5ead47bafc026d61d5d046739cf789f9",
+      "bytes": 1837,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_guidance_cross_20260908/collect_until_complete.py",
+      "sha256": "6622add0cfc41d5eaa508c4b7521a79868111ab3255eca10b8449e02166a645e",
+      "bytes": 2598,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_guidance_cross_20260908/finalize.py",
+      "sha256": "1952014be124ccbebead927a3649cd3b94de1a4aa9b1026addd01c38391b4039",
+      "bytes": 2177,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_guidance_cross_20260908/launch_197.sh",
+      "sha256": "dcc73555c5ff1f8bfbbf89ddf54b2e71b7a27e6cfbf3a72022c92b89b8612faa",
+      "bytes": 1524,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_guidance_cross_20260908/launch_216.sh",
+      "sha256": "f9395e8c56249ffdefe8fb5de6c8d8f1f149c158314ffa363d72b27c8210f2f9",
+      "bytes": 1554,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/acceleration_v1/verify_handoff.py",
+      "sha256": "b52cd1e50660f7100bd979b512967462f8f3b9e1d74fe9780e03499e6ecb1beb",
+      "bytes": 5050,
+      "disposition": "superseded_partial_or_pilot_check",
+      "reason": "Partial-snapshot or acceleration pilot QA superseded by the complete result audit; retain original raw archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/acceleration_v2/verify_six_worker_handoff.py",
+      "sha256": "2f36366dc87e5f0803bb38364b9ded542f32ed6836c9610108bb0f5503746bdb",
+      "bytes": 6036,
+      "disposition": "superseded_partial_or_pilot_check",
+      "reason": "Partial-snapshot or acceleration pilot QA superseded by the complete result audit; retain original raw archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/acceleration_v2/verify_six_worker_pilots.py",
+      "sha256": "6ce877cbfbca186c1fc25f9cb512049d5c623a3101ffa80b7815258f8b2fc76e",
+      "bytes": 3593,
+      "disposition": "superseded_partial_or_pilot_check",
+      "reason": "Partial-snapshot or acceleration pilot QA superseded by the complete result audit; retain original raw archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_complete_qa/verify_complete_reporting.py",
+      "sha256": "2da1dae05e8febe24143f7a1cbd32a036268479d924b146026c162fff221108b",
+      "bytes": 6399,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_results_v3/diffusion_exchange0_diagnostics0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_results_v3/diffusion_exchange0_diagnostics1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_results_v3/diffusion_exchange1_diagnostics0.py",
+      "sha256": "47541d246de682d81a2983d8de5b707c9d544e90aee1dcd5d5925e505f62231a",
+      "bytes": 5428,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_results_v3/diffusion_exchange1_diagnostics1.py",
+      "sha256": "7b8511e5fa61eae8451993c4b64fe2c71f1c2400b69790dec75b0e4be8210aa1",
+      "bytes": 5868,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_results_v3/generate_ns_nonbounded_frozen.py",
+      "sha256": "bf9357d57fc5419486ef7abeb9b83adfe13de3978e11c823e8d864447c512227",
+      "bytes": 9155,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_sd_table_qa/verify_table_statistics.py",
+      "sha256": "ceb21cba68b30f7d293e551711cc0557b17fc7b3d070437a4358454e3d5e167d",
+      "bytes": 4589,
+      "disposition": "superseded_partial_or_pilot_check",
+      "reason": "Partial-snapshot or acceleration pilot QA superseded by the complete result audit; retain original raw archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/ns_strategy_qa/validate_existing_predictions.py",
+      "sha256": "fdc72d8bb76fa6e1bce695ec9aeba6e42a8959b4dc4d2592200d209f967df12f",
+      "bytes": 5324,
+      "disposition": "superseded_partial_or_pilot_check",
+      "reason": "Partial-snapshot or acceleration pilot QA superseded by the complete result audit; retain original raw archive.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_main_revision_0909/timing_results/nsnonbounded/diffusion_diagnostic_reference.py",
+      "sha256": "c02ba7141f730df6be4f7f673e0ac8c69f871d6a5312a756bdd4b27b2c09336d",
+      "bytes": 5625,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_main_revision_0909/timing_results/nsnonbounded/diffusion_effective_sampler.py",
+      "sha256": "354bf9463bb00c3584407bd9477112131b6e3efe7fcae30862dd01fde511dba8",
+      "bytes": 5185,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/collect.py",
+      "sha256": "49505ee885260facb37cd51e1a5f5385753062c1040009a3d567a08b2830f9f9",
+      "bytes": 4019,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/finish.py",
+      "sha256": "f82626b9f8f1aeb2bf82673ba12f1a4c4db683da69f4ef93d27104a1cf81a5d4",
+      "bytes": 1140,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_0_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_0_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_1_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_1_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_2_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_2_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_3_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_3_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_4_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_4_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_5_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_5_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_6_0.py",
+      "sha256": "a56c2ec1844cd3da2e2354bcdff5906503d914992b15328d33c466e5ec69e51d",
+      "bytes": 5474,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/ns_rough_diffusion_20260908/output/effective_sampler_6_1.py",
+      "sha256": "bba70f3072f45f88ebed133d43b24adc9c08b23a7e097b03d7a6c332b5d97173",
+      "bytes": 5914,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_batch_pilot/batched_native.py",
+      "sha256": "02dc6be01db1e417b5a3913048662e6e0585c55a83aab0a6a73d0629d1f80ea9",
+      "bytes": 4147,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_parallel_pilot_197/diffusion_native_shardparallel_00.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_parallel_pilot_197/worker_parallel_00.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/diffusion_native_shard3.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/diffusion_native_shard4.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/diffusion_native_shard9.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/diffusion_native_shardparallel_00.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/diffusion_native_shardparallel_01.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/worker_parallel_00.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_193/worker_parallel_01.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_197/diffusion_native_shardparallel_02.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_197/diffusion_native_shardparallel_03.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_197/worker_parallel_02.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_197/worker_parallel_03.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard0.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard1.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard2.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard5.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard6.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard7.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shard8.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_04.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_05.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_06.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_07.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_08.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_09.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_10.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/diffusion_native_shardparallel_11.py",
+      "sha256": "a2f02aa1eb2fe1ba8555ff5c23719c957f4b2e8859d29ecf1c3fc8fabe47c6dd",
+      "bytes": 4123,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_04.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_05.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_06.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_07.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_08.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_09.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_10.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/burgers_results_216/worker_parallel_11.py",
+      "sha256": "df4715ad5d106397b18d58ed7d7c214a64d79283a01ba4bb369b398bb5f1fb59",
+      "bytes": 7913,
+      "disposition": "generated_runtime_source",
+      "reason": "Generated/frozen code belongs with the original raw results; generator is already under FM4PDE/plot or external source snapshots.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/check_burgers_parallel.py",
+      "sha256": "1015f2f907c45d479056c94669463ba137f115b1ea127304aaa2778a5064253c",
+      "bytes": 4870,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C01Python/audit/paper_revision_20260908/monitor_jobs.py",
+      "sha256": "b4534b1075ef8b39ed1080835f30700f714c76a41d5f04ae5137ec972ca6c6d2",
+      "bytes": 3000,
+      "disposition": "orchestration_or_report_glue",
+      "reason": "Host-specific monitoring, launch, collection or narrative completion; underlying formal producer/report is already in repository; original file remains in place.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/check_conditional_averaging_0908.py",
+      "sha256": "260be251b07e6cae57cdc58ebac52334e3f7e671585f255238e97b7bab0efce6",
+      "bytes": 3127,
+      "disposition": "superseded_paper_qa",
+      "reason": "Historical manuscript/workbook/figure assertions bind older layouts or snapshots; current raw numerical QA is preserved or provided by repository exporters.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/check_final_revision_0909.py",
+      "sha256": "593a25e458c8334b410e0d5f6c17b80202f22c81edd25d569547beaf27b93837",
+      "bytes": 12482,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/check_main_presentation_0908.py",
+      "sha256": "d290dc8843e5581f771124a9e4563618bb209ca3dea3e3a5324547ff30941a64",
+      "bytes": 3341,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/check_phase_annotations_0908.py",
+      "sha256": "5c4f5c3b563b06bf952643aea7df354b9faac2b10b008f15256577c9eff807a2",
+      "bytes": 4971,
+      "disposition": "superseded_paper_qa",
+      "reason": "Historical manuscript/workbook/figure assertions bind older layouts or snapshots; current raw numerical QA is preserved or provided by repository exporters.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/finalize_complete_ns_20260908.py",
+      "sha256": "186e517eac6ebccfcedb76a1100fda555f8e4aeb1852cb4f311acec0f3c99cb2",
+      "bytes": 7783,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/inline_revision_0908.py",
+      "sha256": "ce8fd60f3394c81a12906969c959648a4c2e2cc73790a3fc71ff6a60ff5cb137",
+      "bytes": 3389,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/integrate_burgers_0908.py",
+      "sha256": "36609f4f8292fe77b19aeed49d971fb08b4bb2beaa45cccee1fa2fafbb6cbee9",
+      "bytes": 13923,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/integrate_complete_ns_20260908.py",
+      "sha256": "2024e8a2cc08a1676adf3b77b7444c94920824f83ef379d93bf3169ec5951168",
+      "bytes": 8048,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/integrate_conditional_averaging_0908.py",
+      "sha256": "8465dda0ab2f110bb8cae668658d9348148fd189e635b19c7a2da8b717633218",
+      "bytes": 16186,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/integrate_main_ablations_0908.py",
+      "sha256": "d74a5f645beb05ea6aa55e6c6e41b848b5ee37c0e8b01420812672ab1079198f",
+      "bytes": 21908,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/polish_experimental_prose_0908.py",
+      "sha256": "9809758d473daf63fcb008db05464e443751eee5e2e9a554472cb9b6a0c4aa8f",
+      "bytes": 21039,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/polish_frequency_text_0908.py",
+      "sha256": "6b98bf3e4d0cc984a3669d9f134dfb3965789b4ae1856eb3034d6ef4d4cdc79c",
+      "bytes": 4172,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revise_response_0908.py",
+      "sha256": "690a72fc57189165570fd441ec1c1c10097c53aad75a6fd4a6b3f10af654e936",
+      "bytes": 18442,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/build_ablation_section.py",
+      "sha256": "3894189e09018f435e421472d66fc7afcfb49e7e45ac77e6894f4597554ef043",
+      "bytes": 18303,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/check_ns_timing_statistics.py",
+      "sha256": "e6f42022c5736094db7a3d214ea8b861e9a72d0db766bb673c070626ac01178b",
+      "bytes": 3949,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/check_reference_dois.py",
+      "sha256": "d2bfb9c92beaf88ead4609939cd5665845543037275e57cbb0eec0562b188a6f",
+      "bytes": 1161,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/check_revision_state.py",
+      "sha256": "19da00a0836743e08bf4ecf94f6072ac0ba690da3a8c3c21bd7ea5734059a153",
+      "bytes": 4491,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/format_tables.py",
+      "sha256": "7833141dc2e13286d6737aacdd8889e0273ad2348235d648c7638df523df384f",
+      "bytes": 1486,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/inspect_data_metadata.py",
+      "sha256": "42ee59bf50db13f7774498cf660cf9fa18c43a058170ea81af65f6c32e7d1f03",
+      "bytes": 2914,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/integrate_ablation.py",
+      "sha256": "e292a2308dd8127a385b9c16fc64943605bae0a1f54e5829d0e309ec60e1cb60",
+      "bytes": 5321,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/integrate_notation_review.py",
+      "sha256": "5d3a2f68479f195e2b6a43497e2ec250661f9de18fe0fb22049ef7b74ce6b1fb",
+      "bytes": 6852,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/integrate_presentation.py",
+      "sha256": "578785aa8eb2a2d3e9cae802ca981a610d087f764ea1870ccceef3f6515176b0",
+      "bytes": 4050,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/ns_table_update.py",
+      "sha256": "c9d84e51dace45f51a1481fb303e582a0d09ed2ade99bb72a0b94ab7dc52521a",
+      "bytes": 18220,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/prepare_ns_effective_settings.py",
+      "sha256": "cbabe3344eb812039feecc30d85db2c58a519713da1e5241fc83453fe058153b",
+      "bytes": 4081,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/qa_ablation_delivery.py",
+      "sha256": "b9a8069d1a602a619b5fbe7492a938ad9255dc3d5256cf9285ee72d7db9417ae",
+      "bytes": 5942,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/rank_frequency_table.py",
+      "sha256": "07e5f301520e32d2ec295f0fec5af5e95f46cc81046dff55e2893546d67513de",
+      "bytes": 2172,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/redraw_ns_viscous_amplification.py",
+      "sha256": "cbf87b35f681690b4e8919e98c4ef567581c788658706f966a11bbb84575c0d5",
+      "bytes": 5853,
+      "disposition": "copied",
+      "reason": "Curated independent analysis/QA or original run provenance missing from repository.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/refine_study_scope_0909.py",
+      "sha256": "7706554ddf68a1024b7253f920c6dd852bf9580f1439fb6a00b45c8763ac5950",
+      "bytes": 3732,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/restructure_appendices.py",
+      "sha256": "991d0670e1e3b88304d5d41459fe4a2056221b937bd2616589ad8f2e1e598a87",
+      "bytes": 8629,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/restructure_experiments.py",
+      "sha256": "b3d8ce1ad2b29cb6a04c6f9fe9160dc9d609f926c6c738fddad943f6458603eb",
+      "bytes": 8210,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/revise_response_structure.py",
+      "sha256": "41db6dde04bcac2b48342514dcb06d3c51221243e711899cd495a3021e744bbe",
+      "bytes": 6687,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/revision_0909/supplement_joint_guidance.py",
+      "sha256": "d09c0c0b02f82a29a03668fa4fa980b7a0f1843de0e4962150eafd3a0da48ec9",
+      "bytes": 3334,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/sync_reviewer_map_0908.py",
+      "sha256": "e547111a88071df89ad2ad754e9e452f3c44b4de48b7cf0fedf9898fe81e7a38",
+      "bytes": 4420,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/verify_presentation_0907.py",
+      "sha256": "898a833d650dc626be0dc589a37fd4c6f335642cdcf61a68de035ef496862d59",
+      "bytes": 6641,
+      "disposition": "manuscript_only",
+      "reason": "TeX integration, layout, language/reference review, or source relocation; not an inference or numerical-statistics entry point.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/verify_revision_artifacts.py",
+      "sha256": "e01784eb553be19d1457de422511906c3cea406c48be08c2a7dd082ac2f0498f",
+      "bytes": 5127,
+      "disposition": "superseded_paper_qa",
+      "reason": "Historical manuscript/workbook/figure assertions bind older layouts or snapshots; current raw numerical QA is preserved or provided by repository exporters.",
+      "repository_matches": []
+    },
+    {
+      "source_path": "/home/tat512/C04Papers/fm4pde_jmlr/audit/verify_workbooks.py",
+      "sha256": "6a8c9268d2f57e442de15bf14bb6ed05453442cbd465d20be5e3b3d812800616",
+      "bytes": 3042,
+      "disposition": "superseded_paper_qa",
+      "reason": "Historical manuscript/workbook/figure assertions bind older layouts or snapshots; current raw numerical QA is preserved or provided by repository exporters.",
+      "repository_matches": []
+    }
+  ],
+  "excluded_source_snapshot_groups": {
+    "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/checks": 710,
+    "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260905_215137/evidence": 5,
+    "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_074843/checks": 173,
+    "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_090109/checks": 498,
+    "/home/tat512/C01Python/audit/baseline_vs_fm4pde_20260906_115740/checks": 325,
+    "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/results/evidence/bak": 6,
+    "/home/tat512/C01Python/audit/ns_checkpoint_comparison_20260908/results_v2/evidence/bak": 6,
+    "/home/tat512/C01Python/audit/ns_loss_spectrum_20260907/baseline_deps": 136
+  },
+  "excluded_source_snapshot_files": 1859,
+  "other_C01Python_directories": [
+    {
+      "path": "/home/tat512/C01Python/Code2Video",
+      "visible_code_files": 27,
+      "disposition": "separate_project",
+      "note": "No revision-specific production entry point identified in filename scan; not part of the paper FM4PDE run path."
+    },
+    {
+      "path": "/home/tat512/C01Python/CondFM4PDE",
+      "visible_code_files": 170,
+      "disposition": "separate_project",
+      "note": "No revision-specific production entry point identified in filename scan; not part of the paper FM4PDE run path."
+    },
+    {
+      "path": "/home/tat512/C01Python/DiffusionPDE",
+      "visible_code_files": 46,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    },
+    {
+      "path": "/home/tat512/C01Python/FM4PDE_bak",
+      "visible_code_files": 0,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    },
+    {
+      "path": "/home/tat512/C01Python/FM4PDEbaseline",
+      "visible_code_files": 635,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    },
+    {
+      "path": "/home/tat512/C01Python/FNO",
+      "visible_code_files": 187,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    },
+    {
+      "path": "/home/tat512/C01Python/JiT4PDE",
+      "visible_code_files": 0,
+      "disposition": "separate_project",
+      "note": "No revision-specific production entry point identified in filename scan; not part of the paper FM4PDE run path."
+    },
+    {
+      "path": "/home/tat512/C01Python/MedAgent",
+      "visible_code_files": 507,
+      "disposition": "separate_project",
+      "note": "No revision-specific production entry point identified in filename scan; not part of the paper FM4PDE run path."
+    },
+    {
+      "path": "/home/tat512/C01Python/PDEdata",
+      "visible_code_files": 1,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    },
+    {
+      "path": "/home/tat512/C01Python/RecFNO",
+      "visible_code_files": 76,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    },
+    {
+      "path": "/home/tat512/C01Python/iFNO",
+      "visible_code_files": 11,
+      "disposition": "external_source_snapshot_owner",
+      "note": "Full source versions/dependencies are handled by source_repositories.json/source_snapshots; no wholesale duplicate in legacy_scripts."
+    }
+  ],
+  "ownership_boundary": "Root agent manages reproducibility README, environments, source_repositories.json and complete source_snapshots; this inventory does not duplicate those archives.",
+  "copies_are_byte_identical": true,
+  "candidate_counts": {
+    "historical_forensic_check": 67,
+    "generated_runtime_source": 68,
+    "copied": 17,
+    "orchestration_or_report_glue": 7,
+    "superseded_partial_or_pilot_check": 5,
+    "superseded_paper_qa": 4,
+    "manuscript_only": 25
+  },
+  "outstanding": [
+    "ns_table_update.py is an active audit tool; after final NS integration refresh its preserved copy if the source SHA changes.",
+    "Result migration to server197 outputs/main and outputs/ablations is a separate task; no data were moved by this catalog.",
+    "Preserved path-dependent legacy scripts retain historical path assumptions. Prefer repository CLI entry points; replay legacy scripts only in their documented study/paper layout or with an explicit path-only adapter.",
+    "Dataset files, checkpoint weights, input caches, receipts and generated runtime source must accompany the source code; code alone cannot reconstruct missing historical inputs.",
+    "External DiffusionPDE timing commit 151e721b9991404154ad4b430ab85cdaedbaa399 must be restored for --diffusion-root."
+  ],
+  "repository_entrypoints_referenced": [
+    {
+      "path": "plot/audit_baseline_counts.py",
+      "sha256": "60e63d0cbb04fa7e5aa641241714be8eb59cf651e0bcf896f5765c8f68b8c150",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/audit_ns_main_residual_0909.py",
+      "sha256": "c5d3b6655d246f9c40d8c86df5d82f3e0effe43fde6fcd9d0b6131fa88d5c875",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/audit_ns_true_trajectory.py",
+      "sha256": "d48969c387323802b2afc5c66e1a2afd84ff4ba27223c96d82ae82f40ce4f551",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/collect_paper_ablation_fields.py",
+      "sha256": "13b0c87480bf320bc01c2b6434d59bc2057d8684af2d8301c0aa85e55de2af99",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/export_burgers_revision.py",
+      "sha256": "ee03c7176786354ae8c8e67458339b02ca0dc1659e012ebfa211fc00f05c942d",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/export_diffusion_fm_timing.py",
+      "sha256": "2214dfcc4fbf3735c90b030d022b1554ac86c3980d2c0fa21773da04b68f684e",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/export_matched_spectra.py",
+      "sha256": "ad342346c8bb5413500a492c26ba7c40f5beacf0b7c6db9be8478b5ed0810420",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/export_ns_main_revision_0909.py",
+      "sha256": "361ff96d89b4ba48b9a5526090b63eaba805397a8e5a4b255f54c4ca2391c907",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/export_paper_ablation_tables.py",
+      "sha256": "0960394506ae797d2c4ec9f5de3be3eb7faa3eb94a6d06bec3443adf3bd55b06",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/export_paper_seed_ensemble.py",
+      "sha256": "e8efa30592249f21de7d5842b5910bdf68db32ab441503d347798f8e725e47d2",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/extract_main_configs.py",
+      "sha256": "dddfa9e1b747aac8282cda6aa4b9a4e8f3dd288373bbf1d49a3378a6a87b5912",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/plot_paper_ablation_fields.py",
+      "sha256": "0795cb2bf09d279c406b8e6fa5c405cd5d7fafb95983703e88e68b72047a9f73",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/plot_paper_ablation_sweeps.py",
+      "sha256": "cbfa2e8e70e123f32155f6f9acad8266e25c5483bbd5aa9f95509e8978c55a5e",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/plot_paper_frequency_revision.py",
+      "sha256": "25e32db0355d102a63319da52d9c2e299fbc2e8be71f2ab944de92c7f2615fb5",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/plot_paper_seed_ensemble.py",
+      "sha256": "85a94ebed0f42bb62db21c88f632eb750d3e8bf56bb14958ea4d2d1c926cc5b2",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/plot_training_curves_revision.py",
+      "sha256": "67f20136570b22b643933a5074b7698847033604ef2d6456c55b08717cf4eb49",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/prepare_burgers_revision.py",
+      "sha256": "65d740b8b6f3016c9bdae8d7b28e4a05c0e81264aeb45c67a0dd478ca16214f5",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_burgers_parallel.py",
+      "sha256": "ebfbad5b467c7fdc075f60d892fa61a3d4b738b1b45796d8cc34292c717af9d4",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_burgers_revision.py",
+      "sha256": "bbbb6649e75397f030ea7923a91c9fa89e1098590ed2abae9fef8c6a90f8567c",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_conditional_sample_scaling.py",
+      "sha256": "1fc697c438cd52bc6b637d0159cfd7375a5cf762ff26870e0886b7c5f29c9606",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_ns_checkpoint_comparison.py",
+      "sha256": "6448f2830f2dbfe31936d692b2c224c9f2010a5a3aec488858ae08c45adfbbc8",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_ns_checkpoint_step_probe.py",
+      "sha256": "0b99f7b6f33da395c9041c252a10a9e8e76ce7610931e778efc3382e27974d6d",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_ns_main_revision_0909.py",
+      "sha256": "e5d5dbe9dc8afb205d82682c99e841a24db5b94db0d60c4c67617dc92844b708",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_paper_ablation_revision.py",
+      "sha256": "829ccc9cd6667955840b94d1ddde4453e63fb30af0af5f9312585f0001c5ea3f",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_paper_revision_queue.py",
+      "sha256": "5282dd2dda1a93788cf373de65848f8c99a43da264cc51c5ec1fed471a1ce43e",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/run_revision_sampling.py",
+      "sha256": "55178d9f48b6672e1067cbbedd5e944f5006e72bedef89638de82d73c3031076",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/select_paper_ablation_revision.py",
+      "sha256": "0466829566ff419d9a59705cb8da3d8e3c8ec053157268e9fe1f32018cb04374",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/spectral_diagnostics.py",
+      "sha256": "9925f5a72cdd843d98cfc5ea9ff7e1b9f9791fe2db89b5daae28c342c3a7db27",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "plot/watch_burgers_revision.py",
+      "sha256": "1936fddcfdb801f9a83b697cc031503c79fdd343507ff7fbe0cd3fe340b6092c",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "scripts/analysis/export_main1000_best_to_excel.py",
+      "sha256": "8c99bac66e382fede5045664e03fe49eb0954e321302166240c3a30be50210be",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    },
+    {
+      "path": "scripts/analysis/summarize_main1000_tuned1.py",
+      "sha256": "d3166dd99a21a61926241c40dbac65d550a02785ccb89342ae943849cb2ab7e7",
+      "source_status": "already tracked; do not duplicate or modify production code"
+    }
+  ],
+  "recipe_sha256": "57d6dc2fb53405a1b77ce996a0d883704f5690d57f8b4a71a16cc25881907ced"
+}
