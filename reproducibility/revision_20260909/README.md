@@ -34,6 +34,7 @@
 - [实验复现步骤](STUDY_RECIPES.md)：按主实验和消融实验列出采样、核验、统计及绘图命令。
 - [复现范围](REPRODUCTION_COVERAGE.md)：逐项说明可复算的统计、可重新推理的模型，以及历史训练记录的缺项。
 - [基线评估入口](BASELINE_FROZEN_REPLAY.md)：用原程序版本、权重和评估数据重建观测与预测。
+- [DiffusionPDE 评估输入](DIFFUSION_INPUT_REPLAY.md)：从归档数据生成原采样程序可读取的评估文件及对应配置。
 - [外部脚本清单](external_script_inventory.json)：补入仓库的脚本、原位置及内容校验值。
 - [源版本清单](source_repositories.json)：正式运行和必要辅助计算使用的版本及用途。
 - `source_snapshots.py`：保存、验证和恢复指定版本的源码；同时保留 Git 历史。
