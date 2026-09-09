@@ -66,6 +66,47 @@ def main(args):
                        for offset in range(1500, 1532)
                        for suffix in ('truth', 'mask', *(f'K{k}' for k in KS))}
     assert set(arrays.files) == expected_arrays
+    assert len(final['source_manifests']) == 2
+    source_jobs, source_results = set(), set()
+    source_array_names = set()
+    for host, manifest in zip(('server197', 'server216'), final['source_manifests']):
+        folder = args.audit / host
+        paths = [folder / ('conditional_scaling_' + name)
+                 for name in ('manifest.json', 'per_input.csv', 'fields.npz')]
+        before.update({str(path): sha(path) for path in paths})
+        assert json.loads(paths[0].read_text()) == manifest
+        assert manifest['complete'] and manifest['all_fields_finite']
+        assert manifest['original_input_truths_verified']
+        assert manifest['frozen_guidance_configurations_verified']
+        assert manifest['variance_identity_verified'] and manifest['batch_noise_prefixes_verified']
+        assert manifest['distinct_predictions_per_pool_verified'] == 1000
+        jobs = {tuple(job) for job in manifest['completed_jobs']}
+        assert len(jobs) == len(manifest['completed_jobs'])
+        assert jobs == {tuple(job) for job in manifest['expected_jobs']}
+        assert not jobs.intersection(source_jobs)
+        source_jobs.update(jobs)
+        proofs = manifest['results']
+        proof_keys = {(p['task'], str(p['offset']), str(p['K'])) for p in proofs}
+        assert len(proof_keys) == len(proofs) == manifest['hash_verified_results'] == 5 * len(jobs)
+        assert proof_keys == {(t, str(i), str(k)) for t, i in jobs for k in KS}
+        assert all(len(p['sha256']) == 64 and all(c in '0123456789abcdef' for c in p['sha256']) for p in proofs)
+        source_results.update(proof_keys)
+        host_rows = index_rows(read_rows(paths[1]), ('task', 'offset', 'K'))
+        assert set(host_rows) == proof_keys
+        for key, row in host_rows.items():
+            assert set(row) == set(index[key])
+            assert row['task'] == index[key]['task']
+            assert all(float(value) == float(index[key][column])
+                       for column, value in row.items() if column != 'task')
+        with np.load(paths[2], allow_pickle=False) as host_arrays:
+            assert set(host_arrays.files) == {f'{t}_{i}_{suffix}' for t, i in jobs
+                                             for suffix in ('truth', 'mask', *(f'K{k}' for k in KS))}
+            assert not source_array_names.intersection(host_arrays.files)
+            source_array_names.update(host_arrays.files)
+            for key in host_arrays.files:
+                assert np.array_equal(host_arrays[key], arrays[key]), key
+    assert source_jobs == {(t, i) for t in TASKS for i in range(1500, 1532)}
+    assert source_results == expected and source_array_names == expected_arrays
     max_errors = {'field_error': 0., 'observation_mse': 0., 'statistics': 0.}
     checks = 0
 
@@ -158,7 +199,7 @@ def main(args):
                   final_manifest_sha256=before[str(final_path)], script_sha256=sha(Path(__file__)),
                   rows=480, inputs=32, task_fields=4, scalar_comparisons=checks,
                   maximum_absolute_differences=max_errors, findings=findings, input_sha256=before,
-                  scope='Recomputed both field errors and both observation MSEs from all 480 compact means; checked 20 summaries, 16 paired intervals, and 15 measured-latency summaries. Raw-pool identity, PDE residuals, and stochastic-path audits remain in the two host export manifests. Figure inspection and manuscript interpretation require a separate final review.')
+                  scope='Recomputed both field errors and both observation MSEs from all 480 compact means; checked 20 summaries, 16 paired intervals, and 15 measured-latency summaries. All merged rows and arrays equal the two complete host exports, whose manifests list all 480 raw-result checksums over 96 distinct task/input groups. Correspondence to the raw pools, PDE residuals, and stochastic-path audits relies on those upstream receipts; this program rechecks compact inputs and their statistics. Figure inspection and manuscript interpretation require a separate final review.')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(output, indent=2) + '\n')
     print(json.dumps({key: value for key, value in output.items() if key not in ('input_sha256', 'scope')}))
