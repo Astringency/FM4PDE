@@ -46,9 +46,15 @@ def main(args):
         summary = record['summary']
         config = configs[record['relative_raw']]
         effective = resolve_args(config['config'], summary)
-        dist = record['relative_raw'].split('/')[1]
-        branch = 'trajectory' if effective.load_full_trajectory and summary['pde'] in {'nsnonbounded', 'burger'} else 'endpoint'
-        entry = entries[f"{summary['pde']}_{dist}_{branch}"]
+        # Some original Smooth runs live under main_results, without a
+        # distribution component. Bind the cache to the actual source MAT.
+        original_files = json.loads(summary['data_files_json'])['test']
+        assert len(original_files) == 1
+        candidates = [e for e in entries.values() if e['pde'] == summary['pde']
+                      and Path(e['source_mat_path']).name == Path(original_files[0]).name
+                      and effective.load_full_trajectory in e['supported_load_full_trajectory']]
+        assert len(candidates) == 1
+        entry = candidates[0]
         source = Path(record['source_path'])
         config_path = Path(config['path'])
         command = [sys.executable, str(HERE/'replay_baseline_frozen.py'),
