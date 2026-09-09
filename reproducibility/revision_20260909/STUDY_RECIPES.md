@@ -19,7 +19,7 @@ The archive destination is server197:
     conditional_scaling_20260909/
 ```
 
-Each study retains a source-origin layer such as `server197/output`, `server193/output`, or `local_exports`, so identically named files from different sources are not overwritten. Resolve the authoritative input/result paths from the archive inventory before running a command. In the recipes, `$ABL`, `$NS_STUDY`, `$BURGERS`, `$OLD_NS`, and `$CHECKPOINT_STUDY` mean the appropriate restored study layout, not the parent directory above the origin layer. `$PAPER` is a working copy of the paper and its frozen source data; `$REPLAY` is a fresh output directory. Run Python commands from the FM4PDE repository root with its recorded environment. These variable names do not set system options or relocate files.
+Each study retains a source-origin layer such as `server197/output`, `server193/output`, or `local_exports`, so identically named files from different sources are not overwritten. Resolve the authoritative input/result paths from the archive inventory before running a command. In the recipes, `$ABL`, `$NS_STUDY`, `$BURGERS`, `$OLD_NS`, and `$CHECKPOINT_STUDY` mean the appropriate restored study layout, not the parent directory above the origin layer. `$PAPER` is a separate working copy restored from `paper_assets_final_20260909` (the current tool default), containing the paper and frozen source data; `$REPLAY` is a fresh output directory. Run Python commands from the FM4PDE repository root with its recorded environment. These variable names do not set system options or relocate files.
 
 Frozen receipts often contain historical absolute paths. Preserve their bytes and record old-to-archive path mappings separately. Moving a file must not silently rewrite the protocol or receipt that hashes it. Dataset and checkpoint references must resolve to the same content hashes; preserve generated effective samplers with their result receipts.
 
@@ -128,7 +128,7 @@ python reproducibility/revision_20260909/check_original_control_tables.py \
   --output "$REPLAY/original_control_table_precision"
 ```
 
-`local_exports/ablation_publication_figures` and `ensemble_complete/figures` retain earlier figure layouts. Final figure references are the 80 entries in `ablation_final_figure_reference.json` and the complete `paper_assets/figures` archive. Numerical CSV/NPZ references remain in the historical exports.
+`local_exports/ablation_publication_figures` and `ensemble_complete/figures` retain earlier figure layouts. Final figure references are the 80 entries in `ablation_final_figure_reference.json` and the complete `paper_assets_final_20260909/figures` archive. Numerical CSV/NPZ references remain in the historical exports.
 
 For **new sampling with the frozen formal protocol**, use the recorded producer checkout and environment. Restore each frozen `selection.json` beneath a fresh `$NEW_RESULTS/<pde>/`, and run:
 
@@ -162,10 +162,15 @@ The formal extension added 7,000 FM/Diffusion calls and combined them with fixed
 Preparation/execution entries are `plot/prepare_burgers_revision.py`, `plot/run_burgers_revision.py` (`freeze`, `worker`), and `plot/run_burgers_parallel.py` (immutable redistribution and native workers). Their CLI takes the input protocol, FM/Diffusion weights and `--diffusion-root`. Preserve `sampling_protocol_v3.json`, `burgers_parallel_assignment_2242.json`, 4,448 prior and 2,552 redistributed calls, all generated workers/samplers, exact pilots and executor receipts.
 
 ```bash
-python plot/export_burgers_revision.py export --inputs "$BURGERS/burgers_inputs" \
-  --sampling-protocol "$BURGERS/burgers_inputs/sampling_protocol_v3.json" \
-  --results "$BURGERS/burgers_results_193" "$BURGERS/burgers_results_197" "$BURGERS/burgers_results_216" \
-  --fm-random "$BURGERS/burgers_fm_random" --output "$REPLAY/burgers_complete"
+BURGERS_STUDY=/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/revision_20260909/burgers_revision_20260908
+python plot/export_burgers_revision.py export \
+  --inputs "$BURGERS_STUDY/local/burgers_inputs" \
+  --sampling-protocol "$BURGERS_STUDY/local/burgers_inputs/sampling_protocol_v3.json" \
+  --results "$BURGERS_STUDY/server193/burgers_output_v3" \
+            "$BURGERS_STUDY/server197/burgers_output_v3" \
+            "$BURGERS_STUDY/server216/burgers_output_v3" \
+  --fm-random "$BURGERS_STUDY/server197/burgers_fm_random" \
+  --output "$REPLAY/burgers_complete"
 ```
 
 The exporter recomputes geometry, fields, errors and complete 1,000-input cells. The preserved `legacy_scripts/paper_revision_20260908/check_burgers_parallel.py --require-complete`, run in the restored study layout, separately verifies worker ownership and exact native-pilot evidence. `plot/watch_burgers_revision.py` already provides repository collection/monitoring; old generated per-shard Python files belong to the result archive, not a second production implementation.
@@ -235,7 +240,7 @@ K_AUDIT="$K_STUDY/local_audit"
 # "$K_AUDIT/server197" and "$K_AUDIT/server216"
 ```
 
-Restore the final paper assets into a separate working copy and set `$PAPER` to it. Its `source_data/conditional_scaling_0909` contains the final merged CSV/NPZ and summaries. Set `$REPLAY` to a fresh verification directory. The following command writes a new JSON report beneath it; `--output` is a new report filename, not an existing frozen result or a directory:
+Restore the current `paper_assets_final_20260909` into a separate working copy and set `$PAPER` to it. The recommended `build_reproduction_paper.py --output <new-build-directory>` restores and verifies compilation into `<new-build-directory>/paper`; that `paper` subdirectory is the value of `$PAPER`. Its `source_data/conditional_scaling_0909` contains the final merged CSV/NPZ and summaries. Set `$REPLAY` to a fresh verification directory. The following command writes a new JSON report beneath it; `--output` is a new report filename, not an existing frozen result or a directory:
 
 ```bash
 CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 \

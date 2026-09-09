@@ -1,6 +1,15 @@
 # Revision result archive: inventory and controlled transfer
 
-This document prepares the full archive. The 2026-09-09 census used read-only
+This document records preparation and execution of the archive. Historical
+observations below retain their original dates and do not describe the current
+completion state. As of this documentation update, the first 64 entries have
+completed copying and independent verification (`ARCHIVE_COMPLETED_64.md`).
+The complete K scientific review has passed, and its three entries are being
+transferred under `archive_inventory.conditional_scaling_final.json`; final
+copy/verify completion is still pending. Source/package delivery is tracked
+separately from experiment-data copying.
+
+The 2026-09-09 census used read-only
 SSH and local metadata generation. A subsequent authorized pilot archived
 exactly one completed 4,195-byte NS timing log; its evidence is described below.
 After that pilot, the authorized completed-study batch began on 2026-09-09;
@@ -27,7 +36,7 @@ external repositories are documented separately in `source_repositories.json`.
 
 The initial census found 70 entries, with no missing source or mismatch against
 known hashes. Ready primary/dependency entries total approximately 62.66 GiB.
-Pending sources are growing; the expected final additional archive is about
+At that census, pending sources were growing; the estimated final additional archive was about
 85–90 GiB, including intentionally separate canonical reading views and frozen
 input copies. This estimate is not a transfer measurement. The K study alone
 has 96,000 canonical draws and 106,944 actual timed draws across all K values;
@@ -54,7 +63,9 @@ No full training dataset is needed by the frozen-input replay recipes.
 
 Shared paper `source_data/` and `figures/` mix main and ablation studies. They
 are assigned to the root-owned
-`FM4PDE/reproducibility/revision_20260909/paper_assets`, not to main results.
+`FM4PDE/reproducibility/revision_20260909/paper_assets_final_20260909`,
+not to main results. The earlier `paper_assets/` snapshot is retained unchanged;
+current restore/build commands use the final directory or the tools' defaults.
 The root also archives the ignored source snapshot tar files and Git bundles;
 restore dependency checkouts from these bundles instead of transferring
 duplicate `.git` directories. Result studies retain their own numerical exports.
@@ -88,7 +99,11 @@ to ready. A refresh while production is running remains an observation only.
 
 ## Read-only planning and local safety tests
 
-Run from the local FM4PDE repository:
+These are the original preparation commands, for a separate planning copy of
+the local FM4PDE repository. The builder rewrites its output inventories; do
+not rerun it over the frozen delivered manifests merely to reproduce results.
+Saved-result replay uses `STUDY_RECIPES.md` and the completed entry receipts.
+
 
 ```bash
 python reproducibility/revision_20260909/build_archive_inventory.py
@@ -138,8 +153,10 @@ stress test. No `--all-ready` transfer or GPU task was started.
 configuration metadata against the original census, and produces a separate
 reviewed inventory. The 07:13 UTC review approved 51 primary/dependency entries
 totalling 74,427,442,592 bytes (69.32 GiB), with no changed metadata or missing
-source. It includes the explicitly frozen NS 15,000-example study and its
-80-call timing. The K production directories and collector remain pending.
+source. It included the explicitly frozen NS 15,000-example study and its
+80-call timing. At that review, the K production directories and collector
+were still pending; their later complete scientific approval and separate
+three-entry inventory are described below.
 `archive_completion_review.json` records the exact gates and per-entry reasons.
 
 The frozen execution inventory is
@@ -336,7 +353,9 @@ runner takes its parent. Use the recorded Poisson selection bytes from the
 frozen producer source snapshot. The original collector remains a deployment
 monitor and must not be invoked for offline archive review. Root's
 `k_relocation_validation.json` records the completed one-pool equivalence
-check; it is not a claim of full-study numerical migration validation.
+check. Subsequent complete source-host numerical/scientific review is
+recorded in the final K review; it is distinct from the planned post-copy
+server197 compact-data replay in `STUDY_RECIPES.md`.
 
 ## Reconcile the completed execution
 
@@ -448,7 +467,22 @@ Append their inventory/state pairs as further `--additional-batch` arguments
 to the ledger command; no concurrent copy or changes to an active inventory
 are needed.
 
-For the final K-study release, use `prepare_conditional_scaling_archive.py`.
+The final K release was authorized after all four producers and the collector
+had terminated and the full numerical, statistical and figure reviews passed.
+`archive_inventory.conditional_scaling_final.json` has SHA256
+`c473fa1979647f40144b515cbae49550b8b17edcdda6f628bbc29b98452f9ad9`.
+Its scientific review SHA256 is
+`8d3a539b5118a72981c4b62a340968d4880e1631693fdf4357a114aa5d4d0801`.
+The three entries total 14,385,940,996 bytes and started transfer at
+2026-09-09 18:37:55 +08:00. This preparation approval does not establish
+completed destination copying or verification. The original 70-entry census
+is preserved; use this separate final inventory for K source/destination
+bindings. Its `local_audit` entry contains both completed host exports used
+by the compact numerical checker.
+
+The following describes the release procedure already used, rather than a
+prerequisite for replaying the saved scientific results:
+`prepare_conditional_scaling_archive.py`.
 It accepts the original 70-entry `--original-inventory`, an external
 `--scientific-review` JSON and its explicit `--scientific-review-sha256`,
 every completed batch as a repeated `--prior-inventory`, and a new `--output`

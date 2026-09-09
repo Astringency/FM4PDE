@@ -290,7 +290,7 @@
     "independent_float64_pde_vs_stored_float32_max_relative": 1.102904492267298e-05,
     "within_original_tolerance": true,
     "new_inference_or_training": false,
-    "full_evidence_archive": "Final paper_assets audit/revision_0909/ns_archive_recompute; no duplicate experiment-data entry."
+    "full_evidence_archive": "paper_assets_final_20260909/audit/revision_0909/ns_archive_recompute; no duplicate experiment-data entry."
   },
   "conditional_scaling_final_verification": {
     "scientific_status": "pass",

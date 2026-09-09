@@ -19,7 +19,8 @@
 └── reproducibility/revision_20260909/
     ├── source_snapshots/              # 源代码及Git历史的完整归档
     ├── environments/                  # 实际使用环境的版本记录
-    ├── paper_assets/                  # 论文源码、图表数据、审稿材料和核验代码
+    ├── paper_assets_final_20260909/   # 权威论文封存：源码、图表和完整核验记录
+    ├── paper_assets/                  # 较早封存版本，保留原状
     └── legacy_scripts/                # 原先在仓库外的必要统计和核验代码
 ```
 
@@ -29,7 +30,10 @@
 各研究当前是否已经归档，见 [归档清单](archive_inventory.json) 和
 [归档说明](ARCHIVING.md)。正在运行或尚未通过完整核验的研究不得标记为完成。
 已完成的 64 项材料及其逐项校验记录见
-[已完成归档](ARCHIVE_COMPLETED_64.md)；Poisson 样本数实验另行登记。
+[已完成归档](ARCHIVE_COMPLETED_64.md)。Poisson 样本数实验的四个分片、完整数值、
+统计和图形审阅已通过，另三项结果归档正在传输；在独立复制校验结束前，
+不能将这三项标为归档完成。其精确清单为
+`archive_inventory.conditional_scaling_final.json`。
 
 ## 代码入口
 
@@ -41,7 +45,7 @@
 - [源版本清单](source_repositories.json)：正式运行和必要辅助计算使用的版本及用途。
 - `source_snapshots.py`：保存、验证和恢复指定版本的源码；同时保留 Git 历史。
 - `collect_environments.py`：只读记录既有服务器的包版本，不安装或更改环境。
-- `paper_assets.py`：保存并逐文件核对论文及图表来源；主实验和消融共用的论文材料存于 `paper_assets/`。
+- `paper_assets.py`：保存并逐文件核对论文及图表来源；主实验和消融共用的权威论文材料存于 `paper_assets_final_20260909/`。
 
 现有 `plot/`、`sampling/`、`models/`、`data/`、`training/`、`scripts/` 和
 `configs/` 保留各自职责。已经在仓库内的代码不再复制一套。
@@ -59,6 +63,11 @@ python reproducibility/revision_20260909/source_snapshots.py verify
 检查不读取原仓库；缺少指定版本或记录的 Git 历史时会报错，其他旧版
 bundle 的存在不能代替它。临时仓库在检查后清理。
 源码内容与原 Git 对象的逐文件比对记录见 `source_validation.json`。
+2026-09-09 的完整核对覆盖 58 个版本（47 个 FM4PDE、3 个 DiffusionPDE、
+8 个 FM4PDEbaseline），25,977 个文件的内容和执行权限均与 Git 对象一致；
+三个独立 bundle 恢复也通过。`source_restore_coverage.json` 的 SHA256 为
+`c6520ee4a698fedbc86ca7b001936c01aca3227055300fc0e68c85630586ebbc`。
+这些是已登记的实验和核验版本；原 Diffusion 历史运行没有记录的 HEAD 仍不据此补认。
 
 例如，把计时所用 DiffusionPDE 版本恢复为本仓库内的可运行目录：
 
@@ -101,16 +110,18 @@ NS 主实验允许 TF32，受控采样时间实验关闭 TF32。Poisson 样本�
 
 ```bash
 python reproducibility/revision_20260909/paper_assets.py verify
-python reproducibility/revision_20260909/paper_assets.py restore \
-  --destination reproducibility/revision_20260909/verification_runs/paper_rebuild
-bash reproducibility/revision_20260909/verification_runs/paper_rebuild/build_all.sh
-python reproducibility/revision_20260909/paper_assets.py verify
+python reproducibility/revision_20260909/build_reproduction_paper.py \
+  --output reproducibility/revision_20260909/verification_runs/paper_rebuild
 ```
 
-恢复要求目标目录尚不存在，使重新编译保留原归档。编译需要论文原有的
-TeX 包、`pdflatex` 和 `bibtex8`。图表的数值重算按
+工具默认读取 `paper_assets_final_20260909/`，要求整个输出目录尚不存在，
+并恢复到其 `paper/` 子目录。它使用 `bibtex8 -8`，编译到交叉引用稳定，
+核对四份 PDF 的提取文本，并再次校验原封存文件不变。编译需要论文原有的
+TeX 包、`pdflatex`、`bibtex8`、`pdftotext` 和 `pdfinfo`。图表的数值重算按
 `STUDY_RECIPES.md` 使用归档原始结果执行，重新编译本身不代替数值核验。
-`paper_assets/` 的 final 标记说明论文整合与排版核验完成；服务器结果迁移
+其中 K 的 compact 数值复算使用已恢复论文的 `source_data/conditional_scaling_0909`
+和 K 归档的 `local_audit/{server197,server216}`，无需启动原生产 collector。
+`paper_assets_final_20260909/` 的 final 标记说明论文整合与排版核验完成；服务器结果迁移
 是否完成仍以各研究的归档校验记录为准。
 
 冻结的评估输入和选定权重随对应研究保存。训练原数据及未采用的历史模型
