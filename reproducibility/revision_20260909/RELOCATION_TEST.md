@@ -1,6 +1,6 @@
 # Ablation and original three-draw relocation regression
 
-**Passed on 2026-09-09.** The same frozen raw results were processed through their original local paths and a new eleven-PDE view inside FM4PDE. All numerical comparisons between those two paths were exact. No GPU, remote transfer, original-data write, protocol edit or production-code change was performed.
+**Passed on 2026-09-09.** The subsequent complete server197 archive replay, including independent recomputation of all 316 original controls, is recorded in `RELOCATION_SERVER197.md` / `.json`. This report preserves the earlier local-subset test. The same frozen raw results were processed through their original local paths and a new eleven-PDE view inside FM4PDE. All numerical comparisons between those two paths were exact. No GPU, remote transfer, original-data write, protocol edit or production-code change was performed.
 
 ## Executed command
 

@@ -1,0 +1,1927 @@
+{
+  "status": "numerical_pass",
+  "started_utc": "2026-09-09T07:37:30Z",
+  "repo_head": "b059d6a6b7e9d71eca6c89c6076bdaec734002c5",
+  "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/check_ablation_relocation.py --study /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908 --archive /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/archived_ablation_summary/archived_ablation_summary.csv --inputs /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/frozen_inputs --results /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results --original-root /research_data/users/zhangxifeng/C01Python/FM4PDE --original-manifest /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/in_place_reference_checks.json --snapshot /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ablation_publication_snapshot --ensemble /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ensemble_complete --figure-reference-manifest /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/ablation_final_figure_reference.json --font-dir /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/dependencies/fonts --verify-source-hashes --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay",
+  "cwd": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code",
+  "environment": {
+    "CUDA_VISIBLE_DEVICES": "",
+    "OMP_NUM_THREADS": "2",
+    "MKL_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "NUMEXPR_NUM_THREADS": "2",
+    "MPLBACKEND": "Agg"
+  },
+  "original_inputs_preserved": true,
+  "plots_requested": "all",
+  "commands": [
+    {
+      "name": "baseline_collect",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/collect_paper_ablation_fields.py --archive /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/archived_ablation_summary/archived_ablation_summary.csv --inputs /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/frozen_inputs --results /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results --original-root /research_data/users/zhangxifeng/C01Python/FM4PDE --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/baseline_snapshot --completed-pdes-only",
+      "script_sha256": "13b0c87480bf320bc01c2b6434d59bc2057d8684af2d8301c0aa85e55de2af99",
+      "seconds": 9.538,
+      "returncode": 0,
+      "peak_children_rss_kib": 653964,
+      "log_sha256": "a1fbae9316f0eda8f41a19f0b8b4fd502f92b6bba76ff6a66eed4b5055f691ff"
+    },
+    {
+      "name": "collect",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/collect_paper_ablation_fields.py --archive /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/view/archived_ablation_summary.csv --inputs /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/view/inputs --results /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/view/results --original-root /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/view/original --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/snapshot --completed-pdes-only",
+      "script_sha256": "13b0c87480bf320bc01c2b6434d59bc2057d8684af2d8301c0aa85e55de2af99",
+      "seconds": 9.537,
+      "returncode": 0,
+      "peak_children_rss_kib": 668528,
+      "log_sha256": "a1fbae9316f0eda8f41a19f0b8b4fd502f92b6bba76ff6a66eed4b5055f691ff"
+    },
+    {
+      "name": "baseline_tables",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/export_paper_ablation_tables.py --source /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/baseline_snapshot --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/baseline_tables",
+      "script_sha256": "0960394506ae797d2c4ec9f5de3be3eb7faa3eb94a6d06bec3443adf3bd55b06",
+      "seconds": 2.048,
+      "returncode": 0,
+      "peak_children_rss_kib": 668528,
+      "log_sha256": "1881c4e4a874d43597818ebef2b1b0caa7b32adc8c12fdc1928d59b245eb6662"
+    },
+    {
+      "name": "relocated_tables",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/export_paper_ablation_tables.py --source /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/snapshot --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/relocated_tables",
+      "script_sha256": "0960394506ae797d2c4ec9f5de3be3eb7faa3eb94a6d06bec3443adf3bd55b06",
+      "seconds": 2.012,
+      "returncode": 0,
+      "peak_children_rss_kib": 668528,
+      "log_sha256": "1881c4e4a874d43597818ebef2b1b0caa7b32adc8c12fdc1928d59b245eb6662"
+    },
+    {
+      "name": "historical_tables",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/export_paper_ablation_tables.py --source /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ablation_publication_snapshot --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/historical_tables",
+      "script_sha256": "0960394506ae797d2c4ec9f5de3be3eb7faa3eb94a6d06bec3443adf3bd55b06",
+      "seconds": 1.993,
+      "returncode": 0,
+      "peak_children_rss_kib": 668528,
+      "log_sha256": "1881c4e4a874d43597818ebef2b1b0caa7b32adc8c12fdc1928d59b245eb6662"
+    },
+    {
+      "name": "baseline_ensemble_export",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/export_paper_seed_ensemble.py --inputs /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/frozen_inputs --results /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/baseline_ensemble --plan /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_ANALYSIS_PLAN.md",
+      "script_sha256": "e8efa30592249f21de7d5842b5910bdf68db32ab441503d347798f8e725e47d2",
+      "seconds": 23.379,
+      "returncode": 0,
+      "peak_children_rss_kib": 676908,
+      "log_sha256": "988ade090129e482a8410bc1a1521e7d315b0912fcc48b120639c38cb7f15eb1"
+    },
+    {
+      "name": "ensemble_export",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/export_paper_seed_ensemble.py --inputs /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/view/inputs --results /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/view/results --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/ensemble --plan /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_ANALYSIS_PLAN.md",
+      "script_sha256": "e8efa30592249f21de7d5842b5910bdf68db32ab441503d347798f8e725e47d2",
+      "seconds": 23.396,
+      "returncode": 0,
+      "peak_children_rss_kib": 692144,
+      "log_sha256": "988ade090129e482a8410bc1a1521e7d315b0912fcc48b120639c38cb7f15eb1"
+    },
+    {
+      "name": "fields_plot",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/plot_paper_ablation_fields.py --source /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/snapshot --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/field_figures --contract /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/legacy_scripts/contracts/ABLATION_CHART_CONTRACT.md",
+      "script_sha256": "0795cb2bf09d279c406b8e6fa5c405cd5d7fafb95983703e88e68b72047a9f73",
+      "seconds": 91.358,
+      "returncode": 0,
+      "peak_children_rss_kib": 860616,
+      "log_sha256": "18f394c79f0a92fe45a8a7d8c62dc2c9324987d9c7c39177567afb9dc902fbb7"
+    },
+    {
+      "name": "sweeps_plot",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/plot_paper_ablation_sweeps.py --source /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/snapshot --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/sweep_figures",
+      "script_sha256": "cbfa2e8e70e123f32155f6f9acad8266e25c5483bbd5aa9f95509e8978c55a5e",
+      "seconds": 68.143,
+      "returncode": 0,
+      "peak_children_rss_kib": 860616,
+      "log_sha256": "54a565a34855ccca886e21875157d8cb94446023f893b6ae8fae937c0aa8852b"
+    },
+    {
+      "name": "ensemble_plot",
+      "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/plot/plot_paper_seed_ensemble.py --source /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/ensemble --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/ensemble_figures --contract /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_CHART_CONTRACT.md",
+      "script_sha256": "85a94ebed0f42bb62db21c88f632eb750d3e8bf56bb14958ea4d2d1c926cc5b2",
+      "seconds": 17.172,
+      "returncode": 0,
+      "peak_children_rss_kib": 860616,
+      "log_sha256": "a31b715f185fa8e33efc39a51ebbb8a1a8d3706008a22a4ca84eb1cf887bea0e"
+    }
+  ],
+  "checks": {
+    "ablation": {
+      "configurations": 1060,
+      "revised": 744,
+      "unchanged": 316,
+      "all_nonpath_record_values_exactly_equal": true,
+      "field_errors_csv_byte_identical": true,
+      "field_errors_sha256": "cd0ee4fae732dbdb343cbb258166cc8ad6adf775c7dff4f258dd088fb6ac9247",
+      "historical_snapshot_comparison": {
+        "changed_float_values": 1132,
+        "max_absolute_difference": 2.220446049250313e-15,
+        "max_relative_difference": 1.7317480407323052e-15,
+        "cause": "Different historical BLAS reduction order; path-only replay uses fixed two-thread libraries."
+      },
+      "new_read_paths_inside_view": true,
+      "available_raw_records": 1060,
+      "unchanged_missing_raw_by_pde": {}
+    },
+    "original_controls": {
+      "status": "pass",
+      "predictions": 316,
+      "fields_checked": 632,
+      "max_absolute_difference": 3.020880052773123e-07,
+      "max_relative_difference": 1.444894316281089e-07,
+      "relative_tolerance": 3e-06,
+      "absolute_tolerance": 1e-09,
+      "published_values_preserved": true
+    },
+    "tables": {
+      "count": 20,
+      "all_tex_byte_identical": true,
+      "sha256": {
+        "ablation_grid_hybrid_s2d_fields.tex": "baaf3ee002ebccdfee9bcd092dafcb0bd27b6f4bb32b8c6837c1e98cba853c42",
+        "ablation_loss_state_fields.tex": "05bdf174bb645cbd0a5c536bcd2f2c5296f27aea68279fa9393f0b06f7325662",
+        "ablation_steps_hybrid_d2s_fields.tex": "904debff8c623df6252e13bbcf3b7c914d66274364a266b7163a40fe8c4169ef",
+        "ablation_layout_fields.tex": "34c3f9d5bafe31181dc8acfa207c8097939b3994d23f26ecc848de7dc4627e24",
+        "ablation_phase_fields.tex": "160b80952167f4db37a52a23b317772aff0c4983c640fbc172420d8bd772dd50",
+        "ablation_steps_hybrid_s2d_fields.tex": "64af82e519f5eb85a78a440c0e04965ea75dca9131bcbe2246ac4f8eaedb7d92",
+        "ablation_temporal_fields.tex": "41a40d8417d8a69d8fe172a556d9fe12fe674ef45b360f087c01d3cc095ded74",
+        "ablation_noise_fields.tex": "5d379f6ee28ece854c6da148e46941342a1c58c25c6f273918eb9eb2f4bdc528",
+        "ablation_physics_diagnostics.tex": "8d5c34149346121d5e9d1e66997405975d024e9842f7924a934e4195ad839aca",
+        "ablation_guidance_parameters.tex": "bc287b084d02fd0a808dd622ed7f0fc453eb8f1ef63bf8d0f9d3f4d4053f45e9",
+        "ablation_guidance_inverse_metrics.tex": "9ee2988f58737eb6b42aec6663a243b8819df80b452722429069bdfaf2b1df14",
+        "ablation_grid_stochastic_fields.tex": "cd5a82257e6f6ddba264008c1a54cf236859faea3b50004c2d0fcb67392649eb",
+        "ablation_grid_deterministic_fields.tex": "672cfbe5dc2472dde835b93ce029c7bd1e773d920ff5e77cf17f8ca3b39a3745",
+        "ablation_steps_stochastic_fields.tex": "f85b72f1c9f5c66ee8a67d18eec2a7451ef1f1f5fb94882845605fa73dd072d1",
+        "ablation_guidance_forward_metrics.tex": "91c15129b09d8bc659da98291cc6b48f84b65649e6a9f545077c4bfcb9da321e",
+        "ablation_grid_hybrid_d2s_fields.tex": "9813b63de65e0c6e1ca14f5b7a35c2837a6be8f53f2111949157f146ae6906f4",
+        "ablation_integrator_fields.tex": "7558d698c23aea1891269dffb4d884462e7e93054f0929f5fe9f8465f63362cd",
+        "ablation_steps_deterministic_fields.tex": "679831eeb7f246f26880eb2d47212a6d9b28f1df86c87080332ded8384c45f6a",
+        "ablation_stability_fields.tex": "2fd7297c5d682239c92f78ae17892c971b61b48b4e72c46f4d908ed5a8dc581e",
+        "ablation_coverage_fields.tex": "37a6d251345336915577799698e5ba0f60594ee0f0a7242b502bbf663cf9083c"
+      }
+    },
+    "three_draw": {
+      "pdes": 11,
+      "predictions": 1056,
+      "fields": 21,
+      "csv": {
+        "summary.csv": {
+          "rows": 21,
+          "byte_identical": true,
+          "sha256": "923f6596025aa0d2fa8af16430750aa680a063b985fb8025aeb2917daf7ff691",
+          "historical_comparison": {
+            "changed_numeric_values": 0,
+            "max_absolute_difference": 0,
+            "max_relative_difference": 0
+          }
+        },
+        "per_input.csv": {
+          "rows": 672,
+          "byte_identical": true,
+          "sha256": "6d83350c3aa4588c9387b3447c277360956a36ce53410e41aaabda49abcc76f8",
+          "historical_comparison": {
+            "changed_numeric_values": 0,
+            "max_absolute_difference": 0,
+            "max_relative_difference": 0
+          }
+        },
+        "frequency_per_input.csv": {
+          "rows": 24192,
+          "byte_identical": true,
+          "sha256": "d33f37c614c270652f3de92e309a3e2cb22161d6b26640d53e435aec8057a151",
+          "historical_comparison": {
+            "changed_numeric_values": 0,
+            "max_absolute_difference": 0,
+            "max_relative_difference": 0
+          }
+        }
+      },
+      "verified_predictions_exact_except_receipt_path": true,
+      "spectral_arrays_exactly_equal": {
+        "poisson__a__reference": true,
+        "poisson__a__seed0": true,
+        "poisson__a__single_seed_average": true,
+        "poisson__a__mean3": true,
+        "poisson__u__reference": true,
+        "poisson__u__seed0": true,
+        "poisson__u__single_seed_average": true,
+        "poisson__u__mean3": true,
+        "helmholtz__a__reference": true,
+        "helmholtz__a__seed0": true,
+        "helmholtz__a__single_seed_average": true,
+        "helmholtz__a__mean3": true,
+        "helmholtz__u__reference": true,
+        "helmholtz__u__seed0": true,
+        "helmholtz__u__single_seed_average": true,
+        "helmholtz__u__mean3": true,
+        "darcy__a__reference": true,
+        "darcy__a__seed0": true,
+        "darcy__a__single_seed_average": true,
+        "darcy__a__mean3": true,
+        "darcy__u__reference": true,
+        "darcy__u__seed0": true,
+        "darcy__u__single_seed_average": true,
+        "darcy__u__mean3": true,
+        "nsnonbounded__a__reference": true,
+        "nsnonbounded__a__seed0": true,
+        "nsnonbounded__a__single_seed_average": true,
+        "nsnonbounded__a__mean3": true,
+        "nsnonbounded__u__reference": true,
+        "nsnonbounded__u__seed0": true,
+        "nsnonbounded__u__single_seed_average": true,
+        "nsnonbounded__u__mean3": true,
+        "burger__u__reference": true,
+        "burger__u__seed0": true,
+        "burger__u__single_seed_average": true,
+        "burger__u__mean3": true,
+        "reaction_diffusion__a__reference": true,
+        "reaction_diffusion__a__seed0": true,
+        "reaction_diffusion__a__single_seed_average": true,
+        "reaction_diffusion__a__mean3": true,
+        "reaction_diffusion__u__reference": true,
+        "reaction_diffusion__u__seed0": true,
+        "reaction_diffusion__u__single_seed_average": true,
+        "reaction_diffusion__u__mean3": true,
+        "shallow_water__a__reference": true,
+        "shallow_water__a__seed0": true,
+        "shallow_water__a__single_seed_average": true,
+        "shallow_water__a__mean3": true,
+        "shallow_water__u__reference": true,
+        "shallow_water__u__seed0": true,
+        "shallow_water__u__single_seed_average": true,
+        "shallow_water__u__mean3": true,
+        "heat__a__reference": true,
+        "heat__a__seed0": true,
+        "heat__a__single_seed_average": true,
+        "heat__a__mean3": true,
+        "heat__u__reference": true,
+        "heat__u__seed0": true,
+        "heat__u__single_seed_average": true,
+        "heat__u__mean3": true,
+        "wave__a__reference": true,
+        "wave__a__seed0": true,
+        "wave__a__single_seed_average": true,
+        "wave__a__mean3": true,
+        "wave__u__reference": true,
+        "wave__u__seed0": true,
+        "wave__u__single_seed_average": true,
+        "wave__u__mean3": true,
+        "advection_diffusion__a__reference": true,
+        "advection_diffusion__a__seed0": true,
+        "advection_diffusion__a__single_seed_average": true,
+        "advection_diffusion__a__mean3": true,
+        "advection_diffusion__u__reference": true,
+        "advection_diffusion__u__seed0": true,
+        "advection_diffusion__u__single_seed_average": true,
+        "advection_diffusion__u__mean3": true,
+        "steady_heat_conduction__a__reference": true,
+        "steady_heat_conduction__a__seed0": true,
+        "steady_heat_conduction__a__single_seed_average": true,
+        "steady_heat_conduction__a__mean3": true,
+        "steady_heat_conduction__u__reference": true,
+        "steady_heat_conduction__u__seed0": true,
+        "steady_heat_conduction__u__single_seed_average": true,
+        "steady_heat_conduction__u__mean3": true
+      },
+      "historical_spectral_arrays": {
+        "poisson__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "poisson__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "helmholtz__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "darcy__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "nsnonbounded__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "burger__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "burger__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "burger__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "burger__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "reaction_diffusion__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "shallow_water__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "heat__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "wave__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "advection_diffusion__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__a__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__a__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__a__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__a__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__u__reference": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__u__seed0": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__u__single_seed_average": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        },
+        "steady_heat_conduction__u__mean3": {
+          "exactly_equal": true,
+          "max_absolute_difference": 0.0
+        }
+      }
+    },
+    "plots": {
+      "count": 80,
+      "valid_pdf_and_png": true,
+      "figures": [
+        {
+          "name": "ablation_budget_fields_1",
+          "folder": "field_figures",
+          "png_sha256": "b238f082b68e982856db0da1fd29df95995afc5d42f509bb56440b029ea32e98",
+          "pdf_sha256": "c6dea4a8bad7b697c6e182e2c14072121403d6d1d8630d82a4a79b8965762e5a",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "2885caf5b007c3c4eb3bf22b18bbe433f32759e2dd499afe0fe0e48c6389a699",
+          "pixel_shape": [
+            1260,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "3a3d6196b5f15c4ae0841eeaa63c79d871477bff1ab74af4acd2b212809cf05f"
+        },
+        {
+          "name": "ablation_budget_fields_2",
+          "folder": "field_figures",
+          "png_sha256": "19061339fdb1cdc5ed1fa39e4c1e0969eb15d76c0196fb990876a7a5b42f5611",
+          "pdf_sha256": "53ea9ff391bed7e45e706f0208e773a5ea5347f87517d64f9fdb09faee668185",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "ed21623741b6c42fa5e3b69aa8685216c7148e209b5c39849d6e19450237797e",
+          "pixel_shape": [
+            1260,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "6b14ae5402ac9e682e5ed934df78825d22ae1923f70931d6054d332c281f57ba"
+        },
+        {
+          "name": "ablation_budget_fields_3",
+          "folder": "field_figures",
+          "png_sha256": "20d2cc8bfa663aaaf27e0911a5cd6695df76d3f70bf3430096cd8b7b671e5047",
+          "pdf_sha256": "1e5c36d7adadb7454e9e27d8e4820a5e65dc402d1ccd1599ad3b7f44d1ee8018",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "3217a9c6e693775280593ac619dc4cc5b420158905dd7019a785aabc54c6400b",
+          "pixel_shape": [
+            1260,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "e30ce2d1d9afd400023ee90e6aaa314e0b68d56ccd55e349939a3c59f083dfbd"
+        },
+        {
+          "name": "ablation_budget_fields_4",
+          "folder": "field_figures",
+          "png_sha256": "73ce196ec2e24bc684091c2eb259f72dce8c763d881ca445223561d2350a8824",
+          "pdf_sha256": "bda3aec6264158eb3bf51a70040ad871aeadcba7a8a0e32a2f214df60724b315",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "2178b4379a8a052e86d83af1c4b1b9d3b1efad44df552a58468efbdb88ff9c78",
+          "pixel_shape": [
+            861,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "6d8e786cc0aca0cb26fccd48a1d7241d9ee3d912a92a4994c41324ea3e8de242"
+        },
+        {
+          "name": "ablation_coverage_fields_1",
+          "folder": "field_figures",
+          "png_sha256": "81d4ce74e098758847ac7eb0c35d1b07306bcb00d08935fa408a289000f2c846",
+          "pdf_sha256": "e3844982d2cf9c5222aad88ced234f5ac0a70ae91712fff6b80b9502f265928e",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "95359a3e567bc9c1b736052d5300daddaa20ca5655d8e7655b7647abcdce10b1",
+          "pixel_shape": [
+            1266,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "4a7b3d459a96289cf9ba5296970a078b9a986914d7eff0560b15af5973831224"
+        },
+        {
+          "name": "ablation_coverage_fields_2",
+          "folder": "field_figures",
+          "png_sha256": "9c5512e868a12f6a8c871335e0ffdf9f10b162865be5ae2d84f726cac33b7109",
+          "pdf_sha256": "7b7a90ea05ef0918c72e684fb713577d51c3dbc594ed100d1b09df4b1b2c13c3",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b75fd060aa206caead50dce952115e22a554bcfb9033e125b380ee056a97c38f",
+          "pixel_shape": [
+            1266,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "e19ff83aa545e5a31501e9e4bdc832f2ecbde560343cf822a05b4e9a7a013125"
+        },
+        {
+          "name": "ablation_coverage_fields_3",
+          "folder": "field_figures",
+          "png_sha256": "402a6826fb6bc164d3c81574588194b57fec99050d068374986de3fc22bb7584",
+          "pdf_sha256": "10c43db64aca86832e7dda4e22ac642620b10198ddb81e19d37be25450a61891",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "afeadf29c72637861343aac85ea6cd69ccfed92717c0ef6829dd3f209d3e0978",
+          "pixel_shape": [
+            1266,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "753881c4dd175f632a72dd827c1c23f7ce1eadb8d903dc8bcb39258938bdb0dc"
+        },
+        {
+          "name": "ablation_coverage_fields_4",
+          "folder": "field_figures",
+          "png_sha256": "1d5d8050357dc165b6e54941b4324412019e75ca11a2622c225c6623dd107059",
+          "pdf_sha256": "ecd6d315a090c9b11f2d5849e78b5fdc577b135c4944e5aeb60a6b2d82e9c229",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "15385865e5db44a17e8411e1c3b627672d5922d93598ddf5b774d3c9efc85e9c",
+          "pixel_shape": [
+            867,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "ba4660eb2911f18ffbf8accd9e3b17bb1457e5dc05c958dfb5bc53f181602976"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_advection_diffusion",
+          "folder": "field_figures",
+          "png_sha256": "5168500e3700a8f2ea3d6abdaa2a49104688baf9799438b1e94041620d9de86c",
+          "pdf_sha256": "dab8db1f9d7f68ffd5862c2da98e18a27ffdeccd8387b0c618e8d5bebbb127ff",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "6395e20823beb2eddcd96316fb80699424f4989d3985d0199e8c019ec8b94668",
+          "pixel_shape": [
+            988,
+            1264,
+            4
+          ],
+          "reference_png_sha256": "fd52d4f08dc19af80890547566965ee62e129a80048541d22085e0f4ca62913e"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_burger",
+          "folder": "field_figures",
+          "png_sha256": "e863d15e7ce08e2dc5609aa46a580b5ee646ec07e01f37531849489680672faa",
+          "pdf_sha256": "a466699574af88c4992e5de6ab0d86f8176aa4a22120a34c9e92604844fd800c",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "c41aa168373e76438e4ca721d8a526bc5c78ce9902dd7db59475d73663585725",
+          "pixel_shape": [
+            537,
+            1259,
+            4
+          ],
+          "reference_png_sha256": "fa3ecf07f38fcd86d45f0bba678c61645145d12f1bb0eff1acf39c6e92b838fc"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_darcy",
+          "folder": "field_figures",
+          "png_sha256": "b338821868548862af792d72805bf5460e8641a08ff1bf9cf26d0075ce833125",
+          "pdf_sha256": "9086d6563d703e64c25c00e29e729a76fd8d53f06c29592128a46c516289e394",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "d6a9d1f0b622cd7a961182b4a780e4c022150af9bc36fb9b7e75d8ce0682642b",
+          "pixel_shape": [
+            984,
+            1252,
+            4
+          ],
+          "reference_png_sha256": "7ca506c5cb3d2db7d86aec3bf2f25c79c771011bf83f3c66b2746908a1225b8a"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_heat",
+          "folder": "field_figures",
+          "png_sha256": "388684cca856f56022e10fe3c13789a5a5c73f73d82585d93c026bb053449b76",
+          "pdf_sha256": "47f7396301e837c04774b643f8ab87622da17919de3b7ce38a389a5e0f81d355",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "2fe0a0aee261b38e354c694a62d6ffc5e14ba741209f3d83aba5c36ce571bd9c",
+          "pixel_shape": [
+            988,
+            1264,
+            4
+          ],
+          "reference_png_sha256": "f8011464a1ffca8645a415563c2d45954c7ff6695bd72cd4081c43d9f1fc6be4"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_helmholtz",
+          "folder": "field_figures",
+          "png_sha256": "8231fddc57aac3ef0902d03280d35f5edcafe1d75661d33739b5bdfd5d8fc7c3",
+          "pdf_sha256": "b8f88fe25e110a254061a4069c357862d55bfb2c3b058cbde681cee91eb1f126",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b2ecb86f5e4e171f959651c74ec09b28791e14330bdff56ffe48a61deb57c3e9",
+          "pixel_shape": [
+            984,
+            1252,
+            4
+          ],
+          "reference_png_sha256": "c5e786c78099c2574daed98ed97ad5518aca503e186fd8a35540279eb91b2a50"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_nsnonbounded",
+          "folder": "field_figures",
+          "png_sha256": "fc4d1110d8f588c63179d878e384bbdc73bc595604422db71f8df7a83b31ad41",
+          "pdf_sha256": "432bf8314ab2b29e18ddbb5c1e75a50c5372b522e3ce0deeeab3dbf93c3ebd38",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "a7fc4631282735a1603f0d8d3dc1aaa0540445fedb898fa8a663deec000b27e1",
+          "pixel_shape": [
+            988,
+            1264,
+            4
+          ],
+          "reference_png_sha256": "150d726671f920f53c20f4c658744df59c9c5884c5c80edb3808769545c23f4e"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_poisson",
+          "folder": "field_figures",
+          "png_sha256": "45dedc947e7ad557e61f4d351418bb42fd421d9bedc1d50c673895037206a174",
+          "pdf_sha256": "9e245edb6c3695eaf6531b87a4a7a1d97b78e307db85f5d3ae3c1dba6f37cb89",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "c149440dfd75e3dfe1e59fbd1d3a1bb358f65f75524af194e7c71c656d3dd573",
+          "pixel_shape": [
+            984,
+            1252,
+            4
+          ],
+          "reference_png_sha256": "d081e11b84b235ca842889453a9cfa07e24ef864622be880bb07882a0ca3f028"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_reaction_diffusion_1",
+          "folder": "field_figures",
+          "png_sha256": "85860b8723b8522862fb27bfc764031636e7cb227250c367891db299cf098974",
+          "pdf_sha256": "1c48d71e7d8456cd9899e9217049b7c39834c898d49dd7d48736c74863d470ba",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b42d59d0aa60b3f3ad4102aebab363ec92e9d8345fdf1d59932b5d9af5601508",
+          "pixel_shape": [
+            988,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "b715f1f75a814ae604d016c2600b3e10bc79a3a931a6ad6d788745fea9364e67"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_reaction_diffusion_2",
+          "folder": "field_figures",
+          "png_sha256": "3d80a2e9e5e709d7a415274911afb26a47e7ec640a7cdf4b023077e741765495",
+          "pdf_sha256": "37e22c34b7d45270f9bfd249e8e657c85af3f1718cc737216e53575098348cdc",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "a8972328a969a5e877eedc9108a01844fe03ca2b557873b98b8da10a4c63fe65",
+          "pixel_shape": [
+            988,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "f1f6c84b9ae5cc8ccb96b870bdbea1483872840236a0b85b9fc1180cfea33c98"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_shallow_water_1",
+          "folder": "field_figures",
+          "png_sha256": "bc59fea3deea52ac57a74f4c404aff10e03d22345d376067ed039f8b1347c0f5",
+          "pdf_sha256": "bc1004aa497afc2847efe45de9a19f5ca5522d0e67c7e4ffee6f9ebd59a8bc6b",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "015509479016c57f09c3be449be1f5e95eaa527ec2161163d6ef9c65aa29753d",
+          "pixel_shape": [
+            1436,
+            1245,
+            4
+          ],
+          "reference_png_sha256": "0b61bdcab315acb56076a6c5f9d77968568eb4e7a995be482e72a8e60bb78e73"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_shallow_water_2",
+          "folder": "field_figures",
+          "png_sha256": "f19658121fe042f692f46afa38fdf1b26f4ab7e461fc18743ee798b08b8febe9",
+          "pdf_sha256": "38e42e9bf2188e410c5a5c940275a4101e42447b6b72d49f805b51a5394bab9c",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "e7b5334d021beef53c3a9b8c57e9b5cc484c57b2a52e97d1ba3321becb03de3a",
+          "pixel_shape": [
+            1440,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "1a7447c33e172f58e364b2d43807d64be7a8defec8828baded2a9b9dd891d6da"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_steady_heat_conduction",
+          "folder": "field_figures",
+          "png_sha256": "7b2683bb9f8e0a8e1c17f3403cf91430bba770089843d678c7f9645c16c38816",
+          "pdf_sha256": "a4fb1474ec626fdde3b88296f98b82666d70fc89bf82aca20e1a9008e1d614ae",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "87bd8f0a240fed6e2b54f0194e727cdb6868a0e389d7f88670bc227f5c72028e",
+          "pixel_shape": [
+            988,
+            1264,
+            4
+          ],
+          "reference_png_sha256": "d9b6be53adc825e942415ae2fdd4b06d2a4b85b4f85994d9168604b125b6cc33"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_wave_1",
+          "folder": "field_figures",
+          "png_sha256": "b7bfe51e7343ab943388c9b9356e9d64b5fb5b145e6348125b738cdd6f0b5de8",
+          "pdf_sha256": "e24d2a41426cdb41683968858cf978cd2297154f8569ac939553963b85a6ffe0",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "aacbf80657e65e2d9d59416a55d5b2d62c512fc6692ed5d814d024008dfb79dd",
+          "pixel_shape": [
+            984,
+            1250,
+            4
+          ],
+          "reference_png_sha256": "eb37adde0c6ab9c97595804f3ceb07aced328aafcefdb63a14c7849d0085c359"
+        },
+        {
+          "name": "ablation_guidance_reconstruction_wave_2",
+          "folder": "field_figures",
+          "png_sha256": "f2ce35db1ccc1a3769a09e8291d6531dd428122c8cf87ad6d886ba47128d92f2",
+          "pdf_sha256": "c392b1c7745639154502ff00139cfbbb408a07293f36c004ca81252ff35148db",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "4922eb1f1655d8660746322f184d5cdedb0ec188e0a91ceaf7a6138189f8fba8",
+          "pixel_shape": [
+            988,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "0a48bec41411601e87f23396053e4067d0a1f53bf8f8c70b3d701886434a1033"
+        },
+        {
+          "name": "ablation_phase_reconstruction_advection_diffusion",
+          "folder": "field_figures",
+          "png_sha256": "43391856298db125da9467ff5b44c93d837b2cfeb4e4284cd759cc0ad6f20546",
+          "pdf_sha256": "f4837e6268222cb55b59755076c8f895d353aab3bf387f8f38b77f47ee24ce50",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "f1b794503b4b1809872ba332085f47da6e1d83a10f1ff7aa5149ad92e62105aa",
+          "pixel_shape": [
+            781,
+            1253,
+            4
+          ],
+          "reference_png_sha256": "f92392338f920c164a0d6ba1aabbfa81b808c5919f356a510d3be40cfae6cd0c"
+        },
+        {
+          "name": "ablation_phase_reconstruction_burger",
+          "folder": "field_figures",
+          "png_sha256": "9a38d08c602a1e6431da82a39dadeb6274c45055f65fc06bef59f1a9e13c49c4",
+          "pdf_sha256": "693ac939ddd88623ba97d235089d4c6aa8cfb8bf0cac26671679d674c04a865a",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "9ffe9104de29659a229d9e92f9f415bcd2dd514e0a10cafe588d20765145678a",
+          "pixel_shape": [
+            434,
+            1249,
+            4
+          ],
+          "reference_png_sha256": "07c34c15561d252d42cde91a483f96eb300e1ff37413d37ab9c20be39dc7f4c2"
+        },
+        {
+          "name": "ablation_phase_reconstruction_darcy",
+          "folder": "field_figures",
+          "png_sha256": "3d9ab4db54d3953b7a851316018b987e58bb6e7b450721f3da979497fc7bf935",
+          "pdf_sha256": "2494c16c33fe8af2464a238bf8a9f954560aea8fe3236774f1d56fe7a9f712d8",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "122da03504c2166430a9d4b298e5c1c9047e125e4e06eea90236aa85a0bf3c67",
+          "pixel_shape": [
+            776,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "ca685dd30a18d1009cbc4cc11844d30bbfcd4c5ea5c397b42266fb2648ce55df"
+        },
+        {
+          "name": "ablation_phase_reconstruction_heat",
+          "folder": "field_figures",
+          "png_sha256": "f190cf9bc9bdcec0ea22f704c8be3a3a8d2b2fb2cc488ad6f782f678147e28e6",
+          "pdf_sha256": "0fcfac41a842355d621d5ec41c86e43762fd2f16f849bdfd2a3f7b055dc2afdd",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "baeab75c3851e6b1c871315a4b65426c145f84f36795c98779b722f016a418cd",
+          "pixel_shape": [
+            781,
+            1253,
+            4
+          ],
+          "reference_png_sha256": "8760719db6d77e22c56c2c574d7ec4b5d7176826a52d7689a05f9ec85b2508ff"
+        },
+        {
+          "name": "ablation_phase_reconstruction_helmholtz",
+          "folder": "field_figures",
+          "png_sha256": "18785eacd7dae3e5f60dbd8d477d173f7e6785b626df6d4d1fa6d99c2dc66d68",
+          "pdf_sha256": "db14993f97425649ffbf4da79aeedc723b4f1602e49cee486b89062971227bb4",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "0cf987f750cdb33b086c4fafeb7bf8e33ed92fe49caef94c3f86c6e79481a7f6",
+          "pixel_shape": [
+            776,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "5be4570e314ab0025bc5ac302477dfead337ab18a2433c9e9efd09f8d46325a2"
+        },
+        {
+          "name": "ablation_phase_reconstruction_nsnonbounded",
+          "folder": "field_figures",
+          "png_sha256": "2dd62231d448b0183101871ce359f3aa2968b3b0e858c7490dc8e6c5d9043f1d",
+          "pdf_sha256": "3df5a2309ab0a97012086257b04a7248a67bf8ff768ec586ae0c224d680f2196",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b1a6ad97197be980cb6b59c443a87c47e9e7484793818a55d94405202e50c38d",
+          "pixel_shape": [
+            781,
+            1253,
+            4
+          ],
+          "reference_png_sha256": "f0606cdc112dc8da2c7df91d0e8546bd2b6b511da2bc7cf6a6747a8d4aeac264"
+        },
+        {
+          "name": "ablation_phase_reconstruction_poisson",
+          "folder": "field_figures",
+          "png_sha256": "ab4660ab05aa2c0c1db1abc3f9c9331bf0009dd80b9ea0f41fe74627419a9e01",
+          "pdf_sha256": "81e53b30a94aac4aa61427589506467aa2844b0f00b3a3eefe8d122db0373459",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "25b461957de0e70d350b1811a49999e63f2d208467d0dd8882e326d5c6174e85",
+          "pixel_shape": [
+            776,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "0a0478e756cf75ba4463f7c7e9fab6ee391286d2472608db2f42a6cf83b5ad31"
+        },
+        {
+          "name": "ablation_phase_reconstruction_reaction_diffusion",
+          "folder": "field_figures",
+          "png_sha256": "e7154529c6cb9cf10a949031739f2c91ffd4ed68aa1993a302d17c9cd2fc6d4a",
+          "pdf_sha256": "e1951abbb80af1c6e2f8633ec05350b53bdee81daebab12ba9fa58f740fa4414",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "05c7f4a40a5c4c0a1181e63c51a08dee1a9e2086d0a0d7e47c7198c4525c297f",
+          "pixel_shape": [
+            1474,
+            1251,
+            4
+          ],
+          "reference_png_sha256": "cfe646241d7ac2790b89d31107446055447b9b7065d04b0255f61f0248ba04cb"
+        },
+        {
+          "name": "ablation_phase_reconstruction_shallow_water_1",
+          "folder": "field_figures",
+          "png_sha256": "33eda5338034a5184fda19a9dc01b001121e9ac3d63ea40bac10332e5aa72997",
+          "pdf_sha256": "7d7dc97bce588a9d8d900dca3e9a94f2371a9c0ca6f3a797bc40613c38b72bce",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "7d4e2ecc57d6a725ded0af2bb8b3e3d532eca5b16d522564c988f4e5b3a585cf",
+          "pixel_shape": [
+            1123,
+            1236,
+            4
+          ],
+          "reference_png_sha256": "919dc2f139f537494f67c6661e832d251ccd94cf39a3e23d9317b1398ba9c6c4"
+        },
+        {
+          "name": "ablation_phase_reconstruction_shallow_water_2",
+          "folder": "field_figures",
+          "png_sha256": "7c3e9cb466d5f85b30bd4e8d08f053d871734105bb4e3ac15890256afc3610d3",
+          "pdf_sha256": "9512ad677eb08b15a4a264ee7dfdbc62c286cbc2e0ce79e374940dc11b7a75c6",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "ce3080c5038a393992dca061a3abde5458383937917f84079ce1c1cc1054b607",
+          "pixel_shape": [
+            1127,
+            1251,
+            4
+          ],
+          "reference_png_sha256": "01e919949c6ee5bd945758ba58abdb5b5a04d124c045c128ce900d0bfdc8564b"
+        },
+        {
+          "name": "ablation_phase_reconstruction_steady_heat_conduction",
+          "folder": "field_figures",
+          "png_sha256": "3fa3b9418ae96447a1468db474ccd2c4aebd7d216f941fea94fb9c8e36623e09",
+          "pdf_sha256": "44cfb95e1c93fb6ac4553b5849b7653a987a2593ef3195edf3a7e23511dc2bc2",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "7ccbdf5ad5fea058b931791124b1947a2fab11d87aca3684c2298190ea69ebe2",
+          "pixel_shape": [
+            781,
+            1253,
+            4
+          ],
+          "reference_png_sha256": "a95e51a714be6e0607850e2783ea7f9987b99797b75154d206e296b4ff1f4820"
+        },
+        {
+          "name": "ablation_phase_reconstruction_wave",
+          "folder": "field_figures",
+          "png_sha256": "cce9a08b3e1c45716f36ababc2a804f3a5e06c7447d68e87172131158de7a9fd",
+          "pdf_sha256": "ca8ada40ff524917ee9d7892a14ac643af878339c0ae6f825cd0fcbfc50a98a8",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "84914cd0a317675c3331d7a119a28997d0462b302aa9405be8fab4704a9f082a",
+          "pixel_shape": [
+            1474,
+            1246,
+            4
+          ],
+          "reference_png_sha256": "08b641f3c37e1c36a3e378a2abfdedd1cfc1ec10aa802d9c69c14250fa05e1c4"
+        },
+        {
+          "name": "ablation_trajectories_fields_1",
+          "folder": "field_figures",
+          "png_sha256": "f52c138be1dd637412ec2a5983062022a41f4f7a1c8be5c03d8019c591b1195c",
+          "pdf_sha256": "fb28558e919b18b71c0f12a1bd78f663563bd381714cbe26c0113589a685ff72",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "e7699ea4a8eacf1565bf97a87d02302f8420ba968c29d37319b6c1419ecc2a34",
+          "pixel_shape": [
+            1203,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "d2b5ff97852d87255790d41eea9fdb94669352dac4512e4d7901544fd0723b3e"
+        },
+        {
+          "name": "ablation_trajectories_fields_2",
+          "folder": "field_figures",
+          "png_sha256": "c158224f8a403d5dba2cbbf8e2b9ab6a7f639bf36caef81fcbb236e358c90588",
+          "pdf_sha256": "0d403e3e9662d63b63232949d579b918f52da2afc5f1174207745973fc7822ab",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "3ce431fa4f079b91c88a0a0534f7d5de8a133d83deaeca590950f782fc94ee18",
+          "pixel_shape": [
+            1203,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "2c47d7cab904ad4c357b662dd170fdffd341eb9751097609527c2328cc7a62e6"
+        },
+        {
+          "name": "ablation_trajectories_fields_3",
+          "folder": "field_figures",
+          "png_sha256": "3e177a7f829fc0c0904fc348d2c28007b760c2a472f46f4d4a4d0fc91dc3faa0",
+          "pdf_sha256": "0499c2f58a577764269c79144674aafde3377a25e17e9db39b027527051fc957",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "055d9ba7ecb81f0dd3118905829e75844b8db0fb4cc568584fae5d72f24488a6",
+          "pixel_shape": [
+            1203,
+            1261,
+            4
+          ],
+          "reference_png_sha256": "a686043106e36456dce8753650029860aac146f4eac12dfc8ac92622ab0dd412"
+        },
+        {
+          "name": "ablation_trajectories_fields_4",
+          "folder": "field_figures",
+          "png_sha256": "737f0d3bcde692496c30543462460af40713aa27805e1863538f4f4e1f2e1754",
+          "pdf_sha256": "2da5f19c4bd0c8cf305a2b9f6547e7e28e664fa365ec573d48670b149e613ff3",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "22d42a5355fb40025e3926ee88783efc6625e44742220a23b433de980f4cf616",
+          "pixel_shape": [
+            825,
+            1262,
+            4
+          ],
+          "reference_png_sha256": "81155a34f1be6ffdce81367b8f4ca3b553b1257adbf20ee21cf1f5929a60367b"
+        },
+        {
+          "name": "ablation_grid_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "3b62b85b983052247a1952e88d5e46c7e87c6455f6812fdaa65cd8d1417d1d96",
+          "pdf_sha256": "0c659608308972b65865378f04a80042022a562631fad599da18c2b02aae5052",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "7c3226fd91ad31765bc49ba89bd075334eceaa34cc747c3fe0b3eb1eb5a7ad23",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "c8326d51c4d5d1e8e5526efdbb3898c67a34129a3e662b1222be13711355fd1b"
+        },
+        {
+          "name": "ablation_grid_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "63b1a416bbab118652138074b7e30cf588f21cc27309ecae896a8411d1089a13",
+          "pdf_sha256": "6b201236ede91847bac2beac7d1e4c09c3b207708bf62c412616069fffe14ae0",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "ef77c4af019790f7119c9839a39382c3900ecb512f39bda27afc15a1794d00c7",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "d3f089632066d0b5632406040f65e18346aa9d7f451f49c66c83e6a732bc3201"
+        },
+        {
+          "name": "ablation_grid_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "df43f5bd87c025679e4b68afca2a118c77fd1296e0714a05c81b0aef032546d6",
+          "pdf_sha256": "116f9ad895a0e3189aa2811b048fbe498a3ef5ea5b3c4deaeaba3b60ebe2831c",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b51df9acb8ec7a2ec6dfe797103955f202640e304ea03514e397e60012357b5a",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "bb9220b885bd1925084580ad197ddb86243af78987c724ab0e5cc8cc4f1fff19"
+        },
+        {
+          "name": "ablation_grid_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "27013d904cea890b4b2fe35b1509bbaeb8512e2b7c3fd767628c683f175d771e",
+          "pdf_sha256": "3cec38e1055951a557633c9052eb426cd7806d57b32107d63a0440285fe9b2da",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "ec92ee890ca73eb14edca4d1e4610ef0710b6fc7c2b28bcf53e40a38a7fa8d53",
+          "pixel_shape": [
+            950,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "c5c0937b9959b6179069141a0097b87293eed185bc9d0c5b282636b34c858fe0"
+        },
+        {
+          "name": "ablation_integrator_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "d08ccdc1382d52a085cf967e146d7b34c94a10e78568a0674ab2b34a5095418f",
+          "pdf_sha256": "86d41d6df06578b2435ab0354375bea8f98c2a6f840d309c0ba82f33dccb691f",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "4b99081f02d04bfb7d0cadb1e15f0c78c003bb5312afd0be48991e23a3005b4e",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "4efd7746ae84f0d11a2c7f97f3b499ab91fa4fd0a395a6955cae1ae76c277869"
+        },
+        {
+          "name": "ablation_integrator_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "27abe0b30f91980e6e6bc6f0f423cd2a7afce7c700926d6aff9dc12ec4237f58",
+          "pdf_sha256": "c8e1d14375644d45d099a553a509027bbe939da4dbe53cb5ab0d2c3190179264",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "6bc08a1da6d8734489d3757568fa8e57621e4f6ade9b8074c9aec2cefc976593",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "d1e86abf70784f6e8d74812c7c4308bd25b40223345ee6443db4a093a4256c82"
+        },
+        {
+          "name": "ablation_integrator_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "4834aac3bed38c1427a20a5748f21336acb0d09e1bc9aec6bdb4c978870a26ee",
+          "pdf_sha256": "e00b5c6e8a6d08b7fdd7a82f55a0e3b4c66697482bc632991398092a1ec7bd5d",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "4dff86b070867b7bc857daec5018e04a362c9e299820584de60e76883e493346",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "59ee3acfb0ec2e7bb97510b6130393dbfdd9e85ffd82a95f47a8bfe0459ea018"
+        },
+        {
+          "name": "ablation_integrator_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "c6a2f8d9b69c15a0323c67729c001463eab139ac302d72a787f463a5f4426ff0",
+          "pdf_sha256": "a983c470b0d9ac080fe51dceea02d4a1c2703d93e8b45608c19aa8dc4211c61a",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "bcb7d5f265533080a4e87fc4de9c0d5654789220dfc5a16bf278148ce8ae5d5d",
+          "pixel_shape": [
+            950,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "953098c14bdb55e3097bc0219614969d66abea713c54da9c5e4c6b225b9eeef0"
+        },
+        {
+          "name": "ablation_layout_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "e19558dacf3bb1284f6e97d2f15be64fcce4074dc5fd05d1d4fc94f7a6367825",
+          "pdf_sha256": "0b5d64632f26a8a7f9352c275545e90a246e68ca71c2c3e12bdd139d06d72ee3",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b1b29c8dc4d83d736908720f805aa62cc00a266795fb57f63861505c6514baa1",
+          "pixel_shape": [
+            1403,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "65a4af05f5a8e8d70693063d3281f52a8e808d23dd786e39ad204ce2382880be"
+        },
+        {
+          "name": "ablation_layout_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "459e5c49652c815c071fe66f2d245870f616abe38a8006c3fe4a85b58ed6ebe5",
+          "pdf_sha256": "a470ca34d1b580a582ad3eebb9c9938408eb51fa16d1d090935b4adfc56a6478",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "fe9d6688d1fa26b65472f0aa6b128c62204214f282866032625ae7f8933b3881",
+          "pixel_shape": [
+            1403,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "e4bdbeb0bb1067931d9bc533b6156e0355e9eb5a4ed74290b44616648bd94c46"
+        },
+        {
+          "name": "ablation_layout_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "050ee6b749ee47c36686ac21439c0fdb4076c66af0927807be4707da076df33f",
+          "pdf_sha256": "bd44d348a7b385c0c98b9e2347238022580e6bfcbe1d14e403415d6d54ef407c",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "7e132de52f42ea45f45e189cdb0af8ae5e0946324d8be4c597770529dc5b049a",
+          "pixel_shape": [
+            1403,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "fb3d599751ca5beca1fc079fee27ebd1aa9c503901cea8b0b4a25cab3b52f0d1"
+        },
+        {
+          "name": "ablation_layout_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "2e4f9739200d83dd99b4a681f1caabdb12790fdaeb3f70044ef9a299fbbee783",
+          "pdf_sha256": "d142c5fc48d7bb50cfd2179f71fa92097a085c094c7638a7d010a8fbc7268d29",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "11c7c38ebe230771a218b042965e8b65feba241510efd14f384bd09b31fb692b",
+          "pixel_shape": [
+            951,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "a994d2cd4a9a68cd5ef8542861fc2487e2fcf5f7aece9a32abebfba8485262a3"
+        },
+        {
+          "name": "ablation_loss_state_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "9c1272ae052f692ab5c4c617952ee360aef5f4b853c269c0cfa8d075582fb039",
+          "pdf_sha256": "6135251acffcda66d6b6973b4eb05a6f36b8f231fd8c98635d9967ee1ddfd7ea",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "dfa3bc7e6da3d258a71cc8ee40400d46c03b98e756b20af134b2dbc91f2f6dd9",
+          "pixel_shape": [
+            1397,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "3b6177e57e1fe470286b8b687b462f19fd47effafeb55c45a007de428d22720d"
+        },
+        {
+          "name": "ablation_loss_state_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "ce4b117a677d53a36ad453e17354849953965ae4865a63fb4547602eaf847386",
+          "pdf_sha256": "d3ef4de1b90f887f098832f88d81fc14be0773b4234b68fca6569f8565808f68",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "73f198ab2a65b4508e378a7a8d4622cd60a38f834d4901bf5a3568468eff2147",
+          "pixel_shape": [
+            1397,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "f6f409f7fac47cf0aac283f1a0a700cab420da663b93d894376bf658bdc5aa44"
+        },
+        {
+          "name": "ablation_loss_state_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "7e6e98485332d9b452b868d545897508dc0d998b6f595004d3b4fc379e7211f3",
+          "pdf_sha256": "a382989121e9c5d0b600237384ccc47a5b97781ff32bddae4961a9f29285a270",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "a52eaa35c0ef4b3db290b5bec0cdabd378873be90aa668e79f0017770629efbe",
+          "pixel_shape": [
+            1397,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "78c61b60268999890654229aa15474b8254bb5f42f3422bc98fcb69d6008201b"
+        },
+        {
+          "name": "ablation_loss_state_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "3634659a7b49b7af7bcb9ad5f8688b2f4cbedc808edecec56dfd46d3d925ed9d",
+          "pdf_sha256": "4d33367549c473f10f858dc3e6f46f54b258663621e79a2396d7b38e59487a50",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "44e08428764616398906b8f2b2bb1eb52229a0a9b78b294e0fe189c0d23738f2",
+          "pixel_shape": [
+            946,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "70ee14381d3f997ec439bd96514074442007d78de2b1c68223c7f9633d6565e9"
+        },
+        {
+          "name": "ablation_noise_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "926a582016893d6c23d30e5d0c45a6377dd09d4565310fb0398818e10890fcdb",
+          "pdf_sha256": "be3afe40a4cc7b6b819a93bf1081135b8162bd1b2bf85335b8e37b78619f5f4e",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b13b08d9872e1e8d6d28d14d59a7c3a57bbd416d98f3548b8ce3347b984f9be6",
+          "pixel_shape": [
+            1402,
+            1241,
+            4
+          ],
+          "reference_png_sha256": "827731644bd375262621abcf4907b37f7d17b5b83df51ccd1477043308e0de1d"
+        },
+        {
+          "name": "ablation_noise_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "d0dcbbe05ab825cb7f418ad7234f554d86f770f1b7dc1fb5d671f907d6ecbe3c",
+          "pdf_sha256": "e45b748d892b2abcdefdc8a8aa6394c16368e5b24d6ccd8ada7c60b13e74d551",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "72ca41c79629bf66c84b6914976ed8b94b8e493fb620bfd490d17d9196df5442",
+          "pixel_shape": [
+            1402,
+            1241,
+            4
+          ],
+          "reference_png_sha256": "c656d73ce56f437d0e854b96704d4e93f8c8cd4081240be540c7c53d1722754a"
+        },
+        {
+          "name": "ablation_noise_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "c1d65b53f2375a77b4714160996f95c7f470f5ddfddd4a5c8cd466929b67e60b",
+          "pdf_sha256": "e63684bb22c28646b2c18217d129b7b470df32d29b19c826db707aeaac52447b",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "f981051f47d7e2932ecaf81014b2c4619be62f959d4ec9abed60e79b25bacf94",
+          "pixel_shape": [
+            1402,
+            1241,
+            4
+          ],
+          "reference_png_sha256": "2a0d8a43c6f19359132963e8cb3a28d85df4e68596473e4006587758ee87b50f"
+        },
+        {
+          "name": "ablation_noise_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "cc5a4e1cfcb313bba111db2355a730c6b078cd27cbe164e993d5638fda2ac60b",
+          "pdf_sha256": "78a4797954768fe680576048c516a191119e11b9c6b87971abf149233c02abb6",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "f766299e5f2551d59aac7b80e6a8bfe2a6c7abf2e4d371e1e9257d7de3797e08",
+          "pixel_shape": [
+            951,
+            1241,
+            4
+          ],
+          "reference_png_sha256": "32c24b4025758ed455d518c76a3f4488b8008493e0bff534e637b790034b7e77"
+        },
+        {
+          "name": "ablation_seed_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "6f9b64bc620cfdff02e672dd0bcf6663d803775bdba9d228eb5b4895fba42613",
+          "pdf_sha256": "f61e1330226a4b6f1f980839fe6532e6b8797c268bb1cf8d79165d3325bc7eae",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "7203e3da2f8b3912399ce3637e039a90ad199c8af6821463c9e442fc4e9cb523",
+          "pixel_shape": [
+            1402,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "051ce3e75fefe70a8d35aac2f6a55df5f90eff4f2eff15a994662e4a2c76d0f8"
+        },
+        {
+          "name": "ablation_seed_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "0040fd35acfa13d91f967d3b322d9cea703220e9679d7289a0a52cb1e813b6dd",
+          "pdf_sha256": "527a5006d8d31be278bad1ddfd03db1b070a71d1e08d729720be3b38132747c3",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "8863a9752619a7f52f49b10d5390b211e911e47d323fa1c3ff135287de215256",
+          "pixel_shape": [
+            1402,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "df62da4b9a5ca83cfcd53691a62f448a7d78cf992e2b696a4ea81bd3332551d6"
+        },
+        {
+          "name": "ablation_seed_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "700c2f43587214ca748faaf36954bae65bdd1ec2b3067c830c31072647ef3eb3",
+          "pdf_sha256": "6333a4e1f482b794a24a3c885b490ff3238989ede41162629d3ebc14470103d4",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "f02b0f803e4a4894b109f709add7502497a6f068d1058440394ed22ce7cddcd6",
+          "pixel_shape": [
+            1402,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "0bde83ff43d09341030e2649e568890a857fc49542583b6862b166674c19cc4d"
+        },
+        {
+          "name": "ablation_seed_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "5ba0dbd0dc05841a76e1506c97bb7761f7bb84a551440f89945fd61a4445a7ef",
+          "pdf_sha256": "29dd6cea83503b69b1507e2e12e33b086bb6eed467519427c0695f21c118c2cc",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "075a65312c9d5aaad293a0d23974d2ac77489a2ae413301840565d6c54cc94ef",
+          "pixel_shape": [
+            951,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "7a6b0f45921d8fa499ae29c4f5a2124137cd76aa454f2c53b688f92a08baf0c6"
+        },
+        {
+          "name": "ablation_switch_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "10e6af5ff126ebde0997a1e0956bd82a19ab392d2ec8136e264966ea946ea1c7",
+          "pdf_sha256": "21468ef2230ccd0eb7af82fad7d7a49ab6bb7caa79ae8f8edeb5a5e5d8243822",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "938369913a1580698d6a247fd81c25c6b4bb3e6801413239f9b17e817bf704d0",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "720879efabf5e79e4eb4bd480ec0e75a55e2830bd2fc41acc986634c3466296c"
+        },
+        {
+          "name": "ablation_switch_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "89541ec95382fea5af125f926cd07e2f82c6f9fb38064635e0e8b5e5c7f3a6bf",
+          "pdf_sha256": "3a32e03754cf2bc23b87077d2df834b065ccd7edc4fd752ff83764fdfbacc9fd",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "3af6b90a91a5e313828e68e400949a6fa35536a06a2ae1da6c622c9322fe0d83",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "a3ecc522e87a422fdd91d935dd5bca3654c256f9f9b67df01dd43754acab49f0"
+        },
+        {
+          "name": "ablation_switch_sweep_3",
+          "folder": "sweep_figures",
+          "png_sha256": "ef1e8164c5aec2c28afc46e6d12c1a2f0adbd53aa0307e1e346b246518fb0fc9",
+          "pdf_sha256": "0f8f3344a4d8c0d731c7150a8b8a26eee485c1a1469c04496b8e0aec85ac4e0f",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "217f405441cb4c35e83a96c35df8d515994b82a5f84b70b25e5c293bd538c0d8",
+          "pixel_shape": [
+            1401,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "3a1b1bcfb4511cde03df4232eba308ff2ed7335cde8ed156e6516aec58d22920"
+        },
+        {
+          "name": "ablation_switch_sweep_4",
+          "folder": "sweep_figures",
+          "png_sha256": "30d961d54e3b454fc3f9821ebeb157bec3765803ef3ba593bcfd0fc379718d96",
+          "pdf_sha256": "612d30a02b0de78be84ef644a7b9fcee042f931289f6227c397b0b8767e9bc6d",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "5d337983aff1f351e34b76105803ff4228b4c65748c02437d9502ac3eaff80a8",
+          "pixel_shape": [
+            950,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "7718156ee7d6849bc5b2e28a925584f94ba562f800275a5dc1cb8894e9713c62"
+        },
+        {
+          "name": "ablation_temporal_sweep_1",
+          "folder": "sweep_figures",
+          "png_sha256": "668a3698b96d8ec31ba98c407441e87287d6dbff86d1d93cfb50991214a0a0b9",
+          "pdf_sha256": "72ad4d8b98f19a02d846cb252cc3228a4d9956dea0a9f0506d65e6868a30e8c7",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "9e54819033ed73793d909b0912edfae468e552163162df1615dc6ded4c67ab49",
+          "pixel_shape": [
+            1402,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "bcfd6d52e9884e626aaceabf68ed7c8c49c7a8f17868bfc31ecae188ceda3fb8"
+        },
+        {
+          "name": "ablation_temporal_sweep_2",
+          "folder": "sweep_figures",
+          "png_sha256": "05087ff19c02328e5c74fb52de52091f5bec6ba75f59645dbfc0a5370955fbfe",
+          "pdf_sha256": "fd3115d0020b322e4c2770c5da2a886f3299748e24d111bf10e6dc2c39a9644e",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "86fa9094d2012cfe4d151d9186a3d5b0866ac217305e603537127a309b7642ec",
+          "pixel_shape": [
+            1402,
+            1242,
+            4
+          ],
+          "reference_png_sha256": "27ae7eef920b188752dcc84c64678a2545a99313d64d9f54a9a6c109ed9b3e57"
+        },
+        {
+          "name": "ensemble_paired_fields",
+          "folder": "ensemble_figures",
+          "png_sha256": "622caedc9708be945ea1ed4a8ac703e3cf0eecbed5cb7ceba47768eb5036418c",
+          "pdf_sha256": "4f99b1c5180cf503aa772a20f271bec3a2a760175046b66e9842afa700feaf27",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b4b0116d5434179c5d3937b81ff16d489d71dfa7a848b444abd638389e0c3d2e",
+          "pixel_shape": [
+            1352,
+            1387,
+            4
+          ],
+          "reference_png_sha256": "1b3bf04d7cc5f75bc84b7116620a31009608050e2b7c02c08429bb8e803848df"
+        },
+        {
+          "name": "ensemble_spectra_advection_diffusion",
+          "folder": "ensemble_figures",
+          "png_sha256": "c8df66764eade211053d5c8217f366e5a2bd81e4ab4c3d884cee7246ea336532",
+          "pdf_sha256": "07055f25ace1fd5839a16670cb76dab10cf65a22483f086b371d1a6373a9cd6f",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "f7462d015e0498a3898867106ba9dbe4c279f1b9029d990d20fdd5ce7d28129d",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "db42a864d1afc2475f99f3031924f772e703ea1963b03baf0bee53f5cc2176d2"
+        },
+        {
+          "name": "ensemble_spectra_burger",
+          "folder": "ensemble_figures",
+          "png_sha256": "71a017281dcb1c0b21ac69e76e2311580fcd653a248b508bf5f4a237b457971d",
+          "pdf_sha256": "6ba36062e52fbfd98e4611796947fd219ee074c2380c037d0487f8bfb7ea9e44",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "3d261f555200ff78311c87bf6fdf6f5f1fda959045d2c42b968d5442e79f85c6",
+          "pixel_shape": [
+            559,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "bf974746956a1d930daca1ebd07702d11a8bbe043a8c371232a24b7eadaa46d2"
+        },
+        {
+          "name": "ensemble_spectra_darcy",
+          "folder": "ensemble_figures",
+          "png_sha256": "299126f483639d7ee27a292ed670dd3c6011faaf5f9248989998757499120b6c",
+          "pdf_sha256": "77e65ce337e95edde357ed250814ced57109e70f046676d6120f65d03bbba25c",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "eafcf291c2a31b1d4fdccd3238b4fff7e21d0cdb00641b029e9e1c482211c549",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "81d39411dd840d7415b8ba882ab818e698336875d43999db56d8913469d0f403"
+        },
+        {
+          "name": "ensemble_spectra_heat",
+          "folder": "ensemble_figures",
+          "png_sha256": "1d252a1f7446449bd752bd5050623a1a28f33eeebe7255b3bda6960711b4925f",
+          "pdf_sha256": "54b1fbcb90b8d4fc239c4c0d50ba72a04320b42d0ff2b7274a3bbd4521436381",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "5a845d522d70951b8b6f1ff5ab7fa3190f734974804ce6c5082fb7dbea5cb17e",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "38f7cc0b83f4ce5ede701234b29eb2ecaa1ed535cbd7cd5496f956782d6f47e7"
+        },
+        {
+          "name": "ensemble_spectra_helmholtz",
+          "folder": "ensemble_figures",
+          "png_sha256": "bd4ff9109ebdb89e22cf56fc99230ed81373f1a11e4a465e2e014b262aac3241",
+          "pdf_sha256": "e5ed915819dfed26ee248d20a018674cf03f97ac52d0dd5955bdbc3c7f2092d7",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "033609910a9ef8f677c2f874b6cb8a002e8c6495df9fdaf8306c7fe5424d2af1",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "12a6f323960fe4d54b29df20ef005b44078cd790138cbb62f0ee063b32938cc3"
+        },
+        {
+          "name": "ensemble_spectra_nsnonbounded",
+          "folder": "ensemble_figures",
+          "png_sha256": "7b59aea5c4a2359f4a4552b1a03c554a063a5aab5d6f57b9dd7ce33ef37ac988",
+          "pdf_sha256": "a39a6d8bcd51e87f9d52d6ca7e10257b2c6442b4f0f4fba2ecf8022d66dbae41",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b9f6982feea852ac4b732cb0a96f4f2dd42f13b5a549c27cbeb068de376daeff",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "2a6416da8c7db37a62f05e2f1aabc59a98358d148e96fd1388bb6c31062d0f45"
+        },
+        {
+          "name": "ensemble_spectra_poisson",
+          "folder": "ensemble_figures",
+          "png_sha256": "b19e5b1291295da58d3a4d94139ff84b861c942b5817c504cd182876aae93fa6",
+          "pdf_sha256": "d53e4f4ebc1c61bd68b357bb65b9610b62bd3cdab98f455d7a60d76d14627cdf",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "34ed1a8faf0c0c54f06f925c4042f49c2182af853f1241c5127205028acd236b",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "88fce81f48621c21683b13b7f7cbf304ae3e94b3c1da536cf5a8751ae9e75bfb"
+        },
+        {
+          "name": "ensemble_spectra_reaction_diffusion",
+          "folder": "ensemble_figures",
+          "png_sha256": "9b028f081fc9ffd83bc7d54f529231728c1d07ea71c23a267e67087fc0a92173",
+          "pdf_sha256": "de4751f9367f917eef403456042f5b5919b5b2acb1a3058b85e47fd1c7101d7b",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "0a35ddae4797420118388657de7508126be8e07cde101feb4bf91c263c62b117",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "0c2c048885b9331a6f2bf16e91955a7a73a341718d8af3d76d9791aab875ccf2"
+        },
+        {
+          "name": "ensemble_spectra_shallow_water",
+          "folder": "ensemble_figures",
+          "png_sha256": "791e28ea99808b3507205688fbbadd43d797f29563c535a39d35bb710d7f1821",
+          "pdf_sha256": "a25ec3876fbece03aaac1f9964a422460a27e93101d054b9c4ba3f57fdb277a4",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "edc23be1b181598685fcffb602d3c3f5dc34a0563614e041eb9cd70ab9b8c7a5",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "9a34c41134a78c78a6e9c7fabcfb3d41a87f42c4912b9fcee74fcf135b0ce6ac"
+        },
+        {
+          "name": "ensemble_spectra_steady_heat_conduction",
+          "folder": "ensemble_figures",
+          "png_sha256": "a897c9b999068a415d5cace0b2d805403b7b31c0808b7eb5874a88a35a7486d0",
+          "pdf_sha256": "cf4f18d0f3490be090780504fbc121b50c2e9b2bc95c92cd8f553288d38eb574",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "b0ac8e6a738865431340befdfd810fc6a10084ec64e4cff273ebe000a3b2fe18",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "326dfcd36591541a200eaed5bab464b4648a006d2bb37e3cc439f449a15945ac"
+        },
+        {
+          "name": "ensemble_spectra_wave",
+          "folder": "ensemble_figures",
+          "png_sha256": "227fcd63166a30897621257d44c78f94b35f050c28e8d6782ae622bad0d7604e",
+          "pdf_sha256": "7858cb6d76b94fa36479c4f8678844bccc44e2f634acd4537ba7429ff5645cf2",
+          "pixels_exactly_equal": false,
+          "pixel_sha256": "69995d1c5bd7df2fc357fef5a367f82bca6905100a82e501b8a2955c7d45ea4f",
+          "pixel_shape": [
+            1065,
+            1389,
+            4
+          ],
+          "reference_png_sha256": "a65578d105a5afb4d38f42255b43a95e98031c4fe357be556ed84c179693219e"
+        }
+      ]
+    },
+    "source_preservation": {
+      "files": 8862,
+      "all_hashes_unchanged": true,
+      "manifest_sha256": "fa176163c9eacff8eccdab4f9f80e6840a126866667890c1fd2ee0a1157ff2ae"
+    }
+  },
+  "font_files": {
+    "times.ttf": "931c5de5c70401d9324d5014c123802b4fb753000360ceb2f56c589403cd58c5",
+    "timesbd.ttf": "54fbe2c70af7c85a97bed0573227e3ccc4b2486012e3ca2a40c6bc77065846f5",
+    "timesi.ttf": "e7f7a88b65188328aea58670f955022e23c712f55679524729da1e4e03c49d88",
+    "timesbi.ttf": "3a29d114cb5229e8dbda5bef6c69be4a210a13b7277de4d66e9fc86963226f6c"
+  },
+  "figure_reference_manifest_sha256": "39da3c6568d08a41b05790929fdbdaea37eaabd3192024081d407be511da53ae",
+  "completed_utc": "2026-09-09T07:41:55Z",
+  "scope_limit": "All 744 revised and 1056 three-draw raw predictions were reread. All 316 unchanged controls were independently recomputed from hash-verified raw tensors; their historical float32-reported summary values are preserved.",
+  "server_launch": {
+    "host": "zhangxifeng@192.168.191.197",
+    "review": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909",
+    "checkout": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code",
+    "head": "b059d6a6b7e9d71eca6c89c6076bdaec734002c5",
+    "bundle_sha256": "b1fe59167d8ceb87c3b215cc872acf028167609087a10cc23d264afa8b093ed6",
+    "source_archive_gate_sha256": "99c9565a793413de743357c075bd308efe134463b02844ef708af7151aa3e105",
+    "font_files": {
+      "times.ttf": "931c5de5c70401d9324d5014c123802b4fb753000360ceb2f56c589403cd58c5",
+      "timesbd.ttf": "54fbe2c70af7c85a97bed0573227e3ccc4b2486012e3ca2a40c6bc77065846f5",
+      "timesi.ttf": "e7f7a88b65188328aea58670f955022e23c712f55679524729da1e4e03c49d88",
+      "timesbi.ttf": "3a29d114cb5229e8dbda5bef6c69be4a210a13b7277de4d66e9fc86963226f6c"
+    },
+    "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/check_ablation_relocation.py --study /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908 --archive /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/archived_ablation_summary/archived_ablation_summary.csv --inputs /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/frozen_inputs --results /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results --original-root /research_data/users/zhangxifeng/C01Python/FM4PDE --original-manifest /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/in_place_reference_checks.json --snapshot /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ablation_publication_snapshot --ensemble /research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/revision_20260909/paper_revision_20260908/local_exports/ensemble_complete --figure-reference-manifest /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/code/reproducibility/revision_20260909/ablation_final_figure_reference.json --font-dir /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/dependencies/fonts --verify-source-hashes --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay",
+    "tmux_session": "ablation_archive_replay_0909",
+    "preflight": "user-R5300-G5\n               total        used        free      shared  buff/cache   available\n\u5185\u5b58\uff1a    1031693       79905       10102         394      941684      942054\n\u4ea4\u6362\uff1a       2047        2047           0\n 15:37:29 up 351 days, 23:02, 27 users,  load average: 1.51, 1.44, 1.54\n0, NVIDIA A100-SXM4-80GB, 54515 MiB, 81920 MiB, 96 %\n1, NVIDIA A100-SXM4-80GB, 14 MiB, 81920 MiB, 0 %\nb059d6a6b7e9d71eca6c89c6076bdaec734002c5\n"
+  },
+  "original_control_table_precision_check": {
+    "status": "pass",
+    "source_snapshot_sha256": "faabbcdfa3aa2a01476d8103ece5e8eacdc02a678e25d736adbec0205694878c",
+    "control_audit_sha256": "9f94face18a8b2a925f22a167b48fc8b5d0c69518287a3901fab98ffc74aa0eb",
+    "scope": "Only 316 unchanged controls: substitute independently recomputed float64 relative norms; compare displayed values and ranking in all 20 tables. Diagnostics are retained.",
+    "original_data_and_publication_values_preserved": true,
+    "tables_byte_identical": {
+      "ablation_grid_hybrid_s2d_fields.tex": true,
+      "ablation_loss_state_fields.tex": true,
+      "ablation_steps_hybrid_d2s_fields.tex": true,
+      "ablation_layout_fields.tex": true,
+      "ablation_phase_fields.tex": true,
+      "ablation_steps_hybrid_s2d_fields.tex": true,
+      "ablation_temporal_fields.tex": true,
+      "ablation_noise_fields.tex": true,
+      "ablation_physics_diagnostics.tex": true,
+      "ablation_guidance_parameters.tex": true,
+      "ablation_guidance_inverse_metrics.tex": true,
+      "ablation_grid_stochastic_fields.tex": true,
+      "ablation_grid_deterministic_fields.tex": true,
+      "ablation_steps_stochastic_fields.tex": true,
+      "ablation_guidance_forward_metrics.tex": true,
+      "ablation_grid_hybrid_d2s_fields.tex": true,
+      "ablation_integrator_fields.tex": true,
+      "ablation_steps_deterministic_fields.tex": true,
+      "ablation_stability_fields.tex": true,
+      "ablation_coverage_fields.tex": true
+    }
+  },
+  "original_control_table_precision_launch": {
+    "head": "a7d098a65a60e436cedcccb26bcfb1307b8df5f9",
+    "command": "/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/precision_code/reproducibility/revision_20260909/check_original_control_tables.py --snapshot /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/snapshot --control-audit /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/original_control_recomputation.json --published-tables /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/replay/relocated_tables --output /research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/verification_runs/ablation_server197_20260909/original_control_table_precision",
+    "scope": "Independent table precision check using the completed server archive replay"
+  },
+  "figure_data_and_label_mapping": {
+    "status": "pass",
+    "total_figures": 80,
+    "checks": {
+      "field_figures": {
+        "figures": 38,
+        "plotter_sha256": "0795cb2bf09d279c406b8e6fa5c405cd5d7fafb95983703e88e68b72047a9f73",
+        "caption_tex_sha256": {
+          "ablation_figures.tex": "eaa6b919e4d78771ebc69478e499bcadc1fbfee5e401413c923172248cf41b5c"
+        },
+        "pdes_sample_contract_font_mapping_equal": true,
+        "raw_source_hash_multiset_equal": true,
+        "sources": 110,
+        "annotations": {
+          "rows": 168,
+          "changed_numeric_values": 157,
+          "max_absolute_difference": 1.2789769243681803e-13,
+          "max_relative_difference": 4.424663844301175e-15
+        }
+      },
+      "sweep_figures": {
+        "figures": 30,
+        "plotter_sha256": "cbfa2e8e70e123f32155f6f9acad8266e25c5483bbd5aa9f95509e8978c55a5e",
+        "caption_tex_sha256": {
+          "ablation_sweeps.tex": "b59822aaf65cac6890a0ad899ab1c62373bf2fd959080542097219c7a6ad8bc3"
+        },
+        "pde_group_condition_source_id_mapping_exact": true
+      },
+      "ensemble_figures": {
+        "figures": 12,
+        "plotter_sha256": "85a94ebed0f42bb62db21c88f632eb750d3e8bf56bb14958ea4d2d1c926cc5b2",
+        "caption_tex_sha256": {
+          "ensemble_figures.tex": "77fa08706f3de6284f94eec353e5b1128ab512450715a1761aadd0a5cb60a9c1"
+        },
+        "pde_contract_output_mapping_exact": true,
+        "minimum_spectrum_tick_label_gap_pt": 1.7709355572305356
+      }
+    }
+  },
+  "rendering_comparison": {
+    "status": "different_rendering_environment",
+    "local_final_plot": {
+      "python": "3.12.11 | packaged by Anaconda, Inc. | (main, Jun  5 2025, 13:09:17) [GCC 11.2.0]",
+      "matplotlib": "3.11.0",
+      "freetype": "2.14.3",
+      "numpy": "2.4.6",
+      "pillow": "12.2.0"
+    },
+    "server197_replay": {
+      "python": "3.12.11 | packaged by Anaconda, Inc. | (main, Jun  5 2025, 13:09:17) [GCC 11.2.0]",
+      "matplotlib": "3.10.7",
+      "freetype": "2.6.1",
+      "numpy": "2.3.3",
+      "pillow": "11.3.0"
+    },
+    "local_environment_record_sha256": "8c0629f411cbf3e7e1b1a59032afd69666dabcdbfd83574bfe3f94251870c91f",
+    "server_installed_record_sha256": "73ae623b485ab9f846e9e81cb9ee280c9d36bddde6e2457c00a319f5c5c41bfa",
+    "font_sha256_all_equal": true,
+    "png_pixels_equal": 0,
+    "png_shapes_equal": 1,
+    "figures_compared": 80,
+    "canonical_figures_unchanged": true,
+    "shared_environments_unchanged": true,
+    "visual_checks": {
+      "ensemble_spectra_poisson": "pass; energy/error curves and zero-to-symlog-threshold labels legible, no tick overlap",
+      "ablation_guidance_reconstruction_wave_1": "pass; two coefficient components, four guidance settings, shared field error and loss annotations remain correct and legible",
+      "ablation_seed_sweep_1": "pass; correct PDE/field panels, five inference seeds, fieldwise axes and curves"
+    },
+    "restoration": "Use an isolated Python 3.12.11 environment with the local rendering versions and the four verified font files; do not replace shared server packages."
+  },
+  "tmux_cleanup": {
+    "ablation_archive_replay_0909": "ended and absent from tmux list",
+    "ablation_precision_replay_0909": "ended and absent from tmux list",
+    "other_sessions_untouched": true
+  },
+  "final_fonts": {
+    "files": {
+      "times.ttf": {
+        "sha256": "931c5de5c70401d9324d5014c123802b4fb753000360ceb2f56c589403cd58c5",
+        "bytes": 1190736,
+        "local_path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/times.ttf",
+        "original_font_path": "/mnt/c/Windows/Fonts/times.ttf",
+        "server197_path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/times.ttf"
+      },
+      "timesbd.ttf": {
+        "sha256": "54fbe2c70af7c85a97bed0573227e3ccc4b2486012e3ca2a40c6bc77065846f5",
+        "bytes": 1170096,
+        "local_path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/timesbd.ttf",
+        "original_font_path": "/mnt/c/Windows/Fonts/timesbd.ttf",
+        "server197_path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/timesbd.ttf"
+      },
+      "timesi.ttf": {
+        "sha256": "e7f7a88b65188328aea58670f955022e23c712f55679524729da1e4e03c49d88",
+        "bytes": 962864,
+        "local_path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/timesi.ttf",
+        "original_font_path": "/mnt/c/Windows/Fonts/timesi.ttf",
+        "server197_path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/timesi.ttf"
+      },
+      "timesbi.ttf": {
+        "sha256": "3a29d114cb5229e8dbda5bef6c69be4a210a13b7277de4d66e9fc86963226f6c",
+        "bytes": 904204,
+        "local_path": "/home/tat512/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/timesbi.ttf",
+        "original_font_path": "/mnt/c/Windows/Fonts/timesbi.ttf",
+        "server197_path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/reproducibility/revision_20260909/dependencies/fonts/times_new_roman/timesbi.ttf"
+      }
+    },
+    "scope": "Private font dependency for exact rendering; not a replacement for the recorded rendering library versions.",
+    "restore": "export FM4PDE_FONT_DIR=\"$FM_REPO/reproducibility/revision_20260909/dependencies/fonts/times_new_roman\""
+  },
+  "raw_replay_report_sha256": "bbeecfd368878c41cb8fd513e4a9e6f2e64b5c28f8688073f3a9023e88565302"
+}

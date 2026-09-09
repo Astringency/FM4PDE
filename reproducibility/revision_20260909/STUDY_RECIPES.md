@@ -1,6 +1,6 @@
 # Revision study entry points
 
-Commands below describe study entry points. Actual CPU relocation checks are reported separately in `RELOCATION_TEST.md` and its JSON; the recipes do not imply new sampling was executed. Use the source version, environment, checkpoint, and frozen protocol recorded for the study. A full current checkout alone does not make an earlier experiment byte-identical: source snapshots and environment records in this directory provide the corresponding versions.
+Commands below describe study entry points. Actual CPU relocation checks are reported separately in `RELOCATION_TEST.md` (local) and `RELOCATION_SERVER197.md` (complete server archive), with their JSON receipts; the recipes do not imply new sampling was executed. Use the source version, environment, checkpoint, and frozen protocol recorded for the study. A full current checkout alone does not make an earlier experiment byte-identical: source snapshots and environment records in this directory provide the corresponding versions.
 
 ## Paths and result ownership
 
@@ -41,11 +41,24 @@ The exact numerical source boundary is:
 
 The original study has 1,060 configurations. Eight PDEs contribute 744 revised runs; 316 original records remain unchanged. Most factor sweeps use ID input 0. The six temporal studies and Poisson endpoint-correction controls retain their original scope. The old NS checkpoint is used here.
 
+For the completed server197 archive, the concrete paths are:
+
+```bash
+FM_ARCHIVE_REPO=/research_data/users/zhangxifeng/C01Python/FM4PDE
+ABL="$FM_ARCHIVE_REPO/outputs/ablations/revision_20260909/paper_revision_20260908"
+ABL_INPUTS="$ABL/frozen_inputs"
+ABL_SUMMARY="$ABL/local_exports/archived_ablation_summary/archived_ablation_summary.csv"
+ARCHIVED_RESULTS_VIEW="$ABL/canonical_results"
+ORIGINAL_RESULTS_ROOT="$FM_ARCHIVE_REPO"
+```
+
+The archive checks for the canonical results, eleven frozen inputs, summary CSV and historical exports must be complete before use. The summary CSV SHA256 is `2c077c491d51d556069e1b46a2fd8c4764dea02b0447648670c3785fa7299e0f`. The server replay creates new outputs in a separate verification directory; it does not overwrite `local_exports` or the raw results. Set `FM4PDE_FONT_DIR` to the directory containing the four hash-verified Times New Roman files for exact rendering; `RELOCATION_SERVER197.md` records the actual directory used.
+
 For **offline recomputation**, first provide an eleven-PDE results view. Each `$ARCHIVED_RESULTS_VIEW/<pde>` must contain that PDE's frozen `selection.json`, completion markers, `main/` and `ensemble/` raw results. The archive inventory designates `outputs/ablations/revision_20260909/paper_revision_20260908/canonical_results/` for this unified tree, with the original host directories also preserved. Confirm that transfer and its checksum receipt have completed before using it. An independently constructed view must select exactly one authoritative directory per PDE. Existing absolute `records.json` paths are not portable. Rebuild a new snapshot from raw before plotting:
 
 ```bash
 python plot/collect_paper_ablation_fields.py \
-  --archive "$ABL/archived_ablation_summary.csv" --inputs "$ABL/inputs" \
+  --archive "$ABL_SUMMARY" --inputs "$ABL_INPUTS" \
   --results "$ARCHIVED_RESULTS_VIEW" --original-root "$ORIGINAL_RESULTS_ROOT" \
   --output "$REPLAY/ablation_publication_snapshot"
 python plot/export_paper_ablation_tables.py --source "$REPLAY/ablation_publication_snapshot" --output "$REPLAY/ablation_tables"
@@ -56,19 +69,35 @@ python plot/plot_paper_ablation_sweeps.py --source "$REPLAY/ablation_publication
 
 `$ORIGINAL_RESULTS_ROOT` precedes the portion of `source_result` after `/FM4PDE/`, which already starts with `outputs/ablations/`. For the still-preserved server197 originals this root is `/research_data/users/zhangxifeng/C01Python/FM4PDE`; an archived replacement must preserve that suffix or supply a corresponding view. The local `original_predictions/` used in this regression contains only 45 of the 316 unchanged raw predictions. The other 271 retain their exact archived summary values, but cannot be independently recomputed from this local subset. All 744 revised raw predictions are present.
 
-The reusable CPU regression creates relative symlinks without copying raw data, then recomputes the old and new paths under the same two-thread environment. It checks all 1,060 records, 20 tables, the complete original three-draw study and 80 applicable figures. An optional `--result-map` JSON maps each PDE to its authoritative archived directory; `--inputs`, `--original-root`, `--snapshot` and `--ensemble` can override their default study subdirectories. Use a new output directory each time:
+The reusable CPU regression creates relative symlinks without copying raw data, then recomputes the old and new paths under the same two-thread environment. It checks all 1,060 records, 20 tables, the complete original three-draw study and 80 applicable figures. The `--results` argument selects a unified eleven-PDE directory; alternatively, `--result-map` maps each PDE to its authoritative archived directory. Use explicit `--archive`, `--inputs`, `--original-root`, `--snapshot` and `--ensemble` for the origin-preserving archive. `--original-manifest` also requires all 316 original raw tensors and independently recomputes their field errors. Use a new output directory each time:
 
 ```bash
 python reproducibility/revision_20260909/check_ablation_relocation.py \
-  --study "$ABL" --result-map "$PDE_RESULTS_MAP_JSON" \
-  --original-root "$ORIGINAL_RESULTS_ROOT" \
-  --output "$REPLAY/ablation_relocation"
+  --study "$ABL" --archive "$ABL_SUMMARY" --inputs "$ABL_INPUTS" \
+  --results "$ARCHIVED_RESULTS_VIEW" --original-root "$ORIGINAL_RESULTS_ROOT" \
+  --original-manifest reproducibility/revision_20260909/in_place_reference_checks.json \
+  --snapshot "$ABL/local_exports/ablation_publication_snapshot" \
+  --ensemble "$ABL/local_exports/ensemble_complete" \
+  --figure-reference-manifest reproducibility/revision_20260909/ablation_final_figure_reference.json \
+  --verify-source-hashes --output "$REPLAY/ablation_relocation"
 ```
+
+The old local subset limitation does not apply to the full server archive: all 316 original controls are available there. Their float64-recomputed norms may differ from the historical recorded precision. The optional diagnostic check below substitutes those independent norms only in a fresh table snapshot and verifies that every displayed value and rank is unchanged:
+
+```bash
+python reproducibility/revision_20260909/check_original_control_tables.py \
+  --snapshot "$REPLAY/ablation_relocation/snapshot" \
+  --control-audit "$REPLAY/ablation_relocation/original_control_recomputation.json" \
+  --published-tables "$REPLAY/ablation_relocation/relocated_tables" \
+  --output "$REPLAY/original_control_table_precision"
+```
+
+`local_exports/ablation_publication_figures` and `ensemble_complete/figures` retain earlier figure layouts. Final figure references are the 80 entries in `ablation_final_figure_reference.json` and the complete `paper_assets/figures` archive. Numerical CSV/NPZ references remain in the historical exports.
 
 For **new sampling with the frozen formal protocol**, use the recorded producer checkout and environment. Restore each frozen `selection.json` beneath a fresh `$NEW_RESULTS/<pde>/`, and run:
 
 ```bash
-python plot/run_paper_ablation_revision.py rerun --inputs "$ABL/inputs" --output "$NEW_RESULTS" --pdes "$PDE"
+python plot/run_paper_ablation_revision.py rerun --inputs "$ABL_INPUTS" --output "$NEW_RESULTS" --pdes "$PDE"
 ```
 
 Repeat for the eight revised PDEs. Collect the new output using `--results "$NEW_RESULTS"`; do not accidentally point that comparison at `$ARCHIVED_RESULTS_VIEW`. Unchanged controls still come from the original summary and original-result root. Re-estimating selection is a separate experiment. The historical `prepare` → `diagnose` → `select_paper_ablation_revision.py` stages require the original dataset/checkpoint/configuration sources and recommendation JSON; they are not prerequisites for recomputing frozen archived outputs. If preparation is necessary, target a fresh input directory and use the recorded source version, not current default YAML. `run_paper_revision_queue.py` is a sampling coordinator, not an offline collector.
@@ -80,13 +109,13 @@ Required data: original summary CSV, each PDE's frozen inputs/protocol/selection
 This is the original 1,056-prediction study, with 21 reported fields and input offsets 1500–1531. Keep the old NS model and frozen observation layout. It is distinct from the new K-scaling study.
 
 ```bash
-python plot/export_paper_seed_ensemble.py --inputs "$ABL/inputs" --results "$ARCHIVED_RESULTS_VIEW" --output "$REPLAY/ensemble_complete" \
+python plot/export_paper_seed_ensemble.py --inputs "$ABL_INPUTS" --results "$ARCHIVED_RESULTS_VIEW" --output "$REPLAY/ensemble_complete" \
   --plan reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_ANALYSIS_PLAN.md
 python plot/plot_paper_seed_ensemble.py --source "$REPLAY/ensemble_complete" --output "$REPLAY/ensemble_figures" \
   --contract reproducibility/revision_20260909/legacy_scripts/contracts/ENSEMBLE_CHART_CONTRACT.md
 ```
 
-These commands reanalyze archived raw predictions. For new sampling, first restore each PDE's frozen selection beneath `$NEW_RESULTS/<pde>/`, run `python plot/run_paper_ablation_revision.py ensemble --inputs "$ABL/inputs" --output "$NEW_RESULTS" --pdes "$PDE"` for all eleven PDEs, and pass that same `$NEW_RESULTS` to the exporter only after completion. The exporter retains single draws and physical-field averages, uses input-level sample SD and paired bootstrap, and verifies complete field/seed coverage. Its output NPZ/CSV/manifest files are inputs for the eleven spectra. Preserve `analysis_plan.md`/plan hash and all saved prediction tensors; do not count three draws as three independent physical inputs. `collect_conditional_sample_scaling.py` belongs to the separate new K study and is not an offline collector for this original three-draw study.
+These commands reanalyze archived raw predictions. For new sampling, first restore each PDE's frozen selection beneath `$NEW_RESULTS/<pde>/`, run `python plot/run_paper_ablation_revision.py ensemble --inputs "$ABL_INPUTS" --output "$NEW_RESULTS" --pdes "$PDE"` for all eleven PDEs, and pass that same `$NEW_RESULTS` to the exporter only after completion. The exporter retains single draws and physical-field averages, uses input-level sample SD and paired bootstrap, and verifies complete field/seed coverage. Its output NPZ/CSV/manifest files are inputs for the eleven spectra. Preserve `analysis_plan.md`/plan hash and all saved prediction tensors; do not count three draws as three independent physical inputs. `collect_conditional_sample_scaling.py` belongs to the separate new K study and is not an offline collector for this original three-draw study.
 
 Matched Poisson/Darcy baseline frequency diagnostics use `plot/export_matched_spectra.py --study "$MATCHED_STUDY" --output "$REPLAY/spectra"`, then `plot/plot_paper_frequency_revision.py --source "$REPLAY/spectra" --output "$REPLAY/frequency_figures"`. Required artifacts include matched predictions, masks/truth and baseline source mappings. The plotting source contains 1,216 spectral records. `legacy_scripts/paper_audit/revision_0909/rank_frequency_table.py` preserves the final unrounded ranking rule for the four displayed metrics. `plot/spectral_diagnostics.py` implements the common FFT/DCT and field-filtering definitions.
 
@@ -161,3 +190,23 @@ python plot/plot_training_curves_revision.py --paper "$PAPER" --new-ns-log "$NEW
 ```
 
 Retain original eleven-model logs and their SHA256 manifest plus the separate new NS log and training metadata. The revised three figures have twelve model panels, explicitly distinguishing old ablation NS from new main NS. Do not run `plot_jmlr_revision.py` indiscriminately over an integrated paper: its older all-in-one path writes historical main/training source data as well as figures.
+
+## Exact figure environment and mapping checks
+
+The final local figures used Python 3.12.11, Matplotlib 3.11.0, FreeType 2.14.3, Pillow 12.2.0 and NumPy 2.4.6. The full 59-distribution observation is `environments/local_final_plot_20260909.requirements.txt`, with interpreter, font hashes and scope in the adjacent JSON. Existing remote environment observations remain unchanged. Set the font path from the repository root:
+
+```bash
+export FM4PDE_FONT_DIR="$PWD/reproducibility/revision_20260909/dependencies/fonts/times_new_roman"
+```
+
+The four private font files are present at that relative path locally and on server197; `environments/final_plot_fonts_20260909.json` records their hashes. Reproduce the rendering versions in an isolated environment to compare exact PNG pixels. Scientific values and table ranks matched on server197's different rendering stack; its 80 PNGs are not byte- or pixel-identical to the final local images. Neither the shared server environment nor the final paper figures was changed.
+
+The data/label mapping comparison consumes the two exports' three figure subdirectories and field annotation CSV. It verifies all 80 figures, captions and source mappings independently of rasterization:
+
+```bash
+python reproducibility/revision_20260909/check_ablation_figure_mapping.py \
+  --reference "$REFERENCE_REPLAY" --replay "$SERVER_REPLAY_MANIFESTS" \
+  --output "$REPLAY/figure_data_label_mapping.json"
+```
+
+`collect_plot_environment.py --output <new-observation.json> --font-dir "$FM4PDE_FONT_DIR"` records the installed plotting packages and fonts without importing PyTorch or initializing CUDA. It refuses to overwrite an existing observation.

@@ -1,0 +1,31 @@
+{
+  "status": "different_rendering_environment",
+  "local_final_plot": {
+    "python": "3.12.11 | packaged by Anaconda, Inc. | (main, Jun  5 2025, 13:09:17) [GCC 11.2.0]",
+    "matplotlib": "3.11.0",
+    "freetype": "2.14.3",
+    "numpy": "2.4.6",
+    "pillow": "12.2.0"
+  },
+  "server197_replay": {
+    "python": "3.12.11 | packaged by Anaconda, Inc. | (main, Jun  5 2025, 13:09:17) [GCC 11.2.0]",
+    "matplotlib": "3.10.7",
+    "freetype": "2.6.1",
+    "numpy": "2.3.3",
+    "pillow": "11.3.0"
+  },
+  "local_environment_record_sha256": "8c0629f411cbf3e7e1b1a59032afd69666dabcdbfd83574bfe3f94251870c91f",
+  "server_installed_record_sha256": "73ae623b485ab9f846e9e81cb9ee280c9d36bddde6e2457c00a319f5c5c41bfa",
+  "font_sha256_all_equal": true,
+  "png_pixels_equal": 0,
+  "png_shapes_equal": 1,
+  "figures_compared": 80,
+  "canonical_figures_unchanged": true,
+  "shared_environments_unchanged": true,
+  "visual_checks": {
+    "ensemble_spectra_poisson": "pass; energy/error curves and zero-to-symlog-threshold labels legible, no tick overlap",
+    "ablation_guidance_reconstruction_wave_1": "pass; two coefficient components, four guidance settings, shared field error and loss annotations remain correct and legible",
+    "ablation_seed_sweep_1": "pass; correct PDE/field panels, five inference seeds, fieldwise axes and curves"
+  },
+  "restoration": "Use an isolated Python 3.12.11 environment with the local rendering versions and the four verified font files; do not replace shared server packages."
+}

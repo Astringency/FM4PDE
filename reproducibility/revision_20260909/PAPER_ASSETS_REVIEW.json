@@ -1,0 +1,64 @@
+{
+  "status": "pass",
+  "scope": "Independent read-only review of paper asset capture, restoration, and build recipes",
+  "script_sha256": "0be1678f56d0045a225f279d4c3c1ec86e3522302b44e77aebd275b8a42379ca",
+  "readme_sha256": "a9d6012062de7f383a12f7d7f45930a20d0706af2d103b6eaa8cf2beded2bf34",
+  "tested_receipt_sha256": "a9f70c316d9ae15f62880e67ef3340c945df1ebd6638fc465b9a4a818c1be56c",
+  "coverage": {
+    "direct_tex_asset_references_checked": 107,
+    "all_selected_and_present": true,
+    "paper_symlinks_found": 0,
+    "build_sequence": "main then reviewer copy then supplement, followed by response; bibtex8 and repeated pdflatex included"
+  },
+  "fixed_findings": [
+    "Restore rejects an existing destination and any destination inside the immutable source archive.",
+    "Restoration verifies a staging copy and verifies that the original archive did not change before renaming the copy.",
+    "Verification binds the archived QA to four TeX/PDF pairs and every QA-listed figure hash.",
+    "Final capture requires both integration flags, manuscript_complete=true and pending_manuscript_work=[]; it does not conflate manuscript completion with unfinished result transfers.",
+    "README rebuilds a new restored copy and re-verifies the original archive afterwards."
+  ],
+  "actual_rebuild": {
+    "status": "pass",
+    "scope": "Current NS-integrated working draft; K study incomplete. Fresh restoration compiled all four documents from relocated sources.",
+    "archive": "reproducibility/revision_20260909/verification_runs/paper_assets_working_0731",
+    "replay": "reproducibility/revision_20260909/verification_runs/paper_rebuild_0731",
+    "archive_unchanged_after_rebuild": {
+      "status": "pass",
+      "stage": "working-draft",
+      "files": 1370,
+      "bytes": 335617106,
+      "manifest_sha256": "906d7d007a9179e7ca91e18db9e6bf5c58de6642a1e78db17cbd4b9762786fc0"
+    },
+    "documents": [
+      {
+        "document": "fm4pde_jmlr_revision_0906",
+        "pages": 185,
+        "pdf_text_matches": true,
+        "text_sha256": "262f3ab9f24ee26a2d021a349a16017aa9bc3de484ccf834b3ca5d984666e192",
+        "build_clean": true
+      },
+      {
+        "document": "fm4pde_jmlr_revision_scoped_reviewer_map_0906",
+        "pages": 185,
+        "pdf_text_matches": true,
+        "text_sha256": "a3798066ac386351195c2a49aebc77572fab909b3f596349e282f176618e8d39",
+        "build_clean": true
+      },
+      {
+        "document": "supplement",
+        "pages": 51,
+        "pdf_text_matches": true,
+        "text_sha256": "121f17ed16039e5b05c6ea1c5d0b87056ec3e13278d31e74879a077fcd8ade5c",
+        "build_clean": true
+      },
+      {
+        "document": "response_to_reviewers_scoped_0906",
+        "pages": 13,
+        "pdf_text_matches": true,
+        "text_sha256": "884d5bb32ea3e2f5c60abc6cad506b08db8d755eeea335e5f2fc35d9f52a2c1f",
+        "build_clean": true
+      }
+    ],
+    "final_revision_complete": false
+  }
+}
