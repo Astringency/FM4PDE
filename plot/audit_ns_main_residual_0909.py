@@ -76,6 +76,13 @@ def main(args):
         data = torch.load(path, map_location='cpu', weights_only=False)
         dist, setting, ids = receipt['dist'], receipt['setting'], receipt['ids']
         assert len(ids) == len(receipt['rows']) and receipt['nfe'] == 100
+        assert receipt['batch_size'] == len(ids) and receipt['tf32'] is True
+        if receipt['worker'] == 0:
+            assert all(2000 <= i < 2700 for i in ids)
+            assert 'A100' in receipt['gpu'] and len(ids) in (64, 60)
+        else:
+            assert receipt['worker'] == 1 and all(2700 <= i < 3000 for i in ids)
+            assert 'RTX 4090' in receipt['gpu'] and len(ids) in (16, 12)
         for key in ['predictions', 'truths', 'masks']:
             assert tuple(data[key].shape) == (len(ids), 2, 128, 128)
             assert torch.isfinite(data[key]).all()
@@ -125,7 +132,8 @@ def main(args):
         analytic_constant_and_fourier_mode_checks=True, max_pde_mse_difference=maxima,
         tolerance=dict(rtol=2e-5, atol=1e-9), all_frozen_configurations_match=True,
         all_truths_equal_frozen_source_cache=True, all_protocol_and_selection_hashes_match=True,
-        all_observation_counts_and_masks_match=True, model_weights_sha256=protocol['model']['weights_sha256'],
+        all_observation_counts_and_masks_match=True, all_runtime_batches_and_device_assignments_match=True,
+        model_weights_sha256=protocol['model']['weights_sha256'],
         protocol_sha256=protocol_hash, selection_sha256=selection_hash,
         cells=[dict(dist=d, setting=s, n=len(ids)) for (d, s), ids in seen.items()])
     write(args.output, result)
