@@ -156,11 +156,18 @@ def check_saved_results(entry, arrays, result_root):
                 metric = json.loads(metric_path.read_text())
                 metric_source = 'metrics_final.json'
             else:
-                # The original Burgers tree did not export metric JSON. Its
-                # recorded final loss is the final physical relative-L2 error.
-                assert pde == 'burger' and isinstance(payload['loss'], list) and payload['loss']
-                metric = {'rel_l2_u': float(payload['loss'][-1])}
-                metric_source = 'original pickle loss[-1] (no separate metric JSON)'
+                # Some historical cells did not export metric JSON. Native
+                # generators also save final physical relative-L2 in the loss
+                # history (one list for Burgers, a/u lists for paired fields).
+                if pde == 'burger':
+                    assert isinstance(payload['loss'], list) and payload['loss']
+                    metric = {'rel_l2_u': float(payload['loss'][-1])}
+                    metric_source = 'original pickle loss[-1] (no separate metric JSON)'
+                else:
+                    assert isinstance(payload['loss'], dict)
+                    metric = {'rel_l2_' + field: float(payload['loss']['global_' + field][-1])
+                              for field in ['a', 'u']}
+                    metric_source = 'original pickle loss.global_a/global_u[-1] (no separate metric JSON)'
             checks = {}
             for field, truth in targets.items():
                 truth = np.asarray(truth, dtype=np.float64)
