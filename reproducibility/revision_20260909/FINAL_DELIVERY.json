@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "scope": "Verified scientific results, result archival, retained code versions and paper reconstruction. The final installed Git tree and accompanying artifact transfer are identified by the separate final server delivery receipt.",
+  "server": "server197",
+  "address": "192.168.191.197",
+  "repository": "/research_data/users/zhangxifeng/C01Python/FM4PDE",
+  "main_results": "outputs/main",
+  "ablation_results": "outputs/ablations",
+  "checks": {
+    "result_archive": {
+      "ledger": "archive_completed_67_entries.json",
+      "sha256": "8f8e252898ce9bd7d9207136bf2225bc1412ee5bf36485821f6399adc9baabc0",
+      "entries": 67,
+      "inventory_files": 194202,
+      "logical_bytes": 94486625572,
+      "independent_reconciliation": "verification_runs/final_archive_independent_20260909/verification_complete.json"
+    },
+    "source_versions": {
+      "versions": 60,
+      "repositories": 3,
+      "tar_git_blob_and_mode_checks": 27029,
+      "archives": 70,
+      "restore_report": "source_restore_coverage.json",
+      "sha256": "dd6228c136845aeb2836293fc92ff008aeba3ad8659e3cb0361a0e07fa4079a1"
+    },
+    "paper": {
+      "git_commit": "f83b943a465ba364ef8c733027a906e7b9d7552e",
+      "archive": "paper_assets_final_20260909",
+      "manifest_sha256": "442b95c1b61100ffadf17e6eb2ef138a89f2d3abc7dbc4dd15a0dbd117bdf389",
+      "pages": [
+        190,
+        190,
+        54,
+        13
+      ],
+      "stable_rebuild_report": "verification_runs/final_paper_v2_20260909T110400Z/stable_rebuild/verification_complete.json",
+      "stable_rebuild_report_sha256": "514e905e1ec1ef4be0d2aa00aedffad10abbf82bdf43354ccea1aa00c853f9a0"
+    },
+    "conditional_samples": {
+      "source_inputs": 32,
+      "tasks": 3,
+      "K": [
+        1,
+        3,
+        10,
+        100,
+        1000
+      ],
+      "canonical_pools": 96,
+      "canonical_trajectories": 96000,
+      "timed_trajectories": 106944,
+      "raw_reexport_rows": 480,
+      "raw_reexport_numeric_comparisons": 7680,
+      "raw_reexport_arrays": 672,
+      "raw_reexport_exact": true,
+      "compact_statistical_comparisons": 2361,
+      "reports": [
+        {
+          "part": "server197",
+          "path": "verification_runs/k_full_archive_replay_20260909_1912/server197/verification_complete.json",
+          "sha256": "4a568bb24990c1790fbf6b2fb8218a02e669b6f7c56effdb38e9c49d4c69b348"
+        },
+        {
+          "part": "server216",
+          "path": "verification_runs/k_full_archive_replay_20260909_1912/server216_verified/verification_complete.json",
+          "sha256": "dda464cfe1708a8c1aa38a4b980ad7efb670c055a73d6a7b4ddd8c561b638fb9"
+        },
+        {
+          "part": "compact",
+          "path": "verification_runs/k_full_archive_replay_20260909_1912/compact/numerical_review.json",
+          "sha256": "64858dff8a58ca64e100e39d41239852ca13d2b9ce551d592f846c246ff53bfc"
+        }
+      ]
+    }
+  },
+  "final_server_receipt": "verification_runs/final_delivery_20260909/verification_complete.json",
+  "originals_preserved": true,
+  "boundaries": [
+    "Historical VIVID fits did not save six neural-network checkpoints. Saved predictions and numerical summaries are retained; fresh inference requires retraining those fits.",
+    "Original DiffusionPDE evaluation HEAD was not recorded. Retained native source history and validated saved predictions do not establish an unrecorded original commit identity.",
+    "Recorded native environments, inputs, masks, checkpoints, seeds and batch assignments are required for inference reproduction. This delivery does not claim bitwise-identical retraining or timing across hardware."
+  ]
+}
