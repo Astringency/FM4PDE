@@ -124,7 +124,7 @@ def main():
     assert set(args.offsets) <= set(protocol['evaluation_ids'])
     truths = torch.load(source/'truths.pt', map_location='cpu', weights_only=False)
     bundle = load_fm4pde_checkpoint_bundle(str(source/'weights.pth'), 'poisson', 'cuda:0', model_profile='recommended')
-    assert not any(isinstance(m, torch.nn.modules.batchnorm._BatchNorm) for m in bundle[0].modules())
+    assert not any(isinstance(m, torch.nn.modules.batchnorm._BatchNorm) for m in bundle[0].model.modules())
     env = dict(host=socket.gethostname(), pid=os.getpid(), python=sys.version,
                torch=torch.__version__, cuda=torch.version.cuda, gpu=torch.cuda.get_device_name(),
                visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
