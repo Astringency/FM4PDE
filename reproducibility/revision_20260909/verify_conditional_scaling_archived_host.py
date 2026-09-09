@@ -151,6 +151,17 @@ def main():
         values = [x.pop(key, None) for x in stripped]
         if values[0] != values[1]:
             metadata_differences.append({'key': key, 'original': values[0], 'replayed': values[1]})
+    # Directory iteration can reorder the complete original environment records
+    # after archival copying. Bind each shard's unchanged record, not glob order.
+    def environment_key(record):
+        return (record['args']['num_shards'], record['args']['shard_index'])
+    orders = [[environment_key(e) for e in x['environments']] for x in stripped]
+    assert all(len(set(order)) == len(order) for order in orders)
+    if orders[0] != orders[1]:
+        metadata_differences.append({'key': 'environments/iteration_order',
+                                     'original': orders[0], 'replayed': orders[1]})
+    for x in stripped:
+        x['environments'] = sorted(x['environments'], key=environment_key)
     for a, b in zip(stripped[0]['results'], stripped[1]['results']):
         pa, pb = a.pop('path'), b.pop('path')
         if pa != pb:
