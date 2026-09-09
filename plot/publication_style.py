@@ -1,6 +1,7 @@
 """Paper figure typography with an explicit, verifiable Times New Roman font."""
 from pathlib import Path
 import math
+import os
 
 
 def error_number(value, *, signed=False):
@@ -19,8 +20,9 @@ def error_number(value, *, signed=False):
 def use_times_new_roman():
     import matplotlib as mpl
     from matplotlib import font_manager
+    font_directory = Path(os.environ.get('FM4PDE_FONT_DIR', '/mnt/c/Windows/Fonts'))
     for name in ['times.ttf', 'timesbd.ttf', 'timesi.ttf', 'timesbi.ttf']:
-        path = Path('/mnt/c/Windows/Fonts') / name
+        path = font_directory / name
         if path.is_file():
             font_manager.fontManager.addfont(str(path))
     font = font_manager.findfont(font_manager.FontProperties(family='Times New Roman'), fallback_to_default=False)

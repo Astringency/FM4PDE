@@ -1,0 +1,806 @@
+{
+  "source": "/home/tat512/C04Papers/fm4pde_jmlr/figures",
+  "scope": "Final 38 field + 30 sweep + 12 three-draw figures; decoded pixels, before server197 replay",
+  "figures": {
+    "ablation_budget_fields_1.png": {
+      "png_sha256": "3a3d6196b5f15c4ae0841eeaa63c79d871477bff1ab74af4acd2b212809cf05f",
+      "shape": [
+        1256,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "b4d52bfbd342b4c7c933adf6b8f988f47859bebdc88f86fa16c1471e30b56c88"
+    },
+    "ablation_budget_fields_2.png": {
+      "png_sha256": "6b14ae5402ac9e682e5ed934df78825d22ae1923f70931d6054d332c281f57ba",
+      "shape": [
+        1256,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "97ff3a64d931d2ba6d1bbb571cd553136ffe4c0d465d71c16452417f92e2a65a"
+    },
+    "ablation_budget_fields_3.png": {
+      "png_sha256": "e30ce2d1d9afd400023ee90e6aaa314e0b68d56ccd55e349939a3c59f083dfbd",
+      "shape": [
+        1256,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f6ed3afc96d73085f88407b776179532abdc0870203475b72a65e6989bd1c563"
+    },
+    "ablation_budget_fields_4.png": {
+      "png_sha256": "6d8e786cc0aca0cb26fccd48a1d7241d9ee3d912a92a4994c41324ea3e8de242",
+      "shape": [
+        857,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "3ba2098c4ad7f669f8e88a7fde553bdefa5ae5e040aa8e44b28cbe80e0acf244"
+    },
+    "ablation_coverage_fields_1.png": {
+      "png_sha256": "4a7b3d459a96289cf9ba5296970a078b9a986914d7eff0560b15af5973831224",
+      "shape": [
+        1263,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "6c92a600437b365900c5e7db0c0a63f958c5a9c105abc0d5e7510f250bdeb9b9"
+    },
+    "ablation_coverage_fields_2.png": {
+      "png_sha256": "e19ff83aa545e5a31501e9e4bdc832f2ecbde560343cf822a05b4e9a7a013125",
+      "shape": [
+        1263,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f3886c8e17c79e34786448d884a03049512ff4c6908cc734be55174aa1239d62"
+    },
+    "ablation_coverage_fields_3.png": {
+      "png_sha256": "753881c4dd175f632a72dd827c1c23f7ce1eadb8d903dc8bcb39258938bdb0dc",
+      "shape": [
+        1263,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "832f1a695275b61a159f9df8eaba1e321541461af511e608d693ad9a8b495c44"
+    },
+    "ablation_coverage_fields_4.png": {
+      "png_sha256": "ba4660eb2911f18ffbf8accd9e3b17bb1457e5dc05c958dfb5bc53f181602976",
+      "shape": [
+        864,
+        1261,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f786d834534ec70ee5fe97333ff343c7f2b3247f501f3d23ac0e328be1387e92"
+    },
+    "ablation_guidance_reconstruction_advection_diffusion.png": {
+      "png_sha256": "fd52d4f08dc19af80890547566965ee62e129a80048541d22085e0f4ca62913e",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "8416b7e0a51bbb884f072faa32977a16efc6d45340f84a04472746fb29476cf4"
+    },
+    "ablation_guidance_reconstruction_burger.png": {
+      "png_sha256": "fa3ecf07f38fcd86d45f0bba678c61645145d12f1bb0eff1acf39c6e92b838fc",
+      "shape": [
+        538,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "efad4ee041ee23901bd7da88935bc73329fdae1412e186a33a1dbb962da92970"
+    },
+    "ablation_guidance_reconstruction_darcy.png": {
+      "png_sha256": "7ca506c5cb3d2db7d86aec3bf2f25c79c771011bf83f3c66b2746908a1225b8a",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "50413a5f318e23e9059896939d0696c21a8120cb06d04e4534267b1b912f78b3"
+    },
+    "ablation_guidance_reconstruction_heat.png": {
+      "png_sha256": "f8011464a1ffca8645a415563c2d45954c7ff6695bd72cd4081c43d9f1fc6be4",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "efcc29aa72c79399bf06d6abb327665e4e2ed0dbd5ef941a23106a8b741a39a1"
+    },
+    "ablation_guidance_reconstruction_helmholtz.png": {
+      "png_sha256": "c5e786c78099c2574daed98ed97ad5518aca503e186fd8a35540279eb91b2a50",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f745fbb464ac98ed08df572e80daabc81d428246cc87f72dc05c31647c123ea5"
+    },
+    "ablation_guidance_reconstruction_nsnonbounded.png": {
+      "png_sha256": "150d726671f920f53c20f4c658744df59c9c5884c5c80edb3808769545c23f4e",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "5540110f979cfd9e555a6861f860b0055bac4fb163505fc6b724edfff4b30239"
+    },
+    "ablation_guidance_reconstruction_poisson.png": {
+      "png_sha256": "d081e11b84b235ca842889453a9cfa07e24ef864622be880bb07882a0ca3f028",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "af45e50c1c0e9996fef03e2619ab8a9205b4982f1783d88db4743a8fe8746504"
+    },
+    "ablation_guidance_reconstruction_reaction_diffusion_1.png": {
+      "png_sha256": "b715f1f75a814ae604d016c2600b3e10bc79a3a931a6ad6d788745fea9364e67",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "273583dd0ac2fbd76bd78c681b9ec6b864f6cc638d047e366d1ed53d9b7fd0eb"
+    },
+    "ablation_guidance_reconstruction_reaction_diffusion_2.png": {
+      "png_sha256": "f1f6c84b9ae5cc8ccb96b870bdbea1483872840236a0b85b9fc1180cfea33c98",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "28ef50436316de6090234cb8dfcf0eb241543a16d6029a0af9e62cc40876db83"
+    },
+    "ablation_guidance_reconstruction_shallow_water_1.png": {
+      "png_sha256": "0b61bdcab315acb56076a6c5f9d77968568eb4e7a995be482e72a8e60bb78e73",
+      "shape": [
+        1441,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "fa591ff2a60b2121aef48ab1cef46f113784e68af13a9b27340419f15db5a3d4"
+    },
+    "ablation_guidance_reconstruction_shallow_water_2.png": {
+      "png_sha256": "1a7447c33e172f58e364b2d43807d64be7a8defec8828baded2a9b9dd891d6da",
+      "shape": [
+        1441,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "0ae9d0dfbc8084416a4acd408bf1be193ecfadbfcdb07c1b9347af96fa44b1a7"
+    },
+    "ablation_guidance_reconstruction_steady_heat_conduction.png": {
+      "png_sha256": "d9b6be53adc825e942415ae2fdd4b06d2a4b85b4f85994d9168604b125b6cc33",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "65bca98709d19c8a795cdbb91412b66c42a90ad922c5a13a6e8900e3ff64d5b0"
+    },
+    "ablation_guidance_reconstruction_wave_1.png": {
+      "png_sha256": "eb37adde0c6ab9c97595804f3ceb07aced328aafcefdb63a14c7849d0085c359",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "aa2d875acda5b36c38a75e80cc8b44bf79ef9c1c3c539a93178bac802fe0e8d9"
+    },
+    "ablation_guidance_reconstruction_wave_2.png": {
+      "png_sha256": "0a48bec41411601e87f23396053e4067d0a1f53bf8f8c70b3d701886434a1033",
+      "shape": [
+        989,
+        1263,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "ce7f817b8d882dfaa062a2d5bc0d97adf5b9676f05d83cc7f67aa3360aeb3e3b"
+    },
+    "ablation_phase_reconstruction_advection_diffusion.png": {
+      "png_sha256": "f92392338f920c164a0d6ba1aabbfa81b808c5919f356a510d3be40cfae6cd0c",
+      "shape": [
+        781,
+        1261,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "7c6caea8166694ddbeca94bc406a9e99ae642a2b9f20d15eb6f9f57b3b7e3bb8"
+    },
+    "ablation_phase_reconstruction_burger.png": {
+      "png_sha256": "07c34c15561d252d42cde91a483f96eb300e1ff37413d37ab9c20be39dc7f4c2",
+      "shape": [
+        435,
+        1261,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "1c3d7cee6ca7daeefe579d57354b0e0c9d4dc675f70b4323e953bac16a9959bd"
+    },
+    "ablation_phase_reconstruction_darcy.png": {
+      "png_sha256": "ca685dd30a18d1009cbc4cc11844d30bbfcd4c5ea5c397b42266fb2648ce55df",
+      "shape": [
+        781,
+        1253,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "feaa847e3db02605a0d936d3fe44504fe03afd091bb803fb60fb4537d5123a85"
+    },
+    "ablation_phase_reconstruction_heat.png": {
+      "png_sha256": "8760719db6d77e22c56c2c574d7ec4b5d7176826a52d7689a05f9ec85b2508ff",
+      "shape": [
+        781,
+        1261,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "72ae6d17ad41aad4c168e8ee842e59891d8d8732b6b1617093730424209b89bc"
+    },
+    "ablation_phase_reconstruction_helmholtz.png": {
+      "png_sha256": "5be4570e314ab0025bc5ac302477dfead337ab18a2433c9e9efd09f8d46325a2",
+      "shape": [
+        781,
+        1253,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "b62e2435c99dda469a4a1d6309b45b2acb168defa35ec3523973c26f6ba8fc70"
+    },
+    "ablation_phase_reconstruction_nsnonbounded.png": {
+      "png_sha256": "f0606cdc112dc8da2c7df91d0e8546bd2b6b511da2bc7cf6a6747a8d4aeac264",
+      "shape": [
+        781,
+        1261,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "5aa76bc4014afdf36707617cecf4f9757d9df4422b17c5a93b4c6e15da47d4ee"
+    },
+    "ablation_phase_reconstruction_poisson.png": {
+      "png_sha256": "0a0478e756cf75ba4463f7c7e9fab6ee391286d2472608db2f42a6cf83b5ad31",
+      "shape": [
+        781,
+        1253,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "4629bfee3a74154ee887e929efb534a71ff1a2f4594ca5f884ec0c8657d641ae"
+    },
+    "ablation_phase_reconstruction_reaction_diffusion.png": {
+      "png_sha256": "cfe646241d7ac2790b89d31107446055447b9b7065d04b0255f61f0248ba04cb",
+      "shape": [
+        1474,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "47a395ac3e86500cb7ec69adc7432a423d5a92dff8abad4ddb40dcdc2e7206d0"
+    },
+    "ablation_phase_reconstruction_shallow_water_1.png": {
+      "png_sha256": "919dc2f139f537494f67c6661e832d251ccd94cf39a3e23d9317b1398ba9c6c4",
+      "shape": [
+        1128,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "d5a5654ddac851597bff24217e4bf5417aed8f79ec86f5df4f49279cf623070b"
+    },
+    "ablation_phase_reconstruction_shallow_water_2.png": {
+      "png_sha256": "01e919949c6ee5bd945758ba58abdb5b5a04d124c045c128ce900d0bfdc8564b",
+      "shape": [
+        1128,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f437502a2dec2678e7b9c61cbc6a90dba3e83b321fca3b7c021b63ef6f2fdf2a"
+    },
+    "ablation_phase_reconstruction_steady_heat_conduction.png": {
+      "png_sha256": "a95e51a714be6e0607850e2783ea7f9987b99797b75154d206e296b4ff1f4820",
+      "shape": [
+        781,
+        1261,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "61b4f45865efc888dd2573d4ad3cd6f2a27a46658e1e0a4562ea0ec1a339405e"
+    },
+    "ablation_phase_reconstruction_wave.png": {
+      "png_sha256": "08b641f3c37e1c36a3e378a2abfdedd1cfc1ec10aa802d9c69c14250fa05e1c4",
+      "shape": [
+        1474,
+        1257,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "3d42821ed88ae29a4fbef6c0f6c81feed5f6497c1c4f12a9b15e2a5f3f8d22e5"
+    },
+    "ablation_trajectories_fields_1.png": {
+      "png_sha256": "d2b5ff97852d87255790d41eea9fdb94669352dac4512e4d7901544fd0723b3e",
+      "shape": [
+        1200,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "408837c5a930164a0f6acb2d3e6c55e75ddccf74da9ab06ab52743fa6079951e"
+    },
+    "ablation_trajectories_fields_2.png": {
+      "png_sha256": "2c47d7cab904ad4c357b662dd170fdffd341eb9751097609527c2328cc7a62e6",
+      "shape": [
+        1200,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "b6a1c84cc74b72ec75abe90b77e7a821d5de4a0f4f82f48d7f1a040fe93b4a91"
+    },
+    "ablation_trajectories_fields_3.png": {
+      "png_sha256": "a686043106e36456dce8753650029860aac146f4eac12dfc8ac92622ab0dd412",
+      "shape": [
+        1200,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "8487d55f1294340c607eb753d3623a30c9c315ff636487fcb30033240f5efec6"
+    },
+    "ablation_trajectories_fields_4.png": {
+      "png_sha256": "81155a34f1be6ffdce81367b8f4ca3b553b1257adbf20ee21cf1f5929a60367b",
+      "shape": [
+        822,
+        1262,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "cc27cded29f917e6a8051ab22e5cec6caa7050dc14916795f35d2f92eabd16d1"
+    },
+    "ablation_grid_sweep_1.png": {
+      "png_sha256": "c8326d51c4d5d1e8e5526efdbb3898c67a34129a3e662b1222be13711355fd1b",
+      "shape": [
+        1402,
+        1245,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "3c62442fa9b78ec42509e7c86f709fa8069b1fb20f8207a5caeb9f5fdd2a23c2"
+    },
+    "ablation_grid_sweep_2.png": {
+      "png_sha256": "d3f089632066d0b5632406040f65e18346aa9d7f451f49c66c83e6a732bc3201",
+      "shape": [
+        1402,
+        1245,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "5fe56f6f4181bcbee3da47805ec39eaf188e434ec8f255747103c891be199791"
+    },
+    "ablation_grid_sweep_3.png": {
+      "png_sha256": "bb9220b885bd1925084580ad197ddb86243af78987c724ab0e5cc8cc4f1fff19",
+      "shape": [
+        1402,
+        1246,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "b1aa69a05c35081422c275f091e52ea70fdb553c7c74f0a28c9cff28f19fbc97"
+    },
+    "ablation_grid_sweep_4.png": {
+      "png_sha256": "c5c0937b9959b6179069141a0097b87293eed185bc9d0c5b282636b34c858fe0",
+      "shape": [
+        950,
+        1245,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "0aea8f830bef8384d0b9aa96a9f1b9a7950b5e02e812d27c933264e3a6af9d59"
+    },
+    "ablation_integrator_sweep_1.png": {
+      "png_sha256": "4efd7746ae84f0d11a2c7f97f3b499ab91fa4fd0a395a6955cae1ae76c277869",
+      "shape": [
+        1402,
+        1243,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "ba1031318f6348d13a1de6fdb7bd40d8b57a865beb5170738736da296a9114e4"
+    },
+    "ablation_integrator_sweep_2.png": {
+      "png_sha256": "d1e86abf70784f6e8d74812c7c4308bd25b40223345ee6443db4a093a4256c82",
+      "shape": [
+        1402,
+        1242,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "be7c0a20becb755a22a23e934f9e08be33fcfb4a2b9bae2c0b001f57a6e94d1e"
+    },
+    "ablation_integrator_sweep_3.png": {
+      "png_sha256": "59ee3acfb0ec2e7bb97510b6130393dbfdd9e85ffd82a95f47a8bfe0459ea018",
+      "shape": [
+        1402,
+        1243,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "9415d2c8e9aadd7a45855d41f9fe4dd9816cb94e969574d5f80289134db46d24"
+    },
+    "ablation_integrator_sweep_4.png": {
+      "png_sha256": "953098c14bdb55e3097bc0219614969d66abea713c54da9c5e4c6b225b9eeef0",
+      "shape": [
+        950,
+        1242,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f2905ca3f278f2ca32102e17411fb26c0af3d99bf1cf30a2482eea9ad85e94d7"
+    },
+    "ablation_layout_sweep_1.png": {
+      "png_sha256": "65a4af05f5a8e8d70693063d3281f52a8e808d23dd786e39ad204ce2382880be",
+      "shape": [
+        1403,
+        1249,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "68a5503432b52012249e8472ed936aa229011e120fd4c1cc9464a27a5a3773d9"
+    },
+    "ablation_layout_sweep_2.png": {
+      "png_sha256": "e4bdbeb0bb1067931d9bc533b6156e0355e9eb5a4ed74290b44616648bd94c46",
+      "shape": [
+        1403,
+        1249,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "385510b5f66709ae982618f9a4003b4ca2ef9cb1a25e6ef8dbcf61b114e10240"
+    },
+    "ablation_layout_sweep_3.png": {
+      "png_sha256": "fb3d599751ca5beca1fc079fee27ebd1aa9c503901cea8b0b4a25cab3b52f0d1",
+      "shape": [
+        1403,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "e716ef4c795c652b2744c4175d5d650f13db580a2db14a4fa18f00206c542a98"
+    },
+    "ablation_layout_sweep_4.png": {
+      "png_sha256": "a994d2cd4a9a68cd5ef8542861fc2487e2fcf5f7aece9a32abebfba8485262a3",
+      "shape": [
+        951,
+        1249,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "74958dde7917fe1ee1babc82abd74807e218734b184171fd016be7c42ddb7c9c"
+    },
+    "ablation_loss_state_sweep_1.png": {
+      "png_sha256": "3b6177e57e1fe470286b8b687b462f19fd47effafeb55c45a007de428d22720d",
+      "shape": [
+        1402,
+        1243,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "675d63c4ff535a0d546c4eea5822bdf5532ff559eea8da1b5a54d4ae296971b7"
+    },
+    "ablation_loss_state_sweep_2.png": {
+      "png_sha256": "f6f409f7fac47cf0aac283f1a0a700cab420da663b93d894376bf658bdc5aa44",
+      "shape": [
+        1402,
+        1243,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "85eaf0b072fd395c93ead1e40c6d9a9f5f4aab783e7d4e61e91c5da4372c4cd1"
+    },
+    "ablation_loss_state_sweep_3.png": {
+      "png_sha256": "78c61b60268999890654229aa15474b8254bb5f42f3422bc98fcb69d6008201b",
+      "shape": [
+        1402,
+        1244,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "6670646043663d9a8295e4562253a2e44a3e473ee6f05e11187cd96ab3ce630f"
+    },
+    "ablation_loss_state_sweep_4.png": {
+      "png_sha256": "70ee14381d3f997ec439bd96514074442007d78de2b1c68223c7f9633d6565e9",
+      "shape": [
+        951,
+        1243,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "022f8a3ec1e8084a4e4ce27507c5517a49ae1ea07758aaf405abead816b30076"
+    },
+    "ablation_noise_sweep_1.png": {
+      "png_sha256": "827731644bd375262621abcf4907b37f7d17b5b83df51ccd1477043308e0de1d",
+      "shape": [
+        1407,
+        1248,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "dc6b2db8b3390bba2d6ca21ed26397d0c78b17dc8763f6a81ff04039c2dd17fd"
+    },
+    "ablation_noise_sweep_2.png": {
+      "png_sha256": "c656d73ce56f437d0e854b96704d4e93f8c8cd4081240be540c7c53d1722754a",
+      "shape": [
+        1407,
+        1248,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "bf896534f87c44dd79ac8e443bd87b67fc3d49efc222032227206fc6326326d5"
+    },
+    "ablation_noise_sweep_3.png": {
+      "png_sha256": "2a0d8a43c6f19359132963e8cb3a28d85df4e68596473e4006587758ee87b50f",
+      "shape": [
+        1407,
+        1248,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "fa1b41793d4f79e8c327d1189d578ab0995e19983fb0efff0552818a8fd1a7e8"
+    },
+    "ablation_noise_sweep_4.png": {
+      "png_sha256": "32c24b4025758ed455d518c76a3f4488b8008493e0bff534e637b790034b7e77",
+      "shape": [
+        955,
+        1248,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "34ee6a933c5d63f59bec28d6aba2c63e4dec480aad4e3f0c265cc7a63a808daa"
+    },
+    "ablation_seed_sweep_1.png": {
+      "png_sha256": "051ce3e75fefe70a8d35aac2f6a55df5f90eff4f2eff15a994662e4a2c76d0f8",
+      "shape": [
+        1407,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "6ee557ca1ef4e877cb4ee546dbade44e9ff7e0555eefdb5f78e436afe0cf3e0a"
+    },
+    "ablation_seed_sweep_2.png": {
+      "png_sha256": "df62da4b9a5ca83cfcd53691a62f448a7d78cf992e2b696a4ea81bd3332551d6",
+      "shape": [
+        1407,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "63583f9bece7cd1d91d975af9323fe7dda81ec57168010124d95d2c66af21ec4"
+    },
+    "ablation_seed_sweep_3.png": {
+      "png_sha256": "0bde83ff43d09341030e2649e568890a857fc49542583b6862b166674c19cc4d",
+      "shape": [
+        1407,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "bb35c4fe9cab3f6315107669096524992a42964dac089929c8bb802366f3a3e2"
+    },
+    "ablation_seed_sweep_4.png": {
+      "png_sha256": "7a6b0f45921d8fa499ae29c4f5a2124137cd76aa454f2c53b688f92a08baf0c6",
+      "shape": [
+        955,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "042605c5bffbb6ddcf769076ec1fcfa105e44c4f27e1cc38c62fcaa6f3f242ff"
+    },
+    "ablation_switch_sweep_1.png": {
+      "png_sha256": "720879efabf5e79e4eb4bd480ec0e75a55e2830bd2fc41acc986634c3466296c",
+      "shape": [
+        1402,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "56e2c6bedab13d3f96e1a4f8acefefbc50f84344fc94d6894524043e421de962"
+    },
+    "ablation_switch_sweep_2.png": {
+      "png_sha256": "a3ecc522e87a422fdd91d935dd5bca3654c256f9f9b67df01dd43754acab49f0",
+      "shape": [
+        1402,
+        1249,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "d9fcbfa80f9b3c04e02a10edbe78a97089d3cfa36a68bd704e00f8212d722e46"
+    },
+    "ablation_switch_sweep_3.png": {
+      "png_sha256": "3a1b1bcfb4511cde03df4232eba308ff2ed7335cde8ed156e6516aec58d22920",
+      "shape": [
+        1402,
+        1250,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "3b345d94291abb655130e9b09fcea447d2fa259d0479280e87a501d87abbaff9"
+    },
+    "ablation_switch_sweep_4.png": {
+      "png_sha256": "7718156ee7d6849bc5b2e28a925584f94ba562f800275a5dc1cb8894e9713c62",
+      "shape": [
+        951,
+        1249,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "607104cadb45a70845090f171ced4adb86531e0d3e0d3b47b11bc71bf5cf165e"
+    },
+    "ablation_temporal_sweep_1.png": {
+      "png_sha256": "bcfd6d52e9884e626aaceabf68ed7c8c49c7a8f17868bfc31ecae188ceda3fb8",
+      "shape": [
+        1406,
+        1244,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "03024685fdfdba297e1f0f04bb8948d4bea211e62d47ff504c6325d0865cda3c"
+    },
+    "ablation_temporal_sweep_2.png": {
+      "png_sha256": "27ae7eef920b188752dcc84c64678a2545a99313d64d9f54a9a6c109ed9b3e57",
+      "shape": [
+        1405,
+        1244,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "cb7ab51ed170f3e3fc2e653902c366fa50713f789d61b49a101faf13d44f555d"
+    },
+    "ensemble_paired_fields.png": {
+      "png_sha256": "1b3bf04d7cc5f75bc84b7116620a31009608050e2b7c02c08429bb8e803848df",
+      "shape": [
+        1353,
+        1390,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f56e64146da9fb6d8d19fd8d21a45e541bbc628ff1285cb5d93b39d225c7581c"
+    },
+    "ensemble_spectra_advection_diffusion.png": {
+      "png_sha256": "db42a864d1afc2475f99f3031924f772e703ea1963b03baf0bee53f5cc2176d2",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "0b4ecc93493be3f754e24503ad61129da939e9c1c818a5493b315887b1149667"
+    },
+    "ensemble_spectra_burger.png": {
+      "png_sha256": "bf974746956a1d930daca1ebd07702d11a8bbe043a8c371232a24b7eadaa46d2",
+      "shape": [
+        560,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "8ed733aba771d87d0aaeb30e3a2c5811804374bad48ca6576197326ed571c5ec"
+    },
+    "ensemble_spectra_darcy.png": {
+      "png_sha256": "81d39411dd840d7415b8ba882ab818e698336875d43999db56d8913469d0f403",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "ea9599f996bd857584b60a5e9ba578d95827ec873c0ce68fb65892b663796634"
+    },
+    "ensemble_spectra_heat.png": {
+      "png_sha256": "38f7cc0b83f4ce5ede701234b29eb2ecaa1ed535cbd7cd5496f956782d6f47e7",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "90d67b17280a5d5617371946897970c7635fbc9c3e9d1298b7ee1eef9fb26f74"
+    },
+    "ensemble_spectra_helmholtz.png": {
+      "png_sha256": "12a6f323960fe4d54b29df20ef005b44078cd790138cbb62f0ee063b32938cc3",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "df26f1d47e5cd344dbed2d2d4e4be5c3c149ee4018e4c9e0e47f8a46315546a9"
+    },
+    "ensemble_spectra_nsnonbounded.png": {
+      "png_sha256": "2a6416da8c7db37a62f05e2f1aabc59a98358d148e96fd1388bb6c31062d0f45",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "38da6f5902d82194845c9fec95752c76a622f3fdb89ce3293ae9dc75c5a230a4"
+    },
+    "ensemble_spectra_poisson.png": {
+      "png_sha256": "88fce81f48621c21683b13b7f7cbf304ae3e94b3c1da536cf5a8751ae9e75bfb",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "6ce2d7d009c82bbe11e8d8d40f2f0a70416bf348879d1536abd6bd42ad697089"
+    },
+    "ensemble_spectra_reaction_diffusion.png": {
+      "png_sha256": "0c2c048885b9331a6f2bf16e91955a7a73a341718d8af3d76d9791aab875ccf2",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "f0813f74c63a8b72403b98f1297770108b7d01768a4f7b7780ce9374251a8009"
+    },
+    "ensemble_spectra_shallow_water.png": {
+      "png_sha256": "9a34c41134a78c78a6e9c7fabcfb3d41a87f42c4912b9fcee74fcf135b0ce6ac",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "e696a1bbec6bf0201a67df91ff266dda97252033858b5b7e7de0aff5860b85ca"
+    },
+    "ensemble_spectra_steady_heat_conduction.png": {
+      "png_sha256": "326dfcd36591541a200eaed5bab464b4648a006d2bb37e3cc439f449a15945ac",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "3f2c2af5a98b782d66b95ff0de8321291c03a57edc5a80e17979791e5938ee64"
+    },
+    "ensemble_spectra_wave.png": {
+      "png_sha256": "a65578d105a5afb4d38f42255b43a95e98031c4fe357be556ed84c179693219e",
+      "shape": [
+        1067,
+        1392,
+        4
+      ],
+      "dtype": "uint8",
+      "pixel_sha256": "c587db2ee9192ffb3da0c652e55e913f35f4a0dd364f622bb4f7674b4bdda548"
+    }
+  }
+}

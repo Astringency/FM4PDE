@@ -42,18 +42,71 @@ def rows(path):
         return list(csv.DictReader(stream))
 
 
+def audit_original_controls(records, manifest_path):
+    """Recompute old float32-reported norms in float64 without changing values."""
+    import numpy as np
+    import torch
+    torch.set_num_threads(2)
+    verification = json.loads(manifest_path.read_text())
+    assert verification['status'] == 'passed'
+    expected = {r['id']: r for r in verification['rows']
+                if r['study'] == 'unchanged_ablations'}
+    controls = [r for r in records if r['source'] == 'unchanged']
+    assert len(controls) == len(expected) == 316
+    assert {r['id'] for r in controls} == set(expected)
+    checked = []
+    for record in controls:
+        ident = record['id']
+        saved = expected[ident]
+        assert saved['exists'] and saved['matches_expected']
+        assert saved['pde'] == record['pde']
+        assert saved['source_path'] == record['source_result']
+        source = Path(record['result_path'])
+        raw_sha = digest(source)
+        assert raw_sha == saved['sha256'], ident
+        payload = torch.load(source, map_location='cpu', weights_only=False)
+        values = {}
+        for field, prefix in [('a', 'coef'), ('u', 'sol')]:
+            truth = payload[prefix + '_ground_truth'].double().numpy()
+            prediction = payload[prefix + '_final'].double().numpy()
+            assert truth.shape == prediction.shape and truth.shape[0] == 1, ident
+            assert np.isfinite(truth).all() and np.isfinite(prediction).all(), ident
+            actual = float(np.linalg.norm(prediction-truth)/max(np.linalg.norm(truth), 1e-12))
+            published = record['rel_l2_' + field]
+            assert np.isfinite(actual) and np.isclose(actual, published, rtol=3e-6, atol=1e-9), (ident, field, actual, published)
+            values[field] = dict(archived=published, recomputed_float64=actual,
+                absolute_difference=abs(actual-published),
+                relative_difference=abs(actual-published)/max(abs(published), 1e-300))
+        checked.append(dict(id=ident, pde=record['pde'], raw_path=str(source),
+                            sha256=raw_sha, fields=values))
+    return dict(status='pass', predictions=len(checked), fields_checked=2*len(checked),
+        manifest_sha256=digest(manifest_path), relative_tolerance=3e-6, absolute_tolerance=1e-9,
+        formula='float64 ||prediction-truth||_2 / max(||truth||_2, 1e-12)',
+        published_values_preserved=True, rows=checked)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--study', required=True, type=Path,
                         help='Existing local study layout; used for default paths only')
     parser.add_argument('--output', required=True, type=Path, help='Fresh verification directory')
     parser.add_argument('--inputs', type=Path)
+    parser.add_argument('--archive', type=Path, help='The original 1,060-row summary CSV')
+    parser.add_argument('--results', type=Path, help='Unified eleven-PDE canonical results root')
     parser.add_argument('--result-map', type=Path,
                         help='JSON mapping each of 11 PDE names to its authoritative raw directory')
     parser.add_argument('--original-root', type=Path)
+    parser.add_argument('--original-manifest', type=Path,
+                        help='Require independent raw recomputation of all 316 verified originals')
+    parser.add_argument('--verify-source-hashes', action='store_true',
+                        help='Hash all consumed raw/receipt/curve/protocol files before and after replay')
     parser.add_argument('--snapshot', type=Path, help='Existing baseline ablation snapshot')
     parser.add_argument('--ensemble', type=Path, help='Existing baseline three-draw export')
-    parser.add_argument('--paper-figures', type=Path, help='Optional existing PNGs for exact pixel checks')
+    parser.add_argument('--paper-figures', type=Path, action='append', default=[],
+                        help='Existing PNG directory for pixel checks; repeat for separate archived folders')
+    parser.add_argument('--font-dir', type=Path, help='Directory containing the four original Times TTF files')
+    parser.add_argument('--figure-reference-manifest', type=Path,
+                        help='Final PNG dimensions and decoded-pixel SHA256; avoids copying reference images')
     parser.add_argument('--plots', choices=['all', 'none'], default='all')
     args = parser.parse_args()
     args.study = args.study.resolve()
@@ -65,9 +118,10 @@ def main():
     historical_snapshot = args.snapshot or args.study/'ablation_publication_snapshot'
     historical_ensemble = args.ensemble or args.study/'ensemble_complete'
     inputs = args.inputs or args.study/'inputs'
+    archive = args.archive or args.study/'archived_ablation_summary.csv'
     original = args.original_root or args.study/'original_predictions'
     result_map = (json.loads(args.result_map.read_text()) if args.result_map else
-                  {pde: str(args.study/'output'/pde) for pde in PDES})
+                  {pde: str((args.results or args.study/'output')/pde) for pde in PDES})
     assert set(result_map) == set(PDES), 'The results view must contain all eleven PDEs'
     mapping = []
 
@@ -86,7 +140,7 @@ def main():
         assert (view/'results'/pde/'selection.json').is_file()
         assert (view/'results'/pde/'ensemble_complete.json').is_file()
     link(original, view/'original')
-    link(args.study/'archived_ablation_summary.csv', view/'archived_ablation_summary.csv')
+    link(archive, view/'archived_ablation_summary.csv')
     write(args.output/'view_manifest.json', dict(
         no_raw_copies=True, links_are_relative=True, mappings=mapping,
         original_root_on_server197='/research_data/users/zhangxifeng/C01Python/FM4PDE',
@@ -94,6 +148,9 @@ def main():
     env = dict(os.environ, CUDA_VISIBLE_DEVICES='', OMP_NUM_THREADS='2',
                MKL_NUM_THREADS='2', OPENBLAS_NUM_THREADS='2', NUMEXPR_NUM_THREADS='2',
                MPLBACKEND='Agg')
+    if args.font_dir:
+        env['FM4PDE_FONT_DIR'] = str(args.font_dir.resolve(strict=True))
+    os.environ.update(env)
     report = dict(status='running', started_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                   repo_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   command=shlex.join([sys.executable, *sys.argv]), cwd=str(ROOT),
@@ -101,7 +158,31 @@ def main():
                       'MKL_NUM_THREADS','OPENBLAS_NUM_THREADS','NUMEXPR_NUM_THREADS','MPLBACKEND']},
                   original_inputs_preserved=True, plots_requested=args.plots, commands=[], checks={})
     report_path = args.output/'relocation_validation.json'
+    if args.font_dir:
+        report['font_files'] = {name: digest(args.font_dir/name) for name in
+                               ['times.ttf', 'timesbd.ttf', 'timesi.ttf', 'timesbi.ttf']}
+    figure_references = {}
+    if args.figure_reference_manifest:
+        figure_references = json.loads(args.figure_reference_manifest.read_text())['figures']
+        assert len(figure_references) == 80
+        report['figure_reference_manifest_sha256'] = digest(args.figure_reference_manifest)
     write(report_path, report)
+
+    consumed = {archive.resolve()}
+    if args.verify_source_hashes:
+        for pde in PDES:
+            consumed.add((inputs/pde/'protocol.json').resolve())
+            result_root = Path(result_map[pde])
+            consumed.update(path.resolve() for path in result_root.rglob('*')
+                if path.is_file() and path.name in {'result.pt', 'masks.pt', 'curves.csv',
+                    'receipt.json', 'selection.json', 'rerun_complete.json', 'ensemble_complete.json'})
+        if args.original_manifest:
+            original_rows = json.loads(args.original_manifest.read_text())['rows']
+            consumed.update((original/r['source_path'].split('/FM4PDE/', 1)[1]).resolve()
+                for r in original_rows if r['study'] == 'unchanged_ablations')
+        source_hashes = {str(path): digest(path) for path in sorted(consumed)}
+        write(args.output/'source_hashes_before.json', source_hashes)
+        print('HASHED', len(source_hashes), 'read-only source files', flush=True)
 
     def run(name, script, *arguments):
         command = [sys.executable, str(ROOT/'plot'/script), *map(str, arguments)]
@@ -123,10 +204,10 @@ def main():
     snapshot = args.output/'snapshot'
     # Hold numerical libraries and thread counts constant for the path-only test.
     # Historical exports may have used another BLAS reduction order.
-    source_view = args.study/'output'
+    source_view = args.results or args.study/'output'
     if args.result_map:
         source_view = view/'results'
-    run('baseline_collect', 'collect_paper_ablation_fields.py', '--archive', args.study/'archived_ablation_summary.csv',
+    run('baseline_collect', 'collect_paper_ablation_fields.py', '--archive', archive,
         '--inputs', inputs, '--results', source_view, '--original-root', original,
         '--output', baseline, '--completed-pdes-only')
     run('collect', 'collect_paper_ablation_fields.py', '--archive', view/'archived_ablation_summary.csv',
@@ -169,6 +250,15 @@ def main():
         new_read_paths_inside_view=True, available_raw_records=sum(x['result_path'] is not None for x in new_records),
         unchanged_missing_raw_by_pde=dict(Counter(x['pde'] for x in new_records if x['result_path'] is None)))
     write(args.output/'historical_ablation_roundoff.json', roundoff)
+    if args.original_manifest:
+        original_audit = audit_original_controls(new_records, args.original_manifest)
+        write(args.output/'original_control_recomputation.json', original_audit)
+        errors = [values for item in original_audit['rows'] for values in item['fields'].values()]
+        report['checks']['original_controls'] = dict(status='pass', predictions=316, fields_checked=632,
+            max_absolute_difference=max(x['absolute_difference'] for x in errors),
+            max_relative_difference=max(x['relative_difference'] for x in errors),
+            relative_tolerance=3e-6, absolute_tolerance=1e-9, published_values_preserved=True)
+        print('VERIFIED 316 original controls against independently recomputed float64 norms', flush=True)
     for name, source in [('baseline_tables', baseline), ('relocated_tables', snapshot)]:
         run(name, 'export_paper_ablation_tables.py', '--source', source, '--output', args.output/name)
     old_tables = {p.name:digest(p) for p in (args.output/'baseline_tables').glob('*.tex')}
@@ -241,20 +331,41 @@ def main():
                 with Image.open(png) as img:
                     img.verify()
                 item = dict(name=png.stem, folder=folder, png_sha256=digest(png), pdf_sha256=digest(pdf))
+                if figure_references:
+                    reference = figure_references[png.name]
+                    with Image.open(png) as img:
+                        pixels = np.asarray(img)
+                        pixel_sha = hashlib.sha256(pixels.tobytes()).hexdigest()
+                        item['pixels_exactly_equal'] = (list(pixels.shape) == reference['shape']
+                            and str(pixels.dtype) == reference['dtype'] and pixel_sha == reference['pixel_sha256'])
+                        item['pixel_sha256'] = pixel_sha
+                        item['pixel_shape'] = list(pixels.shape)
+                    item['reference_png_sha256'] = reference['png_sha256']
                 if args.paper_figures:
-                    old = args.paper_figures/png.name
-                    item['existing_png_found'] = old.exists()
+                    candidates = [folder/png.name for folder in args.paper_figures if (folder/png.name).exists()]
+                    assert candidates, ('Missing archived figure', png.name)
+                    assert len({digest(p) for p in candidates}) == 1, ('Conflicting archived figures', png.name)
+                    old = candidates[0]
+                    item['existing_png_found'] = True
+                    item['archived_png_sha256'] = digest(old)
                     if old.exists():
                         with Image.open(old) as a, Image.open(png) as b:
                             item['pixels_exactly_equal'] = bool(np.array_equal(np.asarray(a), np.asarray(b)))
                 plots.append(item)
         assert len(plots) == 80, len(plots)
         report['checks']['plots'] = dict(count=len(plots), valid_pdf_and_png=True, figures=plots)
+    if args.verify_source_hashes:
+        after = {str(path): digest(path) for path in sorted(consumed)}
+        assert source_hashes == after, 'A consumed source file changed during replay'
+        write(args.output/'source_hashes_after.json', after)
+        report['checks']['source_preservation'] = dict(files=len(after), all_hashes_unchanged=True,
+            manifest_sha256=digest(args.output/'source_hashes_before.json'))
     report['status'] = 'pass'
     report['completed_utc'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     report['scope_limit'] = ('All 744 revised and 1056 three-draw raw predictions were reread. '
-        'The 316 unchanged controls retain exact archived summary values; 271 original raw records '
-        'are absent from this local subset. This test does not certify their raw recomputation or server197 transfer.')
+        + ('All 316 unchanged controls were independently recomputed from hash-verified raw tensors; '
+           'their historical float32-reported summary values are preserved.' if args.original_manifest else
+           'Unchanged controls retain archived summary values; this run does not independently recompute them.'))
     write(report_path, report)
     print('PASS', report_path, flush=True)
 
