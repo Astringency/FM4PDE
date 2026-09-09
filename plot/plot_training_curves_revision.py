@@ -27,7 +27,7 @@ def main():
     rows=[r for r in allrows if r['pde']==pde];epochs=[r['epoch'] for r in rows]
     for key,color,ls,label in [('train_loss','#28628F','-','Training'),('val_loss','#A77B19','--','Validation')]:ax.plot(epochs,[r[key] for r in rows],color=color,lw=1,ls=ls,label=label)
     ax.set(title=title,xlabel='Epoch',ylabel='Flow-matching MSE',xlim=(0,300),yscale='log');ax.set_xticks([0,100,200,300]);ax.grid(alpha=.25)
-   axes[0,0].legend(loc='upper right',frameon=False)
+   fig.legend(*axes[0,0].get_legend_handles_labels(),loc='outside upper center',ncol=2,frameon=False)
    stem=f'training_curves_{page+1}'
    for ext in ['pdf','png']:
     path=out/f'{stem}.{ext}';fig.savefig(path,dpi=180,bbox_inches='tight',pad_inches=.03);outputs[path.name]=sha(path)
