@@ -75,6 +75,10 @@ def main(args):
         assert receipt['selection_sha256'] == selection_hash
         data = torch.load(path, map_location='cpu', weights_only=False)
         dist, setting, ids = receipt['dist'], receipt['setting'], receipt['ids']
+        assert len(ids) == len(receipt['rows']) and receipt['nfe'] == 100
+        for key in ['predictions', 'truths', 'masks']:
+            assert tuple(data[key].shape) == (len(ids), 2, 128, 128)
+            assert torch.isfinite(data[key]).all()
         cfg = configuration(protocol, setting, dist, data['config']['checkpoint_path'],
                             selection['scaled_inverse'].get(setting, False))
         cfg.offset = ids[0]
@@ -89,11 +93,22 @@ def main(args):
         expected_counts = {'forward': [cfg.num_obs, 0], 'inverse': [0, cfg.num_obs],
                            'both': [cfg.num_obs, cfg.num_obs]}[cfg.task]
         assert np.array_equal(counts, np.broadcast_to(expected_counts, counts.shape))
+        assert cfg.sensor_mode == 'random' and not cfg.shared_mask
+        expected_mask = torch.zeros(2, 128*128)
+        for field, count in enumerate(expected_counts):
+            generator = torch.Generator(device='cpu').manual_seed(cfg.mask_seed + field)
+            locations = torch.randperm(128*128, generator=generator)[:count]
+            expected_mask[field, locations] = 1
+        expected_mask = expected_mask.reshape(2, 128, 128).numpy()
+        assert np.array_equal(masks, np.broadcast_to(expected_mask, masks.shape))
+        if cfg.task == 'both':
+            assert not np.array_equal(expected_mask[0], expected_mask[1])
         if setting not in all_masks:
             all_masks[setting] = masks[0].copy()
         assert np.array_equal(masks, np.broadcast_to(all_masks[setting], masks.shape))
         calculated = endpoint_mse(data['predictions'].numpy())
         reported = np.array([row['pde_mse'] for row in receipt['rows']])
+        assert calculated.shape == reported.shape == (len(ids),)
         absolute = np.abs(calculated - reported)
         relative = absolute / np.maximum(np.abs(calculated), 1e-30)
         maxima['absolute'] = max(maxima['absolute'], float(absolute.max()))
