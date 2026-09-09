@@ -447,3 +447,24 @@ Both use the unchanged remote helper and exit automatically on completion.
 Append their inventory/state pairs as further `--additional-batch` arguments
 to the ledger command; no concurrent copy or changes to an active inventory
 are needed.
+
+For the final K-study release, use `prepare_conditional_scaling_archive.py`.
+It accepts the original 70-entry `--original-inventory`, an external
+`--scientific-review` JSON and its explicit `--scientific-review-sha256`,
+every completed batch as a repeated `--prior-inventory`, and a new `--output`
+directory. The review must contain `status: "pass"`, `complete: true`,
+`ready_for_paper_review_sha256`, and `final_manifest_sha256`, identifying the
+exact ready marker and final plot manifest it approved. The review belongs
+outside the still-active collector audit directory.
+
+The generator refuses an active collector or producer, missing shard
+completion, a changed producer commit/precision/batch configuration, an
+incomplete static cohort, or an absent scientific approval. It binds all
+480 receipt files and their 480 tensor hashes, checks the 32-input/96,000
+canonical/106,944-timed totals, and only then remeasures the three previously
+pending sources. The archive executor subsequently rereads every tensor and
+checks its expected SHA before publication. It creates no transfer itself.
+Its separate frozen inventory and `evidence/` directory retain the original
+review bytes and terminal production metadata for the final reproducibility
+package. Those records must accompany the three result entries; they are
+never injected into a production directory or an already verified subtree.
