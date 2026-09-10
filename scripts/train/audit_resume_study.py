@@ -114,6 +114,10 @@ def audit_job(job, require_evaluation):
     assert b.shape == a.shape == (4488,) and np.isfinite(a).all() and np.isfinite(b).all()
     assert np.isclose(b.mean(), complete['baseline_confirmation_mse'], rtol=1e-12, atol=1e-14)
     assert np.isclose(a.mean(), complete['selected_confirmation_mse'], rtol=1e-12, atol=1e-14)
+    delta = a-b
+    half = 1.96*delta.std(ddof=1)/np.sqrt(len(delta))
+    np.testing.assert_allclose(complete['paired_mean_change_95ci'],
+                               [delta.mean()-half, delta.mean()+half], rtol=1e-12, atol=1e-14)
     result = dict(pde=job['pde'], training_artifacts_verified=True,
                   source_sha256=protocol['checkpoint_sha256'], checkpoints=checkpoints,
                   current_continuation_train_validation_disjoint=True,
@@ -136,6 +140,10 @@ def audit_job(job, require_evaluation):
             assert b.shape == a.shape == (32,) and np.isfinite(a).all() and np.isfinite(b).all()
             assert np.isclose(b.mean(), row['baseline'], rtol=1e-12, atol=1e-14)
             assert np.isclose(a.mean(), row['resumed'], rtol=1e-12, atol=1e-14)
+            delta = a-b
+            half = 1.96*delta.std(ddof=1)/np.sqrt(len(delta))
+            np.testing.assert_allclose(row['paired_change_95ci'],
+                                       [delta.mean()-half, delta.mean()+half], rtol=1e-12, atol=1e-14)
         receipts = {}
         for task in tasks:
             for label in ('baseline', 'resumed'):
@@ -146,6 +154,16 @@ def audit_job(job, require_evaluation):
                 for row in rows:
                     assert sha(row['result_path']) == row['result_sha256']
                     assert row['checkpoint_sha256'] == final['checkpoint_sha256'][label]
+                    payload = torch.load(row['result_path'], map_location='cpu', weights_only=False)
+                    masks = payload['masks']
+                    mask_bytes = masks['coef'].numpy().tobytes()+masks['sol'].numpy().tobytes()
+                    assert hashlib.sha256(mask_bytes).hexdigest() == row['mask_sha256']
+                    for field in fields:
+                        prefix = 'sol' if field == 'u' else 'coef'
+                        prediction, truth = payload[prefix+'_final'].double(), payload[prefix+'_ground_truth'].double()
+                        relative = ((prediction-truth).square().flatten(1).sum(1)/
+                                    truth.square().flatten(1).sum(1).clamp_min(1e-24)).sqrt()
+                        np.testing.assert_allclose(relative.numpy(), row['fields'][field]['relative_l2'], rtol=1e-10, atol=1e-12)
                     receipts[(task, label, row['seed'], tuple(row['sample_ids']))] = row
         for (task, label, seed, ids), row in receipts.items():
             if label != 'baseline':
