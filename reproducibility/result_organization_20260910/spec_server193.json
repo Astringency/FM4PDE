@@ -1,0 +1,1791 @@
+{
+  "schema_version": 1,
+  "host": "server193",
+  "base": "/home/zhangxf/C01Python",
+  "scope": "Finished outputs scattered outside the three canonical project directories in this server C01Python. Sources remain unchanged. Mixed-study method outputs are separated; shared provenance is retained with each participating method. Existing canonical result directories and unrelated projects are preserved.",
+  "selected": [
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/gpu0.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/gpu0_v2.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/gpu1.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/gpu1_v2.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/timing_results",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/timing_results_v2",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/evaluation_gpu0.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/evaluation_gpu1.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/pilot_gpu0.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/pilot_gpu1.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/probe_gpu0.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/probe_gpu1.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/revision_results",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_formal.log",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_formal_v3.log",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_pilot.log",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_pilot_v2.log",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_pilot_v3.log",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_results",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_results_v3",
+      "projects": [
+        "FM4PDE",
+        "FM4PDEbaseline"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/acceleration_handoff_v1.json",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/acceleration_handoff_v2.json",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_accelerated_worker0.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_accelerated_worker1.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_extension_worker0.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_extension_worker1.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_formal0_v3.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_formal1_v3.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_pilot0.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_pilot0_v2.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_pilot0_v3.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_pilot1.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_pilot1_v2.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_pilot1_v3.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_results_accelerated_v1",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_results_accelerated_v2",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_results_v1",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_results_v2",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_results_v3",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "FM4PDEdebug/outputs/main",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Results or saved weights from the debug checkout."
+    },
+    {
+      "source": "FM4PDEdebug/outputs/tuning",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Results or saved weights from the debug checkout."
+    },
+    {
+      "source": "FM4PDEdebug/outputs/pretrained",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "pretrained",
+      "reason": "Results or saved weights from the debug checkout."
+    },
+    {
+      "source": "NSCrossCheck0909/cross.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSCrossCheck0909/cross_result.json",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSCrossCheck0909/cross_result.pt",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainRevision0909/timing.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainRevision0909/timing_prepare.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainRevision0909/timing_results",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainWorker0909/batch_check16",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainWorker0909/batch_check16.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainWorker0909/main.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainWorker0909/main_results",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "NSMainWorker0909/selection.json",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "common_noise.pt",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "main",
+      "reason": "Run log or shared frozen cross-device noise."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/output",
+      "projects": [
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/worker_0.log",
+      "projects": [
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/worker_1.log",
+      "projects": [
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/worker_6.log",
+      "projects": [
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_output_v2",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_output_v3",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_parallel_00.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_parallel_01.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_parallel_assignment_2242.json",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v2_shard3.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v2_shard4.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v3_shard3.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v3_shard4.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v3_shard9.log",
+      "projects": [
+        "FM4PDE",
+        "DiffusionPDE"
+      ],
+      "category": "main",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/deps_install.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/output",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/poisson_queue.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/poisson_queue_v2.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/reaction_diffusion_queue.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    },
+    {
+      "source": "paper_revision_20260908/reaction_diffusion_queue_v2.log",
+      "projects": [
+        "FM4PDE"
+      ],
+      "category": "ablations",
+      "reason": "Saved run results or associated configuration, provenance, and logs."
+    }
+  ],
+  "retained": [
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/DM4PDEsampletest.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/aggregate_eval.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/dnnlib",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/eval",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/evaluate_results.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/generate_lables.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/generate_pde.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/merge_data.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/run_eval.sh",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/run_sample.sh",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/run_train.sh",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/torch_utils",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "DiffusionPDE_jmlr_timing_20260907/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE",
+      "reason": "Already inside the corresponding project; existing results are retained."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/inputs_v2",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/timing_deps",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_diffusion_timing_20260907/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "FM4PDE_jmlr_20260906_probe_gate.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/geometry_fix.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/resolve_pde_config.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_deps",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/timing_inputs_v2",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_accelerated_20260907/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_extension_b66dbcf/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_acceleration_source.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_inputs_v2",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/ns_weights",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDE_ns_loss_spectrum_20260907/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEbaseline",
+      "reason": "Already inside the corresponding project; existing results are retained."
+    },
+    {
+      "source": "FM4PDEdebug/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/.pytest_cache",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "FM4PDEdebug/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "FM4PDEdebug/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSCrossCheck0909/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/timing_inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "NSMainRevision0909/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainRevision0909/weights.pth",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "NSMainWorker0909/.gitattributes",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/.gitignore",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/README.md",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/__init__.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/configs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/count_param.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/data",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/docs",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/environment.yml",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/flow_matching",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "NSMainWorker0909/models",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/papers",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/plot",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/pytest.ini",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/sample.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/sampling",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/scripts",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/tests",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/torchdiffeq",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/train.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/train_arg_parser.py",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "NSMainWorker0909/training",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "ns_loss_study_20260907.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_protocol_fix_20260907.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_revision_0909.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_revision_0909_cross.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_revision_0909_v2.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_revision_0909_v3.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/FM4PDE",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/code.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "ns_rough_diffusion_20260908/inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "ns_shared_mask_20260907.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "ns_six_worker_20260907.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "paper_revision_20260908/BurgersParallelCode",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "paper_revision_20260908/BurgersV2",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "paper_revision_20260908/BurgersV3",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "paper_revision_20260908/FM4PDE",
+      "reason": "Source checkout or tracked source file; no additional nested run outputs found."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_parallel.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v2.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908/burgers_v3.bundle",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908/deps",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908/inputs",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908/weights",
+      "reason": "Original input, dependency, weight used as an input, source bundle, or cache; retained without changing its location."
+    },
+    {
+      "source": "paper_revision_20260908.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    },
+    {
+      "source": "FM4PDE_jmlr_timing_20260907/pilot_determinism.bundle",
+      "reason": "Source Git bundle; retained in its original location."
+    }
+  ]
+}

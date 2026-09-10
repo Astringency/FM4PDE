@@ -1,0 +1,197 @@
+[
+  {
+    "name": "ns_loss_spectrum_20260907/ns_results_accelerated_v1",
+    "groups": {
+      "": [
+        "environment_3.json",
+        "diffusion_exchange1_diagnostics1.py",
+        "protocol.json"
+      ],
+      "results/forward/DiffusionPDE_100": [
+        "results/forward/DiffusionPDE_100/original/sample900_seed1.pt",
+        "results/forward/DiffusionPDE_100/original/sample900_seed1.json",
+        "results/forward/DiffusionPDE_100/original/sample651_seed1.json"
+      ],
+      "results/forward/FM4PDE_100": [
+        "results/forward/FM4PDE_100/original/sample900_seed0.json",
+        "results/forward/FM4PDE_100/original/sample651_seed1.json",
+        "results/forward/FM4PDE_100/original/sample433_seed1.json"
+      ],
+      "results/forward/DiffusionPDE_1000": [
+        "results/forward/DiffusionPDE_1000/original/sample218_seed0.json",
+        "results/forward/DiffusionPDE_1000/original/sample900_seed1.pt",
+        "results/forward/DiffusionPDE_1000/original/sample900_seed2.pt"
+      ],
+      "results/inverse/DiffusionPDE_100": [
+        "results/inverse/DiffusionPDE_100/original/sample218_seed0.json",
+        "results/inverse/DiffusionPDE_100/original/sample196_seed0.pt",
+        "results/inverse/DiffusionPDE_100/original/sample900_seed0.json"
+      ],
+      "results/inverse/FM4PDE_100": [
+        "results/inverse/FM4PDE_100/original/sample900_seed1.pt",
+        "results/inverse/FM4PDE_100/original/sample196_seed0.pt",
+        "results/inverse/FM4PDE_100/original/sample900_seed1.json"
+      ],
+      "results/inverse/DiffusionPDE_1000": [
+        "results/inverse/DiffusionPDE_1000/original/sample218_seed0.json",
+        "results/inverse/DiffusionPDE_1000/original/sample733_seed0.pt",
+        "results/inverse/DiffusionPDE_1000/original/sample433_seed1.json"
+      ],
+      "results/both/DiffusionPDE_100": [
+        "results/both/DiffusionPDE_100/original/sample900_seed1.pt",
+        "results/both/DiffusionPDE_100/original/sample196_seed0.pt",
+        "results/both/DiffusionPDE_100/original/sample900_seed0.json"
+      ],
+      "results/both/FM4PDE_100": [
+        "results/both/FM4PDE_100/original/sample900_seed1.pt",
+        "results/both/FM4PDE_100/original/sample900_seed0.json",
+        "results/both/FM4PDE_100/original/sample900_seed1.json"
+      ],
+      "results/both/DiffusionPDE_1000": [
+        "results/both/DiffusionPDE_1000/original/sample218_seed0.json",
+        "results/both/DiffusionPDE_1000/original/sample900_seed1.pt",
+        "results/both/DiffusionPDE_1000/original/sample900_seed2.pt"
+      ]
+    }
+  },
+  {
+    "name": "ns_loss_spectrum_20260907/ns_results_accelerated_v2",
+    "groups": {
+      "": [
+        "acceleration_extension_plan.json",
+        "acceleration_plan.json",
+        "extension_launch.json"
+      ],
+      "worker_2": [
+        "worker_2/acceleration_extension_plan.json",
+        "worker_2/diffusion_exchange1_diagnostics1.py",
+        "worker_2/generate_ns_nonbounded_frozen.py"
+      ],
+      "worker_2/results/forward": [
+        "worker_2/results/forward/DiffusionPDE_100/original/sample433_seed1.json",
+        "worker_2/results/forward/DiffusionPDE_100/original/sample84_seed0.json",
+        "worker_2/results/forward/DiffusionPDE_100/original/sample363_seed1.json"
+      ],
+      "worker_2/results/inverse": [
+        "worker_2/results/inverse/DiffusionPDE_100/original/sample433_seed1.json",
+        "worker_2/results/inverse/DiffusionPDE_100/original/sample733_seed2.json",
+        "worker_2/results/inverse/DiffusionPDE_100/original/sample733_seed2.pt"
+      ],
+      "worker_2/results/both": [
+        "worker_2/results/both/DiffusionPDE_100/original/sample628_seed0.pt",
+        "worker_2/results/both/DiffusionPDE_100/original/sample628_seed0.json",
+        "worker_2/results/both/DiffusionPDE_100/original/sample911_seed1.json"
+      ],
+      "worker_3": [
+        "worker_3/acceleration_extension_plan.json",
+        "worker_3/diffusion_exchange1_diagnostics1.py",
+        "worker_3/generate_ns_nonbounded_frozen.py"
+      ],
+      "worker_3/results/forward": [
+        "worker_3/results/forward/DiffusionPDE_100/original/sample733_seed1.json",
+        "worker_3/results/forward/DiffusionPDE_100/original/sample911_seed0.pt",
+        "worker_3/results/forward/DiffusionPDE_100/original/sample911_seed0.json"
+      ],
+      "worker_3/results/inverse": [
+        "worker_3/results/inverse/DiffusionPDE_100/original/sample44_seed1.json",
+        "worker_3/results/inverse/DiffusionPDE_100/original/sample363_seed1.json",
+        "worker_3/results/inverse/DiffusionPDE_100/original/sample44_seed1.pt"
+      ],
+      "worker_3/results/both": [
+        "worker_3/results/both/DiffusionPDE_100/original/sample733_seed2.json",
+        "worker_3/results/both/DiffusionPDE_100/original/sample484_seed0.json",
+        "worker_3/results/both/DiffusionPDE_100/original/sample733_seed2.pt"
+      ]
+    }
+  },
+  {
+    "name": "ns_loss_spectrum_20260907/ns_acceleration_pilot_v1",
+    "groups": {
+      "": [
+        "environment_3.json",
+        "diffusion_exchange1_diagnostics1.py",
+        "protocol.json"
+      ],
+      "pilot_reference/nsnonbounded/both": [
+        "pilot_reference/nsnonbounded/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm1e+10_random500_noise0_uniform100_euler_res-secant_bc-none-bcw1_epw1/20260907-203953/run_metadata.json",
+        "pilot_reference/nsnonbounded/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm1e+10_random500_noise0_uniform100_euler_res-secant_bc-none-bcw1_epw1/20260907-203953/masks.pt",
+        "pilot_reference/nsnonbounded/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm1e+10_random500_noise0_uniform100_euler_res-secant_bc-none-bcw1_epw1/20260907-203953/result.pt"
+      ]
+    }
+  },
+  {
+    "name": "paper_revision_20260908/burgers_output_v3",
+    "groups": {
+      "": [
+        "shardparallel_03.lock",
+        "worker_parallel_03.py",
+        "worker_parallel_02.py"
+      ],
+      "pilot_reference_parallel_02/burger/both": [
+        "pilot_reference_parallel_02/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-224618/run_metadata.json",
+        "pilot_reference_parallel_02/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-224618/masks.pt",
+        "pilot_reference_parallel_02/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-224618/result.pt"
+      ],
+      "results/smooth_random/DiffusionPDE_1000": [
+        "results/smooth_random/DiffusionPDE_1000/sample718.json",
+        "results/smooth_random/DiffusionPDE_1000/sample357.json",
+        "results/smooth_random/DiffusionPDE_1000/sample828.pt"
+      ],
+      "results/smooth_structured/DiffusionPDE_100": [
+        "results/smooth_structured/DiffusionPDE_100/sample615.json",
+        "results/smooth_structured/DiffusionPDE_100/sample349.json",
+        "results/smooth_structured/DiffusionPDE_100/sample264.json"
+      ],
+      "results/smooth_structured/DiffusionPDE_1000": [
+        "results/smooth_structured/DiffusionPDE_1000/sample830.pt",
+        "results/smooth_structured/DiffusionPDE_1000/sample900.pt",
+        "results/smooth_structured/DiffusionPDE_1000/sample145.json"
+      ],
+      "pilot_reference_parallel_03/burger/both": [
+        "pilot_reference_parallel_03/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-224355/run_metadata.json",
+        "pilot_reference_parallel_03/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-224355/masks.pt",
+        "pilot_reference_parallel_03/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-224355/result.pt"
+      ]
+    }
+  },
+  {
+    "name": "paper_revision_20260908/burgers_parallel_pilot_197",
+    "groups": {
+      "": [
+        "pilot_shardparallel_00.json",
+        "environment_shardparallel_00.json",
+        "complete_shardparallel_00.json"
+      ],
+      "pilot_reference_parallel_00/burger/both": [
+        "pilot_reference_parallel_00/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-223518/run_metadata.json",
+        "pilot_reference_parallel_00/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-223518/masks.pt",
+        "pilot_reference_parallel_00/burger/both/obs_pde_endpoint_stochastic_constant_pdegate-s0.8-r0_detep-single_step-bt-clipped_zero_at_t0-c1-max0.0125-start0.02-ramp0.04-corrms0.02_global_norm50_random500_noise0_uniform100_euler_res-auto-K3-int1-w1_bc-periodic-bcw1_epw1/20260908-223518/result.pt"
+      ]
+    }
+  },
+  {
+    "name": "ns_rough_diffusion_20260908/output",
+    "groups": {
+      "": [
+        "environment_3.json",
+        "effective_sampler_3_1.py",
+        "pilot_2.json"
+      ],
+      "results/forward/DiffusionPDE_1000": [
+        "results/forward/DiffusionPDE_1000/sample178_seed0.json",
+        "results/forward/DiffusionPDE_1000/sample132_seed0.json",
+        "results/forward/DiffusionPDE_1000/sample93_seed0.json"
+      ],
+      "results/inverse/DiffusionPDE_1000": [
+        "results/inverse/DiffusionPDE_1000/sample178_seed0.json",
+        "results/inverse/DiffusionPDE_1000/sample132_seed0.json",
+        "results/inverse/DiffusionPDE_1000/sample93_seed0.json"
+      ],
+      "results/both/DiffusionPDE_1000": [
+        "results/both/DiffusionPDE_1000/sample178_seed0.json",
+        "results/both/DiffusionPDE_1000/sample132_seed0.json",
+        "results/both/DiffusionPDE_1000/sample93_seed0.json"
+      ]
+    }
+  }
+]
