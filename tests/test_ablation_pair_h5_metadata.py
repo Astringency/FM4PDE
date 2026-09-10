@@ -382,6 +382,39 @@ def test_nsnonbounded_h5py_full_trajectory_fd_reads_w(tmp_path):
     assert gt.metadata["full_trajectory_fd"]["frame_metadata"][0]["trajectory_dataset"] == "w"
 
 
+@pytest.mark.parametrize("stored_channels", [1, 2])
+def test_wave_truth_trajectory_loader_accepts_legacy_and_full_state(tmp_path, stored_channels):
+    """Both real archive schemas must reach the offline residual with all channels."""
+    path = tmp_path / "wave.h5"
+    times = np.linspace(0., 1., 5, dtype=np.float32)
+    displacement = np.broadcast_to(times[:, None, None], (5, 8, 8)).copy()
+    state = np.stack([displacement, np.ones_like(displacement)], axis=0)
+    with h5py.File(path, "w") as file:
+        file.create_dataset("input_data", data=state[:, 0][None])
+        file.create_dataset("output_data", data=state[:, -1][None])
+        file.create_dataset("full_trajectory", data=state[None, :stored_channels])
+        file.create_dataset("t", data=times)
+        file.attrs["T"] = 1.
+        file.attrs["fixed_c"] = 1.
+    cfg = AblationConfig(pde="wave", task="both", data_path=str(path),
+        checkpoint_path="", loadby="pair_h5", coef_name="input_data",
+        solution_name="output_data", img_channels=4, img_resolution=8,
+        batch_size=1, device="cpu", dtype="float64", allow_synthetic_data=False,
+        residual_mode="full_trajectory_fd")
+    gt = load_ground_truth(cfg)
+    trajectory = gt.pde_params["trajectory"]
+    assert trajectory.shape == (1, 5, stored_channels, 8, 8)
+    assert torch.equal(trajectory[0], torch.as_tensor(state[:stored_channels].transpose(1, 0, 2, 3)).double())
+    assert gt.metadata["full_trajectory_fd"]["uses_generated_trajectory"] is False
+    assert gt.metadata["full_trajectory_fd"]["guidance_compatible"] is False
+    output = compute_pde_residual("wave", gt.coef, gt.sol,
+        pde_params=gt.pde_params, residual_mode="full_trajectory_fd")
+    assert output.components["interior"].abs().max() < 1e-12
+    assert output.metadata["guidance_compatible"] is False
+    expected = "first_order_state" if stored_channels == 2 else "displacement_only_second_order"
+    assert output.metadata["wave_state_form"] == expected
+
+
 def test_nsnonbounded_near_endpoint_uses_first_saved_frame_and_correct_dt(tmp_path):
     path = tmp_path / "ns.h5"
     _write_ns_h5(path)

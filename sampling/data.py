@@ -918,10 +918,17 @@ def _full_trajectory_for_offsets(
 
     trajectories = []
     frame_metadata = []
-    expected_channels = 1 if config.pde == "wave" else int(coef_t.shape[1])
+    expected_channels = int(coef_t.shape[1])
     for batch_idx, offset in enumerate(offsets):
         trajectory_np, sample_meta = _extract_full_trajectory_single(config, raw, offset, batch_idx, pde_params)
-        trajectory = _trajectory_to_btchw(trajectory_np, expected_channels, config.device, config.dtype)
+        try:
+            trajectory = _trajectory_to_btchw(trajectory_np, expected_channels, config.device, config.dtype)
+        except ValueError:
+            if config.pde != "wave":
+                raise
+            # Legacy Wave files store displacement alone, while current files
+            # store both displacement and velocity. Preserve both schemas.
+            trajectory = _trajectory_to_btchw(trajectory_np, 1, config.device, config.dtype)
         trajectories.append(trajectory)
         frame_metadata.append(sample_meta)
     trajectory_t = torch.cat(trajectories, dim=0).to(coef_t.device, dtype=coef_t.dtype)
@@ -929,7 +936,9 @@ def _full_trajectory_for_offsets(
         "source": config.loadby,
         "frame_metadata": frame_metadata,
         "shape": list(trajectory_t.shape),
-        "uses_generated_trajectory": True,
+        "uses_generated_trajectory": False,
+        "uses_observed_ground_truth_trajectory": True,
+        "guidance_compatible": False,
         "endpoint_only": False,
     }
     return trajectory_t, metadata
