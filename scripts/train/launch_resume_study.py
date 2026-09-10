@@ -52,11 +52,14 @@ def init(study):
 
 
 def worker(study, pde):
-    jobs = json.loads((study/'study_plan.json').read_text())['jobs']
+    plan = json.loads((study/'study_plan.json').read_text())
+    jobs = plan['jobs']
     job = next(j for j in jobs if j['pde'] == pde)
     out = Path(job['output'])
     write(out/'queue_state.json', dict(state='waiting_for_gpu', pid=os.getpid(), gpu=job['gpu']))
-    with (study / ('gpu' + str(job['gpu']) + '.lock')).open('a') as lock:
+    lock_directory = Path(plan.get('gpu_lock_directory', study)).resolve()
+    assert '/outputs/pretrained/' in str(lock_directory)
+    with (lock_directory / ('gpu' + str(job['gpu']) + '.lock')).open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         # Acquisition is exclusive for this study; no other user's process is stopped.
         env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(job['gpu']), OMP_NUM_THREADS='4',
@@ -65,6 +68,7 @@ def worker(study, pde):
         command = [sys.executable, '-u', '-m', 'scripts.train.resume_study', '--pde', pde,
                    '--checkpoint', job['checkpoint'], '--output', str(out),
                    '--minutes', str(job['minutes'])]
+        command.extend(job.get('extra_training_args', []))
         begin = time.monotonic()
         with (out/'run.log').open('w') as log:
             process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)

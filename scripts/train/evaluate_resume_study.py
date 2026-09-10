@@ -213,7 +213,9 @@ def main(args):
                 os.kill(state['pid'],0)  # Verify a live worker, not just a stale status file.
         if len(done)==len(jobs):break
         time.sleep(15)
-    with (study/f'gpu{args.gpu}.lock').open('a') as lock:
+    lock_directory = Path(plan.get('gpu_lock_directory', study)).resolve()
+    assert '/outputs/pretrained/' in str(lock_directory)
+    with (lock_directory/f'gpu{args.gpu}.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         os.environ['CUDA_VISIBLE_DEVICES']=str(args.gpu)
         import torch

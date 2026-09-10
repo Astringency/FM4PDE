@@ -2,6 +2,7 @@ from copy import deepcopy
 from argparse import Namespace
 
 import torch
+import pytest
 
 from scripts.train.resume_study import restore, save_checkpoint
 
@@ -37,7 +38,8 @@ def test_resume_lr_restart_preserves_adam_history_and_next_update():
     assert all(int(s['step']) == 5 for s in optim.state.values())
 
 
-def test_continuation_checkpoint_reloads_model_optimizer_and_epoch(tmp_path):
+@pytest.mark.parametrize('training_dtype', ['bfloat16', 'float32'])
+def test_continuation_checkpoint_reloads_model_optimizer_and_epoch(tmp_path, training_dtype):
     model = torch.nn.Linear(2, 1)
     optim = torch.optim.AdamW(model.parameters(), lr=0.00003)
     model(torch.ones(1, 2)).square().sum().backward()
@@ -47,7 +49,7 @@ def test_continuation_checkpoint_reloads_model_optimizer_and_epoch(tmp_path):
               'normalizer': {'mean': torch.zeros(1), 'std': torch.ones(1)},
               'checkpoint_schema_version': 3}
     metadata = {'learning_rate': 0.00003, 'batch_size': 16,
-                'source_checkpoint': 'original.pth', 'updates': 1}
+                'source_checkpoint': 'original.pth', 'updates': 1, 'training_dtype': training_dtype}
     path = tmp_path/'continued.pth'
     save_checkpoint(path, source, model, optim, schedule, 300, metadata)
     loaded = torch.load(path, weights_only=False)
@@ -58,6 +60,7 @@ def test_continuation_checkpoint_reloads_model_optimizer_and_epoch(tmp_path):
     assert loaded['normalizer']['std'].item() == 1
     assert loaded['resume_study']['updates'] == 1
     assert loaded['args'].accum_iter == 4
+    assert loaded['args'].sampling_dtype == training_dtype
     for actual, expected in zip(fresh.parameters(), model.parameters()):
         torch.testing.assert_close(actual, expected, rtol=0, atol=0)
     assert all(int(s['step']) == 1 for s in fresh_optim.state.values())

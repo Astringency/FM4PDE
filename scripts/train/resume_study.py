@@ -88,7 +88,7 @@ def flow_loss(model, xt, t, target, coarse_weight=0.0, amp=True):
     return loss
 
 
-def train_group(model, optimizer, samples, batch_size, coarse_weight, clip_grad):
+def train_group(model, optimizer, samples, batch_size, coarse_weight, clip_grad, amp=True):
     optimizer.zero_grad(set_to_none=True)
     samples = samples.cuda(non_blocking=True)
     noise = torch.randn_like(samples)
@@ -98,7 +98,7 @@ def train_group(model, optimizer, samples, batch_size, coarse_weight, clip_grad)
     total = 0.0
     for start in range(0, len(samples), batch_size):
         stop = min(start + batch_size, len(samples))
-        loss = flow_loss(model, xt[start:stop], t[start:stop], target[start:stop], coarse_weight)
+        loss = flow_loss(model, xt[start:stop], t[start:stop], target[start:stop], coarse_weight, amp=amp)
         if not bool(torch.isfinite(loss)):
             raise FloatingPointError('Nonfinite training loss')
         weight = (stop - start) / len(samples)
@@ -109,7 +109,7 @@ def train_group(model, optimizer, samples, batch_size, coarse_weight, clip_grad)
     return total, float(norm)
 
 
-def probe_batch(model, optimizer, checkpoint, shape, out):
+def probe_batch(model, optimizer, checkpoint, shape, out, amp=True):
     measurements = []
     max_budget = min(torch.cuda.get_device_properties(0).total_memory * 0.70, 56 * 2**30)
     for batch_size in (1, 2, 4, 8, 16, 32, 64):
@@ -126,7 +126,7 @@ def probe_batch(model, optimizer, checkpoint, shape, out):
         torch.cuda.synchronize()
         begin = time.monotonic()
         for _ in range(2):
-            train_group(model, optimizer, x, batch_size, 0.0, 1.0)
+            train_group(model, optimizer, x, batch_size, 0.0, 1.0, amp=amp)
         torch.cuda.synchronize()
         elapsed = time.monotonic() - begin
         peak = torch.cuda.max_memory_allocated()
@@ -189,7 +189,7 @@ def save_checkpoint(path, source, model, optimizer, scheduler, epoch, metadata):
     args = copy.copy(source['args'])
     args = dict(args) if isinstance(args, dict) else dict(vars(args))
     scheduler_name = 'constant' if isinstance(scheduler, torch.optim.lr_scheduler.ConstantLR) else 'warmup_cosine'
-    args.update(lr=metadata['learning_rate'], sampling_dtype='bfloat16', batch_size=metadata['batch_size'],
+    args.update(lr=metadata['learning_rate'], sampling_dtype=metadata.get('training_dtype', 'bfloat16'), batch_size=metadata['batch_size'],
                 accum_iter=64 // metadata['batch_size'], world_size=1, resume=metadata['source_checkpoint'],
                 epochs=epoch + 1, start_epoch=source['epoch'] + 1, lr_scheduler=scheduler_name, warmup_epochs=0,
                 min_lr=1e-6, use_ema=False, output_dir=str(Path(path).parent), clip_grad=1.0)
@@ -209,6 +209,11 @@ def main(args):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
     begin = time.monotonic()
     deadline = begin + args.minutes * 60
+    amp = not args.fp32_training
+    training_dtype = 'bfloat16' if amp else 'float32'
+    trials = args.trial or [(1e-5, 0.0), (3e-5, 0.0), (1e-5, 1.0)]
+    assert all(math.isfinite(lr) and lr >= 1e-6 and math.isfinite(weight) and weight >= 0
+               for lr, weight in trials)
     out = Path(args.output).resolve()
     assert '/outputs/pretrained/' in str(out), 'Explicit pretrained output directory required'
     out.mkdir(parents=True, exist_ok=True)
@@ -238,10 +243,11 @@ def main(args):
           source_epoch=source['epoch'], model_config=source['model_config'],
           normalizer_source='unchanged checkpoint normalizer', training_files=source_files,
           validation_policy='same original deterministic 45000/5000 split; 512 development, 4488 confirmation',
-          effective_batch_size=64, training_dtype='bfloat16 autocast with FP32 parameters and Adam moments',
-          scaler_policy='BF16 continuation without loss scaling; original scaler retained in source checkpoint',
+          effective_batch_size=64,
+          training_dtype='bfloat16 autocast with FP32 parameters and Adam moments' if amp else 'float32 with TF32 enabled',
+          scaler_policy='Continuation without loss scaling; original scaler retained in source checkpoint',
           lr_policy='restore all Adam moments and step counters, intentionally restart LR schedule',
-          trials=[{'lr': 1e-5, 'coarse_weight': 0.0}, {'lr': 3e-5, 'coarse_weight': 0.0}, {'lr': 1e-5, 'coarse_weight': 1.0}],
+          trials=[{'lr': lr, 'coarse_weight': weight} for lr, weight in trials],
           git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
           python=os.sys.version, torch=torch.__version__, gpu=torch.cuda.get_device_name(),
           host=socket.gethostname(), pid=os.getpid(), wall_start_unix=time.time()))
@@ -274,7 +280,7 @@ def main(args):
     old_steps = optimizer_steps(optimizer)
     assert len(set(old_steps)) == 1
     source_step = old_steps[0]
-    microbatch = probe_batch(model, optimizer, source, tuple(train.shape[1:]), out)
+    microbatch = probe_batch(model, optimizer, source, tuple(train.shape[1:]), out, amp=amp)
     assert optimizer_steps(optimizer) == old_steps
     write(out / 'resume_verification.json', dict(source_epoch=source['epoch'],
           optimizer_states_restored=len(old_steps), optimizer_step=source_step,
@@ -293,7 +299,6 @@ def main(args):
     best_path = out / 'best_resume.pth'
     current_updates = 0
     epoch_times = []
-    trials = [(1e-5, 0.0), (3e-5, 0.0), (1e-5, 1.0)]
     results = []
 
     def epoch_run(epoch, lr, coarse_weight, warmup=False):
@@ -311,7 +316,7 @@ def main(args):
                 scale = 0.2 + 0.8 * min((i + 1) / 128, 1.0)
                 for group in optimizer.param_groups:
                     group['lr'] = lr * scale
-            loss, grad = train_group(model, optimizer, samples, microbatch, coarse_weight, 1.0)
+            loss, grad = train_group(model, optimizer, samples, microbatch, coarse_weight, 1.0, amp=amp)
             total_loss += loss * len(samples)
             grad_total += grad
             count += len(samples)
@@ -334,6 +339,7 @@ def main(args):
                         source_sha256=checkpoint_sha, source_epoch=source['epoch'], source_optimizer_step=source_step,
                         updates=current_updates, learning_rate=lr, coarse_weight=coarse_weight,
                         batch_size=microbatch, effective_batch_size=64, validation_score=score['mean'],
+                        training_dtype=training_dtype,
                         train_stats=train_stats, scheduler_step_unit='epoch')
         row = dict(**metadata, validation_coarse=score['coarse_mean'], elapsed_seconds=time.monotonic()-begin)
         results.append(row)
@@ -364,7 +370,7 @@ def main(args):
     epoch = int(selected['epoch'])
     last_meta = dict(winner)
     del selected
-    estimated_epoch = max(epoch_times[-3:])
+    estimated_epoch = max(epoch_times[-len(trials):])
     # Reserve validation and an atomic final checkpoint; never start an epoch that
     # is expected to consume the remaining budget.
     remaining = deadline - time.monotonic()
@@ -399,7 +405,7 @@ def main(args):
           paired_mean_change=float(diff.mean()), paired_mean_change_95ci=[float(diff.mean()-1.96*diff.std(ddof=1)/math.sqrt(len(diff))),float(diff.mean()+1.96*diff.std(ddof=1)/math.sqrt(len(diff)))],
           improved_confirmation=bool(after.mean()<before.mean()), confirmation_samples=len(confirmation),
           checkpoint_sha256_unchanged=file_sha(args.checkpoint)==checkpoint_sha,
-          seconds=time.monotonic()-begin, trials=results[:3],
+          seconds=time.monotonic()-begin, trials=results[:len(trials)], training_dtype=training_dtype,
           selected_batch_size=microbatch, effective_batch_size=64,
           peak_allocated_bytes=torch.cuda.max_memory_allocated(),
           downstream_sampling_evaluation='pending separate paired sampler evaluation')
@@ -418,4 +424,7 @@ if __name__ == '__main__':
     p.add_argument('--max-epochs',type=int,default=80)
     p.add_argument('--seed',type=int,default=20260910)
     p.add_argument('--probe-only',action='store_true')
+    p.add_argument('--fp32-training',action='store_true',help='Disable BF16 autocast; retain TF32 acceleration')
+    p.add_argument('--trial',nargs=2,type=float,action='append',metavar=('LEARNING_RATE','COARSE_WEIGHT'),
+                   help='Override the default trial grid; repeat this option for each candidate')
     main(p.parse_args())
