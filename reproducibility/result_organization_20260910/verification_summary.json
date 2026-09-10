@@ -1,0 +1,152 @@
+{
+  "status": "complete",
+  "recorded_utc": "2026-09-10T01:14:03.474434+00:00",
+  "scope": "Organization of finished result artifacts outside the three canonical project folders on server197, server193 and server216. Existing canonical outputs, source checkouts, original inputs and unrelated projects remain in place. Shared metadata may have more than one destination; destination counts do not represent additional experiments.",
+  "unique_source_files": 94526,
+  "copied_files": 74185,
+  "copied_bytes": 30909265470,
+  "reused_files": 20684,
+  "reused_bytes": 10449241923,
+  "all_source_and_destination_hashes_agree": true,
+  "all_sources_preserved": true,
+  "hosts": [
+    {
+      "host": "server197",
+      "base": "/research_data/users/zhangxifeng/C01Python",
+      "unique_source_files": 28879,
+      "destination_files": 28941,
+      "copied_files": 8257,
+      "reused_files": 20684,
+      "copied_bytes": 1744110616,
+      "logical_destination_bytes": 12193352539,
+      "source_hashes_unchanged": true,
+      "original_sources_preserved": true,
+      "all_destination_hashes_match": true,
+      "status": "complete",
+      "execution_commit": "f4ed067a619fb1a93cb2069edc0ac3cd6470a4e5",
+      "plan_sha256": "17b60b84510270c3479d915b7e5e1aa794dc1985a6c84627ca94fa207b740da0",
+      "receipt_paths": [
+        {
+          "path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/main/organized_20260910/.organization_receipt.json",
+          "sha256": "9c907434ee434d2cf992838ce852f410f9ab49360e0abfe434e71c82da5f0756",
+          "files": 52,
+          "bytes": 31798669
+        },
+        {
+          "path": "/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/ablations/organized_20260910/.organization_receipt.json",
+          "sha256": "100b820467f72790c51001d3ecc7eba9add373655a6b896170e50acc341d2517",
+          "files": 5327,
+          "bytes": 971654617
+        },
+        {
+          "path": "/research_data/users/zhangxifeng/C01Python/DiffusionPDE/outputs/organized_20260910/.organization_receipt.json",
+          "sha256": "ca718b4315f89ddd50cd8a8b30c7321db892865e14cfa7bf30d16cca30f9caa8",
+          "files": 2080,
+          "bytes": 613777036
+        },
+        {
+          "path": "/research_data/users/zhangxifeng/C01Python/FM4PDEbaseline/outputs/organized_20260910/.organization_receipt.json",
+          "sha256": "fcac6d019a49fee324d3a136f964794a4efbbea6d55a252b54757f8698562636",
+          "files": 798,
+          "bytes": 126880294
+        }
+      ],
+      "evidence_bundle": "verification_runs/collected_server197/evidence.tar.gz",
+      "evidence_sha256": "c6002a925e7b95a1a50aa366ea468b6089176d827bf8ba155f834ae6eec6979f",
+      "independent_validation": "verification_runs/collected_server197/independent_validation.json",
+      "independent_validation_sha256": "8f9db10c13da99b8949e1b9c57df810599a59f3f86e0bfc97cd8fd5fc30ad910"
+    },
+    {
+      "host": "server193",
+      "base": "/home/zhangxf/C01Python",
+      "unique_source_files": 35774,
+      "destination_files": 35918,
+      "copied_files": 35918,
+      "reused_files": 0,
+      "copied_bytes": 13652011805,
+      "logical_destination_bytes": 13652011805,
+      "source_hashes_unchanged": true,
+      "original_sources_preserved": true,
+      "all_destination_hashes_match": true,
+      "status": "complete",
+      "execution_commit": "e138f3c88f22ebd4a9c77d8d1603a05255ec7f3a",
+      "plan_sha256": "393a18d947bee458df082102d80d4195e9afd1fa44691c0cb4fa61ac7cafe432",
+      "receipt_paths": [
+        {
+          "path": "/home/zhangxf/C01Python/FM4PDE/outputs/main/organized_20260910/.organization_receipt.json",
+          "sha256": "7e7e89f2e6e9abb98afdc4260553e651ca6105b5129033570f75ee6e2a26d312",
+          "files": 4714,
+          "bytes": 2325028689
+        },
+        {
+          "path": "/home/zhangxf/C01Python/DiffusionPDE/outputs/organized_20260910/.organization_receipt.json",
+          "sha256": "b57f81aca0f40cc641fbda0f7f347461d421b5f0314441d5a52257909c7fe78f",
+          "files": 5835,
+          "bytes": 1550365626
+        },
+        {
+          "path": "/home/zhangxf/C01Python/FM4PDE/outputs/ablations/organized_20260910/.organization_receipt.json",
+          "sha256": "19f8cc74de6eab906c94c5f189460a97aced3b108be410b242d536d1c915528a",
+          "files": 23022,
+          "bytes": 5546928669
+        },
+        {
+          "path": "/home/zhangxf/C01Python/FM4PDEbaseline/outputs/organized_20260910/.organization_receipt.json",
+          "sha256": "95df17caef80c79c4245078767303e00784fb5cd647675ffd7785eef7dc0bd3f",
+          "files": 2343,
+          "bytes": 305618234
+        },
+        {
+          "path": "/home/zhangxf/C01Python/FM4PDE/outputs/pretrained/organized_20260910/.organization_receipt.json",
+          "sha256": "424d5b568a2f8e9a8030a408ebbb387301463e0e5a3697b3de79b4f091b34a46",
+          "files": 4,
+          "bytes": 3924070587
+        }
+      ],
+      "evidence_bundle": "verification_runs/collected_server193/evidence.tar.gz",
+      "evidence_sha256": "a200d05c287a1fe6fcd0eb812279be7b8c09cc4fd252e61123dc18f0eccdd112",
+      "independent_validation": "verification_runs/collected_server193/independent_validation.json",
+      "independent_validation_sha256": "5c19b9734fde9b11fbd747efa7a750d2756f24483873f4958c664a6e7f7ba177"
+    },
+    {
+      "host": "server216",
+      "base": "/data1/zjinzxf2025/C01Python",
+      "unique_source_files": 29873,
+      "destination_files": 30010,
+      "copied_files": 30010,
+      "reused_files": 0,
+      "copied_bytes": 15513143049,
+      "logical_destination_bytes": 15513143049,
+      "source_hashes_unchanged": true,
+      "original_sources_preserved": true,
+      "all_destination_hashes_match": true,
+      "status": "complete",
+      "execution_commit": "e138f3c88f22ebd4a9c77d8d1603a05255ec7f3a",
+      "plan_sha256": "1554b3f2ddf7df4705cf3d6d221db5d796bf7242cbeacd187240acdcfafa26cd",
+      "receipt_paths": [
+        {
+          "path": "/data1/zjinzxf2025/C01Python/DiffusionPDE/outputs/organized_20260910/.organization_receipt.json",
+          "sha256": "f683d072b5b5e1328c8e841cb4ab3f76694e0bf573c2983eaba7ee01b2085f74",
+          "files": 19683,
+          "bytes": 3453063782
+        },
+        {
+          "path": "/data1/zjinzxf2025/C01Python/FM4PDE/outputs/ablations/organized_20260910/.organization_receipt.json",
+          "sha256": "07198cdcd5ece36c965948361406165f6f89ecd324c03263ef0d825cb4a93554",
+          "files": 6024,
+          "bytes": 11638041949
+        },
+        {
+          "path": "/data1/zjinzxf2025/C01Python/FM4PDE/outputs/main/organized_20260910/.organization_receipt.json",
+          "sha256": "5de62bdca5854ce56ed523a7c5fa8e7ea00d2cf6969107cfe1c3ec47e5e3a369",
+          "files": 4303,
+          "bytes": 422037318
+        }
+      ],
+      "evidence_bundle": "verification_runs/collected_server216/evidence.tar.gz",
+      "evidence_sha256": "37f8b12b64ab4993ad5ce2397e69cb3f44bc109b20d995c316f3ccbc25baffec",
+      "independent_validation": "verification_runs/collected_server216/independent_validation.json",
+      "independent_validation_sha256": "071891a2ffb5d8a9ad1660f8d831b55b72f44b2b0540dfc912dd851d54359c12"
+    }
+  ]
+}
