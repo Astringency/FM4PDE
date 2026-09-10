@@ -38,8 +38,12 @@ def main(args):
             try:
                 cfg=load_config(ROOT/f'configs/main/both/{pde}.yaml',overrides=dict(
                     device='cpu',dtype='float64',test_type=dist,batch_size=args.samples,offset=0,
-                    residual_mode='full_trajectory_fd',allow_synthetic_data=False))
+                    residual_mode='auto',allow_synthetic_data=False))
                 cfg.data_path=cfg.data_paths[dist]
+                # Sampling config validation correctly forbids true trajectory
+                # guidance for endpoint models. This offline diagnostic calls
+                # only the data and residual APIs, never the sampling runner.
+                cfg.residual_mode='full_trajectory_fd'
                 gt=load_ground_truth(cfg);assert not gt.metadata['synthetic']
                 params=_pde_params_with_residual_options(gt.pde_params,cfg)
                 cache=args.output/f'{pde}_{dist}_truth.pt'
