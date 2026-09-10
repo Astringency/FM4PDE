@@ -84,7 +84,10 @@ def evaluate_pde(study, job):
     hashes = {k:sha(v) for k,v in checkpoints.items()}
     assert hashes['resumed']==training['best_sha256']
     protocol = dict(pde=pde, sample_ids=IDS, seeds=list(SEEDS), tasks=tasks, num_steps=100,
-        checkpoint_sha256=hashes, truths_sha256=old['truth_sha256'], precision='float32; TF32 disabled',
+        checkpoint_sha256=hashes, truths_sha256=old['truth_sha256'],
+        precision=dict(parameters='float32',outputs='float32',
+            matmul_tf32=torch.backends.cuda.matmul.allow_tf32,
+            cudnn_tf32=torch.backends.cudnn.allow_tf32,torch=str(torch.__version__)),
         matched='same inputs, observation masks, initial noise, sampler random draws and guidance settings',
         selection='checkpoint selected on training-data validation only; sampling results are confirmation',
         configs={task:load_config(ROOT/f'configs/main/{task}/{pde}.yaml').asdict() for task in tasks})
@@ -109,7 +112,7 @@ def evaluate_pde(study, job):
             assert free>65*2**30, 'Need an idle GPU for paired evaluation'
             bundle=load_fm4pde_checkpoint_bundle(path,pde,'cuda:0',model_profile='auto')
             def one(task, seed, ids, probe=False):
-                folder=out/('probe' if probe else task)/label/f'seed{seed}_id{ids[0]}'
+                folder=out/(f'probe_batch{len(ids)}' if probe else task)/label/f'seed{seed}_id{ids[0]}'
                 receipt=folder/'receipt.json'
                 if receipt.exists():
                     row=json.loads(receipt.read_text())
@@ -144,8 +147,15 @@ def evaluate_pde(study, job):
                 return row
             if batch_size is None:
                 probe=one(tasks[0],0,[0],probe=True)
-                batch_size=max(b for b in (1,2,4) if b*probe['peak_bytes']<48*2**30)
-                write(out/'batch_selection.json',dict(batch_size=batch_size,probe_peak_bytes=probe['peak_bytes']))
+                batch_size=max(b for b in (1,2,4,8,16) if b*probe['peak_bytes']<48*2**30)
+                measured=probe if batch_size==1 else one(tasks[0],0,[0]*batch_size,probe=True)
+                assert measured['peak_bytes']<56*2**30, 'Selected batch exceeded the reserved memory margin'
+                batches=2*len(tasks)*len(SEEDS)*math.ceil(len(IDS)/batch_size)
+                estimate=batches*measured['seconds']
+                write(out/'batch_selection.json',dict(batch_size=batch_size,probe_peak_bytes=probe['peak_bytes'],
+                    selected_batch_peak_bytes=measured['peak_bytes'],selected_batch_seconds=measured['seconds'],
+                    estimated_paired_sampling_seconds=estimate,probe_sample_id=0,probe_excluded_from_accuracy=True))
+                print('SAMPLING_BUDGET',pde,'batch',batch_size,'estimated_seconds',estimate,flush=True)
             for task in tasks:
                 for seed in SEEDS:
                     for start in range(0,len(IDS),batch_size):
@@ -208,8 +218,8 @@ def main(args):
         os.environ['CUDA_VISIBLE_DEVICES']=str(args.gpu)
         import torch
         torch.set_num_threads(4);torch.set_num_interop_threads(2)
-        torch.backends.cuda.matmul.allow_tf32=False
-        torch.backends.cudnn.allow_tf32=False
+        torch.backends.cuda.matmul.allow_tf32=not args.strict_fp32
+        torch.backends.cudnn.allow_tf32=not args.strict_fp32
         torch.backends.cudnn.benchmark=False
         write(status_path,dict(state='running',pid=os.getpid(),pdes=[j['pde'] for j in jobs]))
         for job in jobs:evaluate_pde(study,job)
@@ -220,6 +230,7 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--study',type=Path,required=True)
     parser.add_argument('--gpu',type=int,choices=[0,1],required=True)
+    parser.add_argument('--strict-fp32',action='store_true',help='Disable TF32 for both models; default matches training validation acceleration')
     args=parser.parse_args()
     try:
         main(args)
