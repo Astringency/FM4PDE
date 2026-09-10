@@ -63,7 +63,79 @@ def field_scores(prediction, truth, pde):
     return result
 
 
-def evaluate_pde(study, job):
+def sampling_config(pde, task, checkpoint, folder, seed, ids):
+    from sampling.config import load_config
+    return load_config(ROOT/f'configs/main/{task}/{pde}.yaml', overrides=dict(
+        checkpoint_path=checkpoint, model_profile='auto', output_dir=str(folder),
+        device='cuda:0', dtype='float32', batch_size=len(ids), offset=ids[0],
+        sample_seed=20260911+10000*seed+ids[0], mask_seed=20260910+ids[0],
+        sensor_mode='per_sample_random', shared_mask=True, num_steps=100,
+        save_plots=False, save_intermediate=False, save_per_sample_curves=True,
+        ablation_name='paired_resume', allow_synthetic_data=False))
+
+
+def reuse_baseline_receipts(out, source, protocol, checkpoint):
+    """Reuse a completed, identical baseline; validate everything before writing."""
+    import torch
+    old = json.loads((source/'protocol.json').read_text())
+    def baseline_protocol(value):
+        result = dict(value)
+        result['checkpoint_sha256'] = {'baseline': value['checkpoint_sha256']['baseline']}
+        return result
+    assert baseline_protocol(old) == baseline_protocol(protocol), 'Baseline protocols differ'
+    complete = json.loads((source/'complete.json').read_text())
+    assert complete['status'] == 'complete' and complete['paired_masks_and_rng_verified']
+    assert complete['checkpoint_sha256'] == old['checkpoint_sha256']
+    assert complete['samples'] == len(IDS) and complete['seeds'] == len(SEEDS)
+    assert complete['tasks'] == protocol['tasks']
+    selection = json.loads((source/'batch_selection.json').read_text())
+    batch = selection['batch_size']
+    assert batch == complete['batch_size'] and batch in (1, 2, 4, 8, 16)
+    assert selection['selected_batch_peak_bytes'] < 56*2**30
+    cases = [(protocol['tasks'][0], 0, [0], True)]
+    if batch != 1:
+        cases.append((protocol['tasks'][0], 0, [0]*batch, True))
+    cases.extend((task, seed, IDS[start:start+batch], False)
+                 for task in protocol['tasks'] for seed in SEEDS
+                 for start in range(0, len(IDS), batch))
+    prepared = []
+    for task, seed, ids, probe in cases:
+        relative = Path(f'probe_batch{len(ids)}' if probe else task)/'baseline'/f'seed{seed}_id{ids[0]}'
+        original = source/relative/'receipt.json'
+        target = out/relative/'receipt.json'
+        assert not target.exists(), 'Destination already contains baseline receipts'
+        row = json.loads(original.read_text())
+        assert (row['pde'], row['task'], row['label'], row['seed'], row['sample_ids']) == (
+            protocol['pde'], task, 'baseline', seed, ids)
+        assert row['checkpoint_sha256'] == protocol['checkpoint_sha256']['baseline']
+        expected = json.loads(json.dumps(sampling_config(
+            protocol['pde'], task, checkpoint, source/relative, seed, ids).asdict()))
+        assert row['config'] == expected, 'Effective sampling configuration differs'
+        assert sha(row['result_path']) == row['result_sha256'], 'Cached prediction changed'
+        masks = torch.load(Path(row['result_path']).parent/'masks.pt', map_location='cpu', weights_only=False)
+        assert hashlib.sha256(masks['coef'].numpy().tobytes()+masks['sol'].numpy().tobytes()).hexdigest() == row['mask_sha256']
+        for key in ('initial_noise_sha256', 'rng_after_initial_sha256'):
+            assert len(row[key]) == 64 and all(c in '0123456789abcdef' for c in row[key])
+        assert set(row['fields']) == ({'u'} if protocol['pde'] == 'burger' else {'a', 'u'})
+        row['reused_from_receipt'] = str(original)
+        row['reused_from_receipt_sha256'] = sha(original)
+        prepared.append((target, row))
+    probe_peak = prepared[0][1]['peak_bytes']
+    assert batch == max(b for b in (1, 2, 4, 8, 16) if b*probe_peak < 48*2**30)
+    measured = prepared[0 if batch == 1 else 1][1]
+    assert measured['peak_bytes'] == selection['selected_batch_peak_bytes']
+    # Prediction and mask files remain in the persistent source study. Receipts
+    # retain their actual run configuration and explicitly link to that source.
+    for target, row in prepared:
+        write(target, row)
+    result = dict(status='reused', source=str(source), source_protocol_sha256=sha(source/'protocol.json'),
+        receipts=len(prepared), batch_size=batch,
+        avoided_sampling_seconds=sum(row['seconds'] for _, row in prepared))
+    write(out/'baseline_reuse.json', result)
+    return result
+
+
+def evaluate_pde(study, job, baseline_cache_study=None):
     import numpy as np
     import torch
     from sampling.config import load_config
@@ -96,6 +168,15 @@ def evaluate_pde(study, job):
         assert json.loads((out/'protocol.json').read_text())==protocol
     else:
         write(out/'protocol.json',protocol)
+    if baseline_cache_study is not None and not (out/'baseline_reuse.json').exists():
+        cache = Path(baseline_cache_study).resolve()/pde/'evaluation'
+        assert cache != out.resolve() and '/outputs/pretrained/' in str(cache)
+        try:
+            reused = reuse_baseline_receipts(out, cache, protocol, checkpoints['baseline'])
+        except (FileNotFoundError, AssertionError, ValueError) as exc:
+            reused = dict(status='not_reused', source=str(cache), reason=str(exc))
+            write(out/'baseline_reuse.json', reused)
+        print('BASELINE_CACHE', pde, json.dumps(reused), flush=True)
     rows=[]
     captures={}
     original=runner._sample_initial_noise
@@ -120,13 +201,7 @@ def evaluate_pde(study, job):
                     assert sha(row['result_path'])==row['result_sha256']
                     return row
                 folder.mkdir(parents=True,exist_ok=True)
-                cfg=load_config(ROOT/f'configs/main/{task}/{pde}.yaml',overrides=dict(
-                    checkpoint_path=path,model_profile='auto',output_dir=str(folder),
-                    device='cuda:0',dtype='float32',batch_size=len(ids),offset=ids[0],
-                    sample_seed=20260911+10000*seed+ids[0],mask_seed=20260910+ids[0],
-                    sensor_mode='per_sample_random',shared_mask=True,num_steps=100,
-                    save_plots=False,save_intermediate=False,save_per_sample_curves=True,
-                    ablation_name='paired_resume',allow_synthetic_data=False))
+                cfg=sampling_config(pde,task,path,folder,seed,ids)
                 gt=combine_truths(truths,ids,'cuda:0')
                 torch.cuda.reset_peak_memory_stats(); captures.clear()
                 start=time.monotonic()
@@ -152,10 +227,14 @@ def evaluate_pde(study, job):
                 assert measured['peak_bytes']<56*2**30, 'Selected batch exceeded the reserved memory margin'
                 batches=2*len(tasks)*len(SEEDS)*math.ceil(len(IDS)/batch_size)
                 estimate=batches*measured['seconds']
+                reuse_path=out/'baseline_reuse.json'
+                cached=reuse_path.exists() and json.loads(reuse_path.read_text())['status']=='reused'
+                remaining=estimate*(0.5 if cached else 1.0)
                 write(out/'batch_selection.json',dict(batch_size=batch_size,probe_peak_bytes=probe['peak_bytes'],
                     selected_batch_peak_bytes=measured['peak_bytes'],selected_batch_seconds=measured['seconds'],
-                    estimated_paired_sampling_seconds=estimate,probe_sample_id=0,probe_excluded_from_accuracy=True))
-                print('SAMPLING_BUDGET',pde,'batch',batch_size,'estimated_seconds',estimate,flush=True)
+                    estimated_paired_sampling_seconds=estimate,estimated_remaining_sampling_seconds=remaining,
+                    baseline_cache_reused=cached,probe_sample_id=0,probe_excluded_from_accuracy=True))
+                print('SAMPLING_BUDGET',pde,'batch',batch_size,'estimated_remaining_seconds',remaining,flush=True)
             for task in tasks:
                 for seed in SEEDS:
                     for start in range(0,len(IDS),batch_size):
@@ -224,7 +303,7 @@ def main(args):
         torch.backends.cudnn.allow_tf32=not args.strict_fp32
         torch.backends.cudnn.benchmark=False
         write(status_path,dict(state='running',pid=os.getpid(),pdes=[j['pde'] for j in jobs]))
-        for job in jobs:evaluate_pde(study,job)
+        for job in jobs:evaluate_pde(study,job,args.baseline_cache_study)
     write(status_path,dict(state='complete',pid=os.getpid(),pdes=[j['pde'] for j in jobs]))
 
 
@@ -233,6 +312,7 @@ if __name__=='__main__':
     parser.add_argument('--study',type=Path,required=True)
     parser.add_argument('--gpu',type=int,choices=[0,1],required=True)
     parser.add_argument('--strict-fp32',action='store_true',help='Disable TF32 for both models; default matches training validation acceleration')
+    parser.add_argument('--baseline-cache-study',type=Path,help='Reuse identical, verified baseline receipts from a completed study')
     args=parser.parse_args()
     try:
         main(args)
