@@ -1,7 +1,8 @@
 """Separate temporal approximation, spatial discretization, and data precision.
 
-Exact Fourier evolution of true initial fields under (a) the generator's
-spectral operator and (b) the residual's centered-difference operator.
+Exact Fourier evolution of true initial fields under (a) the spectral
+operator used by generator and current residual and (b) a centered-difference
+alternative, included solely to quantify an operator mismatch.
 No learned model is used, and no results are intended for the manuscript.
 """
 from __future__ import annotations
@@ -56,7 +57,7 @@ def main(args):
                 check=dict(pde=pde,distribution=dist,operator=operator,source_sha256=sha(path),
                     rhs_discrepancy_rms=float(delta.square().mean().sqrt()),
                     endpoint_reconstruction_relative_error=float((evolve(T)-real_qT).norm()/real_qT.norm()))
-                if operator=='centered_difference':assert check['rhs_discrepancy_rms']<1e-8,check
+                if operator=='spectral':assert check['rhs_discrepancy_rms']<1e-8,check
                 checks.append(check)
                 for horizon in [1.,.1,.01,.001,.0001]:
                     params=dict(pp,T=horizon)
