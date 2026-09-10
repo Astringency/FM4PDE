@@ -18,6 +18,19 @@ def sha(path):
     return digest.hexdigest()
 
 
+def verify_reused_receipt(row):
+    if 'reused_from_receipt' not in row:
+        return False
+    assert row['label'] == 'baseline', 'Only the original baseline may be reused'
+    source = Path(row['reused_from_receipt'])
+    assert sha(source) == row['reused_from_receipt_sha256'], 'Source receipt changed'
+    original = json.loads(source.read_text())
+    copied = {key: value for key, value in row.items()
+              if key not in ('reused_from_receipt', 'reused_from_receipt_sha256')}
+    assert copied == original, 'Reused receipt differs from its recorded source'
+    return True
+
+
 def same(left, right):
     if isinstance(left, torch.Tensor):
         assert isinstance(right, torch.Tensor) and torch.equal(left, right)
@@ -145,6 +158,7 @@ def audit_job(job, require_evaluation):
             np.testing.assert_allclose(row['paired_change_95ci'],
                                        [delta.mean()-half, delta.mean()+half], rtol=1e-12, atol=1e-14)
         receipts = {}
+        reused_baseline_batches = 0
         for task in tasks:
             for label in ('baseline', 'resumed'):
                 rows = [json.loads(path.read_text()) for path in (evaluation/task/label).glob('*/receipt.json')]
@@ -152,6 +166,7 @@ def audit_job(job, require_evaluation):
                     ids = [i for row in rows if row['seed'] == seed for i in row['sample_ids']]
                     assert sorted(ids) == list(range(1500, 1532))
                 for row in rows:
+                    reused_baseline_batches += int(verify_reused_receipt(row))
                     assert sha(row['result_path']) == row['result_sha256']
                     assert row['checkpoint_sha256'] == final['checkpoint_sha256'][label]
                     payload = torch.load(row['result_path'], map_location='cpu', weights_only=False)
@@ -172,6 +187,7 @@ def audit_job(job, require_evaluation):
             for key in ('mask_sha256', 'initial_noise_sha256', 'rng_after_initial_sha256'):
                 assert row[key] == other[key]
         result.update(evaluation_verified=True, verified_prediction_batches=len(receipts),
+                      reused_baseline_batches=reused_baseline_batches,
                       evaluation_summary_sha256=sha(evaluation/'complete.json'))
     if require_evaluation:
         assert result['evaluation_verified'], 'Paired sampling is still pending'

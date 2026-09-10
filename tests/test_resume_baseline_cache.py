@@ -8,6 +8,7 @@ import pytest
 import torch
 
 from scripts.train import evaluate_resume_study as evaluation
+from scripts.train.audit_resume_study import verify_reused_receipt
 
 
 @pytest.fixture
@@ -57,6 +58,21 @@ def test_reuse_keeps_original_prediction_and_records_its_source(baseline_cache):
         assert Path(row['result_path']).is_relative_to(source)
         assert evaluation.sha(row['reused_from_receipt']) == row['reused_from_receipt_sha256']
         assert evaluation.sha(row['result_path']) == row['result_sha256']
+        assert verify_reused_receipt(row)
+
+
+@pytest.mark.parametrize('damage', ['copy', 'source'])
+def test_final_audit_rejects_changed_cache_provenance(baseline_cache, damage):
+    source, destination, current, checkpoint = baseline_cache
+    evaluation.reuse_baseline_receipts(destination, source, current, checkpoint)
+    row = json.loads((destination/'both/baseline/seed0_id1500/receipt.json').read_text())
+    if damage == 'copy':
+        row['fields']['u']['relative_l2'][0] = 0.9
+    else:
+        original = Path(row['reused_from_receipt'])
+        original.write_text(original.read_text()+'\n')
+    with pytest.raises(AssertionError):
+        verify_reused_receipt(row)
 
 
 @pytest.mark.parametrize('change', ['precision', 'truths', 'checkpoint', 'steps', 'config'])
