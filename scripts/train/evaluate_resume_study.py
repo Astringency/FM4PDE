@@ -9,7 +9,6 @@ import json
 import math
 import os
 from pathlib import Path
-import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -185,6 +184,7 @@ def evaluate_pde(study, job):
 
 def main(args):
     study=args.study.resolve()
+    assert '/outputs/pretrained/' in str(study), 'Explicit pretrained output directory required'
     plan=json.loads((study/'study_plan.json').read_text())
     jobs=[j for j in plan['jobs'] if j['gpu']==args.gpu]
     status_path=study/f'evaluation_gpu{args.gpu}_state.json'
@@ -225,4 +225,7 @@ if __name__=='__main__':
         main(args)
     except Exception as exc:
         write(args.study/f'evaluation_gpu{args.gpu}_error.json',dict(error=repr(exc),pid=os.getpid(),time=time.time()))
+        write(args.study/f'evaluation_gpu{args.gpu}_exit.json',dict(exit_code=1,pid=os.getpid(),time=time.time()))
         raise
+    else:
+        write(args.study/f'evaluation_gpu{args.gpu}_exit.json',dict(exit_code=0,pid=os.getpid(),time=time.time()))
