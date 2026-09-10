@@ -76,7 +76,7 @@
       "category": "main",
       "reason": "Saved run results or associated configuration, provenance, and logs.",
       "reuse": {
-        "FM4PDE": "FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/server197/a100_main_raw"
+        "FM4PDE": "FM4PDE/outputs/main/revision_20260909/ns_main_revision_0909/local/complete_local_ns_study/main_results"
       }
     },
     {

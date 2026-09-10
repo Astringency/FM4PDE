@@ -165,13 +165,25 @@ def apply_plan(plan, plan_path, report_dir):
             final = safe_path(base, root_relative) if root_relative else None
             stage = None
             existing = final is not None and final.exists()
+            retained_hashes = {}
             if existing:
                 receipt_path = final / RECEIPT
                 if not receipt_path.is_file():
                     raise FileExistsError(f'Existing result folder left unchanged: {final}')
                 receipt = json.loads(receipt_path.read_text())
-                if receipt['plan_sha256'] != sha(plan_path):
-                    raise ValueError(f'Existing result folder belongs to another plan: {final}')
+                # A corrected source-location mapping may leave an already copied
+                # group unchanged. Preserve its receipt and verify its exact file
+                # mapping and contents before accepting that completed group.
+                expected_mapping = {(r['source'], r['destination'], r['source_stat']['bytes'])
+                                    for r in records}
+                retained_mapping = {(r['source'], r['destination'], r['bytes'])
+                                    for r in receipt['files']}
+                if (receipt.get('status') != 'pass' or
+                        receipt.get('project_root') != root_relative or
+                        retained_mapping != expected_mapping or
+                        len(receipt['files']) != len(records)):
+                    raise ValueError(f'Existing result folder differs from this plan: {final}')
+                retained_hashes = {r['destination']: r['sha256'] for r in receipt['files']}
             elif final is not None:
                 final.parent.mkdir(parents=True, exist_ok=True)
                 stage = Path(tempfile.mkdtemp(prefix='.organized_20260910-', dir=final.parent))
@@ -181,6 +193,8 @@ def apply_plan(plan, plan_path, report_dir):
                 if snapshot(src) != r['source_stat']:
                     raise RuntimeError(f'Source changed: {src}')
                 before_hash = source_hashes.setdefault(r['source'], sha(src))
+                if existing and retained_hashes[r['destination']] != before_hash:
+                    raise RuntimeError(f'Existing receipt differs from source contents: {src}')
                 if stage is not None:
                     relative = Path(r['destination']).relative_to(root_relative)
                     dest = stage / relative
