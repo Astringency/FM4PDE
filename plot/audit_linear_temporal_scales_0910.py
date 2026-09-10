@@ -22,7 +22,7 @@ def main(args):
             path=args.truths/f'{pde}_{dist}_truth.pt'
             if not path.exists():continue
             cache=torch.load(path,map_location='cpu',weights_only=False)
-            q0=cache['coef'].double();real_qT=cache['sol'].double()
+            original_q0=cache['coef'].double();q0=original_q0;real_qT=cache['sol'].double()
             b,c,h,w=q0.shape;assert h==w
             pp={k:v for k,v in cache['params'].items() if k not in
                 ['trajectory','trajectory_time_values','trajectory_is_observed_ground_truth']}
@@ -33,12 +33,19 @@ def main(args):
             kx=k.reshape(1,1,h,1);ky=k.reshape(1,1,1,w)
             spectral_lap=-(kx*kx+ky*ky)
             discrete_lap=-4*h*h*(torch.sin(kx/(2*h))**2+torch.sin(ky/(2*h))**2)
-            for operator in ['spectral','centered_difference']:
-                lap=spectral_lap if operator=='spectral' else discrete_lap
+            operators=['spectral','centered_difference']
+            if pde=='advection_diffusion':operators.append('spectral_nyquist_filtered')
+            for operator in operators:
+                q0=original_q0
+                if operator=='spectral_nyquist_filtered':
+                    filtered=torch.fft.fft2(q0)
+                    filtered[:,:,h//2,:]=0;filtered[:,:,:,w//2]=0
+                    q0=torch.fft.ifft2(filtered).real
+                lap=spectral_lap if operator.startswith('spectral') else discrete_lap
                 if pde=='heat': symbol=param('alpha')*lap
                 elif pde=='advection_diffusion':
-                    dx=kx if operator=='spectral' else h*torch.sin(kx/h)
-                    dy=ky if operator=='spectral' else h*torch.sin(ky/h)
+                    dx=kx if operator.startswith('spectral') else h*torch.sin(kx/h)
+                    dy=ky if operator.startswith('spectral') else h*torch.sin(ky/h)
                     symbol=-1j*(param('b_x')*dx+param('b_y')*dy)+param('kappa')*lap
                 else:freq=param('c',1.)*torch.sqrt(-lap)
                 qhat=torch.fft.fft2(q0)
@@ -57,9 +64,28 @@ def main(args):
                 check=dict(pde=pde,distribution=dist,operator=operator,source_sha256=sha(path),
                     rhs_discrepancy_rms=float(delta.square().mean().sqrt()),
                     endpoint_reconstruction_relative_error=float((evolve(T)-real_qT).norm()/real_qT.norm()))
-                if operator=='spectral':assert check['rhs_discrepancy_rms']<1e-8,check
+                if operator.startswith('spectral'):assert check['rhs_discrepancy_rms']<1e-8,check
                 checks.append(check)
-                for horizon in [1.,.1,.01,.001,.0001]:
+                if operator=='spectral':
+                    stored=cache['params']['trajectory']
+                    times=np.asarray(cache['params']['trajectory_time_values'],dtype=float)
+                    exact=torch.stack([evolve(float(t)) for t in times],dim=1)
+                    if stored.shape[2]==1 and pde=='wave':exact=exact[:,:,:1]
+                    check['stored_trajectory_relative_error']=float((exact-stored).norm()/stored.norm())
+                    for label,trajectory in [('stored',stored),('exact',exact)]:
+                        out=compute_pde_residual(pde,q0,real_qT,pde_params=dict(pp,
+                            trajectory=trajectory,trajectory_time_values=times),residual_mode='full_trajectory_fd')
+                        check[label+'_trajectory_interior_mse']=float(out.components['interior'].square().mean())
+                    check['centered_time_refinement']=[]
+                    for dt in [.1,.01,.001,.0001]:
+                        center=.5;ts=[center-dt,center,center+dt]
+                        trajectory=torch.stack([evolve(t) for t in ts],dim=1)
+                        if stored.shape[2]==1 and pde=='wave':trajectory=trajectory[:,:,:1]
+                        out=compute_pde_residual(pde,evolve(ts[0]),evolve(ts[-1]),pde_params=dict(pp,
+                            trajectory=trajectory,trajectory_time_values=ts),residual_mode='full_trajectory_fd')
+                        check['centered_time_refinement'].append(dict(dt=dt,
+                            interior_rms=float(out.components['interior'].square().mean().sqrt())))
+                for horizon in [1.,.1,.01,.001,.0001,.00001]:
                     params=dict(pp,T=horizon)
                     qT=evolve(horizon)
                     dt=horizon/10
