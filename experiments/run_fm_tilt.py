@@ -54,6 +54,7 @@ def main():
     p.add_argument('--keep',type=int,default=256)
     p.add_argument('--force-steps',type=int,default=4)
     p.add_argument('--force-kind',choices=['coarse_ode','trajectory_adjoint'],default='coarse_ode')
+    p.add_argument('--force-scale',type=float,default=1.)
     p.add_argument('--beta',type=float,default=.03)
     p.add_argument('--seed',type=int,default=20260912)
     p.add_argument('--probe-only',action='store_true')
@@ -63,6 +64,7 @@ def main():
     assert args.output.is_absolute() and '/outputs/' in str(args.output)
     assert args.chains>=4 and args.keep>=8 and 1<=args.force_steps<=100 and 0<args.beta<1
     assert 0<=args.shard_index<args.shard_count
+    assert np.isfinite(args.force_scale) and args.force_scale>0
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False
     torch.backends.cudnn.allow_tf32=False
@@ -89,11 +91,12 @@ def main():
     out=args.output/args.name
     out.mkdir(parents=True,exist_ok=True)
     spec=dict(pde=ip['pde'],task=ip['task'],sample_ids=ids,chains=args.chains,warmup=args.warmup,keep=args.keep,
-        force_steps=args.force_steps,force_kind=args.force_kind,initial_beta=args.beta,seed=args.seed,batch_inputs=args.batch_inputs,
+        force_steps=args.force_steps,force_kind=args.force_kind,force_scale=args.force_scale,
+        initial_beta=args.beta,seed=args.seed,batch_inputs=args.batch_inputs,
         pilot=bool(args.pilot_inputs),probe_only=args.probe_only,shard_count=args.shard_count,
         inputs_protocol_sha256=file_sha(args.output/'inputs/protocol.json'),checkpoint_sha256=ip['checkpoint_sha256'],
         config=ip['config'], target='pi(z|y) proportional to exp(-||z||^2/2 - L_phys(G_100(z);y)); frozen actual FM checkpoint',
-        proposal='Prior-preserving Gaussian proposal plus coarse-ODE gradient; both proposal densities enter MH ratio',
+        proposal='Prior-preserving Gaussian proposal plus deterministic approximate force; both proposal densities enter MH ratio',
         full_generator_steps=100, full_generator='deterministic unguided Euler',
         finite_accuracy='Exact MH target up to floating-point arithmetic; finite chain output is not an exact posterior draw.',
         comparison_scope='Direct terminal tilt versus original FM guided sampler; does not isolate only the stepwise velocity.',
@@ -129,13 +132,14 @@ def main():
             save_plots=False,save_intermediate=False,allow_synthetic_data=False)
         cfg=AblationConfig(**conf);cfg.validate()
         adapter=FMTiltTarget(bundle,cfg,gt,masks,force_steps=args.force_steps,force_kind=args.force_kind)
+        force=lambda value: args.force_scale*adapter.force(value)
         rng=torch.Generator(device='cuda:0').manual_seed(args.seed+subset[0]*1009)
         z=torch.randn(gt.pair.shape,device='cuda:0',generator=rng)
         torch.cuda.reset_peak_memory_stats()
         tic=time.monotonic()
         r,values=adapter.target(z)
         target_seconds=time.monotonic()-tic
-        tic=time.monotonic();grad=adapter.force(z);force_seconds=time.monotonic()-tic
+        tic=time.monotonic();grad=force(z);force_seconds=time.monotonic()-tic
         assert torch.isfinite(grad).all() and torch.isfinite(r).all() and torch.isfinite(values).all()
         peak=torch.cuda.max_memory_allocated()
         write(dest/'probe.json',dict(target_seconds=target_seconds,force_seconds=force_seconds,peak_bytes=peak,
@@ -156,7 +160,7 @@ def main():
             rng.set_state(saved['rng_state']);trace=saved['trace'];iteration=saved['iteration'];elapsed=saved['seconds']
         tic=time.monotonic()
         for it in range(iteration,args.warmup+args.keep):
-            z,r,values,grad,accept,prob=transition(z,r,values,grad,beta,target=adapter.target,force=adapter.force,rng=rng)
+            z,r,values,grad,accept,prob=transition(z,r,values,grad,beta,target=adapter.target,force=force,rng=rng)
             if it<args.warmup:
                 beta=adapt_beta(beta,prob,it)
             else:

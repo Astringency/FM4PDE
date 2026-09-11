@@ -67,3 +67,30 @@ def test_discrete_adjoint_matches_full_graph():
     expected,=torch.autograd.grad(toy.potential(x).sum(),z)
     actual=FMTiltTarget.force(toy,z)
     torch.testing.assert_close(actual,expected,rtol=2e-14,atol=2e-14)
+
+
+def test_energy_preserves_input_normalization_and_only_uses_observations():
+    from types import SimpleNamespace
+    from experiments.fm_tilt_adapter import FMTiltTarget
+    from sampling.config import AblationConfig
+    from sampling.state import SplitState
+    from sampling.masks import PairMasks
+    from sampling.losses import compute_guidance_losses
+    rng=torch.Generator().manual_seed(115)
+    pred=torch.randn(2,2,8,8,generator=rng,dtype=torch.float64)
+    truth=torch.randn(2,2,8,8,generator=rng,dtype=torch.float64)
+    mask=torch.zeros(1,1,8,8,dtype=torch.float64);mask[:,:,::3,::3]=1
+    masks=PairMasks(mask,mask,{})
+    cfg=AblationConfig(pde='poisson',task='both',zeta_obs_a=5.,zeta_obs_u=9.,zeta_pde=.1)
+    toy=SimpleNamespace(cfg=cfg,physical=lambda x:SplitState(x[:,:1],x[:,1:]),singles=[])
+    expected=[]
+    for i in range(2):
+        gt=SimpleNamespace(coef=truth[i:i+1,:1].clone(),sol=truth[i:i+1,1:].clone(),pde_params={})
+        toy.singles.append((gt,masks))
+        losses=compute_guidance_losses(SplitState(pred[i:i+1,:1],pred[i:i+1,1:]),gt,masks,cfg)
+        expected.append(5*losses.guidance_L_obs_a+9*losses.guidance_L_obs_u+.1*losses.guidance_L_pde)
+    actual=FMTiltTarget.potential(toy,pred)
+    torch.testing.assert_close(actual,torch.stack(expected),rtol=0,atol=0)
+    for gt,_ in toy.singles:
+        gt.coef+=123*(1-mask);gt.sol-=43*(1-mask)
+    torch.testing.assert_close(FMTiltTarget.potential(toy,pred),actual,rtol=0,atol=0)
