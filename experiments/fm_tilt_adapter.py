@@ -11,11 +11,13 @@ from scripts.train.main_resume_sampling import ground_truth, slice_params
 
 
 class FMTiltTarget:
-    def __init__(self, bundle, config, gt, masks, *, full_steps=100, force_steps=4):
+    def __init__(self, bundle, config, gt, masks, *, full_steps=100, force_steps=4, force_kind='coarse_ode'):
         self.net, self.normalizer, self.payload = bundle
         self.cfg = config
         self.gt, self.masks = gt, masks
         self.full_steps, self.force_steps = full_steps, force_steps
+        self.force_kind = force_kind
+        self.cached_states = None
         assert config.noise_level == 0, "This adapter currently binds noiseless archived observations"
         assert config.obs_guidance_reduction == config.pde_guidance_reduction == 'mse'
         assert full_steps == config.num_steps == 100
@@ -59,7 +61,16 @@ class FMTiltTarget:
 
     @torch.no_grad()
     def target(self, z):
-        endpoints = self.generator(z, self.full_steps)
+        if self.force_kind == 'trajectory_adjoint':
+            states = [z.detach()]
+            for i in range(self.full_steps):
+                x = states[-1]
+                t = torch.full((len(x),), i/self.full_steps, device=x.device, dtype=x.dtype)
+                states.append(x+self.net(x,t,**self.extras)/self.full_steps)
+            self.cached_states = states
+            endpoints = states[-1]
+        else:
+            endpoints = self.generator(z, self.full_steps)
         return endpoints, self.potential(endpoints)
 
     def force(self, z):
@@ -68,6 +79,8 @@ class FMTiltTarget:
         # A discrete reverse adjoint recomputes one network activation graph at
         # a time. This is the derivative of our Euler map, not an approximate
         # continuous-time adjoint, and makes full-step forces feasible too.
+        if getattr(self, 'force_kind', 'coarse_ode') == 'trajectory_adjoint':
+            return self.trajectory_force(z)
         states = [z.detach()]
         steps = self.force_steps
         with torch.no_grad():
@@ -85,6 +98,36 @@ class FMTiltTarget:
                 v = self.net(x, t, **self.extras)
                 vjp, = torch.autograd.grad(v, x, grad_outputs=adjoint / steps)
             adjoint = (adjoint + vjp).detach()
+        return adjoint
+
+    def trajectory_force(self, z):
+        """A deterministic approximate VJP along the FULL forward trajectory.
+
+        Early time is resolved finely. A short standalone forward integration
+        misses the rapid initial expansion of low-frequency Gaussian modes.
+        This approximation affects the proposal only; MH uses full energies.
+        """
+        import numpy as np
+        if self.cached_states is None or not torch.equal(z, self.cached_states[0]):
+            self.target(z)
+        states=self.cached_states
+        if self.force_steps==self.full_steps:
+            boundaries=list(range(self.full_steps+1))
+        else:
+            # Quadratic spacing concentrates VJP evaluations near initial time.
+            boundaries=sorted(set([0,self.full_steps]+np.rint(
+                self.full_steps*np.linspace(0,1,self.force_steps+1)**2).astype(int).tolist()))
+        with torch.enable_grad():
+            endpoint=states[-1].detach().requires_grad_(True)
+            adjoint,=torch.autograd.grad(self.potential(endpoint).sum(),endpoint)
+        for lo,hi in reversed(list(zip(boundaries[:-1],boundaries[1:]))):
+            index=(lo+hi-1)//2
+            with torch.enable_grad():
+                x=states[index].detach().requires_grad_(True)
+                t=torch.full((len(x),),index/self.full_steps,device=x.device,dtype=x.dtype)
+                v=self.net(x,t,**self.extras)
+                vjp,=torch.autograd.grad(v,x,grad_outputs=adjoint*((hi-lo)/self.full_steps))
+            adjoint=(adjoint+vjp).detach()
         return adjoint
 
     def monitor(self, endpoints, energy):

@@ -6,6 +6,7 @@ exactly the 1000 IDs in inputs/protocol.json. Pilot IDs are outside that cohort.
 from __future__ import annotations
 import argparse
 from copy import deepcopy
+import fcntl
 import json
 from pathlib import Path
 import subprocess
@@ -52,12 +53,16 @@ def main():
     p.add_argument('--warmup',type=int,default=128)
     p.add_argument('--keep',type=int,default=256)
     p.add_argument('--force-steps',type=int,default=4)
+    p.add_argument('--force-kind',choices=['coarse_ode','trajectory_adjoint'],default='coarse_ode')
     p.add_argument('--beta',type=float,default=.03)
     p.add_argument('--seed',type=int,default=20260912)
     p.add_argument('--probe-only',action='store_true')
+    p.add_argument('--shard-count',type=int,default=1)
+    p.add_argument('--shard-index',type=int,default=0)
     args=p.parse_args()
     assert args.output.is_absolute() and '/outputs/' in str(args.output)
     assert args.chains>=4 and args.keep>=8 and 1<=args.force_steps<=100 and 0<args.beta<1
+    assert 0<=args.shard_index<args.shard_count
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False
     torch.backends.cudnn.allow_tf32=False
@@ -84,8 +89,8 @@ def main():
     out=args.output/args.name
     out.mkdir(parents=True,exist_ok=True)
     spec=dict(pde=ip['pde'],task=ip['task'],sample_ids=ids,chains=args.chains,warmup=args.warmup,keep=args.keep,
-        force_steps=args.force_steps,initial_beta=args.beta,seed=args.seed,batch_inputs=args.batch_inputs,
-        pilot=bool(args.pilot_inputs),probe_only=args.probe_only,
+        force_steps=args.force_steps,force_kind=args.force_kind,initial_beta=args.beta,seed=args.seed,batch_inputs=args.batch_inputs,
+        pilot=bool(args.pilot_inputs),probe_only=args.probe_only,shard_count=args.shard_count,
         inputs_protocol_sha256=file_sha(args.output/'inputs/protocol.json'),checkpoint_sha256=ip['checkpoint_sha256'],
         config=ip['config'], target='pi(z|y) proportional to exp(-||z||^2/2 - L_phys(G_100(z);y)); frozen actual FM checkpoint',
         proposal='Prior-preserving Gaussian proposal plus coarse-ODE gradient; both proposal densities enter MH ratio',
@@ -94,16 +99,23 @@ def main():
         comparison_scope='Direct terminal tilt versus original FM guided sampler; does not isolate only the stepwise velocity.',
         estimators='One terminal draw per input is primary; chain mean is a separate point estimator.',
         code_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
-    if (out/'protocol.json').exists():
-        assert json.loads((out/'protocol.json').read_text())==spec
-    else:
-        write(out/'protocol.json',spec)
+    with (out/'protocol.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        if (out/'protocol.json').exists():
+            assert json.loads((out/'protocol.json').read_text())==spec
+        else:
+            write(out/'protocol.json',spec)
     bundle=load_fm4pde_checkpoint_bundle(ip['checkpoint_path'],ip['pde'],'cuda:0',model_profile=ip['config']['model_profile'])
-    write(out/'model.json',dict(selected_weight=bundle[2]['selected_inference_weight'],
+    suffix='' if args.shard_count==1 else f'_shard{args.shard_index}'
+    write(out/f'model{suffix}.json',dict(selected_weight=bundle[2]['selected_inference_weight'],
         checkpoint_sha256=ip['checkpoint_sha256'],torch=str(torch.__version__),cuda=torch.version.cuda))
     completed=[]
+    assigned=[]
     for start in range(0,len(ids),args.batch_inputs):
+        if (start//args.batch_inputs)%args.shard_count!=args.shard_index:
+            continue
         subset=ids[start:start+args.batch_inputs]
+        assigned.extend(subset)
         dest=out/f'ids_{subset[0]}_{subset[-1]}'
         dest.mkdir(exist_ok=True)
         if (dest/'complete.json').exists():
@@ -116,7 +128,7 @@ def main():
         conf.update(checkpoint_path=ip['checkpoint_path'],output_dir=str(dest),device='cuda:0',batch_size=len(gt.pair),
             save_plots=False,save_intermediate=False,allow_synthetic_data=False)
         cfg=AblationConfig(**conf);cfg.validate()
-        adapter=FMTiltTarget(bundle,cfg,gt,masks,force_steps=args.force_steps)
+        adapter=FMTiltTarget(bundle,cfg,gt,masks,force_steps=args.force_steps,force_kind=args.force_kind)
         rng=torch.Generator(device='cuda:0').manual_seed(args.seed+subset[0]*1009)
         z=torch.randn(gt.pair.shape,device='cuda:0',generator=rng)
         torch.cuda.reset_peak_memory_stats()
@@ -181,10 +193,12 @@ def main():
             result_sha256=file_sha(dest/'result.pt'),all_monitored_inputs_passed=all(d['passed'] for d in progress['diagnostics']))
         write(dest/'complete.json',done)
         completed.extend(subset)
-        write(out/'progress.json',dict(completed_inputs=len(completed),requested_inputs=len(ids),completed_ids=completed))
+        write(out/f'progress{suffix}.json',dict(completed_inputs=len(completed),requested_cohort_inputs=len(ids),
+            shard_index=args.shard_index,shard_count=args.shard_count,completed_ids=completed))
     if not args.probe_only:
-        assert completed==ids
-        write(out/'complete.json',dict(completed_inputs=len(completed),sample_ids=completed,protocol_sha256=file_sha(out/'protocol.json')))
+        assert completed==assigned
+        write(out/f'complete{suffix}.json',dict(completed_inputs=len(completed),sample_ids=completed,
+            shard_index=args.shard_index,shard_count=args.shard_count,protocol_sha256=file_sha(out/'protocol.json')))
 
 
 if __name__=='__main__':

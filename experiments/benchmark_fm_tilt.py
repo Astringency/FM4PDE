@@ -15,6 +15,7 @@ def main():
     p=argparse.ArgumentParser(__doc__)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--pilot-inputs',type=Path,required=True)
+    p.add_argument('--adjoint-only',action='store_true')
     args=p.parse_args()
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
@@ -26,13 +27,14 @@ def main():
     mask=make_pair_masks(one.coef.shape,one.sol.shape,500,'random',True,0)
     cases={1102:dict(truth=one.pair,params=one.pde_params,masks=dict(coef=mask.coef,sol=mask.sol))}
     bundle=load_fm4pde_checkpoint_bundle(ip['checkpoint_path'],ip['pde'],'cuda:0',model_profile=ip['config']['model_profile'])
-    out=args.output/'benchmark';out.mkdir(exist_ok=True)
+    out=args.output/('benchmark_adjoint' if args.adjoint_only else 'benchmark');out.mkdir(exist_ok=True)
     rows=[]
-    for count in [4,16,32]:
+    for count in ([4] if args.adjoint_only else [4,16,32]):
         gt,masks=repeated_case(ip,cases,[1102]*(count//4),4,'cuda:0')
         conf=dict(ip['config'],checkpoint_path=ip['checkpoint_path'],device='cuda:0',batch_size=count,output_dir=str(out))
         cfg=AblationConfig(**conf);cfg.validate()
         a=FMTiltTarget(bundle,cfg,gt,masks,force_steps=20)
+        if args.adjoint_only:a.force_kind='trajectory_adjoint'
         rng=torch.Generator(device='cuda:0').manual_seed(9812)
         z=torch.randn(gt.pair.shape,device='cuda:0',generator=rng)
         torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
