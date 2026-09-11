@@ -52,10 +52,10 @@ def main():
     p.add_argument('--chains',type=int,default=4)
     p.add_argument('--warmup',type=int,default=128)
     p.add_argument('--keep',type=int,default=256)
-    p.add_argument('--force-steps',type=int,default=4)
-    p.add_argument('--force-kind',choices=['coarse_ode','trajectory_adjoint'],default='coarse_ode')
+    p.add_argument('--force-steps',type=int,default=100)
+    p.add_argument('--force-kind',choices=['coarse_ode','trajectory_adjoint'],default='trajectory_adjoint')
     p.add_argument('--force-scale',type=float,default=1.)
-    p.add_argument('--beta',type=float,default=.03)
+    p.add_argument('--beta',type=float,default=.008)
     p.add_argument('--seed',type=int,default=20260912)
     p.add_argument('--probe-only',action='store_true')
     p.add_argument('--shard-count',type=int,default=1)
@@ -95,7 +95,7 @@ def main():
         initial_beta=args.beta,seed=args.seed,batch_inputs=args.batch_inputs,
         pilot=bool(args.pilot_inputs),probe_only=args.probe_only,shard_count=args.shard_count,
         inputs_protocol_sha256=file_sha(args.output/'inputs/protocol.json'),checkpoint_sha256=ip['checkpoint_sha256'],
-        config=ip['config'], target='pi(z|y) proportional to exp(-||z||^2/2 - L_phys(G_100(z);y)); frozen actual FM checkpoint',
+        source_native_config=ip['config'], target='pi(z|y) proportional to exp(-||z||^2/2 - L_phys(G_100(z);y)); frozen actual FM checkpoint',
         proposal='Prior-preserving Gaussian proposal plus deterministic approximate force; both proposal densities enter MH ratio',
         full_generator_steps=100, full_generator='deterministic unguided Euler',
         finite_accuracy='Exact MH target up to floating-point arithmetic; finite chain output is not an exact posterior draw.',
@@ -131,6 +131,10 @@ def main():
         conf.update(checkpoint_path=ip['checkpoint_path'],output_dir=str(dest),device='cuda:0',batch_size=len(gt.pair),
             save_plots=False,save_intermediate=False,allow_synthetic_data=False)
         cfg=AblationConfig(**conf);cfg.validate()
+        write(dest/'effective_config.json',dict(loss_and_conditioning_config=cfg.asdict(),
+            actual_chain_seed=args.seed+subset[0]*1009,sample_ids=subset,chains_per_input=args.chains,
+            generator_steps=100,force_kind=args.force_kind,force_steps=args.force_steps,force_scale=args.force_scale,
+            native_sampler_fields_role='Only PDE/loss/conditioning fields are consumed by the adapter. Native stochastic/guidance schedules and sample_seed do not govern MCMC.'))
         adapter=FMTiltTarget(bundle,cfg,gt,masks,force_steps=args.force_steps,force_kind=args.force_kind)
         force=lambda value: args.force_scale*adapter.force(value)
         rng=torch.Generator(device='cuda:0').manual_seed(args.seed+subset[0]*1009)
