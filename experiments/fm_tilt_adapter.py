@@ -65,11 +65,27 @@ class FMTiltTarget:
     def force(self, z):
         # The short integration is ONLY a deterministic proposal drift.
         # The full 100-step integration is always used in the MH target.
+        # A discrete reverse adjoint recomputes one network activation graph at
+        # a time. This is the derivative of our Euler map, not an approximate
+        # continuous-time adjoint, and makes full-step forces feasible too.
+        states = [z.detach()]
+        steps = self.force_steps
+        with torch.no_grad():
+            for i in range(steps):
+                x = states[-1]
+                t = torch.full((len(x),), i / steps, device=x.device, dtype=x.dtype)
+                states.append(x + self.net(x, t, **self.extras) / steps)
         with torch.enable_grad():
-            x = z.detach().requires_grad_(True)
-            potential = self.potential(self.generator(x, self.force_steps)).sum()
-            grad, = torch.autograd.grad(potential, x)
-        return grad.detach()
+            endpoint = states[-1].detach().requires_grad_(True)
+            adjoint, = torch.autograd.grad(self.potential(endpoint).sum(), endpoint)
+        for i in reversed(range(steps)):
+            with torch.enable_grad():
+                x = states[i].detach().requires_grad_(True)
+                t = torch.full((len(x),), i / steps, device=x.device, dtype=x.dtype)
+                v = self.net(x, t, **self.extras)
+                vjp, = torch.autograd.grad(v, x, grad_outputs=adjoint / steps)
+            adjoint = (adjoint + vjp).detach()
+        return adjoint
 
     def monitor(self, endpoints, energy):
         # DCT low modes for nonperiodic PDEs; signed modes retain alignment.

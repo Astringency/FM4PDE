@@ -72,6 +72,8 @@ def chain_diagnostics(trace):
     half = a.shape[0] // 2
     if half < 4 or a.shape[1] < 4 or not np.isfinite(a).all():
         return dict(passed=False, reason="Need >= 8 draws, >= 4 chains and finite monitors")
+    if np.any(a.var(axis=(0, 1)) == 0):
+        return dict(passed=False, reason="At least one monitored quantity is constant; mixing cannot be assessed")
     def rank_normalize(x):
         flat = x.reshape(-1, x.shape[-1])
         ranks = rankdata(flat, axis=0)
