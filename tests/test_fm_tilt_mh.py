@@ -61,11 +61,16 @@ def test_discrete_adjoint_matches_full_graph():
     toy=Toy()
     z=torch.randn(5,11,dtype=torch.float64,requires_grad=True)
     x=z
+    states=[z.detach()]
     for i in range(toy.force_steps):
         t=torch.full((len(x),),i/toy.force_steps,dtype=x.dtype)
         x=x+toy.net(x,t)/toy.force_steps
+        states.append(x.detach())
     expected,=torch.autograd.grad(toy.potential(x).sum(),z)
     actual=FMTiltTarget.force(toy,z)
+    torch.testing.assert_close(actual,expected,rtol=2e-14,atol=2e-14)
+    toy.cached_states=states;toy.full_steps=toy.force_steps
+    actual=FMTiltTarget.trajectory_force(toy,z)
     torch.testing.assert_close(actual,expected,rtol=2e-14,atol=2e-14)
 
 
