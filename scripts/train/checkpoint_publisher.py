@@ -121,10 +121,11 @@ class CheckpointPublisher:
             self._condition.notify_all()
 
     def latest_local_checkpoint(self):
-        jobs = [job for job in self.jobs if job['relative_destination'] == 'last_resume.pth']
-        if not jobs:
+        if not self.jobs:
             return None
-        job = max(jobs, key=lambda value: value['id'])
+        # A disconnect can occur between the fixed/best save and the last save.
+        # Every job is a complete recovery state, so keep the newest completed epoch.
+        job = max(self.jobs, key=lambda value: (value['updates'], value['id']))
         assert file_sha(job['local_path']) == job['sha256']
         return Path(job['local_path'])
 

@@ -84,6 +84,26 @@ def test_failed_publication_keeps_recoverable_state_and_can_be_retried(tmp_path)
     assert done['published_versions']==1 and file_sha(output/'last_resume.pth')==file_sha(checkpoint)
 
 
+def test_recovery_uses_newer_complete_fixed_checkpoint_when_last_is_stale(tmp_path):
+    model,opt,sched,source=setup_model()
+    output=tmp_path/'primary'
+    publisher=CheckpointPublisher(output,tmp_path/'spool','e'*64)
+    step(model,opt,sched)
+    publisher.save_checkpoint(output/'last_resume.pth',source,model,opt,sched,300,metadata(1))
+    step(model,opt,sched)
+    publisher.save_checkpoint(output/'checkpoints/resume_epoch_002.pth',source,model,opt,sched,301,metadata(2))
+    publisher.finish()
+    recovered=torch.load(publisher.latest_local_checkpoint(),weights_only=False)
+    assert recovered['epoch']==301 and recovered['resume_study']['updates']==2
+    fresh,fresh_opt,fresh_sched,_=setup_model()
+    restore(fresh,fresh_opt,recovered,recovered['optimizer']['param_groups'][0]['lr'])
+    fresh_sched.load_state_dict(recovered['lr_schedule'])
+    step(model,opt,sched);step(fresh,fresh_opt,fresh_sched)
+    for a,b in zip(model.parameters(),fresh.parameters()):torch.testing.assert_close(a,b,atol=0,rtol=0)
+    for a,b in zip(opt.state.values(),fresh_opt.state.values()):
+        for key in ['step','exp_avg','exp_avg_sq']:torch.testing.assert_close(a[key],b[key],atol=0,rtol=0)
+
+
 @pytest.mark.parametrize('fail_active_upload', [False, True])
 def test_coalescing_keeps_all_local_states_and_every_fixed_checkpoint(tmp_path, fail_active_upload):
     model,opt,sched,source=setup_model()

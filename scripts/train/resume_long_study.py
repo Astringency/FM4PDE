@@ -50,6 +50,19 @@ def protocol_arguments(args):
     return values
 
 
+def startup_memory_requirement(out, spool):
+    """Use the recorded batch probe when resuming an already measured workload."""
+    verification = out/'resume_verification.json'
+    probes = out/'batch_probe.json'
+    if spool and verification.exists() and probes.exists() and any(Path(spool).glob('*/job.json')):
+        checked = json.loads(verification.read_text())
+        assert checked['model_restored_after_probe'] and checked['adam_restored_after_probe']
+        rows = json.loads(probes.read_text())
+        selected = next(row for row in rows if row['batch_size'] == checked['microbatch'])
+        return 1.05*max(selected['peak_reserved_bytes'], selected['peak_bytes']) + 2*2**30
+    return 70*2**30
+
+
 def main(args):
     out = Path(args.output).resolve()
     assert out.is_absolute() and '/outputs/pretrained/' in str(out)
@@ -65,7 +78,12 @@ def main(args):
     torch.backends.cudnn.benchmark = False
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    assert torch.cuda.mem_get_info()[0] > 70 * 2**30
+    required = startup_memory_requirement(out, getattr(args, 'checkpoint_spool', None))
+    available = torch.cuda.mem_get_info()[0]
+    assert available > required, 'Insufficient headroom for the measured training batch'
+    write(out/f'startup_memory_check_{time.time_ns()}.json', dict(
+        available_bytes=available, required_bytes=required, pid=os.getpid(), checked_unix=time.time(),
+        policy='Fresh runs require 70GiB; recovery requires 105% of recorded batch peak reserved/allocated plus 2GiB'))
     started = time.monotonic()
     source = read_checkpoint(args.checkpoint, args.pde)
     inference = read_checkpoint(args.inference_checkpoint, args.pde)
@@ -166,6 +184,15 @@ def main(args):
         history=metadata['history']
         best_score=min(row['validation_mse'] for row in history)
         assert set(optimizer_steps(optimizer))=={source_step+704*len(history)}
+        write(out/f'runtime_recovery_{time.time_ns()}.json', dict(
+            checkpoint=str(recovery_path), checkpoint_sha256=file_sha(recovery_path),
+            completed_epochs=len(history), updates=metadata['updates'],
+            optimizer_step=source_step+704*len(history), scheduler_restored=True,
+            source_sha256=source_sha, pid=os.getpid(), checked_unix=time.time()))
+        if len(history)==args.epochs and publisher:
+            # A final fixed checkpoint may have survived while the last save did not.
+            save_model_checkpoint(out/'last_resume.pth',source,model,optimizer,scheduler,
+                                  int(source['epoch'])+len(history),metadata)
         del saved
     for additional in range(len(history)+1,args.epochs+1):
         if publisher: publisher.check()

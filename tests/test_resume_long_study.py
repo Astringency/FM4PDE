@@ -1,11 +1,26 @@
 from copy import deepcopy
 from argparse import Namespace
+import json
 
 import pytest
 import torch
 
 from scripts.train.resume_long_study import assert_same_inference, protocol_arguments
 from scripts.train.resume_study import restore, save_checkpoint
+
+
+def test_recovery_memory_guard_requires_a_saved_job_and_verified_batch_probe(tmp_path):
+    from scripts.train.resume_long_study import startup_memory_requirement
+    spool=tmp_path/'spool';spool.mkdir()
+    assert startup_memory_requirement(tmp_path,spool)==70*2**30
+    (tmp_path/'resume_verification.json').write_text(json.dumps(dict(
+        microbatch=32,model_restored_after_probe=True,adam_restored_after_probe=True)))
+    (tmp_path/'batch_probe.json').write_text(json.dumps([
+        dict(batch_size=32,peak_bytes=41*2**30,peak_reserved_bytes=47.5*2**30)]))
+    assert startup_memory_requirement(tmp_path,spool)==70*2**30
+    (spool/'00000000').mkdir();(spool/'00000000/job.json').write_text('{}')
+    required=startup_memory_requirement(tmp_path,spool)
+    assert 51*2**30<required<53*2**30
 
 
 def test_optional_spool_preserves_existing_resume_protocol_arguments():
