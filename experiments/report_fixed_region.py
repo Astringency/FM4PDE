@@ -60,7 +60,7 @@ def main():
                 assert np.isfinite(error) and np.isfinite(obs_error)
                 assert np.isclose(error, row["errors"][f]["full"][0], rtol=1e-12, atol=1e-13)
                 assert np.isclose(obs_error, row["errors"][f]["observed"][0], rtol=1e-12, atol=1e-13)
-                expected = 640 if variant == "columns_replay" else 500
+                expected = row["config"]["num_sensor_columns"] * mask.shape[-2] if variant == "columns_replay" else 500
                 assert np.all(mask.sum(axis=(-2, -1)) == expected), key
                 if variant == "fixed_left_half":
                     assert np.count_nonzero(mask[..., 64:]) == 0
@@ -78,7 +78,7 @@ def main():
     caption = ("Relative field errors in percent on ID input 0 for each PDE, using 100 stochastic Euler steps. "
         "Fixed uses 500 locations sampled without replacement with seed 0 inside the left half of the grid; "
         "the right half has no observations, and both fields share these locations. "
-        "Random, per-input random, and grid also use 500 locations per field; five complete columns use 640. "
+        "Random, per-input random, and grid also use 500 locations per field. Columns use 640 locations per field, except Burgers with 2048. "
         "All layouts were rerun with the same frozen checkpoints and settings in one numerical environment. "
         "These are single-input comparisons, not population estimates." + RANK_NOTE)
     (args.output / "ablation_layout_fields.tex").write_text(table(caption, "tab:ablation-sensor-layout",
