@@ -47,9 +47,20 @@ def worker(study,pde):
             write(out/'evaluation_queue.json',dict(**process,state='running',gpu=gpu,child_pid=child.pid,command=command))
             code=child.wait()
         write(out/'evaluation.exit.json',dict(exit_code=code,child_pid=child.pid,gpu=gpu,ended_unix=time.time()))
+        lock.close();lock=None
+        if code==0:
+            audit_command=[sys.executable,'-u','-m','scripts.train.audit_long_resume','--study',str(study),
+                           '--pde',pde,'--require-evaluation']
+            with (out/'final_audit.log').open('a') as log:
+                child=subprocess.Popen(audit_command,cwd=ROOT,env=dict(env,CUDA_VISIBLE_DEVICES=''),
+                                       stdout=log,stderr=subprocess.STDOUT)
+                write(out/'evaluation_queue.json',dict(**process,state='auditing',child_pid=child.pid,command=audit_command))
+                code=child.wait()
+            write(out/'final_audit.exit.json',dict(exit_code=code,child_pid=child.pid,ended_unix=time.time()))
         write(out/'evaluation_queue.json',dict(**process,state='complete' if code==0 else 'failed',gpu=gpu,exit_code=code))
         raise SystemExit(code)
-    finally:lock.close()
+    finally:
+        if lock is not None:lock.close()
 
 
 def init(study):
