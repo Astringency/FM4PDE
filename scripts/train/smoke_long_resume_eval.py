@@ -14,7 +14,7 @@ from scripts.train.resume_study import file_sha,write
 from scripts.train.main_resume_sampling import historical_inputs,validation_inputs,sample_once,paired_identity
 
 
-def main(study,pdes):
+def main(study,pdes,summary_prefix=''):
     torch.set_num_threads(4);torch.set_num_interop_threads(2)
     out=study/'evaluation_smoke';out.mkdir(exist_ok=True)
     plan=json.loads((study/'study_plan.json').read_text());results=[]
@@ -51,12 +51,13 @@ def main(study,pdes):
             for case in receipts['source']:paired_identity(receipts['source'][case],receipts['resumed'][case])
         results.append(dict(pde=pde,cases={label:{case:dict(result_sha256=row['result_sha256'],fields=row['fields'],seconds=row['seconds'])
             for case,row in cases.items()} for label,cases in receipts.items()}))
-        write(out/'progress.json',dict(completed=results,requested=pdes))
-    write(out/'complete.json',dict(status='complete',pdes=pdes,results=results,ended_unix=time.time(),
+        write(out/(summary_prefix+'progress.json'),dict(completed=results,requested=pdes))
+    write(out/(summary_prefix+'complete.json'),dict(status='complete',pdes=pdes,results=results,ended_unix=time.time(),
         scope='CPU functional end-to-end tests only, not GPU equivalence or formal accuracy results; immutable early resumed snapshots when available'))
 
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--study',type=Path,required=True)
     p.add_argument('--pdes',nargs='+',default=['nsnonbounded','helmholtz','poisson','darcy','burger'])
-    args=p.parse_args();main(args.study.resolve(),args.pdes)
+    p.add_argument('--summary-prefix',default='',help='Separate summaries for nonoverlapping prefetch workers')
+    args=p.parse_args();main(args.study.resolve(),args.pdes,args.summary_prefix)
