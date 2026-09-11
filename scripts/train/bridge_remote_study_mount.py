@@ -25,8 +25,11 @@ def main(args):
         cmdline = Path('/proc', str(old['pid']), 'cmdline')
         if cmdline.exists() and b'bridge_remote_study_mount' in cmdline.read_bytes():
             raise RuntimeError('The recorded mount bridge is still running')
+    options = 'passive,idmap=user,dir_cache=no,attr_timeout=0,entry_timeout=0'
+    if args.read_only:
+        options += ',ro'
     client = shlex.join([args.sshfs, ':' + args.source_root, args.mountpoint,
-                        '-f', '-o', 'passive,idmap=user,dir_cache=no,attr_timeout=0,entry_timeout=0'])
+                        '-f', '-o', options])
     common = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=30',
               '-o', 'ServerAliveCountMax=3']
     commands = [common + ['-s', args.source_host, 'sftp'],
@@ -84,4 +87,5 @@ if __name__ == '__main__':
     parser.add_argument('--source-root', required=True)
     parser.add_argument('--mountpoint', required=True)
     parser.add_argument('--sshfs', required=True)
+    parser.add_argument('--read-only', action='store_true', help='Mount runtime dependencies read-only')
     main(parser.parse_args())
