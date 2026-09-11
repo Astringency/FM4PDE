@@ -85,7 +85,8 @@ def main(study):
                     receipt_path=str(rp),receipt_sha256=file_sha(rp),sample_ids=receipt['ids'],config=cfg))
         else:
             matches=[r for r in table(paper['source_root']) if r['pde']==pde and r['task']==task
-                     and r['sensor_mode']==paper['sensor_mode'] and int(r['num_obs'])==int(paper['num_obs'])]
+                     and r['sensor_mode']==paper['sensor_mode'] and int(r['num_obs'])==int(paper['num_obs'])
+                     and historical_run(r['run_dir']).is_relative_to(ROOT/'outputs/main'/paper['source_root']/pde/task)]
             by_run={}
             for row in matches:by_run.setdefault(row['run_dir'],[]).append(row)
             for run,group in sorted(by_run.items()):
