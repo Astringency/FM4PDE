@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 
-from scripts.train.resume_study import ROOT, write
+from scripts.train.resume_study import ROOT, file_sha, write
 
 
 def translated(path, source_root, target_root):
@@ -37,11 +37,18 @@ def main(args):
     assert preflight['status'] == 'verified' and args.pde in preflight['pdes']
     assert preflight['files_per_pde'] == 5
     assert os.path.ismount(mounted), 'The canonical result storage is not mounted'
+    input_root = args.source_cache_pretrained or mounted
+    source_path = translated(job['source'], canonical, input_root)
+    inference_path = translated(job['inference'], canonical, input_root)
+    binding = next(row for row in json.loads((study / 'main_checkpoint_binding.json').read_text())['models']
+                   if row['pde'] == args.pde)
+    assert file_sha(source_path) == binding['resume_sha256']
+    assert file_sha(inference_path) == binding['inference_sha256']
     args.lock_directory.mkdir(parents=True, exist_ok=True)
     host = socket.gethostname()
     command = [sys.executable, '-u', '-m', 'scripts.train.resume_long_study',
-               '--pde', args.pde, '--checkpoint', translated(job['source'], canonical, mounted),
-               '--inference-checkpoint', translated(job['inference'], canonical, mounted),
+               '--pde', args.pde, '--checkpoint', source_path,
+               '--inference-checkpoint', inference_path,
                '--output', str(out), '--data-root', str(args.data_root),
                '--epochs', str(job['epochs']), '--lr', str(job['lr'])]
     with (args.lock_directory / f'gpu{args.gpu}.lock').open('a') as lock:
@@ -51,6 +58,7 @@ def main(args):
                    PYTHONUNBUFFERED='1')
         execution = dict(host=host, gpu=args.gpu, canonical_pretrained=str(canonical),
                          mounted_pretrained=str(mounted), canonical_output=job['output'],
+                         input_pretrained=str(input_root),
                          mounted_output=str(out), command=command, started_unix=time.time())
         write(out / 'remote_execution.json', execution)
         with (out / 'run.log').open('a') as log:
@@ -79,6 +87,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, required=True)
     parser.add_argument('--mounted-pretrained', type=Path, required=True)
     parser.add_argument('--canonical-pretrained', type=Path, required=True)
+    parser.add_argument('--source-cache-pretrained', type=Path)
     parser.add_argument('--study-name', default='resume_main_20260911')
     parser.add_argument('--data-root', type=Path, required=True)
     parser.add_argument('--lock-directory', type=Path, required=True)
