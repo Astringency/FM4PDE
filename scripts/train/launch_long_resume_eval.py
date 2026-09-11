@@ -6,11 +6,18 @@ import json
 import os
 from pathlib import Path
 import shlex
+import socket
 import subprocess
 import sys
 import time
 
 from scripts.train.resume_study import ROOT, write
+
+
+def training_process_reaped(terminal):
+    if terminal.get('host', socket.gethostname()) != socket.gethostname():
+        return terminal.get('wait_returned') is True
+    return not Path('/proc', str(terminal['child_pid'])).exists()
 
 
 def worker(study,pde):
@@ -23,7 +30,7 @@ def worker(study,pde):
             if terminal['exit_code']!=0:
                 write(out/'evaluation_queue.json',dict(**process,state='training_failed',training_exit=terminal))
                 raise SystemExit(1)
-            if not Path('/proc',str(terminal['child_pid'])).exists():
+            if training_process_reaped(terminal):
                 assert (out/'training_complete.json').is_file()
                 break
         write(out/'evaluation_queue.json',dict(**process,state='waiting_for_training',checked_unix=time.time()))
