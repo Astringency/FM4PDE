@@ -1,5 +1,6 @@
 from argparse import Namespace
 from copy import deepcopy
+import json
 import threading
 
 import pytest
@@ -81,3 +82,81 @@ def test_failed_publication_keeps_recoverable_state_and_can_be_retried(tmp_path)
     resumed=CheckpointPublisher(output,spool,'b'*64)
     done=resumed.finish()
     assert done['published_versions']==1 and file_sha(output/'last_resume.pth')==file_sha(checkpoint)
+
+
+@pytest.mark.parametrize('fail_active_upload', [False, True])
+def test_coalescing_keeps_all_local_states_and_every_fixed_checkpoint(tmp_path, fail_active_upload):
+    model,opt,sched,source=setup_model()
+    output,spool=tmp_path/'primary',tmp_path/'spool'
+    publisher=CheckpointPublisher(output,spool,'c'*64,coalesce_mutable=True)
+    entered,release=threading.Event(),threading.Event()
+    original=publisher._copy
+    copied=[]
+    def delayed(job):
+        entered.set();assert release.wait(timeout=10)
+        if fail_active_upload:raise OSError('simulated failure with a coalesced backlog')
+        result=original(job);copied.append(job['id']);return result
+    publisher._copy=delayed
+    try:
+        step(model,opt,sched)
+        publisher.save_checkpoint(output/'last_resume.pth',source,model,opt,sched,300,metadata(1))
+        assert entered.wait(timeout=10)
+        fixed_states={}
+        for update in [2,3]:
+            step(model,opt,sched)
+            for name in ['last_resume.pth','best_fm_resume.pth',f'checkpoints/resume_epoch_{update:03d}.pth']:
+                publisher.save_checkpoint(output/name,source,model,opt,sched,299+update,metadata(update))
+            fixed_states[update]=deepcopy(model.state_dict())
+        state=publisher.state()
+        assert state['active']==0 and state['saved_versions']==7 and state['superseded_versions']==2
+        assert state['queued']==4
+        assert torch.load(publisher.latest_local_checkpoint(),weights_only=False)['resume_study']['updates']==3
+        # Superseded versions remain complete local recovery artifacts, with honest receipts.
+        for number in [1,2]:
+            directory=spool/f'{number:08d}'
+            assert (directory/'checkpoint.pth').is_file() and not (directory/'published.json').exists()
+            receipt=json.loads((directory/'superseded.json').read_text())
+            assert receipt['superseded_by']>number and receipt['local_checkpoint_retained']
+    finally:
+        release.set()
+    if fail_active_upload:
+        with pytest.raises(RuntimeError,match='publication failed'):publisher.finish()
+        assert not (output/'checkpoint_publication_complete.json').exists()
+        publisher=CheckpointPublisher(output,spool,'c'*64,coalesce_mutable=True)
+    done=publisher.finish()
+    assert done['saved_versions']==7
+    assert done['published_versions']==(4 if fail_active_upload else 5)
+    assert done['superseded_versions']==(3 if fail_active_upload else 2)
+    if not fail_active_upload:assert copied==[0,3,4,5,6]
+    assert len(list(spool.glob('[0-9]*/checkpoint.pth')))==7
+    for name in ['last_resume.pth','best_fm_resume.pth']:
+        saved=torch.load(output/name,weights_only=False)
+        assert saved['resume_study']['updates']==3
+        for a,b in zip(opt.state.values(),saved['optimizer']['state'].values()):
+            for key in ['step','exp_avg','exp_avg_sq']:torch.testing.assert_close(a[key],b[key],atol=0,rtol=0)
+    for update,expected in fixed_states.items():
+        saved=torch.load(output/f'checkpoints/resume_epoch_{update:03d}.pth',weights_only=False)
+        for key,value in expected.items():torch.testing.assert_close(saved['model_for_resume'][key],value,atol=0,rtol=0)
+    for relative,row in done['targets'].items():assert file_sha(output/relative)==row['sha256']
+
+
+def test_coalescing_never_skips_a_fixed_checkpoint_upload(tmp_path):
+    model,opt,sched,source=setup_model();step(model,opt,sched)
+    output=tmp_path/'primary'
+    publisher=CheckpointPublisher(output,tmp_path/'spool','d'*64,coalesce_mutable=True)
+    entered,release=threading.Event(),threading.Event()
+    original=publisher._copy
+    def delayed(job):
+        entered.set();assert release.wait(timeout=10)
+        return original(job)
+    publisher._copy=delayed
+    try:
+        publisher.save_checkpoint(output/'last_resume.pth',source,model,opt,sched,300,metadata(1))
+        assert entered.wait(timeout=10)
+        for _ in range(2):
+            publisher.save_checkpoint(output/'checkpoints/fixed.pth',source,model,opt,sched,300,metadata(1))
+        assert publisher.state()['superseded_versions']==0
+    finally:
+        release.set()
+    done=publisher.finish()
+    assert done['published_versions']==3 and done['superseded_versions']==0

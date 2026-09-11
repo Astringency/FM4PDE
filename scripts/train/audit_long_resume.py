@@ -71,6 +71,16 @@ def audit(study,pde,require_evaluation):
         for relative,row in actual.items():
             receipt=publication['targets'][relative]
             assert row['sha256']==receipt['sha256'] and row['updates']==receipt['updates']
+        if publication.get('coalesce_mutable'):
+            skipped=publication['superseded']
+            assert publication['superseded_versions']==len(skipped)
+            assert publication['saved_versions']==publication['published_versions']+len(skipped)
+            assert len({row['id'] for row in skipped})==len(skipped)
+            for row in skipped:
+                relative=row['relative_destination']
+                assert relative in ('last_resume.pth','best_fm_resume.pth')
+                assert row['id']<row['superseded_by']<=publication['targets'][relative]['id']
+                assert row['local_checkpoint_retained'] is True
     assert [x['updates'] for x in checks[:10]]==list(range(3520,35201,3520))
     history=read(training/'history.json')
     assert [x['additional_epoch'] for x in history]==list(range(1,51))

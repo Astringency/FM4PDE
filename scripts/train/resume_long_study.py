@@ -100,7 +100,7 @@ def main(args):
     save_model_checkpoint = save_checkpoint
     if getattr(args, 'checkpoint_spool', None):
         from scripts.train.checkpoint_publisher import CheckpointPublisher
-        publisher = CheckpointPublisher(out, args.checkpoint_spool, source_sha)
+        publisher = CheckpointPublisher(out, args.checkpoint_spool, source_sha, coalesce_mutable=True)
         save_model_checkpoint = publisher.save_checkpoint
     manifest = load_training_file_manifest(ROOT/'configs/training_data.yaml',
                                           data_root=args.data_root, pde_names=[args.pde])
