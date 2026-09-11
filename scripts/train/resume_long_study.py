@@ -43,6 +43,13 @@ def assert_same_inference(source, inference):
         assert torch.equal(v, b[k]) if torch.is_tensor(v) else v == b[k], k
 
 
+def protocol_arguments(args):
+    values = dict(vars(args))
+    if not values.get('checkpoint_spool'):
+        values.pop('checkpoint_spool', None)
+    return values
+
+
 def main(args):
     out = Path(args.output).resolve()
     assert out.is_absolute() and '/outputs/pretrained/' in str(out)
@@ -70,7 +77,7 @@ def main(args):
     assert not saved_args.get('skewed_timesteps') and not saved_args.get('edm_schedule')
     assert not source['model_config'].get('scalar_conditioning')
     source_sha = file_sha(args.checkpoint)
-    protocol = dict(arguments=vars(args), source_sha256=source_sha,
+    protocol = dict(arguments=protocol_arguments(args), source_sha256=source_sha,
         inference_checkpoint_sha256=file_sha(args.inference_checkpoint),
         main_inference_weights_and_normalizer_equal=True, source_epoch=int(source['epoch']),
         source_model_config=source['model_config'], effective_batch_size=64,
@@ -89,6 +96,12 @@ def main(args):
     else:
         write(out/'protocol.json', protocol)
     write(out/'process.json', dict(pid=os.getpid(), host=socket.gethostname(), started_unix=time.time()))
+    publisher = None
+    save_model_checkpoint = save_checkpoint
+    if getattr(args, 'checkpoint_spool', None):
+        from scripts.train.checkpoint_publisher import CheckpointPublisher
+        publisher = CheckpointPublisher(out, args.checkpoint_spool, source_sha)
+        save_model_checkpoint = publisher.save_checkpoint
     manifest = load_training_file_manifest(ROOT/'configs/training_data.yaml',
                                           data_root=args.data_root, pde_names=[args.pde])
     assert all('test' not in str(p).lower() for p in manifest[args.pde])
@@ -143,8 +156,9 @@ def main(args):
         write(out/'baseline_confirmation.json',evaluate(model,val,confirmation,args.seed+19001,batch_size=microbatch))
     history=[]
     best_score=math.inf
-    if (out/'last_resume.pth').exists():
-        saved=read_checkpoint(out/'last_resume.pth',args.pde)
+    recovery_path = (publisher.latest_local_checkpoint() if publisher else None) or out/'last_resume.pth'
+    if recovery_path.exists():
+        saved=read_checkpoint(recovery_path,args.pde)
         restore(model,optimizer,saved,saved['optimizer']['param_groups'][0]['lr'])
         scheduler.load_state_dict(saved['lr_schedule'])
         metadata=saved['resume_study']
@@ -154,6 +168,7 @@ def main(args):
         assert set(optimizer_steps(optimizer))=={source_step+704*len(history)}
         del saved
     for additional in range(len(history)+1,args.epochs+1):
+        if publisher: publisher.check()
         epoch=int(source['epoch'])+additional
         torch.manual_seed(args.seed+epoch)
         model.train()
@@ -170,6 +185,7 @@ def main(args):
             loss,grad=train_group(model,optimizer,samples,microbatch,0.,1.,amp=False)
             total_loss+=loss*len(samples);total_grad+=grad;count+=len(samples)
             if i%100==0:
+                if publisher: publisher.check()
                 print('TRAIN',args.pde,'additional_epoch',additional,'/',args.epochs,'batch',i,'/',len(loader),
                     'loss',loss,'lr',optimizer.param_groups[0]['lr'],flush=True)
         assert count==45000 and len(loader)==704
@@ -188,17 +204,25 @@ def main(args):
             validation_score=score['mean'],scheduler_step_unit='epoch',coarse_weight=0.)
         write(out/'validation'/f'epoch_{additional:03d}.json',score)
         if score['mean']<best_score:
-            save_checkpoint(out/'best_fm_resume.pth',source,model,optimizer,scheduler,epoch,metadata)
+            save_model_checkpoint(out/'best_fm_resume.pth',source,model,optimizer,scheduler,epoch,metadata)
             best_score=score['mean']
             write(out/'best_fm_selection.json',row)
         if additional%args.save_every==0 or additional==args.epochs:
-            save_checkpoint(out/'checkpoints'/f'resume_epoch_{additional:03d}.pth',source,model,optimizer,scheduler,epoch,metadata)
-        save_checkpoint(out/'last_resume.pth',source,model,optimizer,scheduler,epoch,metadata)
+            save_model_checkpoint(out/'checkpoints'/f'resume_epoch_{additional:03d}.pth',source,model,optimizer,scheduler,epoch,metadata)
+        save_model_checkpoint(out/'last_resume.pth',source,model,optimizer,scheduler,epoch,metadata)
         write(out/'history.json',history)
-        write(out/'progress.json',dict(status='training',**row,planned_epochs=args.epochs,pid=os.getpid()))
+        progress=dict(status='training',**row,planned_epochs=args.epochs,pid=os.getpid())
+        if publisher: progress['checkpoint_publication']=publisher.state()
+        write(out/'progress.json',progress)
         print('EPOCH_COMPLETE',args.pde,json.dumps(row),flush=True)
     assert len(history)==args.epochs
     write(out/'last_confirmation.json',evaluate(model,val,confirmation,args.seed+19001,batch_size=microbatch))
+    if publisher:
+        write(out/'progress.json',dict(status='publishing_checkpoints',additional_epoch=len(history),
+              updates=704*len(history),planned_epochs=args.epochs,pid=os.getpid(),publication=publisher.state()))
+        del model, optimizer, scheduler
+        gc.collect(); torch.cuda.empty_cache()
+        publisher.finish()
     assert file_sha(args.checkpoint)==source_sha
     write(out/'training_complete.json',dict(status='complete',completed_epochs=len(history),
         updates=704*len(history),source_sha256=source_sha,last_sha256=file_sha(out/'last_resume.pth'),
@@ -219,4 +243,5 @@ if __name__=='__main__':
     p.add_argument('--lr',type=float,required=True)
     p.add_argument('--min-lr',type=float,default=1e-6)
     p.add_argument('--seed',type=int,default=20260911)
+    p.add_argument('--checkpoint-spool',help='Temporary local recovery cache; all versions publish before completion')
     main(p.parse_args())

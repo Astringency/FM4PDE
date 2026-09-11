@@ -4,8 +4,16 @@ from argparse import Namespace
 import pytest
 import torch
 
-from scripts.train.resume_long_study import assert_same_inference
+from scripts.train.resume_long_study import assert_same_inference, protocol_arguments
 from scripts.train.resume_study import restore, save_checkpoint
+
+
+def test_optional_spool_preserves_existing_resume_protocol_arguments():
+    old=Namespace(pde='nsnonbounded',epochs=50,lr=1e-5)
+    new=Namespace(**vars(old),checkpoint_spool=None)
+    assert protocol_arguments(new)==vars(old)
+    new.checkpoint_spool='/task/cache/checkpoints'
+    assert protocol_arguments(new)['checkpoint_spool']=='/task/cache/checkpoints'
 
 
 def test_main_identity_rejects_same_architecture_different_weights_or_normalizer():

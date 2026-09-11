@@ -182,7 +182,7 @@ def evaluate(model, data, positions, seed, repeats=1, batch_size=4):
                 inference_dtype='float32', tf32=True)
 
 
-def save_checkpoint(path, source, model, optimizer, scheduler, epoch, metadata):
+def save_checkpoint(path, source, model, optimizer, scheduler, epoch, metadata, *, recorded_output_dir=None):
     payload = {k: v for k, v in source.items()
                if k not in {'model', 'model_for_resume', 'model_ema', 'optimizer', 'lr_schedule', 'scaler'}}
     state = cpu_tree(model.state_dict())
@@ -192,7 +192,7 @@ def save_checkpoint(path, source, model, optimizer, scheduler, epoch, metadata):
     args.update(lr=metadata['learning_rate'], sampling_dtype=metadata.get('training_dtype', 'bfloat16'), batch_size=metadata['batch_size'],
                 accum_iter=64 // metadata['batch_size'], world_size=1, resume=metadata['source_checkpoint'],
                 epochs=epoch + 1, start_epoch=source['epoch'] + 1, lr_scheduler=scheduler_name, warmup_epochs=0,
-                min_lr=1e-6, use_ema=False, output_dir=str(Path(path).parent), clip_grad=1.0)
+                min_lr=1e-6, use_ema=False, output_dir=recorded_output_dir or str(Path(path).parent), clip_grad=1.0)
     payload.update(model=state, model_for_resume=state, model_ema=None, optimizer=cpu_tree(optimizer.state_dict()),
                    lr_schedule=cpu_tree(scheduler.state_dict()), scaler=None, epoch=epoch,
                    args=argparse.Namespace(**args), lr_scheduler=scheduler_name,

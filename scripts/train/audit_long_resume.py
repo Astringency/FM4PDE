@@ -62,6 +62,15 @@ def audit(study,pde,require_evaluation):
     checks=[checkpoint_audit(Path(p),source,pde) for p in paths]
     assert checks[-1]['epoch']==349 and checks[-1]['updates']==35200
     assert checks[-1]['sha256']==done['last_sha256']
+    publication_path=training/'checkpoint_publication_complete.json'
+    if publication_path.exists():
+        publication=read(publication_path)
+        assert publication['status']=='complete' and publication['source_sha256']==done['source_sha256']
+        actual={str(Path(row['path']).relative_to(training)):row for row in checks}
+        assert actual.keys()==publication['targets'].keys()
+        for relative,row in actual.items():
+            receipt=publication['targets'][relative]
+            assert row['sha256']==receipt['sha256'] and row['updates']==receipt['updates']
     assert [x['updates'] for x in checks[:10]]==list(range(3520,35201,3520))
     history=read(training/'history.json')
     assert [x['additional_epoch'] for x in history]==list(range(1,51))

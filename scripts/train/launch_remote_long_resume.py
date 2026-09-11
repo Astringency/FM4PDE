@@ -51,6 +51,8 @@ def main(args):
                '--inference-checkpoint', inference_path,
                '--output', str(out), '--data-root', str(args.data_root),
                '--epochs', str(job['epochs']), '--lr', str(job['lr'])]
+    if args.checkpoint_spool:
+        command.extend(['--checkpoint-spool', str(args.checkpoint_spool)])
     with (args.lock_directory / f'gpu{args.gpu}.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(args.gpu), OMP_NUM_THREADS='4',
@@ -91,4 +93,5 @@ if __name__ == '__main__':
     parser.add_argument('--study-name', default='resume_main_20260911')
     parser.add_argument('--data-root', type=Path, required=True)
     parser.add_argument('--lock-directory', type=Path, required=True)
+    parser.add_argument('--checkpoint-spool', type=Path)
     main(parser.parse_args())
