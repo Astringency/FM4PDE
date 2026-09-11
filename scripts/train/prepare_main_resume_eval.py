@@ -102,10 +102,12 @@ def main(study):
                 for row in sorted(group,key=lambda x:int(x['sample_index'])):
                     sample_id,index=int(row['sample_id']),int(row['sample_index'])
                     assert sample_id==int(cfg['offset'])+index
-                    assert int(cfg['batch_size'])==len(errors)==20
+                    assert int(cfg['batch_size'])==len(errors)
                     assert np.allclose(errors[index],[float(row['rel_l2_a']),float(row['rel_l2_u'])],rtol=2e-6,atol=2e-8)
+                    noise_size=int(cfg.get('initial_noise_source_batch_size') or cfg['batch_size'])
+                    noise_indices=cfg.get('initial_noise_source_indices') or list(range(len(errors)))
                     rows.append(dict(sample_id=sample_id,error_a=float(errors[index,0]),error_u=float(errors[index,1]),
-                        result_path=str(path),result_row=index,noise_source_size=20,noise_source_index=index))
+                        result_path=str(path),result_row=index,noise_source_size=noise_size,noise_source_index=noise_indices[index]))
                     sample_ids.append(sample_id)
                 batches.append(dict(result_path=str(path),result_sha256=file_sha(path),
                     config_path=str(config_path),config_sha256=file_sha(config_path),
@@ -116,7 +118,7 @@ def main(study):
         expected=list(range(2000,3000)) if pde=='nsnonbounded' else list(range(1000))
         assert ids==expected, (cell,len(ids),len(set(ids)))
         runtime_keys={'batch_size','offset','output_dir','device','checkpoint_path','save_plots','save_intermediate',
-            'save_per_sample_curves','ablation_name','initial_noise_source_indices'}
+            'save_per_sample_curves','ablation_name','initial_noise_source_indices','initial_noise_source_batch_size'}
         scientific=[{k:v for k,v in c.items() if k not in runtime_keys} for c in configs]
         assert all(c==scientific[0] for c in scientific), f'Configurations vary within {cell}'
         for k in ['num_steps','num_obs','mask_seed','sample_seed','zeta_obs_a','zeta_obs_u','zeta_pde','clip_threshold']:
