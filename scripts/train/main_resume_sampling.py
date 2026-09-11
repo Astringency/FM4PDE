@@ -1,6 +1,6 @@
 """Native sampling with explicit sample, mask, noise and checkpoint identities."""
 from __future__ import annotations
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from copy import deepcopy
 import hashlib
 import json
@@ -102,7 +102,29 @@ def execution_config(base,checkpoint,out,ids,pool,noise_indices,device):
     return result
 
 
-def sample_once(base,bundle,checkpoint,checkpoint_sha,out,gt,masks,ids,pool,noise_indices,*,device='cuda:0'):
+@contextmanager
+def buffered_step_metrics(enabled):
+    """Keep step-log handles open during a batch, including exception cleanup."""
+    if not enabled:
+        yield
+        return
+    original=runner.append_jsonl
+    handles={}
+    def append(path,row):
+        path=Path(path)
+        if path not in handles:
+            path.parent.mkdir(parents=True,exist_ok=True)
+            handles[path]=path.open('a',encoding='utf-8')
+        handles[path].write(json.dumps(row,sort_keys=True)+'\n')
+    runner.append_jsonl=append
+    try:
+        yield
+    finally:
+        runner.append_jsonl=original
+        for handle in handles.values():handle.close()
+
+
+def sample_once(base,bundle,checkpoint,checkpoint_sha,out,gt,masks,ids,pool,noise_indices,*,device='cuda:0',buffer_step_metrics=False):
     """Restart-safe native sampler invocation; existing receipts are fully bound."""
     out=Path(out)
     cfg=execution_config(base,checkpoint,out,ids,pool,noise_indices,device)
@@ -129,7 +151,7 @@ def sample_once(base,bundle,checkpoint,checkpoint_sha,out,gt,masks,ids,pool,nois
     cuda=torch.device(device).type=='cuda'
     if cuda:torch.cuda.reset_peak_memory_stats(device)
     try:
-        with (out/'run.log').open('w') as log,redirect_stdout(log),redirect_stderr(log):
+        with (out/'run.log').open('w') as log,redirect_stdout(log),redirect_stderr(log),buffered_step_metrics(buffer_step_metrics):
             result=runner.run_single_ablation(cfg,checkpoint_bundle=bundle,ground_truth=gt,observation_masks=masks)
     finally:runner._sample_initial_noise=original
     assert result['status']=='ok' and not result.get('synthetic_data')

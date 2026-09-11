@@ -25,7 +25,7 @@ def release(bundle):
     bundle[0].model.cpu()
 
 
-def main(study,pde,*,memory_limit_gib=56.,minimum_free_gib=70.,maximum_batch=16):
+def main(study,pde,*,memory_limit_gib=56.,minimum_free_gib=70.,maximum_batch=16,buffer_step_metrics=False):
     assert study.is_absolute() and '/outputs/pretrained/' in str(study)
     assert 2 < memory_limit_gib < minimum_free_gib
     assert maximum_batch in [1,2,4,8,16]
@@ -72,7 +72,8 @@ def main(study,pde,*,memory_limit_gib=56.,minimum_free_gib=70.,maximum_batch=16)
         hard_cases='25 preselected archived worst inputs per cell; sampled first after validation selection; diagnostic only',
         inference='float32 parameters and tensors, TF32 enabled; no autocast',
         resource_limits=dict(memory_limit_bytes=memory_limit,
-            minimum_free_bytes=minimum_free_gib*2**30,maximum_batch=maximum_batch),
+            minimum_free_bytes=minimum_free_gib*2**30,maximum_batch=maximum_batch,
+            buffer_step_metrics=buffer_step_metrics),
         git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip())
     if (out/'protocol.json').exists():assert json.loads((out/'protocol.json').read_text())==protocol
     else:write(out/'protocol.json',protocol)
@@ -83,7 +84,8 @@ def main(study,pde,*,memory_limit_gib=56.,minimum_free_gib=70.,maximum_batch=16)
     def validation_batch(setting,indices,label,model,path,digest,folder):
         record=id_cells[setting]
         gt,masks,ids=validation_inputs(cache,record['config'],indices,'cuda:0')
-        row=sample_once(record['config'],model,path,digest,folder,gt,masks,ids,32,indices)
+        row=sample_once(record['config'],model,path,digest,folder,gt,masks,ids,32,indices,
+            buffer_step_metrics=buffer_step_metrics)
         assert row['peak_bytes']<memory_limit
         del gt,masks
         return row
@@ -177,7 +179,8 @@ def main(study,pde,*,memory_limit_gib=56.,minimum_free_gib=70.,maximum_batch=16)
                     rows=group['rows'];gt,masks,ids=historical_inputs(record,rows,'cuda:0')
                     folder=out/'main'/record['dist']/record['setting']/label/f'chunk{number:04d}'
                     row=sample_once(record['config'],bundle,path,digest,folder,gt,masks,ids,
-                        rows[0]['noise_source_size'],[r['noise_source_index'] for r in rows])
+                        rows[0]['noise_source_size'],[r['noise_source_index'] for r in rows],
+                        buffer_step_metrics=buffer_step_metrics)
                     assert row['peak_bytes']<memory_limit
                     receipts.append(row)
                     write(out/'progress.json',dict(stage=stage,label=label,cell=record['cell'],
@@ -227,6 +230,7 @@ if __name__=='__main__':
     p.add_argument('--memory-limit-gib',type=float,default=56.)
     p.add_argument('--minimum-free-gib',type=float,default=70.)
     p.add_argument('--maximum-batch',type=int,choices=[1,2,4,8,16],default=16)
+    p.add_argument('--buffer-step-metrics',action='store_true')
     args=p.parse_args();main(args.study.resolve(),args.pde,
         memory_limit_gib=args.memory_limit_gib,minimum_free_gib=args.minimum_free_gib,
-        maximum_batch=args.maximum_batch)
+        maximum_batch=args.maximum_batch,buffer_step_metrics=args.buffer_step_metrics)

@@ -57,6 +57,7 @@ def main(args):
         validation_ids=ids,steps=100,seed=0,precision='FP32 parameters and tensors; TF32 enabled',
         memory_limit_bytes=limit,minimum_free_bytes=args.minimum_free_gib*2**30,
         maximum_batch=args.maximum_batch,paired_candidate_epoch=5,
+        buffer_step_metrics=args.buffer_step_metrics,
         git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         scope='Resource and paired functional benchmark on training-validation inputs only; no formal model selection or test sampling')
     if (out / 'protocol.json').exists():
@@ -73,7 +74,8 @@ def main(args):
         positions = list(range(batch))
         gt, masks, sample_ids = validation_inputs(cache, record['config'], positions, 'cuda:0')
         row = sample_once(record['config'], model, str(checkpoint), digest, folder,
-                          gt, masks, sample_ids, 32, positions)
+                          gt, masks, sample_ids, 32, positions,
+                          buffer_step_metrics=args.buffer_step_metrics)
         assert row['peak_bytes'] < limit
         for metrics in row['fields'].values():
             for metric, values in metrics.items():
@@ -142,4 +144,5 @@ if __name__ == '__main__':
     parser.add_argument('--memory-limit-gib', type=float, default=20.)
     parser.add_argument('--minimum-free-gib', type=float, default=22.)
     parser.add_argument('--maximum-batch', type=int, default=16)
+    parser.add_argument('--buffer-step-metrics', action='store_true')
     main(parser.parse_args())

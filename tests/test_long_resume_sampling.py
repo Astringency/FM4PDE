@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,17 @@ def test_native_sampling_pool_rows_survive_batch_partition_and_receipt_binding(t
     with pytest.raises(AssertionError):
         sample_once(cfg,bundle,'source.pth','b'*64,tmp_path/'both',gt,masks,ids,32,[0,3],device='cpu')
     full=torch.load(both['result_path'],weights_only=False)
+    buffered=sample_once(cfg,bundle,'source.pth','a'*64,tmp_path/'buffered',gt,masks,ids,32,[0,3],
+                         device='cpu',buffer_step_metrics=True)
+    paired_identity(both,buffered)
+    buffered_payload=torch.load(buffered['result_path'],weights_only=False)
+    for field in ['coef_final','sol_final']:
+        assert torch.equal(full[field],buffered_payload[field])
+    def steps(path):
+        rows=[json.loads(line) for line in next(path.rglob('metrics_step.jsonl')).read_text().splitlines()]
+        assert len(rows)==100
+        return [{k:v for k,v in row.items() if k!='wall_time'} for row in rows]
+    assert steps(tmp_path/'both')==steps(tmp_path/'buffered')
     for index,row in enumerate([0,3]):
         g,m,single_ids=validation_inputs(cache,cfg,[row],'cpu')
         one=sample_once(cfg,bundle,'source.pth','a'*64,tmp_path/f'one{row}',g,m,single_ids,32,[row],device='cpu')
@@ -45,6 +57,21 @@ def test_native_sampling_pool_rows_survive_batch_partition_and_receipt_binding(t
             torch.testing.assert_close(full[field][index:index+1],payload[field],rtol=2e-5,atol=2e-6)
     changed=deepcopy(both);changed['request']['params_sha256']='different'
     with pytest.raises(AssertionError):paired_identity(both,changed)
+
+
+def test_buffered_step_logs_flush_and_restore_writer_after_sampling_failure(tmp_path):
+    from scripts.train.main_resume_sampling import buffered_step_metrics
+    import sampling.runner as runner
+    original=runner.append_jsonl
+    path=tmp_path/'partial.jsonl'
+    with pytest.raises(RuntimeError,match='sampling failed'):
+        with buffered_step_metrics(True):
+            runner.append_jsonl(path,{'step':0,'value':1.})
+            runner.append_jsonl(path,{'step':1,'value':2.})
+            raise RuntimeError('sampling failed')
+    assert runner.append_jsonl is original
+    assert [json.loads(line) for line in path.read_text().splitlines()]==[
+        {'step':0,'value':1.},{'step':1,'value':2.}]
 
 
 def test_full_schedule_covers_thousand_ids_once_with_twenty_five_hard_first():
