@@ -31,6 +31,9 @@ def test_native_sampling_pool_rows_survive_batch_partition_and_receipt_binding(t
     both=sample_once(cfg,bundle,'source.pth','a'*64,tmp_path/'both',gt,masks,ids,32,[0,3],device='cpu')
     again=sample_once(cfg,bundle,'source.pth','a'*64,tmp_path/'both',gt,masks,ids,32,[0,3],device='cpu')
     assert again==both
+    from scripts.train.audit_long_resume import audit_receipt
+    audited=audit_receipt(tmp_path/'both/receipt.json','a'*64,gt,masks,ids,32,[0,3],cfg,device='cpu')
+    assert audited==both
     with pytest.raises(AssertionError):
         sample_once(cfg,bundle,'source.pth','b'*64,tmp_path/'both',gt,masks,ids,32,[0,3],device='cpu')
     full=torch.load(both['result_path'],weights_only=False)

@@ -40,7 +40,7 @@ def audit_receipt(path,checkpoint_sha,gt,masks,ids,pool,indices,config,*,device=
         prefix='sol' if field=='u' else 'coef'
         prediction,truth=value[prefix+'_final'],value[prefix+'_ground_truth']
         # Independently recompute physical relative L2 with vector norms.
-        relative=torch.linalg.vector_norm((prediction-truth).double().flatten(1),dim=1)/torch.linalg.vector_norm(truth.double().flatten(1),dim=1)
+        relative=torch.linalg.vector_norm((prediction.double()-truth.double()).flatten(1),dim=1)/torch.linalg.vector_norm(truth.double().flatten(1),dim=1)
         np.testing.assert_allclose(relative,row['fields'][field]['relative_l2'],rtol=1e-10,atol=1e-12)
         actual=field_scores(prediction,truth,config['pde'])
         assert actual['basis']==row['fields'][field]['basis']
