@@ -20,13 +20,13 @@ from scripts.train.evaluate_resume_study import field_scores
 def read(path):return json.loads(Path(path).read_text())
 
 
-def audit_receipt(path,checkpoint_sha,gt,masks,ids,pool,indices,config):
+def audit_receipt(path,checkpoint_sha,gt,masks,ids,pool,indices,config,*,device='cuda:0'):
     row=read(path);request=row['request']
     assert request['checkpoint_sha256']==checkpoint_sha and request['sample_ids']==ids
     assert request['truth_sha256']==tensor_sha(gt.pair)
     assert request['mask_sha256']==tensor_sha(torch.cat([masks.coef,masks.sol],1))
     assert request['params_sha256']==json_sha(params_signature(gt.pde_params))
-    expected=execution_config(config,request['config']['checkpoint_path'],Path(path).parent,ids,pool,indices,'cuda:0')
+    expected=execution_config(config,request['config']['checkpoint_path'],Path(path).parent,ids,pool,indices,device)
     assert request['config']==expected.asdict()
     assert file_sha(row['result_path'])==row['result_sha256']
     value=torch.load(row['result_path'],map_location='cpu',weights_only=False)
