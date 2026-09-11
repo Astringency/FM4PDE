@@ -105,7 +105,8 @@ with p.open('ab' if offset else 'wb') as f:
     if receiver_code and sender.poll() is None:
         sender.terminate()
     sender_code = sender.wait()
-    return dict(sender_exit_code=sender_code, receiver_exit_code=receiver_code, resumed_bytes=offset)
+    return dict(sender_exit_code=sender_code, receiver_exit_code=receiver_code, resumed_bytes=offset,
+                verified_prefix_sha256=partial['sha256'] if offset else None)
 
 
 def main(args):
@@ -143,6 +144,7 @@ def main(args):
     state = dict(status='running', pde=args.pde, pid=os.getpid(), started_unix=time.time(),
                  cache=str(args.cache), files=[])
     for row in files:
+        transport = None
         before = verify(row['destination'], row['sha256'])
         if before['exists']:
             assert before['verified'], 'An existing completed cache file differs from its canonical source'
@@ -170,7 +172,7 @@ def main(args):
                 elapsed = time.monotonic() - started
                 checked = verify(pending, row['sha256'], row['destination'])
                 assert checked['verified']
-        state['files'].append(dict(**row, verification=checked, transfer_seconds=elapsed))
+        state['files'].append(dict(**row, verification=checked, transfer_seconds=elapsed, transport=transport))
         state.pop('current', None)
         state.pop('child_pid', None)
         state.pop('source_child_pid', None)
