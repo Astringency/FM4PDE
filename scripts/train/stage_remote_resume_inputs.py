@@ -54,6 +54,60 @@ print(json.dumps(dict(exists=True,verified=ok,sha256=h.hexdigest(),bytes=p.stat(
     return json.loads(remote_python('server216', program, arguments))
 
 
+def stream_transfer(source, pending, log, on_started):
+    """Resume a byte stream only after the existing prefix matches the source."""
+    partial = verify(pending, '')
+    offset = partial.get('bytes', 0)
+    if offset:
+        prefix = json.loads(remote_python('server197', '''import hashlib,json,sys
+from pathlib import Path
+p=Path(sys.argv[1]); remaining=int(sys.argv[2]); h=hashlib.sha256()
+assert remaining<=p.stat().st_size
+with p.open('rb') as f:
+ while remaining:
+  block=f.read(min(8<<20,remaining)); assert block; h.update(block); remaining-=len(block)
+print(json.dumps(dict(sha256=h.hexdigest())))
+''', [source, offset]))
+        if prefix['sha256'] != partial['sha256']:
+            offset = 0
+    source_program = '''import sys
+with open(sys.argv[1],'rb') as f:
+ f.seek(int(sys.argv[2]))
+ for block in iter(lambda:f.read(8<<20),b''): sys.stdout.buffer.write(block)
+sys.stdout.buffer.flush()
+'''
+    target_program = '''import os,sys
+from pathlib import Path
+p=Path(sys.argv[1]); offset=int(sys.argv[2])
+if offset: assert p.stat().st_size==offset
+with p.open('ab' if offset else 'wb') as f:
+ for block in iter(lambda:sys.stdin.buffer.read(8<<20),b''): f.write(block)
+ f.flush(); os.fsync(f.fileno())
+'''
+    common = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=30',
+              '-o', 'ServerAliveCountMax=10', '-o', 'ConnectTimeout=20']
+    source_command = common + ['server197', shlex.join(['/usr/bin/python3', '-c', source_program, source, str(offset)])]
+    target_command = common + ['server216', shlex.join(['/usr/bin/python3', '-c', target_program, pending, str(offset)])]
+    sender = subprocess.Popen(source_command, stdout=subprocess.PIPE, stderr=log)
+    try:
+        receiver = subprocess.Popen(target_command, stdin=sender.stdout, stdout=log, stderr=log)
+    except BaseException:
+        sender.stdout.close(); sender.terminate(); sender.wait(); raise
+    sender.stdout.close()
+    try:
+        on_started(dict(child_pid=receiver.pid, source_child_pid=sender.pid,
+                        command=target_command, resumed_bytes=offset))
+    except BaseException:
+        receiver.terminate(); sender.terminate()
+        receiver.wait(); sender.wait()
+        raise
+    receiver_code = receiver.wait()
+    if receiver_code and sender.poll() is None:
+        sender.terminate()
+    sender_code = sender.wait()
+    return dict(sender_exit_code=sender_code, receiver_exit_code=receiver_code, resumed_bytes=offset)
+
+
 def main(args):
     study = args.study.resolve()
     output = study / 'remote_execution'
@@ -67,6 +121,10 @@ def main(args):
         process = Path('/proc', str(previous['pid']), 'cmdline')
         if process.exists() and b'stage_remote_resume_inputs' in process.read_bytes():
             raise RuntimeError('The previous input transfer controller is still running')
+        for name in ['child_pid', 'source_child_pid']:
+            process = Path('/proc', str(previous.get(name, -1)), 'cmdline')
+            if process.exists() and b'resume_main_20260911' in process.read_bytes():
+                raise RuntimeError('A previous input transport is still running')
     data = [row for row in read(output / 'training_data_server197.json')['rows'] if row['pde'] == args.pde]
     assert len(data) == 5
     files = []
@@ -96,21 +154,26 @@ def main(args):
             if partial.get('verified'):
                 checked, elapsed = partial, 0.0
             else:
-                command = ['scp', '-3', '-B', 'server197:' + row['source'], 'server216:' + pending]
                 started = time.monotonic()
                 with (output / f'transfer_{args.pde}.log').open('a') as log:
-                    child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
-                    state.update(current=row, child_pid=child.pid, command=command, checked_unix=time.time())
-                    write(state_path, state)
-                    remote_write(remote_output / state_path.name, state)
-                    code = child.wait()
-                assert code == 0, f'Input transfer exited with {code}; retain partial file and inspect the log'
+                    for attempt in range(1,4):
+                        def on_started(process):
+                            state.update(current=row, transfer_attempt=attempt, checked_unix=time.time(), **process)
+                            write(state_path, state)
+                            remote_write(remote_output / state_path.name, state)
+                        transport = stream_transfer(row['source'], pending, log, on_started)
+                        if transport['sender_exit_code']==transport['receiver_exit_code']==0:
+                            break
+                        log.write('TRANSFER_RETRY ' + json.dumps(transport) + '\n'); log.flush()
+                    else:
+                        raise RuntimeError('Input transport failed three times; verified partial prefix is retained')
                 elapsed = time.monotonic() - started
                 checked = verify(pending, row['sha256'], row['destination'])
                 assert checked['verified']
         state['files'].append(dict(**row, verification=checked, transfer_seconds=elapsed))
         state.pop('current', None)
         state.pop('child_pid', None)
+        state.pop('source_child_pid', None)
         state.pop('command', None)
         write(state_path, state)
         remote_write(remote_output / state_path.name, state)
