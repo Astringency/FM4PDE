@@ -24,6 +24,7 @@ def main(args):
     assert study.is_absolute() and out.is_relative_to(study / 'remote_execution')
     assert 0 < args.memory_limit_gib < args.minimum_free_gib
     assert args.maximum_batch in [1, 2, 4, 8, 16]
+    assert not args.compare_step_logging or args.buffer_step_metrics
     assert not (out / 'complete.json').exists(), 'This benchmark already completed'
     out.mkdir(parents=True, exist_ok=True)
     torch.set_num_threads(4)
@@ -58,6 +59,7 @@ def main(args):
         memory_limit_bytes=limit,minimum_free_bytes=args.minimum_free_gib*2**30,
         maximum_batch=args.maximum_batch,paired_candidate_epoch=5,
         buffer_step_metrics=args.buffer_step_metrics,
+        compare_step_logging=args.compare_step_logging,
         git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         scope='Resource and paired functional benchmark on training-validation inputs only; no formal model selection or test sampling')
     if (out / 'protocol.json').exists():
@@ -70,12 +72,12 @@ def main(args):
         initial_free_bytes=free,total_bytes=total,started_unix=time.time()))
     bundle = load_fm4pde_checkpoint_bundle(str(source), args.pde, 'cuda:0', model_profile='auto')
 
-    def run(record, batch, model, checkpoint, digest, folder):
+    def run(record, batch, model, checkpoint, digest, folder, *, buffer_steps=None):
         positions = list(range(batch))
         gt, masks, sample_ids = validation_inputs(cache, record['config'], positions, 'cuda:0')
         row = sample_once(record['config'], model, str(checkpoint), digest, folder,
                           gt, masks, sample_ids, 32, positions,
-                          buffer_step_metrics=args.buffer_step_metrics)
+                          buffer_step_metrics=args.buffer_step_metrics if buffer_steps is None else buffer_steps)
         assert row['peak_bytes'] < limit
         for metrics in row['fields'].values():
             for metric, values in metrics.items():
@@ -92,6 +94,26 @@ def main(args):
         measurements.append(dict(setting=setting,batch=1,peak_bytes=row['peak_bytes'],seconds=row['seconds']))
         write(out / 'progress.json', dict(state='probing', measurements=measurements))
         print('PROBE_COMPLETE',args.pde,setting,1,row['peak_bytes'],row['seconds'],flush=True)
+    if args.compare_step_logging:
+        # Both runs use a resident model after all single-input kernels warmed up.
+        reference = run(records[0], 1, bundle, source, source_sha,
+                        out / 'logging_control' / 'unbuffered', buffer_steps=False)
+        buffered = run(records[0], 1, bundle, source, source_sha,
+                       out / 'logging_control' / 'buffered', buffer_steps=True)
+        paired_identity(reference, buffered)
+        before = torch.load(reference['result_path'], map_location='cpu', weights_only=False)
+        after = torch.load(buffered['result_path'], map_location='cpu', weights_only=False)
+        checks = {}
+        for field in ['coef_final', 'sol_final']:
+            torch.testing.assert_close(before[field], after[field], rtol=2e-5, atol=2e-6)
+            checks[field] = dict(exactly_equal=torch.equal(before[field], after[field]),
+                maximum_absolute_difference=float((before[field]-after[field]).abs().max()))
+        write(out / 'logging_comparison.json', dict(status='passed', predictions=checks,
+            paired_identity_verified=True, unbuffered_seconds=reference['seconds'],
+            buffered_seconds=buffered['seconds'], reference_result_sha256=reference['result_sha256'],
+            buffered_result_sha256=buffered['result_sha256'], rtol=2e-5, atol=2e-6,
+            scope='One ordered GPU A/B after kernel warmup with identical resident checkpoint/input/mask/noise/config; timings include shared remote I/O and are not a repeated throughput estimate'))
+        print('LOGGING_COMPARISON_COMPLETE',args.pde,reference['seconds'],buffered['seconds'],flush=True)
     previous = max(measurements, key=lambda row: row['peak_bytes'])
     worst = next(record for record in records if record['setting'] == previous['setting'])
     batch = 1
@@ -145,4 +167,5 @@ if __name__ == '__main__':
     parser.add_argument('--minimum-free-gib', type=float, default=22.)
     parser.add_argument('--maximum-batch', type=int, default=16)
     parser.add_argument('--buffer-step-metrics', action='store_true')
+    parser.add_argument('--compare-step-logging', action='store_true')
     main(parser.parse_args())
