@@ -28,6 +28,16 @@ def worker(study,pde):
                 break
         write(out/'evaluation_queue.json',dict(**process,state='waiting_for_training',checked_unix=time.time()))
         time.sleep(30)
+    while True:
+        smoke=study/'evaluation_smoke/complete.json'
+        smoke_exit=study/'sampling_smoke.exit.json'
+        if smoke_exit.exists():
+            assert json.loads(smoke_exit.read_text())['exit_code']==0,'Real-model CPU smoke failed'
+            checked=json.loads(smoke.read_text())
+            assert checked['status']=='complete' and pde in checked['pdes']
+            break
+        write(out/'evaluation_queue.json',dict(**process,state='waiting_for_real_model_smoke',checked_unix=time.time()))
+        time.sleep(30)
     lock=None;gpu=None
     while lock is None:
         for number in [0,1]:
