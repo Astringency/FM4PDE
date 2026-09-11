@@ -93,8 +93,15 @@ def main():
                     print("EXISTS", pde, variant, flush=True)
                     continue
                 folder.mkdir(parents=True, exist_ok=True)
-                original = plan["pdes"][pde]["random" if variant == "random_replay" else "fixed"]
+                extra_modes = {"grid_replay": "grid", "columns_replay": "sensor_column",
+                               "per_input_replay": "per_sample_random"}
+                is_random_anchor = variant == "random_replay" or variant in extra_modes
+                original = plan["pdes"][pde]["random" if is_random_anchor else "fixed"]
                 conf = copy.deepcopy(original["config"])
+                if variant in extra_modes:
+                    # Frozen source rows were checked: these controls differ only in mode,
+                    # output bookkeeping and the historical CUDA device selection.
+                    conf["sensor_mode"] = extra_modes[variant]
                 conf.update(checkpoint_path=str(source / "weights.pth"), output_dir=str(folder),
                     device="cuda:0", batch_size=1, offset=0, save_plots=False, save_intermediate=False,
                     save_per_sample_curves=True, allow_synthetic_data=False,
@@ -104,7 +111,7 @@ def main():
                     masks = left_half_pair_masks(gt.coef.shape, gt.sol.shape, conf["num_obs"],
                                                  conf["mask_seed"], device="cuda:0")
                 else:
-                    assert variant in {"random_replay", "legacy_fixed_replay"}
+                    assert variant in {"random_replay", "legacy_fixed_replay", *extra_modes}
                     masks = make_pair_masks(gt.coef.shape, gt.sol.shape, conf["num_obs"], conf["sensor_mode"],
                         conf["shared_mask"], conf["mask_seed"], device="cuda:0",
                         num_sensor_columns=conf["num_sensor_columns"])
@@ -134,7 +141,8 @@ def main():
                     mask_file_sha256=digest(result_path.parent / "masks.pt"), mask_metadata=saved_masks.get("metadata"),
                     errors=errors, status=result["status"], seconds=elapsed, nfe=calls[0],
                     peak_bytes=torch.cuda.max_memory_allocated(),
-                    archive_errors={f: original["rel_l2_" + f] for f in ["a", "u"]})
+                    archive_errors=None if variant in extra_modes else
+                        {f: original["rel_l2_" + f] for f in ["a", "u"]})
                 write(receipt, row)
                 print("DONE", pde, variant, f"{elapsed:.2f}s", errors, flush=True)
             handle.remove()
