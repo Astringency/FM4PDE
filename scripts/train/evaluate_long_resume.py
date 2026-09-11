@@ -25,8 +25,11 @@ def release(bundle):
     bundle[0].model.cpu()
 
 
-def main(study,pde):
+def main(study,pde,*,memory_limit_gib=56.,minimum_free_gib=70.,maximum_batch=16):
     assert study.is_absolute() and '/outputs/pretrained/' in str(study)
+    assert 2 < memory_limit_gib < minimum_free_gib
+    assert maximum_batch in [1,2,4,8,16]
+    memory_limit=memory_limit_gib*2**30
     training=study/pde
     done=json.loads((training/'training_complete.json').read_text())
     assert done['completed_epochs']==50 and done['updates']==35200
@@ -56,7 +59,7 @@ def main(study,pde):
     torch.set_num_threads(4);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=True;torch.backends.cudnn.allow_tf32=True
     torch.backends.cudnn.benchmark=False
-    assert torch.cuda.mem_get_info()[0]>70*2**30
+    assert torch.cuda.mem_get_info()[0]>minimum_free_gib*2**30
     torch.manual_seed(0)
     protocol=dict(version=1,pde=pde,source_checkpoint=source,source_sha256=source_sha,
         training_complete_sha256=file_sha(training/'training_complete.json'),
@@ -68,6 +71,8 @@ def main(study,pde):
         historical_comparison='secondary comparison to archived original main predictions; NS archived fused gradients and hardware can differ',
         hard_cases='25 preselected archived worst inputs per cell; sampled first after validation selection; diagnostic only',
         inference='float32 parameters and tensors, TF32 enabled; no autocast',
+        resource_limits=dict(memory_limit_bytes=memory_limit,
+            minimum_free_bytes=minimum_free_gib*2**30,maximum_batch=maximum_batch),
         git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip())
     if (out/'protocol.json').exists():assert json.loads((out/'protocol.json').read_text())==protocol
     else:write(out/'protocol.json',protocol)
@@ -79,11 +84,13 @@ def main(study,pde):
         record=id_cells[setting]
         gt,masks,ids=validation_inputs(cache,record['config'],indices,'cuda:0')
         row=sample_once(record['config'],model,path,digest,folder,gt,masks,ids,32,indices)
+        assert row['peak_bytes']<memory_limit
         del gt,masks
         return row
 
     if (out/'batch_selection.json').exists():
         batch=int(json.loads((out/'batch_selection.json').read_text())['batch_size'])
+        assert batch<=maximum_batch
     else:
         measurements=[]
         for setting in tasks:
@@ -92,14 +99,19 @@ def main(study,pde):
         worst=max(measurements,key=lambda x:x['peak_bytes'])
         previous=worst;batch=1
         for candidate in [2,4,8,16]:
-            if 2.6*previous['peak_bytes']+2*2**30>54*2**30:break
+            if candidate>maximum_batch:break
+            projected=2.6*previous['peak_bytes']+2*2**30
+            if projected>memory_limit-2*2**30:break
+            torch.cuda.empty_cache()
+            available,_=torch.cuda.mem_get_info()
+            if projected-torch.cuda.memory_allocated()+2*2**30>=available:break
             row=validation_batch(worst['setting'],list(range(candidate)),'baseline',bundle,source,source_sha,
                 out/'probes'/worst['setting']/f'batch{candidate}')
-            assert row['peak_bytes']<56*2**30
+            assert row['peak_bytes']<memory_limit
             previous=dict(setting=worst['setting'],batch=candidate,peak_bytes=row['peak_bytes'],seconds=row['seconds'])
             measurements.append(previous);batch=candidate
         write(out/'batch_selection.json',dict(batch_size=batch,measurements=measurements,
-            single_gpu_limit_bytes=56*2**30,probe_inputs='training-validation cache, not main test inputs'))
+            single_gpu_limit_bytes=memory_limit,probe_inputs='training-validation cache, not main test inputs'))
 
     def validate_candidate(label,model,path,digest):
         scores={};receipts={}
@@ -166,7 +178,7 @@ def main(study,pde):
                     folder=out/'main'/record['dist']/record['setting']/label/f'chunk{number:04d}'
                     row=sample_once(record['config'],bundle,path,digest,folder,gt,masks,ids,
                         rows[0]['noise_source_size'],[r['noise_source_index'] for r in rows])
-                    assert row['peak_bytes']<56*2**30
+                    assert row['peak_bytes']<memory_limit
                     receipts.append(row)
                     write(out/'progress.json',dict(stage=stage,label=label,cell=record['cell'],
                         completed_batches=number+1,total_batches=len(schedules[record['cell']]),
@@ -212,4 +224,9 @@ def main(study,pde):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--study',type=Path,required=True);p.add_argument('--pde',required=True)
-    args=p.parse_args();main(args.study.resolve(),args.pde)
+    p.add_argument('--memory-limit-gib',type=float,default=56.)
+    p.add_argument('--minimum-free-gib',type=float,default=70.)
+    p.add_argument('--maximum-batch',type=int,choices=[1,2,4,8,16],default=16)
+    args=p.parse_args();main(args.study.resolve(),args.pde,
+        memory_limit_gib=args.memory_limit_gib,minimum_free_gib=args.minimum_free_gib,
+        maximum_batch=args.maximum_batch)
