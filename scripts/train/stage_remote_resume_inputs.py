@@ -60,8 +60,13 @@ def main(args):
     canonical = Path('/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/pretrained')
     remote_output = canonical / study.name / 'remote_execution'
     state_path = output / f'transfer_{args.pde}.json'
-    if state_path.exists() and read(state_path).get('status') == 'complete':
-        raise RuntimeError('This PDE already has a completed transfer manifest')
+    if state_path.exists():
+        previous = read(state_path)
+        if previous.get('status') == 'complete':
+            raise RuntimeError('This PDE already has a completed transfer manifest')
+        process = Path('/proc', str(previous['pid']), 'cmdline')
+        if process.exists() and b'stage_remote_resume_inputs' in process.read_bytes():
+            raise RuntimeError('The previous input transfer controller is still running')
     data = [row for row in read(output / 'training_data_server197.json')['rows'] if row['pde'] == args.pde]
     assert len(data) == 5
     files = []
