@@ -2,6 +2,7 @@
 import argparse
 import datetime
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -46,7 +47,7 @@ def snapshot(root):
                   completed_sample_results=sum(map(len, counts.values())),
                   completed_by_cell={k: len(v) for k, v in sorted(counts.items())}, active=active,
                   output_root=str(root))
-    temporary = root / 'status.json.tmp'
+    temporary = root / f'status.{os.getpid()}.json.tmp'
     temporary.write_text(json.dumps(result, indent=2) + '\n')
     temporary.replace(root / 'status.json')
     return result
