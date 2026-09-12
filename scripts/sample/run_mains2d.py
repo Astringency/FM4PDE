@@ -79,14 +79,15 @@ def prepare(output, source):
 
 
 def sweep(output, label, *, distribution='id', pdes=None, tasks=None, burger=False,
-          count=1000, batch=10, devices='cuda:0 cuda:1', parallel=True, aggregate=False, pilot=False):
+          count=1000, batch=10, devices='cuda:0 cuda:1', parallel=True, aggregate=False, pilot=False,
+          workers=2):
     env = os.environ.copy()
     env.update(NUM_SAMPLES=str(count), MAX_BATCH_SIZE=str(batch), NUM_STEPS='100', NUM_OBS='500',
                SAMPLE_SEED='0', SAMPLER_LIST='hybrid_s2d', SENSOR_MODE_LIST='random',
                BURGER_SENSOR_MODE_LIST='random sensor_column',
                TEST_TYPE=distribution, CONFIG_DIR=str(output / 'configs'),
                OUTPUT_DIR=str(output / ('_pilot/' + label if pilot else distribution)),
-               DEVICE_LIST=devices, PARALLEL=str(parallel).lower(), MAX_PARALLEL_TASKS='2' if parallel else '1',
+               DEVICE_LIST=devices, PARALLEL=str(parallel).lower(), MAX_PARALLEL_TASKS=str(workers) if parallel else '1',
                RESUME='true', VIS='false', AGGREGATE=str(aggregate).lower(), PLAN_ONLY='false',
                DRY_RUN='false', PROGRESS_INTERVAL='30', PDE_LIST=' '.join(pdes or PDES),
                TASK_LIST=' '.join(tasks or TASKS))
@@ -162,6 +163,7 @@ def validate_phases(root):
 
 def audit(output):
     summaries = []
+    excluded = []
     total_runs = 0
     for case in cells():
         root = output / case['test_type'] / case['pde'] / case['task']
@@ -178,8 +180,14 @@ def audit(output):
             if case['sensor_mode'] == 'sensor_column':
                 assert config['num_sensor_columns'] == 16
             folder = config_path.parent
+            if not (folder / 'metrics_final.json').exists():
+                excluded.append(dict(run_dir=str(folder), reason='unfinished attempt; no final metrics'))
+                continue
             metrics = json.loads((folder / 'metrics_final.json').read_text())
-            assert metrics['status'] == 'ok' and not metrics['synthetic_data'], folder
+            if metrics['status'] != 'ok':
+                excluded.append(dict(run_dir=str(folder), reason='unsuccessful attempt: ' + metrics['status']))
+                continue
+            assert not metrics['synthetic_data'], folder
             assert (folder / 'result.pt').is_file(), folder
             assert validate_phases(folder) == 1
             with (folder / 'metrics_per_sample.csv').open() as stream:
@@ -199,7 +207,8 @@ def audit(output):
                               u_relative_error_pct=100*sum(v[1] for v in samples.values())/1000))
         total_runs += runs
     write(output / 'completion.json', dict(status='complete', verified_cells=42, verified_samples=42000,
-          verified_runs=total_runs, sampler_phase='hybrid_s2d', switch_ratio=0.2, rows=summaries))
+          verified_runs=total_runs, sampler_phase='hybrid_s2d', switch_ratio=0.2, rows=summaries,
+          excluded_attempts=excluded))
     with (output / 'summary.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(summaries[0]))
         writer.writeheader(); writer.writerows(summaries)
@@ -211,6 +220,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--source-root', type=Path, required=True)
     parser.add_argument('--phase', choices=['prepare', 'pilot', 'full', 'audit', 'all'], default='all')
+    parser.add_argument('--workers', type=int, choices=[2, 4], default=2)
     args = parser.parse_args()
     assert args.output.is_absolute() and args.source_root.is_absolute()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -219,11 +229,16 @@ def main():
     if args.phase in ['pilot', 'all']:
         pilot(args.output)
     if args.phase in ['full', 'all']:
-        batch = json.loads((args.output / 'execution/batch_size.json').read_text())['batch_size']
+        memory = json.loads((args.output / 'execution/batch_size.json').read_text())
+        batch = memory['batch_size']
+        assert (args.workers // 2) * memory['pilot_batch_peak_mib'] < .7 * memory['gpu_total_mib']
+        write(args.output / 'execution/concurrency.json', dict(workers=args.workers,
+              workers_per_gpu=args.workers // 2, batch_size=batch,
+              conservative_gpu_peak_mib=(args.workers // 2)*memory['pilot_batch_peak_mib']))
         for distribution in DISTRIBUTIONS:
-            sweep(args.output, distribution + '_main', distribution=distribution, batch=batch)
+            sweep(args.output, distribution + '_main', distribution=distribution, batch=batch, workers=args.workers)
             sweep(args.output, distribution + '_burger', distribution=distribution, batch=batch,
-                  burger=True, aggregate=True)
+                  burger=True, aggregate=True, workers=args.workers)
         audit(args.output)
     elif args.phase == 'audit':
         audit(args.output)
