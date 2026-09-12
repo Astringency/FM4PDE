@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from experiments.build_fm_tilt_geometry import setup
-from experiments.fm_tilt_geometry import fit_reference
+from experiments.fm_tilt_geometry import fit_reference, GaussianReference
 from experiments.fm_tilt_mh import transition, adapt_beta, chain_diagnostics
 from scripts.train.resume_study import file_sha, write
 
@@ -64,6 +64,9 @@ def main():
     ref, fit = fit_reference(geom['basis'], geom['jacobian'], geom['center'],
         geom['endpoint'].cuda(), adapter)
     fit.pop('root'); fit.pop('hessian')
+    if args.extend_from:
+        previous_ref=torch.load(args.extend_from.parent/'reference.pt',map_location='cpu',weights_only=False)
+        ref=GaussianReference(*[previous_ref[key].cuda() for key in ['basis','root','mean']])
     spec = dict(input_id=args.id, chains=4, warmup=args.warmup, keep=args.keep,
         force=args.force, force_steps=args.force_steps, force_scale=args.force_scale,
         seed=args.seed, beta=args.beta, initial_overdispersion=dict(fitted_subspace=2.,complement=1.),
@@ -76,6 +79,7 @@ def main():
             additional='Independent validation inputs and a doubled retained budget before expanding to 1000'),
         selection_rule='Tune proposal using convergence and ESS/second only; no reconstruction-error selection',
         extend_from_sha256=file_sha(args.extend_from) if args.extend_from else None,
+        extend_reference_sha256=file_sha(args.extend_from.parent/'reference.pt') if args.extend_from else None,
         code_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
     if (out/'protocol.json').exists():
         assert json.loads((out/'protocol.json').read_text()) == spec
@@ -116,7 +120,7 @@ def main():
     if args.extend_from and not state.exists():
         assert args.warmup == 0, 'An extension freezes the calibrated proposal'
         previous = json.loads((args.extend_from.parent/'protocol.json').read_text())
-        for key in ['input_id','force','force_steps','force_scale','geometry_sha256','checkpoint_sha256']:
+        for key in ['input_id','force','force_steps','force_scale','geometry_sha256','checkpoint_sha256','inputs_protocol_sha256']:
             assert spec[key] == previous[key], key
         s = torch.load(args.extend_from,map_location='cpu',weights_only=False)
         assert s['protocol_sha256'] == file_sha(args.extend_from.parent/'protocol.json')
