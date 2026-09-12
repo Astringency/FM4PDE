@@ -26,7 +26,31 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def verify(root, require_complete=False, check_inputs=False):
+def verify_tensors(folder, config, rows):
+    import numpy as np
+    import torch
+
+    # These are this experiment's own saved artifacts, including metadata.
+    artifact = torch.load(folder / 'result.pt', map_location='cpu', weights_only=False)
+    assert artifact['config'] == config, folder
+    maximum = 0.0
+    for prefix, field in (('coef', 'rel_l2_a'), ('sol', 'rel_l2_u')):
+        prediction = artifact[prefix + '_final'].numpy().astype(np.float64)
+        reference = artifact[prefix + '_ground_truth'].numpy().astype(np.float64)
+        assert prediction.shape == reference.shape and prediction.shape[0] == len(rows), folder
+        assert np.isfinite(prediction).all() and np.isfinite(reference).all(), folder
+        difference = (prediction - reference).reshape(len(rows), -1)
+        denominator = np.linalg.norm(reference.reshape(len(rows), -1), axis=1)
+        recomputed = np.linalg.norm(difference, axis=1) / np.maximum(denominator, 1e-12)
+        for row in rows:
+            index = int(row['sample_id']) - config['offset']
+            reported = float(row[field])
+            assert np.isclose(recomputed[index], reported, rtol=1e-5, atol=1e-7), (folder, field, index)
+            maximum = max(maximum, abs(recomputed[index] - reported) / max(abs(reported), 1e-12))
+    return float(maximum)
+
+
+def verify(root, require_complete=False, check_inputs=False, check_tensors=False):
     manifest = read(root / 'experiment.json')
     original_root = Path(manifest['output_root'])
     distributions = ('id', 'smooth', 'rough')
@@ -45,6 +69,7 @@ def verify(root, require_complete=False, check_inputs=False):
     folders = set()
     commits = set()
     guarded_steps = 0
+    tensor_metric_relative_difference_max = 0.0
     for distribution in distributions:
         for marker_path in sorted((root / distribution).glob('.sample_sweeps/*/completed/**/*.json')):
             marker = read(marker_path)
@@ -96,6 +121,9 @@ def verify(root, require_complete=False, check_inputs=False):
                 assert math.isclose(metrics[field], statistics.mean(float(r[field]) for r in rows),
                                     rel_tol=1e-6, abs_tol=1e-9), (folder, field)
             assert (folder / 'result.pt').stat().st_size > 0
+            if check_tensors:
+                tensor_metric_relative_difference_max = max(tensor_metric_relative_difference_max,
+                                                             verify_tensors(folder, config, rows))
             runs[cell] += 1
 
     total = sum(len(s) for s in samples.values())
@@ -141,7 +169,10 @@ def verify(root, require_complete=False, check_inputs=False):
                   expected_cells=42, whole_experiment_complete=complete,
                   completion_receipts_checked=require_complete, input_identities_checked=check_inputs,
                   code_commits=sorted(commits), steps_with_nonfinite_correction_guard=guarded_steps,
-                  error_source='Saved per-sample relative L2 metrics; tensor errors are not recomputed.',
+                  tensor_runs_checked=len(folders) if check_tensors else 0,
+                  tensor_metric_relative_difference_max=tensor_metric_relative_difference_max if check_tensors else None,
+                  error_source=('Relative L2 metrics independently recomputed from saved predictions and ground truth in CPU float64.'
+                                if check_tensors else 'Saved per-sample relative L2 metrics; tensor errors are not recomputed.'),
                   rows=summaries)
     target = root / 'execution/verified_results.json'
     temporary = target.with_suffix('.json.tmp')
@@ -155,5 +186,6 @@ if __name__ == '__main__':
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--require-complete', action='store_true')
     parser.add_argument('--check-inputs', action='store_true')
+    parser.add_argument('--check-tensors', action='store_true')
     args = parser.parse_args()
-    verify(args.root.resolve(), args.require_complete, args.check_inputs)
+    verify(args.root.resolve(), args.require_complete, args.check_inputs, args.check_tensors)
