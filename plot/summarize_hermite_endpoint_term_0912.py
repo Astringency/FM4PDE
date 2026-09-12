@@ -68,14 +68,47 @@ def main():
             summary[label + '_interior_mse'] = d['interior_mse']
             summary[label + '_endpoint_mse'] = d['endpoint_mse']
         pairs.append(summary)
-    (root / 'comparison.json').write_text(json.dumps({'pairs': pairs, 'validation': 'passed',
-        'num_pairs': 6, 'samples_per_pde': 1, 'sample_seed': 0}, indent=2, allow_nan=False) + '\n')
+    repeats = []
+    repeat_pair_deltas = []
+    repeat_file = root / 'repeat_control/complete.json'
+    if repeat_file.exists():
+        for row in json.loads(repeat_file.read_text())['rows']:
+            previous = next(r for r in rows if (r['pde'], r['include_endpoint']) ==
+                            (row['pde'], row['include_endpoint']))
+            assert row['environment'] == previous['environment']
+            assert {k for k in row['config'] if row['config'][k] != previous['config'][k]} == {'output_dir'}
+            predictions = []
+            for r in [previous, row]:
+                remote = Path(r['result_path'])
+                local = root.joinpath(*remote.parts[remote.parts.index(root.name) + 1:])
+                assert digest(local) == r['result_sha256']
+                predictions.append(torch.load(local, map_location='cpu', weights_only=False))
+            entry = {'pde': row['pde'], 'include_endpoint': row['include_endpoint']}
+            for f, key in [('a', 'coef'), ('u', 'sol')]:
+                truth = predictions[0][key + '_ground_truth'].double()
+                assert torch.equal(truth, predictions[1][key + '_ground_truth'].double())
+                assert torch.equal(predictions[0]['masks'][key], predictions[1]['masks'][key])
+                entry[f + '_error_change_pp'] = 100*(row['errors'][f]['full'] - previous['errors'][f]['full'])
+                entry[f + '_prediction_change_pct'] = 100*float(
+                    (predictions[0][key + '_final'].double() - predictions[1][key + '_final'].double()).norm()/truth.norm())
+            repeats.append(entry)
+        repeat_rows = json.loads(repeat_file.read_text())['rows']
+        for pde in sorted({r['pde'] for r in repeat_rows}):
+            pair = {r['include_endpoint']: r for r in repeat_rows if r['pde'] == pde}
+            assert set(pair) == {True, False}
+            repeat_pair_deltas.append({'pde': pde, **{f + '_delta_pp':
+                100*(pair[False]['errors'][f]['full'] - pair[True]['errors'][f]['full']) for f in ['a', 'u']}})
+    (root / 'comparison.json').write_text(json.dumps({'pairs': pairs, 'repeat_controls': repeats,
+        'repeat_pair_deltas': repeat_pair_deltas,
+        'validation': 'passed', 'num_pairs': 6, 'samples_per_pde': 1, 'sample_seed': 0},
+        indent=2, allow_nan=False) + '\n')
     with (root / 'comparison.csv').open('w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=list(pairs[0])); w.writeheader(); w.writerows(pairs)
     lines = ['# Hermite 梯形端点项开关测试', '',
         '仅用于诊断；未修改论文。六个 PDE 各使用原 Temporal Residuals 实验的第 0 个样本，'
         '随机种子为 0，100 步采样。同一 GPU 上重新运行有端点项与无端点项两组，'
-        '模型权重、真值、观测掩码和其余采样参数完全相同。', '',
+        '模型权重、真值、观测掩码和其余采样参数完全相同。复用已训练模型，没有重新训练。'
+        '沿用原配置，在最后 20 步加入 PDE 引导，没有重新调节引导强度。', '',
         '唯一计算配置差异为 `hermite_include_integral_residual=True/False`。'
         '开启组保留原权重 `hermite_integral_weight=endpoint_bc_weight=1`。'
         '关闭组的实际端点残差通道数、端点损失和端点残差范数均为 0。', '',
@@ -96,6 +129,23 @@ def main():
         '原始预测、逐步日志、配置和 SHA-256 校验值保存在各 PDE 子目录的 receipt.json 及 result.pt；'
         '运行命令及退出码位于 execution/；独立代码归档位于 sources/code.bundle。', '',
         '运行环境：' + json.dumps(manifest['environment'], ensure_ascii=False), '']
+    if repeats:
+        lines += ['重复运行检查（相同配置、样本和种子）：', '',
+                  '| PDE | 端点项 | a 误差变化（百分点） | u 误差变化（百分点） |',
+                  '|---|---|---:|---:|']
+        for r in repeats:
+            lines.append(f"| {r['pde']} | {'加' if r['include_endpoint'] else '不加'} | "
+                         f"{r['a_error_change_pp']:.9g} | {r['u_error_change_pp']:.9g} |")
+        lines.append('')
+        lines += ['重复配对得到的不加 − 加误差差值：', '',
+                  '| PDE | 第一次 Δa | 第二次 Δa | 第一次 Δu | 第二次 Δu |',
+                  '|---|---:|---:|---:|---:|']
+        for r in repeat_pair_deltas:
+            first = next(x for x in pairs if x['pde'] == r['pde'])
+            lines.append(f"| {r['pde']} | {first['a_delta_pp']:.6f} | {r['a_delta_pp']:.6f} | "
+                         f"{first['u_delta_pp']:.6f} | {r['u_delta_pp']:.6f} |")
+        lines += ['', '相同种子下的重复运行也存在数值波动。若差值大小或符号随重复运行改变，'
+                  '不能将第一次的差值直接解释为该项带来的稳定改善或退化。', '']
     (root / 'README.md').write_text('\n'.join(lines))
     print('\n'.join(lines[:18]))
 

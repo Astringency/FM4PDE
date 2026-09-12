@@ -68,12 +68,18 @@ def main():
     p.add_argument('--reference', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--pdes', nargs='+', choices=PDES, default=PDES)
+    p.add_argument('--deterministic', action='store_true')
     args = p.parse_args()
     assert args.output.is_absolute() and args.reference.is_absolute()
     torch.set_num_threads(2)
     torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
+    if args.deterministic:
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        torch.use_deterministic_algorithms(True)
     reference = json.loads(args.reference.read_text())
     refs = {r['pde']: r for r in reference['rows'] if r['condition'] == 'hermite_bridge'}
     assert set(refs) == set(PDES)
@@ -81,6 +87,9 @@ def main():
                torch=torch.__version__, cuda=torch.version.cuda, gpu=torch.cuda.get_device_name(),
                device=os.environ.get('CUDA_VISIBLE_DEVICES'), tf32=False, batch_size=1,
                reference=str(args.reference), reference_sha256=digest(args.reference))
+    if args.deterministic:
+        env.update(deterministic_algorithms=True, cudnn_deterministic=True,
+                   cublas_workspace_config=os.environ['CUBLAS_WORKSPACE_CONFIG'])
     assert env['gpu'] == reference['environment']['gpu']
     assert env['torch'] == reference['environment']['torch']
     write(args.output / 'environment.json', env)
