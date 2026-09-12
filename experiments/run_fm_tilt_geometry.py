@@ -30,22 +30,8 @@ def monitor(adapter, endpoint, energy, latent):
 
 
 def diagnostics(trace):
-    from experiments.run_learned_tilt_pilot import diagnostics as raw_diagnostics
-    x = np.asarray(trace, dtype=np.float64)
-    result = chain_diagnostics(x)
-    if 'rank_folded_split_rhat' not in result:
-        return result
-    tails = []
-    for q in [.05, .95]:
-        indicator = (x <= np.quantile(x, q, axis=(0,1))).astype(np.float64)
-        tails.append(raw_diagnostics(indicator)['approximate_ess'])
-    result['approximate_tail_ess'] = np.minimum(*tails).tolist()
-    result['passed'] = bool(result['passed'] and min(result['approximate_tail_ess']) >= 100)
-    result['thresholds']['tail_ess'] = 100
-    result['max_rhat'] = max(result['rank_folded_split_rhat'])
-    result['min_bulk_ess'] = min(result['approximate_ess'])
-    result['min_tail_ess'] = min(result['approximate_tail_ess'])
-    return result
+    from experiments.strict_chain_diagnostics import diagnose
+    return diagnose(trace)
 
 
 def main():
