@@ -3,6 +3,21 @@ from experiments.fm_tilt_geometry import cosine_basis, GaussianReference, fit_re
 from experiments.fm_tilt_mh import log_acceptance, proposal
 
 
+def test_arbitrary_endpoint_vjp_matches_complete_autograd_graph():
+    from types import SimpleNamespace
+    from experiments.fm_tilt_geometry import full_trajectory_vjp
+    z=torch.randn(4,11,dtype=torch.float64,requires_grad=True)
+    net=lambda x,t:torch.tanh(x)*t[:,None]+.15*x
+    x=z;states=[z.detach()]
+    for i in range(9):
+        x=x+net(x,torch.full((4,),i/9,dtype=x.dtype))/9
+        states.append(x.detach())
+    seed=torch.randn_like(x)
+    expected,=torch.autograd.grad(x,z,grad_outputs=seed)
+    a=SimpleNamespace(net=net,cached_states=states,full_steps=9,extras={})
+    torch.testing.assert_close(full_trajectory_vjp(a,seed),expected,atol=1e-13,rtol=1e-13)
+
+
 def test_reference_change_of_variables_matches_original_target_density():
     rng = torch.Generator().manual_seed(408)
     basis = cosine_basis(n=4, width=2, dtype=torch.float64)

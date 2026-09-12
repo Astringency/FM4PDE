@@ -8,6 +8,19 @@ import math
 import torch
 
 
+def full_trajectory_vjp(adapter, endpoint_seed):
+    """VJP of the complete cached discrete G, for an arbitrary endpoint seed."""
+    adjoint = endpoint_seed
+    for i in reversed(range(adapter.full_steps)):
+        with torch.enable_grad():
+            x = adapter.cached_states[i].detach().requires_grad_(True)
+            t = torch.full((len(x),), i/adapter.full_steps, device=x.device, dtype=x.dtype)
+            velocity = adapter.net(x,t,**adapter.extras)
+            vjp, = torch.autograd.grad(velocity,x,grad_outputs=adjoint/adapter.full_steps)
+        adjoint = (adjoint+vjp).detach()
+    return adjoint
+
+
 def cosine_basis(n=128, width=8, channels=2, *, device='cpu', dtype=torch.float32):
     j = torch.arange(n, device=device, dtype=torch.float64)
     k = torch.arange(width, device=device, dtype=torch.float64)
