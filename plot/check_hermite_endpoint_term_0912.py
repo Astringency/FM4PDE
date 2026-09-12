@@ -112,6 +112,7 @@ def main():
                 bundle = load_fm4pde_checkpoint_bundle(str(source / 'weights.pth'), pde,
                                                        'cuda:0', model_profile=old['config']['model_profile'])
             config = copy.deepcopy(old['config'])
+            config.pop('runtime_metadata', None)
             assert config['hermite_include_integral_residual'] is True
             assert config['hermite_integral_weight'] == config['endpoint_bc_weight'] == 1.0
             config.update(output_dir=str(folder), ablation_name='hermite_endpoint_toggle_20260912',
