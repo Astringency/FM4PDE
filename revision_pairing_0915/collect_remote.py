@@ -8,6 +8,8 @@ mode. Partial transfers remain outside the final filenames.
 
 Run once with --mode once, or periodically with --mode watch --interval 60.
 The collector must run on the local relay host, never on either GPU server.
+In watch mode, collector/STOP_AFTER_CYCLE requests exit after a successful
+complete cycle. A failed cycle still retries; once mode ignores this sentinel.
 """
 from __future__ import annotations
 
@@ -209,6 +211,12 @@ def main(argv=None):
                 result = collector.cycle(number)
                 if args.mode == "once":
                     return result
+                if result == 0 and (collector.log_dir / "STOP_AFTER_CYCLE").exists():
+                    collector.status.update(state="stopped", finished=now(),
+                                            stop_reason="STOP_AFTER_CYCLE after successful cycle")
+                    collector.save_status()
+                    collector.log(dict(event="stopped", reason=collector.status["stop_reason"]))
+                    return 0
                 time.sleep(args.interval)
         except KeyboardInterrupt:
             collector.status.update(state="stopped", finished=now())
