@@ -92,11 +92,28 @@
     "Since f377, losses add optional RMS and legacy branches, and sampler/guidance add deterministic variants; current main stochastic/MSE branches retain the prior formula.",
     "The runner does not call _disable_unreliable_pde_guidance and does not recalibrate guidance weights.",
     "CPU checks compare f377 and current component MSE losses plus weighted/clipped gradients for all five PDEs; outputs agree exactly.",
+    "The optimized fused backward is no longer available; every guided step calls the stock separate-component gradient function.",
     "Atomic production-batch writing and restart under a different batch size are tested: completed rows are not resampled or overwritten, and corrupt completed files are rejected."
   ],
-  "validation": "python -m pytest revision_pairing_0915/test_run_inference.py -q: 26 passed, CPU, 2026-09-15",
+  "validation": "python -m pytest revision_pairing_0915/test_run_inference.py -q: 28 passed, CPU, 2026-09-15; real checkpoint CUDA pilots must use the new stock-only runner",
   "limitations": [
     "Toy CPU tests do not certify real-checkpoint CUDA equivalence; full-step GPU family pilots are mandatory before production.",
     "The canonical 1000-row Gaussian stream changes older non-NS paths that restarted their RNG on smaller historical batches; it preserves each configured seed and the Gaussian law."
-  ]
+  ],
+  "gradient_operator": "stock_separate_component_gradients_v1",
+  "real_gpu_fusion_rejection": {
+    "source_log": "server197:/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/baseline_pairing_20260915_57k/logs/pilot197g1_v1.log",
+    "job": "pilot197g1_v1",
+    "cell": "supervised/helmholtz/id/sparse_joint",
+    "gpu": "NVIDIA A100-SXM4-80GB",
+    "torch": "2.8.0+cu128",
+    "tf32": false,
+    "comparison": "100-step stock versus fused weighted backward, both batch one; failure occurred before candidate batch-eight evaluation",
+    "max_relative": 0.0016204011509565153,
+    "max_absolute": 0.0023644864559173584,
+    "threshold": 0.0003,
+    "decision": "Remove fused backward entirely. Retain unmodified compute_guidance_gradient, including mean-loss times actual batch size, separate component differentiation, configured component clipping and weighted sum, and per-input global clipping. Do not raise tolerance.",
+    "causality_limit": "The alternative backward evaluation produced the measured difference; per-step attribution of the accumulated difference was not measured."
+  },
+  "batching_policy": "New GPU pilots compare repeat stock batch-one runs exactly and compare candidate batches/permutations at the unchanged fixed relative tolerance. A failed family must use a separately validated smaller batch, ultimately batch one; use independent jobs/GPUs to recover throughput without altering per-input arithmetic."
 }

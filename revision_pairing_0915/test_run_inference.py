@@ -10,7 +10,7 @@ import pytest
 import torch
 
 from revision_pairing_0915.run_inference import (
-    ROOT, digest, effective_config, existing_batches, fused_gradient, infer,
+    ROOT, digest, effective_config, existing_batches, infer,
     json_digest, observation_batch, pilot_family, tensor_digest, production, validate_protocol,
 )
 
@@ -57,18 +57,37 @@ def fixture(pde="poisson", clip="global_norm", task="both"):
 
 @pytest.mark.parametrize("pde", ["poisson", "helmholtz", "darcy", "nsnonbounded", "burger"])
 @pytest.mark.parametrize("clip", ["global_norm", "none", "per_component_norm"])
-def test_fused_stock_and_batch_partition(pde, clip):
+def test_stock_repeat_and_batch_partition(pde, clip):
     torch.set_num_threads(1)
     cell, data, bundle = fixture(pde, clip)
-    def run(ids, fused):
+    def run(ids):
         cfg = effective_config(cell, "unused.pth", "cpu", ids, 4)
         gt, masks, _ = observation_batch(data, cfg, ids, "cpu")
-        return infer(cfg, bundle, gt, masks, ids, steps=4, fused=fused)[0]
-    reference = run([0, 2, 3], False)
-    fused = run([0, 2, 3], True)
-    torch.testing.assert_close(fused, reference, rtol=2e-5, atol=2e-6)
-    reordered = torch.cat([run([3], True), run([2, 0], True)])
-    torch.testing.assert_close(reordered, fused[[2, 1, 0]], rtol=2e-5, atol=2e-6)
+        return infer(cfg, bundle, gt, masks, ids, steps=4)[0]
+    reference = run([0, 2, 3])
+    assert torch.equal(run([0, 2, 3]), reference)
+    reordered = torch.cat([run([3]), run([2, 0])])
+    torch.testing.assert_close(reordered, reference[[2, 1, 0]], rtol=2e-5, atol=2e-6)
+
+
+def test_kernel_always_uses_stock_component_gradients(monkeypatch):
+    import sampling.runner as stock
+    cell, data, bundle = fixture()
+    cfg = effective_config(cell, "unused", "cpu", [0, 2], 4)
+    gt, masks, _ = observation_batch(data, cfg, [0, 2], "cpu")
+    original = stock.compute_guidance_gradient
+    calls = []
+    def record(losses, target, schedule, config):
+        result = original(losses, target, schedule, config)
+        calls.append(result.metadata)
+        return result
+    monkeypatch.setattr(stock, "compute_guidance_gradient", record)
+    _, metadata = infer(cfg, bundle, gt, masks, [0, 2], steps=4)
+    assert len(calls) == 4
+    assert all(c["loss_gradient_batch_reduction"] == "sum_of_per_sample" for c in calls)
+    assert all(c["clip_scope"] == "per_sample" for c in calls)
+    assert metadata["fused_weighted_gradient"] is False
+    assert metadata["gradient_operator"] == "stock_separate_component_gradients_v1"
 
 
 @pytest.mark.parametrize("task", ["forward", "inverse", "both"])

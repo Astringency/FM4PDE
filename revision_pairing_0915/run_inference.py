@@ -24,13 +24,13 @@ import socket
 import subprocess
 import sys
 import time
-from types import SimpleNamespace
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 TASK = "baseline_pairing_20260915_57k"
 RANDOM_POLICY = "canonical_pool_archived_seed_fixed_input_row_v1"
+GRADIENT_OPERATOR = "stock_separate_component_gradients_v1"
 
 
 def digest(path):
@@ -183,36 +183,7 @@ def observation_batch(data, cfg, indices, device):
     return gt, masks, hashes
 
 
-def fused_gradient(losses, target, schedule, cfg):
-    """Equivalent weighted gradient; preserve component clipping via stock fallback."""
-    import torch
-    import sampling.guidance as g
-    if cfg.clip_mode == "per_component_norm":
-        return g.compute_guidance_gradient(losses, target, schedule, cfg)
-    if losses.metadata.get("loss_batch_reduction") != "mean_of_per_sample":
-        raise ValueError("Unexpected stock loss batch normalization")
-    terms = []
-    for key, weight, loss in [
-        ("obs_a", schedule.zeta_obs_a_t, losses.guidance_L_obs_a),
-        ("obs_u", schedule.zeta_obs_u_t, losses.guidance_L_obs_u),
-        ("pde", schedule.zeta_pde_t, losses.guidance_L_pde),
-    ]:
-        if losses.metadata["enabled"][key] and g._schedule_component_active(weight):
-            if loss is None or not loss.requires_grad:
-                raise RuntimeError(f"Active guidance component has no gradient: {key}")
-            terms.append(weight * loss)
-    if terms:
-        gradient = torch.autograd.grad(sum(terms) * len(target), target)[0]
-    else:
-        gradient = torch.zeros_like(target)
-    if cfg.clip_mode == "global_norm":
-        gradient, _ = g._clip_per_sample(gradient, cfg.clip_threshold, True)
-    elif cfg.clip_mode != "none":
-        raise ValueError(cfg.clip_mode)
-    return SimpleNamespace(grad_total=gradient, metadata={})
-
-
-def infer(cfg, bundle, gt, masks, indices, *, steps=None, fused=True):
+def infer(cfg, bundle, gt, masks, indices, *, steps=None):
     """Reuse stock model, conditioning, sampler, losses, schedules, and updates."""
     import torch
     import sampling.runner as r
@@ -265,8 +236,13 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, fused=True):
             schedule = r.make_zeta_schedule(cfg, t, tn, affine.b_t)
             if guided:
                 target = r._gradient_target_tensor(cfg, cur, out)
-                gradient = (fused_gradient(losses, target, schedule, cfg) if fused else
-                            r.compute_guidance_gradient(losses, target, schedule, cfg))
+                if losses.metadata.get("loss_batch_reduction") != "mean_of_per_sample":
+                    raise ValueError("Unexpected stock loss batch normalization")
+                # Preserve the stock order: differentiate each active component,
+                # apply component clipping, weight and sum, then global clipping.
+                # Fusing the backward passes changes floating-point evaluation
+                # and failed the real Helmholtz 100-step GPU pilot.
+                gradient = r.compute_guidance_gradient(losses, target, schedule, cfg)
                 x = r.apply_guidance_update(out.x_raw_next, gradient, out, schedule, cfg).detach()
             else:
                 x = out.x_raw_next.detach()
@@ -287,7 +263,8 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, fused=True):
             peak_allocated_bytes=torch.cuda.max_memory_allocated(device) if device.type == "cuda" else 0,
             peak_reserved_bytes=torch.cuda.max_memory_reserved(device) if device.type == "cuda" else 0,
             loss_gradient_reduction="sum_of_per_sample", clip_scope="per_sample",
-            fused_weighted_gradient=fused, random_policy=RANDOM_POLICY)
+            fused_weighted_gradient=False, gradient_operator=GRADIENT_OPERATOR,
+            random_policy=RANDOM_POLICY)
     finally:
         if hook is not None:
             hook.remove()
@@ -343,7 +320,7 @@ def pilot_family(cell, bindings, environment, code):
                   code_sha256=json_digest(code), torch=environment["torch"],
                   cuda=environment["cuda"], gpu=environment.get("gpu"),
                   capability=environment.get("capability"), tf32=environment["tf32"],
-                  random_policy=RANDOM_POLICY)
+                  random_policy=RANDOM_POLICY, gradient_operator=GRADIENT_OPERATOR)
     if c.pde == "nsnonbounded":
         family["ns_observation_regime"] = "full" if cell["setting"].startswith("full_") else "sparse"
     return family
@@ -362,19 +339,20 @@ def pilot(args, cell, data, bundle, checkpoint, bindings, environment, code, fol
             raise ValueError("Existing pilot has different bindings")
         print("PILOT_EXISTS", completed, flush=True)
         return
-    def one(ids, fused=True):
+    def one(ids):
         cfg = effective_config(cell, checkpoint, args.device, ids, count, folder)
         gt, masks, hashes = observation_batch(data, cfg, ids, args.device)
-        pred, meta = infer(cfg, bundle, gt, masks, ids, fused=fused)
+        pred, meta = infer(cfg, bundle, gt, masks, ids)
         return pred, meta, cfg, gt, masks
-    ref, ref_meta, cfg, gt, masks = one([0], fused=False)
+    print("PILOT_REFERENCE", cell["cell_id"], "stock_batch1", flush=True)
+    ref, ref_meta, cfg, gt, masks = one([0])
     # Authoritative reference: unmodified stock sampler/loss/gradient/update
     # functions, bypassing the outer runner's automatic guidance-policy hook.
-    strict = one([0], fused=True)[0]
-    fusion_difference = relative_differences(strict, ref)
+    strict = one([0])[0]
+    repeat_difference = relative_differences(strict, ref)
     tolerance = args.relative_tolerance
-    if fusion_difference["max_relative"] > tolerance:
-        raise RuntimeError(f"Fused gradient mismatch: {fusion_difference}")
+    if repeat_difference["max_absolute"] != 0:
+        raise RuntimeError(f"Stock single-input repeat mismatch: {repeat_difference}")
     # Full 100-step batch-one peak includes the active PDE-guidance tail.
     if torch.device(args.device).type == "cuda":
         baseline = torch.cuda.memory_allocated(args.device)
@@ -384,6 +362,7 @@ def pilot(args, cell, data, bundle, checkpoint, bindings, environment, code, fol
         if conservative > .85 * free:
             raise RuntimeError(f"Batch {args.batch_size} conservative extra-memory estimate {conservative} exceeds 85% of free {free}; choose smaller batch")
     ids = list(range(args.batch_size))
+    print("PILOT_BATCH", cell["cell_id"], args.batch_size, flush=True)
     batch, meta, *_ = one(ids)
     comparison = relative_differences(batch[:1], strict)
     if comparison["max_relative"] > tolerance:
@@ -398,7 +377,7 @@ def pilot(args, cell, data, bundle, checkpoint, bindings, environment, code, fol
     poisoned = dataclasses.replace(gt, coef=gt.coef + 3 * (1 - masks.coef),
                                   sol=gt.sol - 7 * (1 - masks.sol))
     poisoned.pair = poisoned.sol if cfg.pde == "burger" else torch.cat([poisoned.coef, poisoned.sol], 1)
-    hidden = infer(cfg, bundle, poisoned, masks, [0], fused=True)[0]
+    hidden = infer(cfg, bundle, poisoned, masks, [0])[0]
     hidden_difference = relative_differences(hidden, strict)
     if hidden_difference["max_absolute"] != 0:
         raise RuntimeError(f"Hidden target dependence: {hidden_difference}")
@@ -406,7 +385,8 @@ def pilot(args, cell, data, bundle, checkpoint, bindings, environment, code, fol
                        family=pilot_family(cell, bindings, environment, code),
                        max_batch_size=args.batch_size,
                        relative_tolerance=tolerance,
-                       fusion_difference=fusion_difference, batch_difference=comparison,
+                       repeat_difference=repeat_difference, batch_difference=comparison,
+                       gradient_operator=GRADIENT_OPERATOR,
                        permutation_difference=permutation_difference,
                        hidden_target_difference=hidden_difference,
                        single=ref_meta, batch=meta, permutation=reorder_meta,
