@@ -11,6 +11,7 @@ import csv
 import hashlib
 import json
 import math
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 import sys
@@ -147,10 +148,13 @@ def audit_batch(path: Path, cell: dict, data: dict, protocol_sha: str) -> tuple[
         raise ValueError("Invalid elapsed time")
     if int(receipt["nfe"]) != 100:
         raise ValueError("Unexpected number of model evaluations")
+    source_hashes = receipt.get("source_hashes", {})
+    if not source_hashes or not all(re.fullmatch(r"[0-9a-f]{64}", value) for value in source_hashes.values()):
+        raise ValueError("Missing or malformed executed source hashes")
     audit = dict(cell_id=cell["cell_id"], prediction_file=str(path), prediction_sha256=bound_hash,
                  receipt_sha256=sha256_file(receipt_path), n=len(indices), seconds=seconds,
                  config_sha256=receipt.get("effective_config_sha256", receipt.get("config_sha256")), runtime_input_hashes=payload["runtime_input_hashes"],
-                 source_hashes=receipt.get("source_hashes", {}))
+                 source_hashes=source_hashes)
     return rows, audit
 
 
@@ -172,6 +176,8 @@ def audit_outputs(protocol_path: Path, results_root: Path, output: Path, *, allo
     if json_hash(content) != recorded_content_hash:
         raise ValueError("Protocol content hash mismatch")
     root = protocol_path.parent.resolve()
+    if sha256_file(resolve(root, protocol["inputs_manifest"])) != protocol["inputs_manifest_sha256"]:
+        raise ValueError("Input manifest changed after protocol freeze")
     if not output.resolve().is_relative_to(root):
         raise ValueError("Audit output must remain inside this task's protocol directory")
     protocol_sha = sha256_file(protocol_path)
@@ -179,6 +185,7 @@ def audit_outputs(protocol_path: Path, results_root: Path, output: Path, *, allo
     if len(cells) != 57 or sum(c["count"] for c in cells.values()) != 57000:
         raise ValueError("Unexpected formal study scope")
     weight_checks = {}
+    original_weight_checks = {}
     for cell in cells.values():
         model = cell["checkpoint"]
         if model["path"] not in weight_checks:
@@ -186,9 +193,21 @@ def audit_outputs(protocol_path: Path, results_root: Path, output: Path, *, allo
             if actual != model["sha256"]:
                 raise ValueError(f"Model changed: {cell['pde']}")
             weight_checks[model["path"]] = actual
+            if model.get("source") and Path(model["source"]).is_file():
+                original = sha256_file(Path(model["source"]))
+                if original != model["sha256"]:
+                    raise ValueError(f"Original checkpoint source changed: {cell['pde']}")
+                original_weight_checks[model["source"]] = original
     by_cell = defaultdict(list)
     failures = []
+    ignored_partial_files = []
     for path in sorted(results_root.rglob("prediction.pt")):
+        if any(part.startswith(".partial_") for part in path.parts):
+            ignored_partial_files.append(str(path))
+            continue
+        if not path.parent.name.startswith("batch_"):
+            failures.append(dict(file=str(path), error="Prediction is outside a committed batch directory"))
+            continue
         if not path.resolve().is_relative_to(results_root.resolve()):
             raise ValueError("Result symlink points outside the isolated result directory")
         receipt_path = path.parent / "receipt.json"
@@ -227,6 +246,9 @@ def audit_outputs(protocol_path: Path, results_root: Path, output: Path, *, allo
                 summary[key + "_mean"] = None if not len(values) else float(values.mean())
                 summary[key + "_sd"] = None if len(values) < 2 else float(values.std(ddof=1))
             summaries.append(summary)
+    source_versions = sorted({json_hash(b["source_hashes"]) for b in batches})
+    if len(source_versions) > 1:
+        failures.append(dict(file=None, error="Multiple executed source snapshots are mixed in formal results"))
     complete = not failures and all(v["found"] == v["expected"] for v in coverage.values())
     counts = dict(Counter(row["cohort"] for row in per_sample))
     if complete and counts != protocol["expected_predictions_by_cohort"]:
@@ -234,7 +256,10 @@ def audit_outputs(protocol_path: Path, results_root: Path, output: Path, *, allo
     report = dict(status="pass" if complete else "partial" if allow_partial and not failures else "fail", complete=complete,
                   expected_predictions=57000, verified_predictions=len(per_sample), predictions_by_cohort=counts,
                   verified_batches=len(batches), failed_batches=failures, coverage=coverage,
+                  ignored_incomplete_temporary_predictions=ignored_partial_files,
                   protocol_sha256=protocol_sha, checkpoint_hashes_verified=weight_checks,
+                  available_original_checkpoint_sources_rehashed=original_weight_checks,
+                  executed_source_snapshot_hashes=source_versions,
                   field_errors="CPU float64, independently recomputed from stored physical predictions and paired source truths",
                   executed_inputs="Six dtype/shape/byte hashes per batch checked against frozen comparator truth, masks and observations",
                   historical_file_protection_scope="Five frozen checkpoint copies are rehashed. This auditor writes only the explicitly designated task audit directory; it does not assert a bytewise scan of unrelated historical output trees.",

@@ -240,6 +240,7 @@ def source_fields(pde, path):
                                  for k in ['thresh_a_data', 'thresh_p_data']], axis=1).astype(np.float32)
             else:
                 assert f['w0'].shape[1:] == (GRID, GRID)
+                assert float(f.attrs['T']) == 1. and float(f.attrs['viscosity']) == .001, path
                 pair = np.stack([f['w0'][:COUNT], f['w'][:COUNT, :, :, -1]], axis=1).astype(np.float32)
     assert pair.shape == (COUNT, 2, GRID, GRID) and np.isfinite(pair).all(), path
     return torch.from_numpy(pair)

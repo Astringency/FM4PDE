@@ -1,0 +1,102 @@
+{
+  "scope": "Current stochastic main sampling only; new canonical-pool random protocol is declared separately.",
+  "files": [
+    {
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "file": "sampling/pde_residuals.py",
+      "identical": true,
+      "old_sha256": "b321f0ffdc48c43a1bac3f3a24e5d4a5a1f724d9421deebc0db1b4cd8e19020b",
+      "current_sha256": "b321f0ffdc48c43a1bac3f3a24e5d4a5a1f724d9421deebc0db1b4cd8e19020b"
+    },
+    {
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "file": "sampling/time_grid.py",
+      "identical": true,
+      "old_sha256": "04d3cbef52758f0996a82ab51e85e11623c528bb27f4e06f2a74e3871263180a",
+      "current_sha256": "04d3cbef52758f0996a82ab51e85e11623c528bb27f4e06f2a74e3871263180a"
+    },
+    {
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "file": "sampling/losses.py",
+      "identical": false,
+      "old_sha256": "affcfca64248738b4b19987780657ebc57fbff8cd90a20ad15498b1f3cfbfd10",
+      "current_sha256": "b6bcd62922fb06409a1e68f3efef2c3d148f494960aab9831ea71d2b46922834"
+    },
+    {
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "file": "sampling/guidance.py",
+      "identical": false,
+      "old_sha256": "9dc716cd49d6d2aa015c6c5b8016b1b7ab0b0351924c47ea0c466846a13ab0e4",
+      "current_sha256": "00c16462c86045e4dc354d1721f6916beddeb743fb65ab33219f3ed598664829"
+    },
+    {
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "file": "sampling/sampler_wrappers.py",
+      "identical": false,
+      "old_sha256": "05068d225c1951a83fa58fa836d1330aa0b0bebe7b06a7a4bee536538fce4430",
+      "current_sha256": "e73f7220f48bd50eda3673b6d920b2036c3e1a3b1d13a73600f474848a54d49c"
+    },
+    {
+      "commit": "f377862b05275d0d24efee3ebc2d49351546dc3f",
+      "file": "sampling/model_io.py",
+      "identical": false,
+      "old_sha256": "1d91e40ed88fe17a76af8d816f7f289ade1801f72f6fc40b693442490ce44c32",
+      "current_sha256": "ace2bff112187586c09e09ccc915f9b3947e00f67bfca5e0ad756ce7c6685cfb"
+    },
+    {
+      "commit": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+      "file": "sampling/pde_residuals.py",
+      "identical": true,
+      "old_sha256": "b321f0ffdc48c43a1bac3f3a24e5d4a5a1f724d9421deebc0db1b4cd8e19020b",
+      "current_sha256": "b321f0ffdc48c43a1bac3f3a24e5d4a5a1f724d9421deebc0db1b4cd8e19020b"
+    },
+    {
+      "commit": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+      "file": "sampling/time_grid.py",
+      "identical": true,
+      "old_sha256": "04d3cbef52758f0996a82ab51e85e11623c528bb27f4e06f2a74e3871263180a",
+      "current_sha256": "04d3cbef52758f0996a82ab51e85e11623c528bb27f4e06f2a74e3871263180a"
+    },
+    {
+      "commit": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+      "file": "sampling/losses.py",
+      "identical": true,
+      "old_sha256": "b6bcd62922fb06409a1e68f3efef2c3d148f494960aab9831ea71d2b46922834",
+      "current_sha256": "b6bcd62922fb06409a1e68f3efef2c3d148f494960aab9831ea71d2b46922834"
+    },
+    {
+      "commit": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+      "file": "sampling/guidance.py",
+      "identical": true,
+      "old_sha256": "00c16462c86045e4dc354d1721f6916beddeb743fb65ab33219f3ed598664829",
+      "current_sha256": "00c16462c86045e4dc354d1721f6916beddeb743fb65ab33219f3ed598664829"
+    },
+    {
+      "commit": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+      "file": "sampling/sampler_wrappers.py",
+      "identical": true,
+      "old_sha256": "e73f7220f48bd50eda3673b6d920b2036c3e1a3b1d13a73600f474848a54d49c",
+      "current_sha256": "e73f7220f48bd50eda3673b6d920b2036c3e1a3b1d13a73600f474848a54d49c"
+    },
+    {
+      "commit": "a409ba5522b8b71dbca940d640d4554119aef7c5",
+      "file": "sampling/model_io.py",
+      "identical": true,
+      "old_sha256": "ace2bff112187586c09e09ccc915f9b3947e00f67bfca5e0ad756ce7c6685cfb",
+      "current_sha256": "ace2bff112187586c09e09ccc915f9b3947e00f67bfca5e0ad756ce7c6685cfb"
+    }
+  ],
+  "findings": [
+    "PDE residual and time-grid files are byte-identical to f377.",
+    "Every listed NS sampling core file is byte-identical to a409ba5522b8b71dbca940d640d4554119aef7c5; the only sampling/ change is the unused Wave full-trajectory data loader.",
+    "Since f377, losses add optional RMS and legacy branches, and sampler/guidance add deterministic variants; current main stochastic/MSE branches retain the prior formula.",
+    "The runner does not call _disable_unreliable_pde_guidance and does not recalibrate guidance weights.",
+    "CPU checks compare f377 and current component MSE losses plus weighted/clipped gradients for all five PDEs; outputs agree exactly.",
+    "Atomic production-batch writing and restart under a different batch size are tested: completed rows are not resampled or overwritten, and corrupt completed files are rejected."
+  ],
+  "validation": "python -m pytest revision_pairing_0915/test_run_inference.py -q: 26 passed, CPU, 2026-09-15",
+  "limitations": [
+    "Toy CPU tests do not certify real-checkpoint CUDA equivalence; full-step GPU family pilots are mandatory before production.",
+    "The canonical 1000-row Gaussian stream changes older non-NS paths that restarted their RNG on smaller historical batches; it preserves each configured seed and the Gaussian law."
+  ]
+}
