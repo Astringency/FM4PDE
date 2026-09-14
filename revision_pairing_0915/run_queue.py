@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 import datetime
 import fcntl
 import hashlib
@@ -20,6 +21,7 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 
 TASK = "baseline_pairing_20260915_57k"
 SERVERS = {"server197": [0, 1], "server216": list(range(8))}
@@ -287,6 +289,61 @@ def batch_mapping(values):
     return result
 
 
+def run_one_job(args, job, who, queue_sha, protocol_sha, batches, stage, runner, failed):
+    """Run one separate OS process; never combine inference batch dimensions."""
+    result_record = dict(job_id=job["job_id"], status="cancelled", exit_code=0)
+    if failed.is_set():
+        return result_record
+    try:
+        started_path, completed_path = state_paths(args.root, job)
+        binding = dict(slice_id=job["slice_id"], job_id=job["job_id"], worker=who,
+                       protocol_sha256=protocol_sha, config_sha256=job["config_sha256"])
+        if started_path.exists():
+            started = read(started_path)
+            if any(started.get(k) != v for k, v in binding.items()):
+                raise ValueError("A persisted started slice belongs to a different job/worker/protocol")
+        else:
+            write_new(started_path, dict(binding, queue_sha256=queue_sha, started_utc=now()))
+        if completed_path.exists():
+            completed_coverage(args.root, job, protocol_sha)
+            print("QUEUE_SKIP_COMPLETE", job["job_id"], flush=True)
+            return dict(result_record, status="skipped")
+        attempt_dir = args.root / "queue_state/attempts" / job["job_id"]
+        attempt_dir.mkdir(parents=True, exist_ok=True)
+        attempt = 1
+        while any(attempt_dir.glob(f"attempt_{attempt:04d}.*")):
+            attempt += 1
+        log = attempt_dir / f"attempt_{attempt:04d}.log"
+        status = attempt_dir / f"attempt_{attempt:04d}.json"
+        command = [str(args.python), str(runner), "--protocol", str(args.protocol),
+                   "--output-root", str(args.root), "--job-id", job["job_id"],
+                   "--cell", job["cell_id"], "--mode", "run", "--batch-size", str(batches[job["pde"]]),
+                   "--device", "cuda:0", "--tf32" if args.tf32 else "--no-tf32",
+                   "--threads", str(args.threads), "--start", str(job["start"]), "--stop", str(job["stop"])]
+        for certificate in args.pilot_certificate:
+            command.extend(["--pilot-certificate", str(certificate)])
+        stage_command = [str(args.python), str(stage), "--log", str(log), "--status", str(status), "--", *command]
+        result_record.update(attempt=attempt, log=str(log))
+        if failed.is_set():
+            return result_record
+        print("QUEUE_START", job["job_id"], "batch", batches[job["pde"]], "log", log, flush=True)
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(args.gpu), OMP_NUM_THREADS=str(args.threads), OPENBLAS_NUM_THREADS=str(args.threads))
+        child = subprocess.run(stage_command, cwd=args.code_root, env=env)
+        if child.returncode:
+            failed.set()
+            code = child.returncode if 0 < child.returncode < 256 else 1
+            print("QUEUE_STOP_FAILED", job["job_id"], child.returncode, flush=True)
+            return dict(result_record, status="failed", exit_code=code)
+        coverage = completed_coverage(args.root, job, protocol_sha)
+        write_new(completed_path, dict(binding, completed_utc=now(), stage_status_sha256=fhash(status), **coverage))
+        print("QUEUE_COMPLETE", job["job_id"], "500/500", flush=True)
+        return dict(result_record, status="completed")
+    except Exception as exc:
+        failed.set()
+        print("QUEUE_JOB_ERROR", job["job_id"], repr(exc), flush=True)
+        return dict(result_record, status="failed", exit_code=1, error=repr(exc))
+
+
 def run_worker(args):
     plan = checked_document(args.queue)
     validate_plan(plan)
@@ -301,6 +358,11 @@ def run_worker(args):
     batches = batch_mapping(args.batch)
     if not {j["pde"] for j in jobs} <= set(batches):
         raise ValueError("Supply an explicit --batch PDE=N for every assigned PDE")
+    parallel = getattr(args, "parallel", 1)
+    if parallel not in (1, 2, 4):
+        raise ValueError("Only 1, 2 or 4 independent jobs per GPU are supported")
+    if parallel > 1 and ({j["pde"] for j in jobs} != {"helmholtz"} or batches["helmholtz"] != 1):
+        raise ValueError("Parallel jobs are allowed only for an exclusively Helmholtz queue with batch size 1")
     for job in jobs:
         if jhash(cells[job["cell_id"]]["config"]) != job["config_sha256"]:
             raise ValueError("Queue scientific configuration differs from the final protocol")
@@ -321,56 +383,48 @@ def run_worker(args):
         fcntl.flock(locked, fcntl.LOCK_EX | fcntl.LOCK_NB)
         progress = dict(task=TASK, worker=who, host=socket.gethostname(), pid=os.getpid(),
                         queue_sha256=queue_sha, protocol_sha256=protocol_sha, started_utc=now(),
-                        status="running", current_job=None, completed_jobs=0, total_jobs=len(jobs))
+                        status="running", current_job=None, active_jobs=[], parallel=parallel,
+                        completed_jobs=0, failed_jobs=[], total_jobs=len(jobs))
         write_state(worker_state, progress)
-        for job in jobs:
-            started_path, completed_path = state_paths(args.root, job)
-            binding = dict(slice_id=job["slice_id"], job_id=job["job_id"], worker=who,
-                           protocol_sha256=protocol_sha, config_sha256=job["config_sha256"])
-            if started_path.exists():
-                started = read(started_path)
-                if any(started.get(k) != v for k, v in binding.items()):
-                    raise ValueError("A persisted started slice belongs to a different job/worker/protocol")
-            else:
-                write_new(started_path, dict(binding, queue_sha256=queue_sha, started_utc=now()))
-            if completed_path.exists():
-                completed_coverage(args.root, job, protocol_sha)
-                progress["completed_jobs"] += 1
+        failed = threading.Event()
+        pending = iter(jobs)
+        active = {}
+        exhausted = False
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            while active or not exhausted and not failed.is_set():
+                while len(active) < parallel and not exhausted and not failed.is_set():
+                    try:
+                        job = next(pending)
+                    except StopIteration:
+                        exhausted = True
+                        break
+                    future = pool.submit(run_one_job, args, job, who, queue_sha,
+                                         protocol_sha, batches, stage, runner, failed)
+                    active[future] = job["job_id"]
+                progress.update(active_jobs=list(active.values()),
+                                current_job=next(iter(active.values())) if len(active) == 1 else None,
+                                status="draining_after_failure" if failed.is_set() else "running",
+                                updated_utc=now())
                 write_state(worker_state, progress)
-                print("QUEUE_SKIP_COMPLETE", job["job_id"], flush=True)
-                continue
-            attempt_dir = args.root / "queue_state/attempts" / job["job_id"]
-            attempt_dir.mkdir(parents=True, exist_ok=True)
-            attempt = 1
-            while any(attempt_dir.glob(f"attempt_{attempt:04d}.*")):
-                attempt += 1
-            log = attempt_dir / f"attempt_{attempt:04d}.log"
-            status = attempt_dir / f"attempt_{attempt:04d}.json"
-            command = [str(args.python), str(runner), "--protocol", str(args.protocol),
-                       "--output-root", str(args.root), "--job-id", job["job_id"],
-                       "--cell", job["cell_id"], "--mode", "run", "--batch-size", str(batches[job["pde"]]),
-                       "--device", "cuda:0", "--tf32" if args.tf32 else "--no-tf32",
-                       "--threads", str(args.threads), "--start", str(job["start"]), "--stop", str(job["stop"])]
-            for certificate in args.pilot_certificate:
-                command.extend(["--pilot-certificate", str(certificate)])
-            stage_command = [str(args.python), str(stage), "--log", str(log), "--status", str(status), "--", *command]
-            progress.update(current_job=job["job_id"], attempt=attempt, current_log=str(log), updated_utc=now())
+                if not active:
+                    break
+                done, _ = wait(active, return_when=FIRST_COMPLETED)
+                for future in done:
+                    active.pop(future)
+                    outcome = future.result()
+                    if outcome["status"] in ("completed", "skipped"):
+                        progress["completed_jobs"] += 1
+                    elif outcome["status"] == "failed":
+                        progress["failed_jobs"].append(outcome)
+                    progress["last_result"] = outcome
+        # The pool has joined every already running child. Successful siblings
+        # retained their committed receipts even after another job failed.
+        if failed.is_set():
+            code = progress["failed_jobs"][0]["exit_code"] if progress["failed_jobs"] else 1
+            progress.update(status="failed", exit_code=code, active_jobs=[], current_job=None, updated_utc=now())
             write_state(worker_state, progress)
-            print("QUEUE_START", job["job_id"], "batch", batches[job["pde"]], "log", log, flush=True)
-            env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(args.gpu), OMP_NUM_THREADS=str(args.threads), OPENBLAS_NUM_THREADS=str(args.threads))
-            result = subprocess.run(stage_command, cwd=args.code_root, env=env)
-            if result.returncode:
-                progress.update(status="failed", exit_code=result.returncode, updated_utc=now())
-                write_state(worker_state, progress)
-                print("QUEUE_STOP_FAILED", job["job_id"], result.returncode, flush=True)
-                return result.returncode if 0 < result.returncode < 256 else 1
-            coverage = completed_coverage(args.root, job, protocol_sha)
-            write_new(completed_path, dict(binding, completed_utc=now(), stage_status_sha256=fhash(status), **coverage))
-            progress["completed_jobs"] += 1
-            progress.update(current_job=None, updated_utc=now())
-            write_state(worker_state, progress)
-            print("QUEUE_COMPLETE", job["job_id"], "500/500", flush=True)
-        progress.update(status="complete", completed_utc=now())
+            return code
+        progress.update(status="complete", active_jobs=[], current_job=None, completed_utc=now())
         write_state(worker_state, progress)
     return 0
 
@@ -410,6 +464,8 @@ def main():
     p.add_argument("--pilot-certificate", type=Path, action="append", required=True)
     p.add_argument("--tf32", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--threads", type=int, default=2)
+    p.add_argument("--parallel", type=int, choices=[1, 2, 4], default=1,
+                   help="Independent job processes on this GPU; 2/4 are restricted to Helmholtz batch=1")
     p = sub.add_parser("snapshot")
     p.add_argument("--queue", type=Path, required=True)
     p.add_argument("--root", type=Path, required=True)
