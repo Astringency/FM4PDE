@@ -27,6 +27,20 @@ def main():
  decision_path=root/'provenance/environment_decision.json'
  decision=json.load(open(decision_path)) if decision_path.exists() else None
  if decision:report['environment_decision_sha256']=sha(decision_path)
+ collector_path=root/'provenance/collector_sources.json'
+ collector_map=json.load(open(collector_path)) if collector_path.exists() else None
+ if decision and not a.sources_only:
+  assert collector_map is not None,'Original-environment traces require archived collector sources'
+  assert set(collector_map['pdes'])==set(manifest['cells'])
+  report['collector_sources_sha256']=sha(collector_path)
+  for pde,item in collector_map['pdes'].items():
+   archive=root/item['archive'];assert sha(archive)==item['archive_sha256']
+   with tarfile.open(archive) as tf:
+    source=tf.extractfile(item['member']).read()
+   assert hashlib.sha256(source).hexdigest()==item['collector_sha256']
+  model_proof=root/'provenance/ns_model_assertion.json';assert sha(model_proof)==collector_map['ns_model_assertion_sha256']
+  model=json.load(open(model_proof));assert model['status']=='pass' and model['parameter_count']==44121218
+  assert model['checkpoint_sha256']==sha(root/manifest['cells']['nsnonbounded']['fm_weights'])
  source_proof=root/'audit/source_audit.json'
  if source_proof.exists() and not a.sources_only:
   proof=json.load(open(source_proof));assert proof['status']=='pass' and proof['manifest_sha256']==report['manifest_sha256']
@@ -53,6 +67,7 @@ def main():
      stem=root/'traces'/pde/f'{method}_1000_{i}';receipt=stem.with_suffix('.json')
      if not receipt.exists():report['missing'].append(str(stem.relative_to(root)));continue
      rec=json.load(open(receipt));assert rec['status']=='complete';assert (rec['pde'],rec['method'],rec['sample_id'])==(pde,method,i);assert rec['environment']['manifest_sha256']==report['manifest_sha256'];assert rec['environment']['collector_sha256']==pilot['environment']['collector_sha256'];assert rec['environment']['gpu']==pilot['environment']['gpu']
+     if collector_map:assert rec['environment']['collector_sha256']==collector_map['pdes'][pde]['collector_sha256'],(pde,'collector source archive')
      for key in ['python','torch','cuda','gpu','tf32','batch_size','fm_commit','diffusion_commit']:
       assert rec['environment'][key]==pilot['environment'][key],(pde,method,i,key)
      if decision:
