@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 COLORS={'FM4PDE':'#0072B2','DiffusionPDE':'#D55E00','CoCoGen':'#CC79A7'}
 METRICS=['relative_l2_a','relative_l2_u','observed_relative_l2_a','observed_relative_l2_u','L_pde']
-TITLES=[r'Full-field $a$',r'Full-field $u$',r'Observed $a$',r'Observed $u$',r'Common PDE residual']
+TITLES=[r'Full-field $a$',r'Full-field $u$',r'Observed $a$',r'Observed $u$',r'PDE loss $L_{\mathrm{pde}}$']
 
 def sha(p):return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
 def style():
@@ -68,7 +68,7 @@ def traces(root,out,allow_partial):
      ax.fill_between(x,lower,upper,color=COLORS[method],alpha=.12,lw=0)
      if suffix=='steps':
       for k in range(1001):aggregate.append({'pde':pde,'method':method,'step':k,'n':20,'metric':metric,'mean':mean[k],'sample_sd':sd[k],'mean_ci95_lower':lower[k],'mean_ci95_upper':upper[k],'unit':'physical residual MSE' if metric=='L_pde' else 'percent','mean_sampling_seconds_excluding_diagnostics':m['sampling_seconds_excluding_diagnostics'][:,k].mean(),'mean_elapsed_seconds_including_diagnostics':m['elapsed_seconds_including_diagnostics'][:,k].mean()})
-    ax.set_yscale('log');ax.set_xlabel('Sampling step' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel('Common residual MSE' if metric=='L_pde' else 'Relative $L_2$ error (%)')
+    ax.set_yscale('log');ax.set_xlabel('Sampling step' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel('Componentwise residual MSE' if metric=='L_pde' else 'Relative $L_2$ error (%)')
     if suffix=='steps':ax.set_xlim(0,1000)
    legend_ax=axes[1] if pde=='burger' else axes[0];legend_ax.legend(frameon=False)
    name=f'fm_diffusion_{pde}_{suffix}';fig.savefig(out/(name+'.pdf'));fig.savefig(out/(name+'.png'));plt.close(fig)
