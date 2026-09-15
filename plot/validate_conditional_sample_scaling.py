@@ -1,65 +1,71 @@
 #!/usr/bin/env python3
-"""Full-step stock/fast/precision checks on the four earlier calibration inputs."""
+"""Compare the fixed-mask B1 pilot with the historical production runner."""
 from __future__ import annotations
 import argparse
+import copy
 import json
-from contextlib import redirect_stdout,redirect_stderr
 from pathlib import Path
 import sys
+import time
+from contextlib import redirect_stdout, redirect_stderr
 import torch
-ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'plot'))
-from run_conditional_sample_scaling import configuration,fast_sample
-from run_paper_ablation_revision import digest,write
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / 'plot'))
+from run_paper_ablation_revision import digest, write
+from run_conditional_sample_scaling import TASKS, fixed_observations
 from scripts.tuning.compare_pde_guidance_schedules import combine_truths
-import sampling.runner as r
+from sampling.config import AblationConfig
+from sampling.masks import PairMasks
+import sampling.runner as runner
 
 
 def main():
- p=argparse.ArgumentParser(description=__doc__)
- p.add_argument('--inputs',type=Path,required=True);p.add_argument('--selection',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
- args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
- torch.set_num_threads(2);torch.set_num_interop_threads(2);torch.backends.cudnn.benchmark=False
- source=args.inputs/'poisson';protocol=json.loads((source/'protocol.json').read_text());selection=json.loads(args.selection.read_text())
- assert digest(source/'protocol.json')==selection['protocol_sha256']
- truths=torch.load(source/'truths.pt',map_location='cpu',weights_only=False)
- bundle=r.load_fm4pde_checkpoint_bundle(str(source/'weights.pth'),'poisson','cuda:0',model_profile='recommended')
- rows=[]
- for task in ['forward','inverse','both']:
-  for offset in [1100,1101,1102,1103]:
-   cfg=configuration(protocol,selection,task,source)
-   cfg.offset=offset;cfg.mask_seed=20260912+offset;cfg.sample_seed=20260912+offset
-   cfg.batch_size=1;cfg.initial_noise_source_indices=[0]
-   refs={}
-   for precision in ['strict','tf32']:
-    torch.backends.cuda.matmul.allow_tf32=precision=='tf32';torch.backends.cudnn.allow_tf32=precision=='tf32'
-    cfg.output_dir=str(args.output/task/f'offset{offset}'/precision)
-    with (args.output/f'{task}_{offset}_{precision}.log').open('w') as log,redirect_stdout(log),redirect_stderr(log):
-     result=r.run_single_ablation(cfg,checkpoint_bundle=bundle,ground_truth=combine_truths(truths,[offset],'cuda:0'))
-    data=torch.load(Path(result['run_dir'])/'result.pt',map_location='cpu',weights_only=False)
-    refs[precision]=torch.cat([data['coef_final'],data['sol_final']],1).double()
-   cfg.runtime_metadata['fused_guidance']=True
-   for b in [1,3]:
-    pred,_,receipt=fast_sample(cfg,truths[offset],bundle,range(b));pred=pred[:1].double()
-    for j,field in enumerate(['a','u']):
-     gt=truths[offset].coef.double() if j==0 else truths[offset].sol.double()
-     z=pred[:,j:j+1]
-     row=dict(task=task,offset=offset,batch_size=b,field=field,seconds=receipt['seconds'])
-     for precision,ref in refs.items():
-      ref=ref[:,j:j+1]
-      row[precision+'_prediction_relative_difference']=float(torch.linalg.vector_norm(z-ref)/torch.linalg.vector_norm(ref))
-      row[precision+'_rel_l2']=float(torch.linalg.vector_norm(ref-gt)/torch.linalg.vector_norm(gt))
-     row['fast_rel_l2']=float(torch.linalg.vector_norm(z-gt)/torch.linalg.vector_norm(gt))
-     row['strict_error_delta_pp']=100*(row['fast_rel_l2']-row['strict_rel_l2'])
-     assert row['tf32_prediction_relative_difference']<.005,row
-     assert row['strict_prediction_relative_difference']<.005,row
-     rows.append(row)
-   print('VALIDATED',task,offset,flush=True)
-   write(args.output/'checks.json',rows)
- write(args.output/'complete.json',dict(complete=True,inputs=[1100,1101,1102,1103],tasks=['forward','inverse','both'],rows=len(rows),
-  max_fast_vs_stock_tf32=max(x['tf32_prediction_relative_difference'] for x in rows),
-  max_fast_vs_stock_strict=max(x['strict_prediction_relative_difference'] for x in rows),
-  max_abs_error_delta_pp=max(abs(x['strict_error_delta_pp']) for x in rows),
-  script_sha256=digest(__file__)))
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--inputs', type=Path, required=True)
+    p.add_argument('--pilot', type=Path, required=True)
+    p.add_argument('--output', type=Path, required=True)
+    args = p.parse_args(); args.output.mkdir(parents=True, exist_ok=True)
+    torch.set_num_threads(2); torch.set_num_interop_threads(2)
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = False
+    cert = json.loads((args.pilot / 'pilot_complete.json').read_text())
+    assert cert['status'] == 'pass'
+    source = args.inputs / 'poisson'
+    assert digest(source / 'truths.pt') == cert['identity']['truth_sha256']
+    assert digest(source / 'weights.pth') == cert['identity']['weights_sha256']
+    truths = torch.load(source / 'truths.pt', map_location='cpu', weights_only=False)
+    bundle = runner.load_fm4pde_checkpoint_bundle(str(source / 'weights.pth'), 'poisson', 'cuda:0', model_profile='recommended')
+    checks = []
+    for task in TASKS:
+        obj = torch.load(args.pilot / f'pilot_{task}.pt', map_location='cpu', weights_only=False)
+        cfg = AblationConfig(**copy.deepcopy(obj['config']))
+        cfg.batch_size = 1; cfg.initial_noise_source_indices = [0]
+        cfg.output_dir = str((args.output / task).resolve())
+        fixed = fixed_observations(cfg, truths[1100])
+        assert fixed['hashes'] == obj['fixed']['hashes']
+        # Exact B1 masks used by both paths, without resampling.
+        mask = fixed['masks'].to('cuda:0')
+        masks = PairMasks(mask[:, :1], mask[:, 1:], fixed['metadata'])
+        gt = combine_truths(truths, [1100], 'cuda:0')
+        with (args.output / f'{task}_stock.log').open('w') as log, redirect_stdout(log), redirect_stderr(log):
+            result = runner.run_single_ablation(cfg, checkpoint_bundle=bundle, ground_truth=gt, observation_masks=masks)
+        raw = torch.load(Path(result['run_dir']) / 'result.pt', weights_only=False, map_location='cpu')
+        reference = torch.cat([raw['coef_final'], raw['sol_final']], 1).double()
+        actual = obj['single'].double()
+        assert torch.equal(raw['masks']['coef'], masks.coef.cpu()) if 'masks' in raw else True
+        rows = []
+        for j, field in enumerate(['a', 'u']):
+            relative = float(torch.linalg.vector_norm(actual[:, j] - reference[:, j]) / torch.linalg.vector_norm(reference[:, j]))
+            assert relative < 5e-4, (task, field, relative)
+            rows.append(dict(field=field, prediction_relative_difference=relative))
+        checks.append(dict(task=task, comparisons=rows, stock_result=str(Path(result['run_dir']) / 'result.pt'),
+                           stock_sha256=digest(Path(result['run_dir']) / 'result.pt'), pilot_sha256=digest(args.pilot / f'pilot_{task}.pt')))
+        print('ACTUAL_STOCK_PASS', task, rows, flush=True)
+    write(args.output / 'stock_complete.json', dict(status='pass', checks=checks,
+           pilot_certificate_sha256=digest(args.pilot / 'pilot_complete.json'), identity=cert['identity'],
+           threshold=5e-4, completed_unix=time.time(), validator_sha256=digest(__file__)))
 
-if __name__=='__main__':main()
+
+if __name__ == '__main__':
+    main()
