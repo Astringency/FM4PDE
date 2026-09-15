@@ -29,10 +29,15 @@ def main():
   changed=subprocess.check_output(['git','diff','--name-only','HEAD','--'],cwd=a.diffusion_root,text=True);assert not changed,changed
   report['diffusion_source']={'root':str(a.diffusion_root),'commit':commit,'tracked_tree_matches_commit':True}
  if not a.sources_only:
+  report['verified_artifacts']=len(manifest['artifacts'])
+  for item in manifest['artifacts']:assert sha(root/item['path'])==item['sha256'],item['path']
   for pde,info in manifest['cells'].items():
    inp=root/info['input_root'];protocol=json.load(open(inp/'protocol.json'));data=np.load(inp/'truths.npz');masks=np.load(inp/'masks.npz')
    for method in ['FM4PDE','DiffusionPDE']:
-    pilot=json.load(open(root/'pilots'/pde/'certificate_1000.json'));assert pilot['status']=='pass'
+    pilot_path=root/'pilots'/pde/'certificate_1000.json'
+    if not pilot_path.exists() and a.allow_partial:
+     report['missing'].extend(f'traces/{pde}/{method}_1000_{i}' for i in info['evaluation_ids']);continue
+    pilot=json.load(open(pilot_path));assert pilot['status']=='pass'
     for i in info['evaluation_ids']:
      stem=root/'traces'/pde/f'{method}_1000_{i}';receipt=stem.with_suffix('.json')
      if not receipt.exists():report['missing'].append(str(stem.relative_to(root)));continue
@@ -40,6 +45,10 @@ def main():
      assert sha(stem.with_suffix('.csv'))==rec['trace_sha256'];assert sha(stem.with_suffix('.pt'))==rec['prediction_sha256']
      rows=list(csv.DictReader(open(stem.with_suffix('.csv'))));assert [int(r['step']) for r in rows]==list(range(1001));assert all(float(r['sampling_seconds_excluding_diagnostics'])>=0 for r in rows)
      times=np.array([float(r['sampling_seconds_excluding_diagnostics']) for r in rows]);assert np.all(np.diff(times)>=0)
+     for key in ['relative_l2_a','relative_l2_u','observed_relative_l2_a','observed_relative_l2_u','L_pde']:
+      if pde=='burger' and key.endswith('_a'):continue
+      assert all(r[key]!='' and math.isfinite(float(r[key])) for r in rows),(pde,method,i,key)
+     assert all(r['state']=='clean_endpoint_estimate' for r in rows[:-1]) and rows[-1]['state']=='final_sample'
      pred=torch.load(stem.with_suffix('.pt'),map_location='cpu',weights_only=False);assert pred['sample_id']==i;idx=protocol['evaluation_ids'].index(i);checks={}
      for name,key in [('a','coef'),('u','sol')]:
       if pde=='burger' and name=='a':
