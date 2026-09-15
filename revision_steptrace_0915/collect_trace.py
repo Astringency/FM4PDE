@@ -105,7 +105,7 @@ def main():
  for item in manifest['artifacts']:
   if item['path'].startswith(info['input_root']+'/') and '/original_timing/' not in item['path']:
    assert sha(root/item['path'])==item['sha256'],item
- fm=load_fm4pde_checkpoint_bundle(str(root/info['fm_weights']),args.pde,device,model_profile='recommended')
+ fm=load_fm4pde_checkpoint_bundle(str(root/info['fm_weights']),args.pde,device,model_profile=protocol['fm_configs'][args.pde].get('model_profile','auto'))
  with open(root/info['diffusion_weights'],'rb') as f:dm=pickle.load(f)['ema'].to(device).eval()
  dm.requires_grad_(False);source=(root/info['diffusion_source']).read_text();dm_plain,dm_trace,traced_source=diffusion_functions(source,torch,np)
  (out/'instrumented_diffusion.py').write_text(traced_source)
