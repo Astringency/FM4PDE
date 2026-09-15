@@ -91,7 +91,10 @@ def traces(root,out,allow_partial):
     label=BURGER_LABELS.get(metric,METRIC_LABELS[metric]) if pde=='burger' else METRIC_LABELS[metric]
     ax.set_yscale(scale);ax.set_xlabel(r'Sampling step $k$' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel(label)
     if suffix=='steps':ax.set_xlim(0,1000)
-   legend_ax=axes[1] if pde=='burger' else axes[0];legend_ax.legend(frameon=False)
+   if pde=='burger':
+    handles,labels=axes[1].get_legend_handles_labels()
+    axes[-1].legend(handles,labels,loc='center',frameon=False)
+   else:axes[0].legend(frameon=False)
    name=f'fm_diffusion_{pde}_{suffix}';fig.savefig(out/(name+'.pdf'));fig.savefig(out/(name+'.png'));plt.close(fig)
  with (out/'step_trace_summary.csv').open('w') as f:
   w=csv.DictWriter(f,fieldnames=list(aggregate[0]));w.writeheader();w.writerows(aggregate)
