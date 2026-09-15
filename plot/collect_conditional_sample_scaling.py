@@ -123,19 +123,38 @@ class Collector:
         assert local_manifest == remote_manifest
         for name, expected_hash in remote_manifest['export_files'].items():
             assert digest(export / name) == expected_hash
-        self.command([sys.executable, str(ROOT / 'plot/plot_conditional_sample_scaling.py'),
-                      '--exports', str(export), '--output', str(a.paper / 'source_data/conditional_fixed_0915'),
-                      '--figures', str(a.paper / 'figures'), '--figure-prefix', 'revision_0915_conditional_fixed'])
         source = a.paper / 'source_data/conditional_fixed_0915'
+        final_path = source / 'conditional_scaling_final_manifest.json'
+        if not final_path.exists():
+            self.command([sys.executable, str(ROOT / 'plot/plot_conditional_sample_scaling.py'),
+                          '--exports', str(export), '--output', str(source),
+                          '--figures', str(a.paper / 'figures'), '--figure-prefix', 'revision_0915_conditional_fixed'])
         final = json.loads((source / 'conditional_scaling_final_manifest.json').read_text())
         assert final['complete'] and final['rows'] == 480 and final['canonical_trajectories'] == 96000
+        assert final['source_manifests'] == [remote_manifest]
         for fig in final['figure_files']:
             assert digest(fig['path']) == fig['sha256']
+        expected_files = {'paper_export/source_data/' + path.name: digest(path)
+                          for path in source.iterdir() if path.is_file()}
+        expected_files.update({'paper_export/figures/' + Path(fig['path']).name: fig['sha256']
+                               for fig in final['figure_files']})
         self.command(['rsync', '-a', '--ignore-existing', str(source) + '/',
                       a.canonical_host + ':' + a.canonical_root + '/paper_export/source_data/'])
         for fig in final['figure_files']:
             self.command(['rsync', '-a', '--ignore-existing', fig['path'],
                           a.canonical_host + ':' + a.canonical_root + '/paper_export/figures/'])
+        verify_script = '''import hashlib,json
+from pathlib import Path
+root=Path(ROOT_VALUE);expected=EXPECTED_VALUE
+def sha(path):
+ h=hashlib.sha256()
+ with path.open('rb') as f:
+  for block in iter(lambda:f.read(8<<20),b''):h.update(block)
+ return h.hexdigest()
+print(json.dumps({name:(root/name).is_file() and sha(root/name)==value for name,value in expected.items()}))
+'''.replace('ROOT_VALUE', repr(a.canonical_root)).replace('EXPECTED_VALUE', repr(expected_files))
+        verified = json.loads(self.ssh(a.canonical_host, a.canonical_python, verify_script))
+        assert verified and all(verified.values()), ('Canonical paper export mismatch', verified)
         write(a.local_root / 'completion.json', dict(status='audited_and_plotted', unique_cases=96,
             predictions=96000, prefix_records=480, completed_unix=time.time(),
             paper_manifest=str(source / 'conditional_scaling_final_manifest.json'),
