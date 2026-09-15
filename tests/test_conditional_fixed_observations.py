@@ -3,6 +3,9 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+import json
+import tempfile
+from unittest.mock import patch
 
 import torch
 
@@ -49,6 +52,58 @@ class FixedObservationsTest(unittest.TestCase):
         fixed['observations'][0, 0] += fixed['masks'][0, 0]
         with self.assertRaises(AssertionError):
             runner.expand_fixed(fixed, truth, 1, 'cpu')
+
+    def test_checkpoint_resume_and_independent_audit(self):
+        # A small deterministic fake sampler exercises the real 1000-row
+        # checkpoint/export pipeline without running a network or using CUDA.
+        import importlib
+        exporter = importlib.import_module('export_conditional_sample_scaling')
+        source = Path('/home/tat512/C01Python/audit/paper_revision_20260908/inputs/poisson')
+        if not source.exists():
+            self.skipTest('Local archived input fixture is unavailable')
+        protocol = json.loads((source / 'protocol.json').read_text())
+        selection_path = ROOT / 'plot/conditional_sample_scaling_selection.json'
+        selection = json.loads(selection_path.read_text())
+        truths = torch.load(source / 'truths.pt', map_location='cpu', weights_only=False)
+        identity = dict(protocol_sha256=runner.digest(source / 'protocol.json'),
+                        truth_sha256=protocol['truth_sha256'], weights_sha256=protocol['weights_sha256'],
+                        selection_sha256=runner.digest(selection_path), runner_sha256=runner.digest(runner.__file__),
+                        source_hashes=runner.source_identity(), historical_commit=runner.HISTORICAL_COMMIT,
+                        torch=torch.__version__, tf32=True, fused_guidance=True)
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'cases/forward/offset1500'; folder.mkdir(parents=True)
+            args = SimpleNamespace(batch_size=64)
+            cfg = runner.configured_case(protocol, selection, source, 'forward', 1500, folder)
+            calls = []
+
+            def fake_sample(config, truth, bundle, indices, fixed):
+                calls.append(list(indices))
+                factors = 1 + torch.tensor(list(indices)).float().view(-1, 1, 1, 1) * .0001
+                prediction = fixed['truth'] * factors
+                return prediction, prediction.double().mean(0).float(), dict(seconds=1e-9,
+                    peak_bytes=1, batch_size=len(indices), seed_indices=list(indices), num_steps=100, nfe=100,
+                    observations=dict(hashes=fixed['hashes'], all_rows_identical=True, checked_rows=len(indices),
+                                      observed_fields=fixed['observed_fields']),
+                    initial_noise_hashes=[str(i) for i in indices])
+
+            with patch.object(runner, 'fast_sample', fake_sample), patch.object(torch.cuda, 'synchronize'):
+                runner.run_case(args, cfg, truths[1500], None, identity, folder)
+                self.assertEqual(len(calls), 20)
+                # Completed data is verified and reused, never sampled again.
+                runner.run_case(args, cfg, truths[1500], None, identity, folder)
+                self.assertEqual(len(calls), 20)
+                # Simulate interruption before committing the final pool.
+                (folder / 'complete.json').unlink()
+                runner.run_case(args, cfg, truths[1500], None, identity, folder)
+                self.assertEqual(len(calls), 20)
+            rows, _, proof, _ = exporter.audit_case(folder, source, protocol, selection, truths)
+            self.assertEqual(len(rows), 5)
+            self.assertTrue(proof['all_1000_draw_observations_identical'])
+            # A corrupted completed prediction must not be silently accepted.
+            with (folder / 'pool.pt').open('ab') as f:
+                f.write(b'corruption')
+            with self.assertRaises(AssertionError):
+                exporter.audit_case(folder, source, protocol, selection, truths)
 
 
 if __name__ == '__main__':
