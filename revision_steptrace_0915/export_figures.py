@@ -35,7 +35,7 @@ def cocogen(root,summary,out):
  (out/'cocogen_darcy_main_comparison.provenance.json').write_text(json.dumps({'fm_summary':str(summary),'fm_summary_sha256':sha(summary),'cocogen_audit_sha256':sha(root/'cocogen/reuse_audit.json'),'caption':'Darcy sparse reconstruction on 1,000 test instances per distribution with 500 observations per available field. Symbols show mean relative L2 error and bars show 95% confidence intervals of the mean (sample SD, Student t with 999 degrees of freedom). FM4PDE uses 100 sampling steps; CoCoGen uses 100 intervals with four additional repaint cycles (500 score evaluations).','training_and_sampling':'A pretrained Darcy score model with a constant-label ControlNet is used through an adaptation of CoCoGen data imputation. The frozen model has 23.40M parameters. Sampling uses 100 Euler intervals with four additional repaint cycles per interval (500 score evaluations), solution-only physical corrections in the last 50 intervals and ten postprocessing steps. All test predictions and original files are retained.'},indent=2)+'\n')
 
 def traces(root,out,allow_partial):
- manifest=json.load(open(root/'manifest.json'));aggregate=[];sources=[]
+ manifest=json.load(open(root/'manifest.json'));aggregate=[];sources=[];axis_scales={}
  for pde,info in manifest['cells'].items():
   matrices={};ids=info['evaluation_ids']
   for method in ['FM4PDE','DiffusionPDE']:
@@ -57,24 +57,29 @@ def traces(root,out,allow_partial):
     ax.set_title(title)
     if pde=='burger' and metric in ['relative_l2_a','observed_relative_l2_a']:
      ax.text(.5,.5,'N/A\nSingle trajectory field',ha='center',va='center',transform=ax.transAxes,color='#666666');ax.set_xticks([]);ax.set_yticks([]);ax.grid(False);continue
+    bounds=[]
     for method,ls in [('FM4PDE','-'),('DiffusionPDE','--')]:
      m=matrices[method];factor=1 if metric=='L_pde' else 100;v=m[metric]*factor
      assert np.isfinite(v).all();mean=v.mean(0);sd=v.std(0,ddof=1)
      weights=np.random.default_rng(20260915).multinomial(20,np.repeat(1/20,20),size=5000)/20
      lower,upper=np.quantile(weights@v,[.025,.975],axis=0)
+     assert np.all(lower>=0) and np.all(upper>=lower)
+     bounds.extend([float(lower.min()),float(upper.min())])
      x=np.arange(1001) if xaxis=='step' else m[xaxis].mean(0)
      assert np.all(np.diff(x)>=0)
      ax.plot(x,mean,color=COLORS[method],ls=ls,lw=1.5,label=method)
      ax.fill_between(x,lower,upper,color=COLORS[method],alpha=.12,lw=0)
      if suffix=='steps':
       for k in range(1001):aggregate.append({'pde':pde,'method':method,'step':k,'n':20,'metric':metric,'mean':mean[k],'sample_sd':sd[k],'mean_ci95_lower':lower[k],'mean_ci95_upper':upper[k],'unit':'physical residual MSE' if metric=='L_pde' else 'percent','mean_sampling_seconds_excluding_diagnostics':m['sampling_seconds_excluding_diagnostics'][:,k].mean(),'mean_elapsed_seconds_including_diagnostics':m['elapsed_seconds_including_diagnostics'][:,k].mean()})
-    ax.set_yscale('log');ax.set_xlabel('Sampling step' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel('Weighted residual MSE sum' if metric=='L_pde' else 'Relative $L_2$ error (%)')
+    scale='linear' if min(bounds)==0 else 'log'
+    axis_scales[f'{pde}/{metric}']={'scale':scale,'minimum_interval_bound':min(bounds),'reason':'Exact zero values or interval bounds must remain visible.' if scale=='linear' else 'All means and interval bounds are strictly positive.'}
+    ax.set_yscale(scale);ax.set_xlabel('Sampling step' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel('Weighted residual MSE sum' if metric=='L_pde' else 'Relative $L_2$ error (%)')
     if suffix=='steps':ax.set_xlim(0,1000)
    legend_ax=axes[1] if pde=='burger' else axes[0];legend_ax.legend(frameon=False)
    name=f'fm_diffusion_{pde}_{suffix}';fig.savefig(out/(name+'.pdf'));fig.savefig(out/(name+'.png'));plt.close(fig)
  with (out/'step_trace_summary.csv').open('w') as f:
   w=csv.DictWriter(f,fieldnames=list(aggregate[0]));w.writeheader();w.writerows(aggregate)
- (out/'step_trace_provenance.json').write_text(json.dumps({'manifest_sha256':sha(root/'manifest.json'),'selected_root':str(root),'exporter_sha256':sha(__file__),'final_audit_sha256':sha(root/'audit/final_audit.json'),'summary_sha256':sha(out/'step_trace_summary.csv'),'numpy_version':np.__version__,'matplotlib_version':matplotlib.__version__,'sources':sources,'uncertainty':'pointwise 95% percentile bootstrap CI of mean over 20 fixed examples, 5000 resamples, fixed seed20260915; no paired significance tests','semantics':'Steps0..999 use a clean endpoint estimate at the current native state (FM endpoint, first Diffusion denoiser evaluation); step1000 uses the final output. A point at step100 belongs to the 1000-step schedule and is not a standalone100-step run.','metric':'Identical physical-unit relative L2 and masked relative L2; PDE MSE is evaluated with the same frozen FM evaluator for both methods within each PDE. Residual mode and boundary normalization are recorded per receipt; NS endpoint-secant is an approximate residual.','timing':'Elapsed time excludes metric evaluation but includes the additional field conversions and synchronization used to record the trajectories. This is not a replacement for the original independent resident-model sampling timing. Error-time coordinates are mean elapsed and mean error at the same sampling step; no interpolation or extrapolation. The original producer column named sampling_seconds_excluding_diagnostics includes this recording overhead, and is interpreted only under this definition.','step0':'Actual network estimate from the initial random state; not a fabricated zero-error point.','burgers':'Only u denotes the full time-space trajectory; coefficient panels are not applicable.'},indent=2)+'\n')
+ (out/'step_trace_provenance.json').write_text(json.dumps({'manifest_sha256':sha(root/'manifest.json'),'selected_root':str(root),'exporter_sha256':sha(__file__),'final_audit_sha256':sha(root/'audit/final_audit.json'),'summary_sha256':sha(out/'step_trace_summary.csv'),'numpy_version':np.__version__,'matplotlib_version':matplotlib.__version__,'axis_scales':axis_scales,'sources':sources,'uncertainty':'pointwise 95% percentile bootstrap CI of mean over 20 fixed examples, 5000 resamples, fixed seed20260915; no paired significance tests','semantics':'Steps0..999 use a clean endpoint estimate at the current native state (FM endpoint, first Diffusion denoiser evaluation); step1000 uses the final output. A point at step100 belongs to the 1000-step schedule and is not a standalone100-step run.','metric':'Identical physical-unit relative L2 and masked relative L2; PDE MSE is evaluated with the same frozen FM evaluator for both methods within each PDE. Residual mode and boundary normalization are recorded per receipt; NS endpoint-secant is an approximate residual.','timing':'Elapsed time excludes metric evaluation but includes the additional field conversions and synchronization used to record the trajectories. This is not a replacement for the original independent resident-model sampling timing. Error-time coordinates are mean elapsed and mean error at the same sampling step; no interpolation or extrapolation. The original producer column named sampling_seconds_excluding_diagnostics includes this recording overhead, and is interpreted only under this definition.','step0':'Actual network estimate from the initial random state; not a fabricated zero-error point.','burgers':'Only u denotes the full time-space trajectory; coefficient panels are not applicable.'},indent=2)+'\n')
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);p.add_argument('--fm-summary',type=pathlib.Path);p.add_argument('--traces',action='store_true');p.add_argument('--allow-partial',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True);style()
