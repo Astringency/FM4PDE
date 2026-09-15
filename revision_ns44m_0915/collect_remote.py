@@ -88,6 +88,8 @@ def cycle(args, protocol):
               "--files-from="+str(files), "-e", "ssh -o BatchMode=yes -o ConnectTimeout=15"]
     command(args, common + [f"{args.source_host}:{args.remote}/", str(args.local)+"/"], "216-to-local")
     command(args, common + [str(args.local)+"/", f"{args.canonical_host}:{args.canonical}/"], "local-to-197")
+    command(args, ["ssh", "-o", "ConnectTimeout=15", args.canonical_host,
+                   "mkdir -p "+shlex.quote(args.canonical+"/incoming/server216")], "prepare-canonical-incoming")
     mutable = args.local / "incoming/server216"
     mutable.mkdir(parents=True, exist_ok=True)
     for folder in ("workers", "logs", "provenance"):
