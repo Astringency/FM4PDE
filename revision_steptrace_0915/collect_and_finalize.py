@@ -5,9 +5,10 @@ def run(argv):
  return subprocess.run(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--paper-output',type=pathlib.Path,required=True);p.add_argument('--interval',type=int,default=45);a=p.parse_args()
- sources=[('server193','/home/zhangxf/C01Python/FM4PDE/outputs/fm_diffusion_steptrace_cocogen_20260915'),('server216','/data1/zjinzxf2025/C01Python/FM4PDE/outputs/fm_diffusion_steptrace_cocogen_20260915')]
- canonical='server197:/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/fm_diffusion_steptrace_cocogen_20260915/'
+ p=argparse.ArgumentParser();p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--paper-output',type=pathlib.Path,required=True);p.add_argument('--interval',type=int,default=45);p.add_argument('--source',action='append',help='Explicit host:absolute-directory; repeat for multiple source machines.');p.add_argument('--canonical-root',default='server197:/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/fm_diffusion_steptrace_cocogen_20260915/');a=p.parse_args()
+ sources=[tuple(s.split(':',1)) for s in a.source] if a.source else [('server193','/home/zhangxf/C01Python/FM4PDE/outputs/fm_diffusion_steptrace_cocogen_20260915'),('server216','/data1/zjinzxf2025/C01Python/FM4PDE/outputs/fm_diffusion_steptrace_cocogen_20260915')]
+ assert all(len(s)==2 and s[0] and s[1].startswith('/') for s in sources)
+ canonical=a.canonical_root.rstrip('/')+'/'
  code=pathlib.Path(__file__).parent;status=a.root/'collector_status.json'
  while True:
   failures=[]
