@@ -15,6 +15,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'plot'))
 from publication_style import use_times_new_roman,error_number
 from run_paper_ablation_revision import digest,write
+from audit_conditional_timing import build as audit_timing, save_report as save_timing
 KS=[1,3,10,100,1000]
 FIELDS=[('forward','u','Forward'),('inverse','a','Inverse'),('both','a','Joint'),('both','u','Joint')]
 COLORS={'a':'#A77522','u':'#255F85'}
@@ -71,6 +72,8 @@ def main():
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--figures',type=Path,required=True)
     p.add_argument('--figure-prefix',default='revision_0915_conditional_fixed')
+    p.add_argument('--timing-results',type=Path,
+                   help='Pool root for occupancy analysis; defaults to the single export parent.')
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True);args.figures.mkdir(parents=True,exist_ok=True)
     rows=[];arrays={};manifests=[]
     for folder in args.exports:
@@ -89,6 +92,17 @@ def main():
     assert len(rows)==480 and set(index)==expected
     assert sum(m['conditional_trajectories'] for m in manifests)==96000
     assert sum(m['independent_timing_trajectories'] for m in manifests)==0
+    timing_root=args.timing_results
+    if timing_root is None:
+        assert len(args.exports)==1,'Specify --timing-results for merged exports'
+        timing_root=args.exports[0].parent
+    timing_audit,timing_input_rows,timing_cohorts=audit_timing(timing_root,
+        timing_root/'provenance/external_gpu_occupancy_initial.json',
+        timing_root/'provenance/external_gpu_occupancy_after_handoffs.json')
+    assert timing_audit['complete'] and timing_audit['completed_pools']==96
+    for r in timing_input_rows:
+        assert abs(r['seconds']-index[r['task'],r['offset'],r['K']]['seconds'])<1e-6
+    save_timing(args.output,timing_audit,timing_input_rows,timing_cohorts)
     rows=sorted(rows,key=lambda x:(x['task'],x['offset'],x['K']))
     write_csv(args.output/'conditional_scaling_per_input.csv',rows)
     np.savez_compressed(args.output/'conditional_scaling_fields.npz',**arrays)
@@ -192,6 +206,11 @@ def main():
       'accuracy':r'Poisson reconstruction error versus the number of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; field averages are formed before evaluating $\operatorname{RelL2}$.',
       'time':r'Cumulative sampling time for averaged Poisson estimates under fixed observations. Each input and task uses one sequence of 1000 predictions; a mean is evaluated when the first $K$ predictions are available. Curves show medians over 32 inputs and shaded bands the interquartile range. Batches contain at most 64 samples on an A800 GPU and end at the reported values of $K$. Times include generation, physical-field conversion, transfer, and all preceding prefix averages; model loading and file I/O are excluded. All values of $K$ are measured along the same nested sequence, rather than through separate sampling runs.',
       'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with averages of $K=1,3,10,100,1000$ predictions. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}$ in percent. Observations and guidance parameters are fixed across columns.'}
+    exposure={r['task']:r['potentially_exposed_pool_count'] for r in timing_audit['task_impact']}
+    captions['time'] += (' All 32 inputs are retained, including '+str(exposure['forward'])+
+        ' forward, '+str(exposure['inverse'])+' inverse, and '+str(exposure['both'])+
+        ' joint sequences whose sampling overlapped the lifetime of a concurrent GPU process. '+
+        'The reported times therefore describe the measured execution conditions; additional timing summaries identify the subset without recorded concurrent occupancy.')
     for name,caption in captions.items():
         figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/'+args.figure_prefix+'_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
     (args.output/'conditional_scaling_figures.tex').write_text('\n'.join(figure_lines)+'\n')
@@ -200,6 +219,8 @@ def main():
           canonical_trajectories=96000,timed_trajectories=96000,cumulative_prefix_timings=480,timing_mode='cumulative_prefix',rows=len(rows),bootstrap_resamples=100000,
           simultaneous_interval_comparisons=16,plot_font=font,figure_width_inches=FIGURE_WIDTH_IN,
           ordinary_font_points=ORDINARY_FONT_PT,figure_files=generated,source_manifests=manifests,
+          timing_occupancy_audit_sha256=digest(args.output/'conditional_timing_audit.json'),
+          timing_occupancy_summary=timing_audit['task_impact'],
           plotter_sha256=digest(__file__)))
     print('COMPLETE: 32 offsets, three tasks, five K, 96000 conditional trajectories; 480 cumulative prefix timings',flush=True)
 
