@@ -38,10 +38,6 @@ def main():
   gates=sorted({str(c.get('pde_guidance_start_ratio','historical_missing')) for c in fmconfigs})
   record={'cell':cell['cell'],'n':1000,'identity':ident,'all_historical_result_hashes_verified':len(rec['batches']),'all_cocogen_prediction_hashes_and_input_hashes_verified':len(batches),'all_errors_independently_recomputed':True,'summary_path':str(summary_path),'summary_sha256':sha(summary_path),'record_path':cell['frozen_record'],'record_sha256':cell['frozen_sha256'],'historical_fm_gates':gates,'historical_fm_configs':fmconfigs,'batches':batches,'summary':summary}
   report['cells'].append(record);print('AUDITED',cell['cell'],1000,gates,flush=True)
-  if cell['cell']=='darcy/smooth/sparse_joint':
-   # Each original FM batch is preserved for seed/noise coupling; only the
-   # physics-guidance start will change in the supplemental FM execution.
-   torch.save({'truth':truth,'masks':masks,'ids':ids,'record':rec,'identity':ident},out/'darcy_smooth_joint_inputs.pt')
  report['status']='pass';report['samples_verified']=9000
  (out/'reuse_audit.json').write_text(json.dumps(report,indent=2)+'\n')
  print('COMPLETE',out/'reuse_audit.json',flush=True)
