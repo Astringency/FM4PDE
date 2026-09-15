@@ -38,8 +38,21 @@ for p in (r/'jobs').rglob('receipt.json'):
  if d.get('status')!='complete':raise RuntimeError(str(p))
  receipts.append({'job_id':d['job_id'],'sample_ids':d['sample_ids'],'protocol_sha256':d['protocol_sha256']})
  files.extend(str(f.relative_to(r)) for f in p.parent.rglob('*') if f.is_file() and not any(x.startswith('.partial_') for x in f.parts) and f.name!='job.lock')
-for folder in ['inputs','provenance','invocations','pilot']:
- files.extend(str(f.relative_to(r)) for f in (r/folder).rglob('*') if f.is_file() and not any(x.startswith('.partial_') for x in f.parts))
+for folder in ['inputs','provenance','invocations']:
+ files.extend(str(f.relative_to(r)) for f in (r/folder).rglob('*') if f.is_file() and f.name!='chain_commands.json' and not any(x.startswith('.partial_') for x in f.parts))
+for pilot in r.glob('pilot*'):
+ if (pilot/'pilot_complete.json').exists():files.extend(str(f.relative_to(r)) for f in pilot.rglob('*') if f.is_file() and f.name!='job.lock')
+for stage in ['development','confirmation']:
+ s=r/'weight_study'/stage
+ for p in (s/'jobs').rglob('receipt.json'):
+  d=json.loads(p.read_text())
+  if d.get('status')!='complete':raise RuntimeError(str(p))
+  files.extend(str(f.relative_to(r)) for f in p.parent.rglob('*') if f.is_file() and not any(x.startswith('.partial_') for x in f.parts) and f.name!='job.lock')
+ for p in (s/'inputs').rglob('*.pt'):files.append(str(p.relative_to(r)))
+ if (s/'protocol.json').exists():files.append(str((s/'protocol.json').relative_to(r)))
+for name in ['confirmation_templates.json','selection.json','completion.json']:
+ p=r/'weight_study'/name
+ if p.exists():files.append(str(p.relative_to(r)))
 files.append('protocol.json')
 workers=[]
 for p in (r/'workers').glob('*.json'):
@@ -47,7 +60,8 @@ for p in (r/'workers').glob('*.json'):
  try:os.kill(d['pid'],0);d['live']=True
  except ProcessLookupError:d['live']=False
  workers.append(d)
-print(json.dumps({'receipts':receipts,'files':sorted(set(files)),'workers':workers}))
+weight_complete=json.loads((r/'weight_study/completion.json').read_text()) if (r/'weight_study/completion.json').exists() else None
+print(json.dumps({'receipts':receipts,'files':sorted(set(files)),'workers':workers,'weight_complete':weight_complete}))
 '''.replace("ROOT", repr(args.remote))
     value = command(args, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", args.source_host,
                            "python3 -c " + shlex.quote(script)], "snapshot", capture=True)
@@ -76,7 +90,7 @@ def cycle(args, protocol):
     command(args, common + [str(args.local)+"/", f"{args.canonical_host}:{args.canonical}/"], "local-to-197")
     mutable = args.local / "incoming/server216"
     mutable.mkdir(parents=True, exist_ok=True)
-    for folder in ("workers", "logs"):
+    for folder in ("workers", "logs", "provenance"):
         (mutable / folder).mkdir(exist_ok=True)
         command(args, ["rsync", "-a", "--timeout=120", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=15",
                        f"{args.source_host}:{args.remote}/{folder}/", str(mutable/folder)+"/"], "mutable-"+folder)
@@ -84,10 +98,10 @@ def cycle(args, protocol):
                    str(mutable)+"/", f"{args.canonical_host}:{args.canonical}/incoming/server216/"], "mutable-to-197")
     status = dict(status="collecting", completed_jobs=len(seen),
                   completed_predictions=sum(len(expected[j]["sample_ids"]) for j in seen),
-                  expected_jobs=len(expected), workers=state["workers"], updated_unix=time.time())
+                  expected_jobs=len(expected), workers=state["workers"], weight_complete=state["weight_complete"], updated_unix=time.time())
     atomic_json(args.local / "collector/status.json", status)
     print(json.dumps(status), flush=True)
-    return len(seen) == len(expected)
+    return len(seen) == len(expected) and state["weight_complete"] is not None
 
 
 def final_audit(args, protocol):
@@ -106,10 +120,42 @@ def final_audit(args, protocol):
     assert result["status"] == "pass" and result["complete"] is True
     assert result["jobs"] == protocol["expected_jobs"] and result["predictions"] == protocol["expected_predictions"]
     assert result["per_sample_sha256"] == file_hash(args.local / "audit/per_sample.csv")
-    atomic_json(args.local / "completion/computation_verified.json", result)
+    weight = load_json(args.local / "weight_study/completion.json")
+    assert weight["status"] == "complete" and weight["development_predictions"] == 28
+    assert weight["confirmation_predictions"] == (16 if weight["selected_multiplier"] is None else 24)
+    assert weight["selection_sha256"] == file_hash(args.local/"weight_study/selection.json")
+    assert load_json(args.local/"weight_study/selection.json")["selected_multiplier"] == weight["selected_multiplier"]
+    for stage in ("development", "confirmation"):
+        original_audit = args.local / "incoming/server216/weight_study" / stage / "audit"
+        original_audit.mkdir(parents=True, exist_ok=True)
+        command(args, ["rsync", "-a", "--ignore-existing", f"{args.source_host}:{args.remote}/weight_study/{stage}/audit/",
+                       str(original_audit)+"/"], "original-weight-audit-"+stage)
+        assert file_hash(original_audit/"audit.json") == weight[stage+"_audit_sha256"]
+        remote_stage = args.canonical+"/weight_study/"+stage
+        argv = [args.python, str(script), "audit", "--protocol", remote_stage+"/protocol.json", "--output", remote_stage]
+        command(args, ["ssh", args.canonical_host, "test -f "+shlex.quote(remote_stage+"/audit/audit.json")+
+            " || CUDA_VISIBLE_DEVICES='' "+shlex.join(argv)], "weight-audit-"+stage)
+        target = args.local / "weight_study" / stage / "audit"
+        target.mkdir(parents=True, exist_ok=True)
+        command(args, ["rsync", "-a", "--ignore-existing", f"{args.canonical_host}:{remote_stage}/audit/", str(target)+"/"], "weight-audit-download-"+stage)
+        a = load_json(target/"audit.json")
+        assert a["status"] == "pass" and a["complete"] is True
+        assert a["predictions"] == weight[stage+"_predictions"]
+        assert a["protocol_sha256"] == file_hash(target.parent/"protocol.json")
+        assert a["per_sample_sha256"] == file_hash(target/"per_sample.csv")
+    command(args, ["rsync", "-a", "--ignore-existing", str(args.local/"incoming/server216/weight_study")+"/",
+                   f"{args.canonical_host}:{args.canonical}/incoming/server216/weight_study/"], "original-weight-audits-to-197")
+    final = dict(result, fixed_configuration_jobs=result["jobs"],
+                 jobs=result["jobs"]+7+weight["confirmation_predictions"]//4,
+                 fixed_configuration_predictions=result["predictions"],
+                 development_predictions=28, confirmation_predictions=weight["confirmation_predictions"],
+                 predictions=result["predictions"]+28+weight["confirmation_predictions"],
+                 weight_selection_sha256=file_hash(args.local/"weight_study/selection.json"),
+                 selected_multiplier=weight["selected_multiplier"])
+    atomic_json(args.local / "completion/computation_verified.json", final)
     command(args, ["rsync", "-a", "--ignore-existing", str(args.local / "completion")+"/",
                    f"{args.canonical_host}:{args.canonical}/completion/"], "completion-to-197")
-    atomic_json(args.local / "collector/status.json", dict(result, status="audited"))
+    atomic_json(args.local / "collector/status.json", dict(final, status="audited"))
 
 
 def main():
