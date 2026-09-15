@@ -9,7 +9,8 @@ data_paths:
 loadby: h5py
 coef_name: w0
 solution_name: w
-checkpoint_path: outputs/pretrained/formal/nsnonbounded/260712-121023-nsnonbounded-batch4-epoch300-accum8-float32/fm4nsnonbounded.pth
+checkpoint_path: outputs/pretrained/formal/nsnonbounded/260904-170053-nsnonbounded-batch32-epoch300-accum1-bfloat16/fm4nsnonbounded.pth
+model_profile: light
 output_dir: outputs/samples
 img_channels: 2
 img_resolution: 128

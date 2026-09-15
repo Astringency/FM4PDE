@@ -67,6 +67,10 @@ See `docs/time_dependent_residuals.md` for details.
 Model configs are centralized in `models/model_configs.py` and selected by
 `model_profile`. The default `recommended` profile uses PDE-family architectures:
 
+The Navier--Stokes main configurations explicitly select `model_profile: light`
+and the 2026-09-04 trained model with 44,121,218 parameters. This is the model
+used across its tasks and in the updated ablations.
+
 | PDEs | architecture family |
 | --- | --- |
 | poisson | `light_smooth` |
