@@ -85,7 +85,21 @@ def verify_workbook_rows(paper, rows):
 
 
 def main_comparisons(paper):
-    all_rows = read_csv(paper / 'audit/table_value_provenance.csv')
+    current = paper / 'source_data/aligned_results_0915/current_comparison_values.csv'
+    all_rows = read_csv(current if current.exists() else paper / 'audit/table_value_provenance.csv')
+    def verify_sources(rows):
+        if not current.exists():
+            return verify_workbook_rows(paper, rows)
+        new = read_csv(current.parent / 'new_vs_historical.csv')
+        lookup = {(r['cell_id'], r['field']): r for r in new}
+        verify_workbook_rows(paper, [r for r in rows if r['current_source'] == 'historical_workbook'])
+        for row in rows:
+            if row['current_source'] == 'historical_workbook':
+                continue
+            source = lookup[(row['current_cell_id'], 'a' if '(a)' in row['metric'] else 'u')]
+            assert int(row['n']) == int(source['new_n']) == 1000
+            assert float(row['mean']) == float(source['new_mean_ratio'])
+            assert float(row['sd']) == float(source['new_sd_ratio'])
     specs = [
         ('full-forward-results', 'Full forward: solution', ['FNO', 'DeepONet', 'IFNO', 'FM4PDE'], 'rel L2(u)'),
         ('full-inverse-results', 'Full inverse: input', ['IFNO', 'FM4PDE'], 'rel L2(a)'),
@@ -116,9 +130,11 @@ def main_comparisons(paper):
     bar=fig.colorbar(im, ax=axes, shrink=.7, extend='both')
     bar.set_label('Mean relative L2 error (%) · logarithmic color scale',fontsize=10)
     bar.ax.tick_params(labelsize=9.5)
-    fig.suptitle('Archived paired-field benchmarks\nReported means; sparse sensor protocols differ across methods', fontsize=11.5)
-    verify_workbook_rows(paper, plotted)
-    write_csv(paper / 'source_data/main_figure_values.csv', plotted)
+    fig.suptitle('Paired-field reconstruction\nMean errors on common inputs and observations' if current.exists()
+                 else 'Archived paired-field benchmarks\nReported means; sparse sensor protocols differ across methods', fontsize=11.5)
+    verify_sources(plotted)
+    write_csv(current.parent / 'main_figure_values.csv' if current.exists()
+              else paper / 'source_data/main_figure_values.csv', plotted)
     save(fig, paper, 'main_comparisons')
 
     fig, axes = plt.subplots(1, 2, figsize=(8.0, 4.5), layout='constrained')
@@ -153,8 +169,9 @@ def main_comparisons(paper):
     for ax in axes:
         ax.tick_params(labelsize=9.5)
         ax.grid(axis='x', alpha=.7)
-    fig.suptitle('Archived reconstruction errors\nReported means; descriptive comparison under the recorded protocols', fontsize=11)
-    verify_workbook_rows(paper, rows + br)
+    fig.suptitle('Sparse reconstruction\nMean errors on common inputs and observations' if current.exists()
+                 else 'Archived reconstruction errors\nReported means; descriptive comparison under the recorded protocols', fontsize=11)
+    verify_sources(rows + br)
     save(fig, paper, 'physics_burgers_comparisons')
 
 
