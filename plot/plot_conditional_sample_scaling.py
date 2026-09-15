@@ -31,7 +31,7 @@ def figure_layout(kind):
         fig,axes=plt.subplots(1,3,figsize=(FIGURE_WIDTH_IN,2.85))
         fig.subplots_adjust(left=.105,right=.955,bottom=.235,top=.78,wspace=.39)
         fig.supxlabel('Conditional samples, $K$',y=.025,fontsize=ORDINARY_FONT_PT)
-        fig.supylabel('Estimate latency (s)',x=.012,fontsize=ORDINARY_FONT_PT)
+        fig.supylabel('Cumulative sampling time (s)',x=.012,fontsize=ORDINARY_FONT_PT)
         return fig,axes
     if kind=='reconstructions':
         fig,axes=plt.subplots(4,6,figsize=(FIGURE_WIDTH_IN,4.9))
@@ -70,11 +70,14 @@ def main():
     p.add_argument('--exports',nargs='+',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--figures',type=Path,required=True)
+    p.add_argument('--figure-prefix',default='revision_0915_conditional_fixed')
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True);args.figures.mkdir(parents=True,exist_ok=True)
     rows=[];arrays={};manifests=[]
     for folder in args.exports:
         manifest=json.loads((folder/'conditional_scaling_manifest.json').read_text())
-        assert manifest['complete'],folder
+        assert manifest['complete'] and manifest['status']=='pass' and manifest['fixed_observations_verified_all_draws'],folder
+        for name,expected_hash in manifest['export_files'].items():
+            assert digest(folder/name)==expected_hash
         manifests.append(manifest)
         for row in csv.DictReader((folder/'conditional_scaling_per_input.csv').open()):
             rows.append({k:v if k=='task' else int(v) if k in {'offset','K','peak_bytes'} else float(v) for k,v in row.items()})
@@ -85,7 +88,7 @@ def main():
     expected={(t,i,k) for t in TASKS for i in range(1500,1532) for k in KS}
     assert len(rows)==480 and set(index)==expected
     assert sum(m['conditional_trajectories'] for m in manifests)==96000
-    assert sum(m['independent_timing_trajectories'] for m in manifests)==106944
+    assert sum(m['independent_timing_trajectories'] for m in manifests)==0
     rows=sorted(rows,key=lambda x:(x['task'],x['offset'],x['K']))
     write_csv(args.output/'conditional_scaling_per_input.csv',rows)
     np.savez_compressed(args.output/'conditional_scaling_fields.npz',**arrays)
@@ -110,7 +113,7 @@ def main():
             ratios=np.array([index[task,i,k]['seconds']/index[task,i,1]['seconds'] for i in range(1500,1532)])
             timing.append(dict(task=task,K=k,n=32,median_seconds=np.median(values),mean_seconds=values.mean(),sd_seconds=values.std(ddof=1),
                                q25_seconds=np.quantile(values,.25),q75_seconds=np.quantile(values,.75),
-                               median_ratio_to_K1=np.median(ratios),median_speedup_vs_serial=np.median(k/ratios)))
+                               median_ratio_to_K1=np.median(ratios)))
     write_csv(args.output/'conditional_scaling_summary.csv',summary)
     write_csv(args.output/'conditional_scaling_paired_effects.csv',effects)
     write_csv(args.output/'conditional_scaling_timing.csv',timing)
@@ -120,7 +123,7 @@ def main():
     generated=[]
     def save(fig,name):
         for ext in ['pdf','png']:
-            path=args.figures/f'{name}.{ext}'
+            path=args.figures/f"{name.replace('conditional_scaling',args.figure_prefix)}.{ext}"
             # Preserve the exact six-inch PDF width: a tight bounding box can
             # silently shrink all text when the PDF is included at \linewidth.
             fig.savefig(path,dpi=240,bbox_inches=None,facecolor='white')
@@ -140,9 +143,8 @@ def main():
     fig,axes=figure_layout('time')
     for ax,(task,name) in zip(axes,TASKS.items()):
         vals=[ti[task,k] for k in KS];med=np.array([r['median_seconds'] for r in vals])
-        ax.plot(KS,med,'o-',color='#255F85',markersize=4,lw=1.1,label='Measured latency')
+        ax.plot(KS,med,'o-',color='#255F85',markersize=4,lw=1.1,label='Cumulative measured time')
         ax.fill_between(KS,[r['q25_seconds'] for r in vals],[r['q75_seconds'] for r in vals],color='#255F85',alpha=.13)
-        ax.plot(KS,np.array(KS)*med[0],'--',color='#777777',lw=.9,label=r'Serial reference: $K$ times $K=1$')
         ax.set_xscale('log');ax.set_yscale('log');ax.set_xticks(KS,labels=[str(k) for k in KS]);ax.minorticks_off()
         ax.set_title(name)
         ax.grid(axis='y',color='#DDDDDD',lw=.4)
@@ -187,18 +189,19 @@ def main():
     (args.output/'conditional_scaling_table.tex').write_text('\n'.join(lines)+'\n')
     figure_lines=[]
     captions={
-      'accuracy':r'Poisson reconstruction error versus the number of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. Every draw uses 100 stochastic Euler steps; field averages are formed before evaluating $\operatorname{RelL2}$.',
-      'time':r'Latency of averaged Poisson estimates, including batch preparation, generation, physical-field conversion, transfer, and averaging. Curves show medians over 32 inputs and shaded bands the interquartile range. Samples are processed in batches of at most 64 on an A100 or A800 GPU; all values of $K$ for an input are measured on the same device. The dashed line is the serial reference $K$ times the measured $K=1$ median, not a separately timed serial experiment. This latency definition differs from the FM4PDE--DiffusionPDE sampling-time comparison, which isolates the sampling computation.',
+      'accuracy':r'Poisson reconstruction error versus the number of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; field averages are formed before evaluating $\operatorname{RelL2}$.',
+      'time':r'Cumulative sampling time for averaged Poisson estimates under fixed observations. Each input and task uses one sequence of 1000 predictions; a mean is evaluated when the first $K$ predictions are available. Curves show medians over 32 inputs and shaded bands the interquartile range. Batches contain at most 64 samples on an A800 GPU and end at the reported values of $K$. Times include generation, physical-field conversion, transfer, and all preceding prefix averages; model loading and file I/O are excluded. All values of $K$ are measured along the same nested sequence, rather than through separate sampling runs.',
       'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with averages of $K=1,3,10,100,1000$ predictions. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}$ in percent. Observations and guidance parameters are fixed across columns.'}
     for name,caption in captions.items():
-        figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/conditional_scaling_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
+        figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/'+args.figure_prefix+'_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
     (args.output/'conditional_scaling_figures.tex').write_text('\n'.join(figure_lines)+'\n')
+    (args.output/'settings.tex').write_text(r'''We evaluate conditional-sample averaging on 32 Poisson ID inputs (indices 1500--1531) for forward, inverse, and joint recovery. For each input and task, one set of 500 observations per observed field, including their values, is held fixed across all draws. A single pool of 1000 predictions is generated using 100 stochastic Euler steps per draw, and each estimate is the physical-space arithmetic mean of the first $K\in\{1,3,10,100,1000\}$ predictions. Guidance parameters remain fixed. Uncertainty intervals resample the 32 physical inputs. Sampling times are cumulative costs measured when each prefix estimate becomes available.'''+'\n')
     write(args.output/'conditional_scaling_final_manifest.json',dict(complete=True,physical_inputs=32,tasks=list(TASKS),K=KS,
-          canonical_trajectories=96000,timed_trajectories=106944,rows=len(rows),bootstrap_resamples=100000,
+          canonical_trajectories=96000,timed_trajectories=96000,cumulative_prefix_timings=480,timing_mode='cumulative_prefix',rows=len(rows),bootstrap_resamples=100000,
           simultaneous_interval_comparisons=16,plot_font=font,figure_width_inches=FIGURE_WIDTH_IN,
           ordinary_font_points=ORDINARY_FONT_PT,figure_files=generated,source_manifests=manifests,
           plotter_sha256=digest(__file__)))
-    print('COMPLETE: 32 offsets, three tasks, five K, 96000 conditional trajectories; 480 timings',flush=True)
+    print('COMPLETE: 32 offsets, three tasks, five K, 96000 conditional trajectories; 480 cumulative prefix timings',flush=True)
 
 
 if __name__=='__main__':main()
