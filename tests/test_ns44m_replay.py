@@ -63,3 +63,14 @@ def test_saved_temporal_auxiliary_is_reused_without_raw_data(tmp_path):
         assert runner.attach_near_endpoint_observations(cfg, gt, masks) is gt
         assert observed["temporal_auxiliary_source"] == "historical_saved_sparse_observations"
     assert runner.attach_near_endpoint_observations is before
+
+
+def test_weight_selection_preserves_field_guard_and_no_selection_case():
+    from revision_ns44m_0915.run_weight_selection import choose
+    dev = [dict(multiplier=0, mean_pde=1., mean_errors={"a":1., "u":1.}),
+           dict(multiplier=1, mean_pde=.1, mean_errors={"a":1., "u":1.}),
+           dict(multiplier=10, mean_pde=.05, mean_errors={"a":1.03, "u":1.}),
+           dict(multiplier=100, mean_pde=.5, mean_errors={"a":1.02, "u":1.01})]
+    assert choose(dev)["selected_multiplier"] == 100
+    dev[-1]["mean_pde"] = 1.0
+    assert choose(dev)["selected_multiplier"] is None
