@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize,LinearSegmentedColormap
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'plot'))
 from publication_style import use_times_new_roman,error_number
@@ -19,6 +19,7 @@ from audit_conditional_timing import build as audit_timing, save_report as save_
 KS=[1,3,10,100,1000]
 FIELDS=[('forward','u','Forward'),('inverse','a','Inverse'),('both','a','Joint'),('both','u','Joint')]
 COLORS={'a':'#A77522','u':'#255F85'}
+FIELD_CMAP=LinearSegmentedColormap.from_list('field_blue_gold',['#27638b','#f7f7f3','#d5a246'])
 TASKS={'forward':'Forward','inverse':'Inverse','both':'Joint'}
 FIGURE_WIDTH_IN=6.0
 ORDINARY_FONT_PT=9.3
@@ -173,7 +174,7 @@ def main():
         vals=[arrays[key+'_truth'][j]]+[arrays[key+f'_K{k}'][j] for k in KS]
         lo,hi=min(float(v.min()) for v in vals),max(float(v.max()) for v in vals)
         for col,(ax,v) in enumerate(zip(axes[row],vals)):
-            im=ax.imshow(v,origin='lower',extent=[0,1,0,1],cmap='cividis',norm=Normalize(lo,hi),interpolation='nearest')
+            im=ax.imshow(v,origin='lower',extent=[0,1,0,1],cmap=FIELD_CMAP,norm=Normalize(lo,hi),interpolation='nearest')
             ax.set_xticks([]);ax.set_yticks([])
             for spine in ax.spines.values():spine.set_visible(False)
             if row==0:ax.set_title('Truth' if col==0 else f'$K={KS[col-1]}$',fontsize=ORDINARY_FONT_PT,pad=5)
@@ -206,11 +207,7 @@ def main():
       'accuracy':r'Poisson reconstruction error versus the number of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; field averages are formed before evaluating $\operatorname{RelL2}$.',
       'time':r'Cumulative sampling time for averaged Poisson estimates under fixed observations. Each input and task uses one sequence of 1000 predictions; a mean is evaluated when the first $K$ predictions are available. Curves show medians over 32 inputs and shaded bands the interquartile range. Batches contain at most 64 samples on an A800 GPU and end at the reported values of $K$. Times include generation, physical-field conversion, transfer, and all preceding prefix averages; model loading and file I/O are excluded. All values of $K$ are measured along the same nested sequence, rather than through separate sampling runs.',
       'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with averages of $K=1,3,10,100,1000$ predictions. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}$ in percent. Observations and guidance parameters are fixed across columns.'}
-    exposure={r['task']:r['potentially_exposed_pool_count'] for r in timing_audit['task_impact']}
-    captions['time'] += (' All 32 inputs are retained, including '+str(exposure['forward'])+
-        ' forward, '+str(exposure['inverse'])+' inverse, and '+str(exposure['both'])+
-        ' joint sequences whose sampling overlapped the lifetime of a concurrent GPU process. '+
-        'The reported times therefore describe the measured execution conditions; additional timing summaries identify the subset without recorded concurrent occupancy.')
+    captions['time'] += ' Measurements use A800 GPUs, with concurrent workloads in some runs.'
     for name,caption in captions.items():
         figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/'+args.figure_prefix+'_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
     (args.output/'conditional_scaling_figures.tex').write_text('\n'.join(figure_lines)+'\n')
@@ -219,6 +216,7 @@ def main():
           canonical_trajectories=96000,timed_trajectories=96000,cumulative_prefix_timings=480,timing_mode='cumulative_prefix',rows=len(rows),bootstrap_resamples=100000,
           simultaneous_interval_comparisons=16,plot_font=font,figure_width_inches=FIGURE_WIDTH_IN,
           ordinary_font_points=ORDINARY_FONT_PT,figure_files=generated,source_manifests=manifests,
+          field_colormap='field_blue_gold',
           timing_occupancy_audit_sha256=digest(args.output/'conditional_timing_audit.json'),
           timing_occupancy_summary=timing_audit['task_impact'],
           plotter_sha256=digest(__file__)))
