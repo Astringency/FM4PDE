@@ -151,8 +151,9 @@ def main():
         ci=np.array([[r['mean_ci_low'] for r in vals],[r['mean_ci_high'] for r in vals]])
         ax.errorbar(KS,mean,yerr=np.vstack([mean-ci[0],ci[1]-mean]),color=COLORS[field],fmt='o-',markersize=4,lw=1.1,capsize=2)
         ax.set_xscale('log');ax.set_xticks(KS,labels=[str(k) for k in KS]);ax.minorticks_off()
-        ax.set_title(f'{name}: '+rf'$\operatorname{{RelL2}}_{field}$')
-        ax.set_xlabel('Conditional samples, $K$');ax.set_ylabel('Relative error (%)')
+        ax.set_title(name)
+        ax.set_xlabel('Conditional samples, $K$')
+        ax.set_ylabel(rf'$\operatorname{{RelL2}}_{{{field}}}$ (%)')
         ax.grid(axis='y',color='#DDDDDD',lw=.4);ax.set_ylim(bottom=0)
     save(fig,'conditional_scaling_accuracy')
     fig,axes=figure_layout('time')
@@ -186,6 +187,7 @@ def main():
         pos=axes[row,-1].get_position()
         cax=fig.add_axes([.89,pos.y0,.014,pos.height])
         cb=fig.colorbar(im,cax=cax,format='%.2g');cb.ax.tick_params(labelsize=ORDINARY_FONT_PT,pad=2,width=.4);cb.outline.set_linewidth(.4)
+        cb.ax.set_title(rf'$\mathbf{{{field}}}$',fontsize=ORDINARY_FONT_PT,pad=3)
         cb.locator=matplotlib.ticker.MaxNLocator(nbins=3);cb.update_ticks()
     save(fig,'conditional_scaling_reconstructions')
     lines=[r'\begin{table}[!htbp]\centering\small',r'\setlength{\tabcolsep}{4pt}',
@@ -204,9 +206,9 @@ def main():
     (args.output/'conditional_scaling_table.tex').write_text('\n'.join(lines)+'\n')
     figure_lines=[]
     captions={
-      'accuracy':r'Poisson reconstruction error versus the number of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; field averages are formed before evaluating $\operatorname{RelL2}$.',
+      'accuracy':r'Poisson reconstruction error versus the number $K$ of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; the physical-field average $\overline{\mathbf z}_K$ is formed before evaluating $\operatorname{RelL2}_a$ or $\operatorname{RelL2}_u$.',
       'time':r'Cumulative sampling time for averaged Poisson estimates under fixed observations. Each input and task uses one sequence of 1000 predictions; a mean is evaluated when the first $K$ predictions are available. Curves show medians over 32 inputs and shaded bands the interquartile range. Batches contain at most 64 samples on an A800 GPU and end at the reported values of $K$. Times include generation, physical-field conversion, transfer, and all preceding prefix averages; model loading and file I/O are excluded. All values of $K$ are measured along the same nested sequence, rather than through separate sampling runs.',
-      'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with averages of $K=1,3,10,100,1000$ predictions. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}$ in percent. Observations and guidance parameters are fixed across columns.'}
+      'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with the corresponding components of $\overline{\mathbf z}_K$ for $K=1,3,10,100,1000$. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}_a$ or $\operatorname{RelL2}_u$, according to the field, in percent. Observations and guidance parameters are fixed across columns.'}
     captions['time'] += ' Measurements use A800 GPUs, with concurrent workloads in some runs.'
     for name,caption in captions.items():
         figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/'+args.figure_prefix+'_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
