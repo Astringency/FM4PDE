@@ -22,6 +22,7 @@ def main():
     p.add_argument("--prior-checkpoint", type=Path, required=True)
     p.add_argument("--prior-output", type=Path, required=True)
     p.add_argument("--worker", default="g7")
+    p.add_argument("--pilot-name", default="pilot")
     args = p.parse_args()
     root = args.output.resolve()
     logs = root / "logs"
@@ -34,13 +35,18 @@ def main():
             assert time.monotonic() < deadline, "The expected complete Poisson pool did not arrive"
             atomic_json(state, dict(status="running", stage="waiting_for_complete_poisson_pool", pid=os.getpid()))
             time.sleep(.25)
-        cmdline = Path(f"/proc/{args.handoff_pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
-        assert "run_conditional_sample_scaling.py" in cmdline
-        assert "conditional_fixed_observations_20260915" in cmdline and "--worker "+args.worker in cmdline
-        record = dict(completed_pool=str(args.handoff_completion), completed_pool_sha256=file_hash(args.handoff_completion),
-                      terminated_own_pid=args.handoff_pid, cmdline=cmdline, unix=time.time(),
-                      policy="Completed pool retained; any later partial batch remains resumable by the other fixed-observation workers")
-        os.kill(args.handoff_pid, signal.SIGTERM)
+        if Path(f"/proc/{args.handoff_pid}/cmdline").exists():
+            cmdline = Path(f"/proc/{args.handoff_pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
+            assert "run_conditional_sample_scaling.py" in cmdline
+            assert "conditional_fixed_observations_20260915" in cmdline and "--worker "+args.worker in cmdline
+            record = dict(completed_pool=str(args.handoff_completion), completed_pool_sha256=file_hash(args.handoff_completion),
+                          terminated_own_pid=args.handoff_pid, cmdline=cmdline, unix=time.time(),
+                          policy="Completed pool retained; any later partial batch remains resumable by the other fixed-observation workers")
+            os.kill(args.handoff_pid, signal.SIGTERM)
+        else:
+            record = json.loads((root/"provenance/gpu_handoff.json").read_text())
+            assert record["terminated_own_pid"] == args.handoff_pid
+            assert record["completed_pool_sha256"] == file_hash(args.handoff_completion)
         for _ in range(120):
             if not Path(f"/proc/{args.handoff_pid}").exists():
                 break
@@ -48,7 +54,8 @@ def main():
         assert not Path(f"/proc/{args.handoff_pid}").exists()
         record["gpu_processes_after_handoff"] = subprocess.check_output([
             "nvidia-smi", "--query-compute-apps=gpu_uuid,pid,process_name,used_memory", "--format=csv"], text=True)
-        atomic_json(root/"provenance/gpu_handoff.json", record)
+        if not (root/"provenance/gpu_handoff.json").exists():
+            atomic_json(root/"provenance/gpu_handoff.json", record)
         commands = []
         def run(label, argv):
             atomic_json(state, dict(status="running", stage=label, pid=os.getpid(), argv=argv))
@@ -67,17 +74,23 @@ def main():
             "--checkpoint", str(args.prior_checkpoint), "--checkpoint-sha256",
             "d17e9a9e755769a51bec04a2ac079b6ca68f7ee5c95c244d7a4ac7730ff924b8",
             "--fm-code", str(ROOT), "--output", str(args.prior_output), "--seed", "20260911"]
-        run("poisson_prior", prior)
+        if (args.prior_output/"profile.json").exists():
+            old_prior = json.loads((args.prior_output/"profile.json").read_text())
+            assert old_prior["status"] == "complete" and old_prior["seed"] == 20260911
+            assert old_prior["sample_sha256"] == file_hash(args.prior_output/"sample.pt")
+        else:
+            run("poisson_prior", prior)
         common = [sys.executable, str(ROOT/"revision_ns44m_0915/run_ablations.py")]
         flags = ["--protocol", str(root/"protocol.json"), "--checkpoint", str(root/"inputs/weights/nsnonbounded.pth"),
                  "--worker", args.worker]
-        run("pilot", common+["pilot", "--output", str(root/"pilot")]+flags+["--job-ids"]+sorted(PILOT_JOB_IDS))
+        pilotroot = root/args.pilot_name
+        run(args.pilot_name, common+["pilot", "--output", str(pilotroot)]+flags+["--job-ids"]+sorted(PILOT_JOB_IDS))
         run("main", common+["run", "--output", str(root)]+flags+
-            ["--pilot-certificate", str(root/"pilot/pilot_complete.json")])
+            ["--pilot-certificate", str(pilotroot/"pilot_complete.json")])
         run("weight_study", [sys.executable, str(ROOT/"revision_ns44m_0915/run_weight_selection.py"), "run",
             "--output", str(root), "--inventory", str(root/"provenance/ns_scope_inventory.json"),
             "--checkpoint", str(root/"inputs/weights/nsnonbounded.pth"),
-            "--pilot-certificate", str(root/"pilot/pilot_complete.json"), "--worker", args.worker])
+            "--pilot-certificate", str(pilotroot/"pilot_complete.json"), "--worker", args.worker])
         atomic_json(state, dict(status="complete", pid=os.getpid(), finished_unix=time.time()))
     except BaseException as exc:
         atomic_json(state, dict(status="error", error=repr(exc), pid=os.getpid(), failed_unix=time.time()))
