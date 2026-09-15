@@ -7,13 +7,26 @@ import matplotlib.pyplot as plt
 
 COLORS={'FM4PDE':'#0072B2','DiffusionPDE':'#D55E00','CoCoGen':'#CC79A7'}
 METRICS=['relative_l2_a','relative_l2_u','observed_relative_l2_a','observed_relative_l2_u','L_pde']
-TITLES=[r'Full-field $a$',r'Full-field $u$',r'Observed $a$',r'Observed $u$',r'Physical PDE loss $L_{\mathrm{pde}}$']
+TITLES=[r'Full field $\mathbf{a}$',r'Full field $\mathbf{u}$',r'Observed $\mathbf{a}$',r'Observed $\mathbf{u}$',r'Physical PDE loss']
+METRIC_LABELS={
+ 'relative_l2_a':r'$\operatorname{RelL2}_{a}$ (%)',
+ 'relative_l2_u':r'$\operatorname{RelL2}_{u}$ (%)',
+ 'observed_relative_l2_a':r'$\operatorname{RelL2}_{a,\mathrm{obs}}$ (%)',
+ 'observed_relative_l2_u':r'$\operatorname{RelL2}_{u,\mathrm{obs}}$ (%)',
+ 'L_pde':r'$\mathcal{L}_{\mathrm{PDE},h}$ (MSE sum)',
+}
+BURGER_LABELS={
+ 'relative_l2_u':r'$\operatorname{RelL2}(\mathbf{u}_{\mathrm{traj}})$ (%)',
+ 'observed_relative_l2_u':r'$\operatorname{RelL2}_{\mathrm{obs}}(\mathbf{u}_{\mathrm{traj}})$ (%)',
+}
 
 def sha(p):return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
 def style():
  sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'plot'))
  from publication_style import use_times_new_roman
  use_times_new_roman()
+ # Preserve the manuscript's calligraphic loss symbol rather than italic L.
+ plt.rcParams['mathtext.cal']='cmsy10'
  plt.rcParams.update({'font.size':9,'axes.labelsize':9,'axes.titlesize':10,'legend.fontsize':9,'pdf.fonttype':42,'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.grid':True,'grid.alpha':.18,'figure.dpi':150,'savefig.dpi':220})
 
 def cocogen(root,summary,out):
@@ -54,6 +67,8 @@ def traces(root,out,allow_partial):
   for xaxis,suffix in [('step','steps'),('sampling_seconds_excluding_diagnostics','sampling_time')]:
    fig,axes=plt.subplots(2,3,figsize=(6.4,4.8),layout='constrained');axes=axes.ravel();axes[-1].set_axis_off()
    for ax,metric,title in zip(axes,METRICS,TITLES):
+    if pde=='burger' and metric=='relative_l2_u':title=r'Full trajectory $\mathbf{u}_{\mathrm{traj}}$'
+    if pde=='burger' and metric=='observed_relative_l2_u':title=r'Observed $\mathbf{u}_{\mathrm{traj}}$'
     ax.set_title(title)
     if pde=='burger' and metric in ['relative_l2_a','observed_relative_l2_a']:
      ax.text(.5,.5,'N/A\nSingle trajectory field',ha='center',va='center',transform=ax.transAxes,color='#666666');ax.set_xticks([]);ax.set_yticks([]);ax.grid(False);continue
@@ -73,13 +88,14 @@ def traces(root,out,allow_partial):
       for k in range(1001):aggregate.append({'pde':pde,'method':method,'step':k,'n':20,'metric':metric,'mean':mean[k],'sample_sd':sd[k],'mean_ci95_lower':lower[k],'mean_ci95_upper':upper[k],'unit':'physical residual MSE' if metric=='L_pde' else 'percent','mean_sampling_seconds_excluding_diagnostics':m['sampling_seconds_excluding_diagnostics'][:,k].mean(),'mean_elapsed_seconds_including_diagnostics':m['elapsed_seconds_including_diagnostics'][:,k].mean()})
     scale='linear' if min(bounds)==0 else 'log'
     axis_scales[f'{pde}/{metric}']={'scale':scale,'minimum_interval_bound':min(bounds),'reason':'Exact zero values or interval bounds must remain visible.' if scale=='linear' else 'All means and interval bounds are strictly positive.'}
-    ax.set_yscale(scale);ax.set_xlabel('Sampling step' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel('Weighted residual MSE sum' if metric=='L_pde' else 'Relative $L_2$ error (%)')
+    label=BURGER_LABELS.get(metric,METRIC_LABELS[metric]) if pde=='burger' else METRIC_LABELS[metric]
+    ax.set_yscale(scale);ax.set_xlabel(r'Sampling step $k$' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel(label)
     if suffix=='steps':ax.set_xlim(0,1000)
    legend_ax=axes[1] if pde=='burger' else axes[0];legend_ax.legend(frameon=False)
    name=f'fm_diffusion_{pde}_{suffix}';fig.savefig(out/(name+'.pdf'));fig.savefig(out/(name+'.png'));plt.close(fig)
  with (out/'step_trace_summary.csv').open('w') as f:
   w=csv.DictWriter(f,fieldnames=list(aggregate[0]));w.writeheader();w.writerows(aggregate)
- (out/'step_trace_provenance.json').write_text(json.dumps({'manifest_sha256':sha(root/'manifest.json'),'selected_root':str(root),'exporter_sha256':sha(__file__),'final_audit_sha256':sha(root/'audit/final_audit.json'),'summary_sha256':sha(out/'step_trace_summary.csv'),'numpy_version':np.__version__,'matplotlib_version':matplotlib.__version__,'axis_scales':axis_scales,'sources':sources,'uncertainty':'pointwise 95% percentile bootstrap CI of mean over 20 fixed examples, 5000 resamples, fixed seed20260915; no paired significance tests','semantics':'Steps0..999 use a clean endpoint estimate at the current native state (FM endpoint, first Diffusion denoiser evaluation); step1000 uses the final output. A point at step100 belongs to the 1000-step schedule and is not a standalone100-step run.','metric':'Identical physical-unit relative L2 and masked relative L2; PDE MSE is evaluated with the same frozen FM evaluator for both methods within each PDE. Residual mode and boundary normalization are recorded per receipt; NS endpoint-secant is an approximate residual.','timing':'Elapsed time excludes metric evaluation but includes the additional field conversions and synchronization used to record the trajectories. This is not a replacement for the original independent resident-model sampling timing. Error-time coordinates are mean elapsed and mean error at the same sampling step; no interpolation or extrapolation. The original producer column named sampling_seconds_excluding_diagnostics includes this recording overhead, and is interpreted only under this definition.','step0':'Actual network estimate from the initial random state; not a fabricated zero-error point.','burgers':'Only u denotes the full time-space trajectory; coefficient panels are not applicable.'},indent=2)+'\n')
+ (out/'step_trace_provenance.json').write_text(json.dumps({'manifest_sha256':sha(root/'manifest.json'),'selected_root':str(root),'exporter_sha256':sha(__file__),'final_audit_sha256':sha(root/'audit/final_audit.json'),'summary_sha256':sha(out/'step_trace_summary.csv'),'numpy_version':np.__version__,'matplotlib_version':matplotlib.__version__,'axis_scales':axis_scales,'mathematical_symbols':{'metric_axes':METRIC_LABELS,'burgers_metric_axes':BURGER_LABELS,'fields':r'\mathbf{a}, \mathbf{u}; Burgers: \mathbf{u}_{\mathrm{traj}}','horizontal_axes':r'Sampling step k; elapsed time in seconds. Neither denotes flow time t nor physical time \tau.'},'sources':sources,'uncertainty':'pointwise 95% percentile bootstrap CI of mean over 20 fixed examples, 5000 resamples, fixed seed20260915; no paired significance tests','semantics':'Steps0..999 use a clean endpoint estimate at the current native state (FM endpoint, first Diffusion denoiser evaluation); step1000 uses the final output. A point at step100 belongs to the 1000-step schedule and is not a standalone100-step run.','metric':'Identical physical-unit relative L2 and masked relative L2; PDE MSE is evaluated with the same frozen FM evaluator for both methods within each PDE. Residual mode and boundary normalization are recorded per receipt; NS endpoint-secant is an approximate residual.','timing':'Elapsed time excludes metric evaluation but includes the additional field conversions and synchronization used to record the trajectories. This is not a replacement for the original independent resident-model sampling timing. Error-time coordinates are mean elapsed and mean error at the same sampling step; no interpolation or extrapolation. The original producer column named sampling_seconds_excluding_diagnostics includes this recording overhead, and is interpreted only under this definition.','step0':'Actual network estimate from the initial random state; not a fabricated zero-error point.','burgers':'Only u denotes the full time-space trajectory; coefficient panels are not applicable.'},indent=2)+'\n')
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);p.add_argument('--fm-summary',type=pathlib.Path);p.add_argument('--traces',action='store_true');p.add_argument('--allow-partial',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True);style()
