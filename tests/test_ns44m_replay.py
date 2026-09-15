@@ -53,15 +53,19 @@ def test_saved_temporal_auxiliary_is_reused_without_raw_data(tmp_path):
     from sampling.masks import PairMasks
     import sampling.runner as runner
     a = torch.zeros(1, 1, 8, 8)
-    aux = {"near_endpoint_temporal": {"q_dt_obs": a.clone(), "dt": torch.tensor([.1])}}
-    masks = PairMasks(a.clone(), a.clone(), {})
-    packet = {"inputs": {"pde_params": aux, "masks": {"coef": masks.coef, "sol": masks.sol}}}
+    aux = {"near_endpoint_temporal": {"q_dt_obs": a.clone(), "q_T_minus_dt_obs": a.clone(),
+           "mask_0": torch.ones_like(a), "mask_T": torch.ones_like(a), "dt": torch.tensor([.1])}}
+    masks = PairMasks(torch.ones_like(a), torch.ones_like(a), {})
+    packet = {"inputs": {"pde_params": copy.deepcopy(aux), "masks": {"coef": masks.coef, "sol": masks.sol}}}
     gt = PDEGroundTruth("nsnonbounded", a, a, torch.cat([a, a], 1), aux, ["w0"], ["wT"], {})
     cfg = AblationConfig(pde="nsnonbounded", residual_mode="near_endpoint_temporal", data_path="/absent/source.mat")
     before = runner.attach_near_endpoint_observations
     with replay.record_actual_inputs(packet, {}, tmp_path) as observed:
         assert runner.attach_near_endpoint_observations(cfg, gt, masks) is gt
         assert observed["temporal_auxiliary_source"] == "historical_saved_sparse_observations"
+        from sampling.losses import prediction_only_pde_params
+        params, _ = prediction_only_pde_params(gt.pde_params, allow_sparse_near_endpoint=True)
+        assert torch.equal(params["near_endpoint_temporal"]["q_dt"], packet["inputs"]["pde_params"]["near_endpoint_temporal"]["q_dt_obs"])
     assert runner.attach_near_endpoint_observations is before
 
 

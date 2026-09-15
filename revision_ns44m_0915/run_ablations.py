@@ -192,6 +192,13 @@ def record_actual_inputs(packet, job, directory):
         assert tensor_hash(masks.coef) == tensor_hash(expected["coef"])
         assert tensor_hash(masks.sol) == tensor_hash(expected["sol"])
         assert json_hash(tree_hash(gt.pde_params)) == json_hash(tree_hash(packet["inputs"]["pde_params"]))
+        temporal = gt.pde_params["near_endpoint_temporal"]
+        for saved, runtime, mask_key in (("q_dt_obs", "q_dt", "mask_0"),
+                                         ("q_T_minus_dt_obs", "q_T_minus_dt", "mask_T")):
+            if saved in temporal:
+                value = temporal.pop(saved)
+                assert torch.equal(value * temporal[mask_key], value)
+                temporal[runtime] = value
         observed["temporal_auxiliary_source"] = "historical_saved_sparse_observations"
         return gt
 
