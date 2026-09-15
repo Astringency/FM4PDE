@@ -1,5 +1,5 @@
 """Independent final-step physical error checks and frozen source-tree audit."""
-import argparse,csv,hashlib,json,math,pathlib,tarfile,subprocess
+import argparse,csv,hashlib,json,math,pathlib,tarfile,subprocess,sys
 import numpy as np
 import torch
 
@@ -84,6 +84,14 @@ def main():
       raise ValueError(f'Missing original timing prediction: {historical_path}')
      report['calls'].append({'pde':pde,'method':method,'sample_id':i,'rows':1001,'receipt_sha256':sha(receipt),'final_errors_recomputed':checks,'historical_final_recomputed':historical_check,'gpu':rec['environment']['gpu'],'torch':rec['environment']['torch']})
   if report['missing'] and not a.allow_partial:raise ValueError(f"Missing {len(report['missing'])}/200 traces")
+  report['final_residual_audits']=[]
+  for pde in manifest['cells']:
+   if not any(x['pde']==pde for x in report['calls']):continue
+   command=[sys.executable,str(pathlib.Path(__file__).with_name('audit_residuals.py')),'--root',str(root),'--pde',pde]
+   if a.allow_partial:command.append('--allow-partial')
+   subprocess.run(command,check=True)
+   path=root/'audit'/f'{pde}_final_residual_audit.json';result=json.load(open(path))
+   report['final_residual_audits'].append({'pde':pde,'path':str(path),'sha256':sha(path),'calls':len(result['records']),'failed_calls':result['failed_calls']})
  report['status']='pass' if not report['missing'] else 'partial';report['complete_calls']=len(report['calls']);report['metric_rows']=1001*len(report['calls'])
  historical=[x['historical_final_recomputed'] for x in report['calls'] if x.get('historical_final_recomputed')]
  report['historical_final_comparison']={'verified_calls':len(historical),'exact_calls':sum(x['exact'] for x in historical),'max_abs':max((x['max_abs'] for x in historical),default=None)}
