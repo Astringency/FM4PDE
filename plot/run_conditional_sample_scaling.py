@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nested conditional-sample means with measured batched 100-step sampling.
+"""Fixed-observation conditional means from one canonical 1000-draw pool.
 
 Read-only archived inputs/configurations. Results go only to --output. The
 canonical 1000-row Gaussian source makes every draw's path invariant to batch
@@ -18,12 +18,98 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'plot'))
 from run_paper_ablation_revision import digest, write
 KS = [1, 3, 10, 100, 1000]
+TASKS = ['forward', 'inverse', 'both']
+OFFSETS = list(range(1500, 1532))
+HISTORICAL_COMMIT = '1f1573bfbc246b83e48a3b46402c8f2467488e0d'
+
+
+def json_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def tensor_digest(value):
+    value = value.detach().cpu().contiguous()
+    return hashlib.sha256(str(value.dtype).encode() + json.dumps(list(value.shape), separators=(',', ':')).encode()
+                          + value.numpy().tobytes()).hexdigest()
+
+
+def source_identity():
+    paths = sorted({*ROOT.glob('sampling/*.py'), *ROOT.glob('flow_matching/path/*.py'),
+                    ROOT / 'scripts/tuning/compare_pde_guidance_schedules.py'})
+    return {str(p.relative_to(ROOT)): digest(p) for p in paths if p.is_file()}
+
+
+def family_identity(cfg):
+    c = cfg.asdict()
+    for key in ['offset', 'mask_seed', 'sample_seed', 'checkpoint_path', 'output_dir', 'device']:
+        c.pop(key, None)
+    return json_digest(c)
+
+
+def batch_ranges(batch_size):
+    """Stop exactly when a requested prefix becomes available."""
+    start = 0
+    for k in KS:
+        while start < k:
+            stop = min(start + batch_size, k)
+            yield start, stop
+            start = stop
+
+
+def fixed_observations(cfg, truth):
+    """Generate one mask pair per physical input, before expanding any draws."""
+    import torch
+    from sampling.masks import make_pair_masks
+    pair = torch.cat([truth.coef, truth.sol], 1).detach().cpu()
+    assert pair.shape == (1, 2, 128, 128)
+    masks = make_pair_masks(truth.coef.shape, truth.sol.shape, cfg.num_obs,
+                            cfg.sensor_mode, cfg.shared_mask, cfg.mask_seed, device='cpu')
+    mask = torch.cat([masks.coef, masks.sol], 1).cpu()
+    assert set(mask.unique().tolist()) <= {0., 1.}
+    assert torch.equal(mask.sum((-2, -1)), torch.full((1, 2), 500.))
+    values = pair * mask
+    fixed = dict(truth=pair, masks=mask, observations=values,
+                 observed_fields=['coef'] if cfg.task == 'forward' else ['sol'] if cfg.task == 'inverse' else ['coef', 'sol'],
+                 metadata={**masks.metadata, 'source': 'single_mask_pair_broadcast_to_every_draw'})
+    fixed['hashes'] = {key: tensor_digest(fixed[key]) for key in ['truth', 'masks', 'observations']}
+    return fixed
+
+
+def expand_fixed(fixed, gt, batch_size, device):
+    import torch
+    from sampling.masks import PairMasks
+    from sampling.losses import ObservationTargets
+    mask = fixed['masks'].to(device).expand(batch_size, -1, -1, -1)
+    values = fixed['observations'].to(device).expand(batch_size, -1, -1, -1)
+    pair = torch.cat([gt.coef, gt.sol], 1)
+    # Check the tensors actually handed to the loss, not merely metadata.
+    assert torch.equal(pair, fixed['truth'].to(device).expand_as(pair))
+    assert torch.equal(pair * mask, values)
+    assert torch.equal(mask, mask[:1].expand_as(mask))
+    assert torch.equal(values, values[:1].expand_as(values))
+    proof = dict(hashes={key: tensor_digest(value[:1]) for key, value in
+                        [('truth', pair), ('masks', mask), ('observations', values)]},
+                 all_rows_identical=True, checked_rows=batch_size,
+                 observed_fields=fixed['observed_fields'])
+    assert proof['hashes'] == fixed['hashes']
+    masks = PairMasks(mask[:, :1], mask[:, 1:], copy.deepcopy(fixed['metadata']))
+    observations = ObservationTargets(values[:, :1], values[:, 1:], values[:, :1], values[:, 1:])
+    return masks, observations, proof
+
+
+def atomic_torch(path, payload):
+    import torch
+    path = Path(path)
+    temp = path.with_name('.partial_' + uuid.uuid4().hex + '_' + path.name)
+    torch.save(payload, temp)
+    os.replace(temp, path)
 
 
 def configuration(protocol, selection, task, source):
@@ -47,7 +133,7 @@ def configuration(protocol, selection, task, source):
     return cfg
 
 
-def fast_sample(cfg, truth, bundle, indices, steps=100):
+def fast_sample(cfg, truth, bundle, indices, fixed, steps=100):
     import torch
     from scripts.tuning.compare_pde_guidance_schedules import combine_truths
     import sampling.runner as r
@@ -55,8 +141,7 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
     c.batch_size = len(indices)
     c.initial_noise_source_indices = list(indices)
     gt = combine_truths({c.offset: truth}, [c.offset]*len(indices), 'cuda:0')
-    masks = r.make_pair_masks(gt.coef.shape, gt.sol.shape, c.num_obs,
-                            c.sensor_mode, c.shared_mask, c.mask_seed, device='cuda:0')
+    masks, observations, observation_proof = expand_fixed(fixed, gt, len(indices), 'cuda:0')
     net, normalizer, _ = bundle
     assert c.obs_l2_reference_mse_zeta_a is None and c.obs_l2_reference_mse_zeta_u is None
     r._set_seed(c.sample_seed)
@@ -68,6 +153,7 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
     hook = net.model.register_forward_hook(count_call)
     start = time.perf_counter()
     x = r._sample_initial_noise(c, gt, 'cuda:0')
+    initial_noise_hashes = [tensor_digest(row) for row in x.detach().cpu()]
     for step in range(steps):
         x_cur = x.detach().clone().requires_grad_(True)
         t, t_next = grid[step], grid[step+1]
@@ -76,7 +162,7 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
                              stochastic_noise_source_batch_size=1000,
                              stochastic_noise_source_indices=list(indices))
         phys = r._physical_from_model_state(out.x_loss_state, c, normalizer)
-        losses = r.compute_guidance_losses(phys, gt, masks, c)
+        losses = r.compute_guidance_losses(phys, gt, masks, c, observations=observations)
         assert losses.pde_residual_status != 'error'
         coeffs = r.scheduler_coefficients(t, scheduler='CondOT')
         affine = r.affine_coefficients(coeffs, training='velocity')
@@ -109,12 +195,162 @@ def fast_sample(cfg, truth, bundle, indices, steps=100):
     pred = torch.cat([phys.coef, phys.sol], dim=1).detach().cpu()
     assert torch.isfinite(pred).all()
     return pred, mean.cpu(), dict(seconds=seconds, peak_bytes=peak, batch_size=len(indices),
-                                 seed_indices=list(indices), num_steps=steps, nfe=calls['count'])
+                                 seed_indices=list(indices), num_steps=steps, nfe=calls['count'],
+                                 observations=observation_proof, initial_noise_hashes=initial_noise_hashes)
+
+
+def configured_case(protocol, selection, source, task, offset, output):
+    cfg = configuration(protocol, selection, task, source)
+    cfg.offset = offset
+    cfg.mask_seed = cfg.sample_seed = 20260912 + offset
+    cfg.output_dir = str(output.resolve())
+    cfg.runtime_metadata.update(fused_guidance=True, observation_source='single_frozen_pair',
+                                conditional_pool_size=1000, timing_mode='cumulative_prefix')
+    return cfg
+
+
+def compare_predictions(left, right, truth):
+    import torch
+    rows = []
+    for j, field in enumerate(['a', 'u']):
+        x, ref, y = left[:, j].double(), right[:, j].double(), truth[:, j].double()
+        diff = float(torch.linalg.vector_norm(x - ref) / torch.linalg.vector_norm(ref))
+        left_error = float(torch.linalg.vector_norm(x - y) / torch.linalg.vector_norm(y))
+        ref_error = float(torch.linalg.vector_norm(ref - y) / torch.linalg.vector_norm(y))
+        rows.append(dict(field=field, prediction_relative_difference=diff,
+                         error_delta_percentage_points=100 * (left_error - ref_error)))
+        assert diff < .005, rows[-1]  # Original TF32 validation threshold; not widened.
+    return rows
+
+
+def run_pilot(args, protocol, selection, source, truths, bundle, identity):
+    import torch
+    rows = []
+    for task in TASKS:
+        cfg = configured_case(protocol, selection, source, task, 1100, args.output / 'pilot' / task)
+        fixed = fixed_observations(cfg, truths[1100])
+        warmups = []
+        for b in sorted({1, 8, 32, args.batch_size}):
+            if b > args.batch_size:
+                continue
+            free, total = torch.cuda.mem_get_info()
+            if warmups:
+                projected = warmups[-1]['peak_bytes'] * b / warmups[-1]['batch_size']
+                assert projected < .70 * total, ('pilot memory guard', b, projected, total)
+            pred, mean, receipt = fast_sample(cfg, truths[1100], bundle, range(b), fixed, steps=5)
+            warmups.append(receipt)
+            print('PILOT_MEMORY', task, b, receipt['peak_bytes'], flush=True)
+            del pred, mean
+            torch.cuda.empty_cache()
+        single, _, single_receipt = fast_sample(cfg, truths[1100], bundle, [0], fixed)
+        batch, _, batch_receipt = fast_sample(cfg, truths[1100], bundle, range(args.batch_size), fixed)
+        assert batch_receipt['initial_noise_hashes'][0] == single_receipt['initial_noise_hashes'][0]
+        batch_checks = compare_predictions(batch[:1], single, fixed['truth'])
+        stock_cfg = copy.deepcopy(cfg)
+        stock_cfg.runtime_metadata['fused_guidance'] = False
+        stock, _, stock_receipt = fast_sample(stock_cfg, truths[1100], bundle, [0], fixed)
+        stock_checks = compare_predictions(single, stock, fixed['truth'])
+        # Additional canonical rows exercise a split prefix, not just row zero.
+        split, _, split_receipt = fast_sample(cfg, truths[1100], bundle, [1, 2], fixed)
+        assert split_receipt['initial_noise_hashes'] == batch_receipt['initial_noise_hashes'][1:3]
+        prefix_checks = compare_predictions(split, batch[1:3], fixed['truth'].expand(2, -1, -1, -1))
+        assert batch_receipt['peak_bytes'] < .70 * torch.cuda.get_device_properties(0).total_memory
+        row = dict(task=task, family_sha256=family_identity(cfg), warmups=warmups,
+                   single=single_receipt, batch=batch_receipt, stock=stock_receipt, split=split_receipt,
+                   batch_vs_single=batch_checks, fused_vs_stock=stock_checks, prefix_vs_batch=prefix_checks)
+        rows.append(row)
+        atomic_torch(args.output / f'pilot_{task}.pt', dict(fixed=fixed, single=single, batch=batch,
+                     stock=stock, split=split, checks=row, config=cfg.asdict()))
+        write(args.output / 'pilot_progress.json', dict(status='running', tasks=rows))
+        print('PILOT_TASK_PASS', task, json.dumps({k: row[k] for k in
+              ['batch_vs_single', 'fused_vs_stock', 'prefix_vs_batch']}), flush=True)
+        del single, batch, stock, split
+        torch.cuda.empty_cache()
+    write(args.output / 'pilot_complete.json', dict(status='pass', batch_size=args.batch_size,
+          identity=identity, gpu=torch.cuda.get_device_name(), checks=rows,
+          completed_unix=time.time(), timing_mode='cumulative_prefix'))
+
+
+def run_case(args, cfg, truth, bundle, identity, folder):
+    import torch
+    fixed = fixed_observations(cfg, truth)
+    config = cfg.asdict()
+    binding = dict(identity=identity, config_sha256=json_digest(config), observation_hashes=fixed['hashes'],
+                   task=cfg.task, offset=cfg.offset, batch_size=args.batch_size)
+    marker = folder / 'complete.json'
+    if marker.exists():
+        done = json.loads(marker.read_text())
+        assert done['binding'] == binding and done['status'] == 'complete'
+        assert digest(folder / 'pool.pt') == done['pool_sha256']
+        return done
+    chunks = folder / 'batches'
+    chunks.mkdir(parents=True, exist_ok=True)
+    predictions, batches, prefix_records = [], [], {}
+    for start, stop in batch_ranges(args.batch_size):
+        target = chunks / f'{start:04d}_{stop:04d}'
+        if target.exists():
+            receipt = json.loads((target / 'receipt.json').read_text())
+            assert receipt['binding'] == binding and receipt['seed_indices'] == list(range(start, stop))
+            assert digest(target / 'prediction.pt') == receipt['prediction_file_sha256']
+            pred = torch.load(target / 'prediction.pt', map_location='cpu', weights_only=False)
+            assert tensor_digest(pred) == receipt['prediction_tensor_sha256']
+        else:
+            torch.cuda.synchronize()
+            start_time = time.perf_counter()
+            pred, _, receipt = fast_sample(cfg, truth, bundle, range(start, stop), fixed)
+            torch.cuda.synchronize()
+            receipt['active_seconds'] = time.perf_counter() - start_time
+            receipt.update(binding=binding, prediction_tensor_sha256=tensor_digest(pred))
+            temp = chunks / ('.partial_' + uuid.uuid4().hex)
+            temp.mkdir()
+            torch.save(pred, temp / 'prediction.pt')
+            receipt['prediction_file_sha256'] = digest(temp / 'prediction.pt')
+            write(temp / 'receipt.json', receipt)
+            os.rename(temp, target)
+            print('BATCH', cfg.task, cfg.offset, start, stop, f"{receipt['active_seconds']:.3f}s", flush=True)
+        assert receipt['observations']['hashes'] == fixed['hashes']
+        assert receipt['observations']['all_rows_identical']
+        assert receipt['observations']['checked_rows'] == stop - start
+        assert receipt['nfe'] == receipt['num_steps'] == 100
+        predictions.append(pred)
+        batches.append(receipt)
+        if stop in KS:
+            prefix_path = folder / f'prefix_{stop}.json'
+            mean_start = time.perf_counter()
+            mean = torch.cat(predictions).double().mean(0)
+            mean_seconds = time.perf_counter() - mean_start
+            errors = {field: float(torch.linalg.vector_norm(mean[j] - fixed['truth'][0, j].double()) /
+                                  torch.linalg.vector_norm(fixed['truth'][0, j].double()))
+                      for j, field in enumerate(['a', 'u'])}
+            if prefix_path.exists():
+                prefix = json.loads(prefix_path.read_text())
+                assert prefix['binding'] == binding and prefix['mean_sha256'] == tensor_digest(mean)
+            else:
+                prefix = dict(K=stop, binding=binding, mean_sha256=tensor_digest(mean), errors=errors,
+                     mean_seconds=mean_seconds,
+                     seconds=sum(b['active_seconds'] for b in batches)
+                             + sum(p['mean_seconds'] for p in prefix_records.values()) + mean_seconds,
+                     compute_seconds=sum(b['seconds'] for b in batches),
+                     peak_bytes=max(b['peak_bytes'] for b in batches),
+                     timing_mode='cumulative_active_generation_and_prefix_means_excluding_checkpoint_io')
+                write(prefix_path, prefix)
+            prefix_records[stop] = prefix
+    prediction = torch.cat(predictions)
+    assert prediction.shape == (1000, 2, 128, 128) and torch.isfinite(prediction).all()
+    assert [i for batch in batches for i in batch['seed_indices']] == list(range(1000))
+    payload = dict(predictions=prediction, means={k: prediction[:k].double().mean(0) for k in KS},
+                   fixed=fixed, config=config, binding=binding, batches=batches, prefixes=prefix_records)
+    atomic_torch(folder / 'pool.pt', payload)
+    done = dict(status='complete', binding=binding, pool_sha256=digest(folder / 'pool.pt'),
+                predictions=1000, prefix_counts=KS, completed_unix=time.time(),
+                seconds=prefix_records[1000]['seconds'])
+    write(marker, done)
+    print('CASE_COMPLETE', cfg.task, cfg.offset, done['seconds'], flush=True)
+    return done
 
 
 def main():
     import torch
-    import numpy as np
     from sampling.model_io import load_fm4pde_checkpoint_bundle
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=['pilot', 'run'])
@@ -122,133 +358,82 @@ def main():
     parser.add_argument('--selection', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--batch-size', type=int, default=64)
-    parser.add_argument('--tf32', action='store_true')
-    parser.add_argument('--fused-guidance', action='store_true')
-    parser.add_argument('--tasks', nargs='+', default=['forward','inverse','both'])
-    parser.add_argument('--offsets', nargs='+', type=int, default=list(range(1500,1532)))
-    parser.add_argument('--shard-index', type=int, default=0)
-    parser.add_argument('--num-shards', type=int, default=1)
+    parser.add_argument('--worker', required=True)
+    parser.add_argument('--pilot-certificate', type=Path)
     args = parser.parse_args()
-    assert 1 <= args.batch_size <= 1000
+    assert args.output.is_absolute() and args.inputs.is_absolute()
+    assert 3 <= args.batch_size <= 64
+    assert args.worker.replace('_', '').replace('-', '').isalnum()
     torch.set_num_threads(2)
     torch.set_num_interop_threads(2)
-    torch.backends.cuda.matmul.allow_tf32 = args.tf32
-    torch.backends.cudnn.allow_tf32 = args.tf32
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     torch.backends.cudnn.benchmark = False
+    free, total = torch.cuda.mem_get_info()
+    assert free > .75 * total, ('GPU is not sufficiently free', free, total)
     args.output.mkdir(parents=True, exist_ok=True)
     source = args.inputs / 'poisson'
-    protocol = json.loads((source/'protocol.json').read_text())
+    protocol = json.loads((source / 'protocol.json').read_text())
     selection = json.loads(args.selection.read_text())
-    assert digest(source/'protocol.json') == selection['protocol_sha256']
-    assert digest(source/'truths.pt') == protocol['truth_sha256']
-    assert digest(source/'weights.pth') == protocol['weights_sha256']
-    assert set(args.offsets) <= set(protocol['evaluation_ids'])
-    truths = torch.load(source/'truths.pt', map_location='cpu', weights_only=False)
-    bundle = load_fm4pde_checkpoint_bundle(str(source/'weights.pth'), 'poisson', 'cuda:0', model_profile='recommended')
+    assert digest(source / 'protocol.json') == selection['protocol_sha256']
+    assert digest(source / 'truths.pt') == protocol['truth_sha256']
+    assert digest(source / 'weights.pth') == protocol['weights_sha256']
+    assert protocol['evaluation_ids'] == OFFSETS
+    identity = dict(protocol_sha256=digest(source / 'protocol.json'), truth_sha256=protocol['truth_sha256'],
+                     weights_sha256=protocol['weights_sha256'], selection_sha256=digest(args.selection),
+                     runner_sha256=digest(__file__), source_hashes=source_identity(), historical_commit=HISTORICAL_COMMIT,
+                     torch=torch.__version__, tf32=True, fused_guidance=True)
+    if args.mode == 'run':
+        assert args.pilot_certificate is not None
+        pilot = json.loads(args.pilot_certificate.read_text())
+        assert pilot['status'] == 'pass' and pilot['identity'] == identity
+        assert pilot['batch_size'] == args.batch_size and pilot['gpu'] == torch.cuda.get_device_name()
+        assert {row['task'] for row in pilot['checks']} == set(TASKS)
+        for row in pilot['checks']:
+            cfg = configured_case(protocol, selection, source, row['task'], 1500, args.output)
+            assert row['family_sha256'] == family_identity(cfg)
+    invocation = dict(identity=identity, host=socket.gethostname(), pid=os.getpid(), gpu=torch.cuda.get_device_name(),
+             visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'), args={k: str(v) if isinstance(v, Path) else v
+               for k, v in vars(args).items()}, commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+             started_unix=time.time(), case_count=96, pool_size=1000, tasks=TASKS, offsets=OFFSETS,
+             timing='Cumulative active preparation, generation, physical conversion, transfer and prefix means; excludes input/model loading, checkpoint writing, resume downtime and final pool serialization.')
+    invocation_path = args.output / 'invocations' / f'{args.mode}_{args.worker}_{uuid.uuid4().hex}.json'
+    write(invocation_path, invocation)
+    truths = torch.load(source / 'truths.pt', map_location='cpu', weights_only=False)
+    bundle = load_fm4pde_checkpoint_bundle(str(source / 'weights.pth'), 'poisson', 'cuda:0', model_profile='recommended')
     assert not any(isinstance(m, torch.nn.modules.batchnorm._BatchNorm) for m in bundle[0].model.modules())
-    env = dict(host=socket.gethostname(), pid=os.getpid(), python=sys.version,
-               torch=torch.__version__, cuda=torch.version.cuda, gpu=torch.cuda.get_device_name(),
-               visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
-               commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-               script_sha256=digest(__file__), inputs=str(source), protocol_sha256=digest(source/'protocol.json'),
-               selection_sha256=digest(args.selection), truth_sha256=protocol['truth_sha256'],
-               weights_sha256=protocol['weights_sha256'], tf32=args.tf32, K=KS,
-               random_source='1000-row IID Gaussian pool, selected row retained at every step',
-               random_seed_formula='20260912 + physical_offset; each draw is a distinct canonical row',
-               timing='CUDA-synchronized wall time from first batch preparation through all 100-step predictions, transfers and physical-space mean; excludes checkpoint/input-file loading and output disk I/O; compute_seconds additionally isolates the synchronized sampler/physical-transform core',
-               args={k:str(v) if isinstance(v,Path) else v for k,v in vars(args).items()})
-    write(args.output/f'environment_{args.mode}_{args.shard_index}.json',env)
     if args.mode == 'pilot':
-        cfg = configuration(protocol, selection, 'both', source)
-        cfg.runtime_metadata['fused_guidance'] = args.fused_guidance
-        cfg.offset = 1500
-        cfg.mask_seed = 20260912 + cfg.offset
-        cfg.sample_seed = 20260912 + cfg.offset
-        pilot=[]
-        base = None
-        for b in [1, 4, 8, 16, 32, 64, 96, 128]:
-            if b > args.batch_size: break
-            free,total = torch.cuda.mem_get_info()
-            if pilot and pilot[-1]['peak_bytes']*b/pilot[-1]['batch_size'] > 0.70*total:
-                print('MEMORY_GUARD', b, flush=True)
-                break
-            pred,mean,receipt = fast_sample(cfg,truths[1500],bundle,range(b),steps=5)
-            pilot.append(receipt)
-            print('PILOT',json.dumps(receipt),flush=True)
-            del pred, mean
-            torch.cuda.empty_cache()
-        chosen = pilot[-1]['batch_size']
-        for b in [1,chosen]:
-            pred,mean,receipt = fast_sample(cfg,truths[1500],bundle,range(b))
-            if base is None: base=pred[0].clone()
-            else:
-                receipt['batch_vs_single_relative_difference'] = float(torch.linalg.vector_norm(pred[0]-base)/torch.linalg.vector_norm(base))
-                assert receipt['batch_vs_single_relative_difference'] < (5e-3 if args.tf32 else 2e-4),receipt
-            torch.save(dict(predictions=pred,receipt=receipt),args.output/f'full_pilot_batch{b}.pt')
-            pilot.append(receipt)
-            print('FULL_PILOT',json.dumps(receipt),flush=True)
-        # Compare the fast loop against the unmodified production runner.
-        import sampling.runner as r
-        from contextlib import redirect_stdout, redirect_stderr
-        from scripts.tuning.compare_pde_guidance_schedules import combine_truths
-        cfg.initial_noise_source_indices=[0]
-        cfg.batch_size=1
-        cfg.output_dir=str(args.output/'stock_reference')
-        with (args.output/'stock_reference.log').open('w') as log,redirect_stdout(log),redirect_stderr(log):
-            result=r.run_single_ablation(cfg,checkpoint_bundle=bundle,
-                ground_truth=combine_truths(truths,[1500],'cuda:0'))
-        saved=torch.load(Path(result['run_dir'])/'result.pt',map_location='cpu',weights_only=False)
-        reference=torch.cat([saved['coef_final'],saved['sol_final']],1)[0]
-        difference=float(torch.linalg.vector_norm(base-reference)/torch.linalg.vector_norm(reference))
-        assert difference < (5e-4 if (args.tf32 or args.fused_guidance) else 1e-7),difference
-        write(args.output/'pilot_complete.json',dict(pilot=pilot,stock_relative_difference=difference,selected_batch_size=chosen,
-              estimated_full_seconds=96*1000/chosen*pilot[-1]['seconds']*1.15))
+        run_pilot(args, protocol, selection, source, truths, bundle, identity)
         return
-    jobs=[(t,i) for t in args.tasks for i in args.offsets]
-    assigned=[v for j,v in enumerate(jobs) if j%args.num_shards==args.shard_index]
-    with (args.output/f'run_{args.shard_index}.lock').open('a+') as lock:
-        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        for task,offset in assigned:
-            folder=args.output/task/f'offset{offset}'
-            folder.mkdir(parents=True,exist_ok=True)
-            cfg=configuration(protocol,selection,task,source)
-            cfg.runtime_metadata['fused_guidance'] = args.fused_guidance
-            cfg.offset=offset
-            cfg.mask_seed=20260912+offset
-            cfg.sample_seed=20260912+offset
-            write(folder/'config.json',cfg.asdict())
-            # Every K is independently timed, with the same nested noise paths.
-            for k in KS:
-                dest=folder/f'K{k}.pt'
-                receipt_path=folder/f'K{k}.json'
-                if receipt_path.exists():
-                    old=json.loads(receipt_path.read_text())
-                    assert digest(dest)==old['result_sha256']
-                    continue
-                predictions=[]; batches=[]
-                torch.cuda.synchronize()
-                total_start=time.perf_counter()
-                for start in range(0,k,args.batch_size):
-                    pred,_,receipt=fast_sample(cfg,truths[offset],bundle,range(start,min(k,start+args.batch_size)))
-                    predictions.append(pred); batches.append(receipt)
-                    print('BATCH',task,offset,k,start,start+len(pred),f"{receipt['seconds']:.3f}s",flush=True)
-                pred=torch.cat(predictions)
-                average=pred.double().mean(0).float()
-                torch.cuda.synchronize()
-                total_seconds=time.perf_counter()-total_start
-                truth=torch.cat([truths[offset].coef,truths[offset].sol],1)[0]
-                errors={f:float(torch.linalg.vector_norm((average[j]-truth[j]).double())/torch.linalg.vector_norm(truth[j].double()))
-                        for j,f in enumerate(['a','u'])}
-                payload=dict(predictions=pred,mean=average,truth=truth,task=task,offset=offset,K=k,
-                             mask_seed=cfg.mask_seed,sample_seed=cfg.sample_seed,config=cfg.asdict())
-                torch.save(payload,dest)
-                row=dict(task=task,offset=offset,K=k,errors=errors,
-                         seconds=total_seconds,compute_seconds=sum(x['seconds'] for x in batches),
-                         peak_bytes=max(x['peak_bytes'] for x in batches),batches=batches,
-                         num_steps=100,nfe_per_draw=100,result_sha256=digest(dest),script_sha256=digest(__file__))
-                write(receipt_path,row)
-                print('DONE',task,offset,k,f"{row['seconds']:.3f}s",errors,flush=True)
-        write(args.output/f'complete_{args.shard_index}.json',dict(jobs=assigned,completed_unix=time.time()))
+    state_path = args.output / 'workers' / f'{args.worker}.json'
+    state = dict(status='running', worker=args.worker, invocation=str(invocation_path), completed_cases=[], pid=os.getpid())
+    write(state_path, state)
+    with (args.output / f'worker_{args.worker}.lock').open('a+') as worker_lock:
+        fcntl.flock(worker_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            for offset in OFFSETS:
+                for task in TASKS:
+                    folder = args.output / 'cases' / task / f'offset{offset}'
+                    folder.mkdir(parents=True, exist_ok=True)
+                    with (folder / 'case.lock').open('a+') as lock:
+                        try:
+                            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        except BlockingIOError:
+                            continue
+                        cfg = configured_case(protocol, selection, source, task, offset, folder)
+                        state.update(active_case=[task, offset], updated_unix=time.time())
+                        write(state_path, state)
+                        run_case(args, cfg, truths[offset], bundle, identity, folder)
+                        state['completed_cases'].append([task, offset])
+                        state.update(active_case=None, updated_unix=time.time())
+                        write(state_path, state)
+            state.update(status='complete', completed_unix=time.time())
+            write(state_path, state)
+        except BaseException as exc:
+            state.update(status='error', error=repr(exc), updated_unix=time.time())
+            write(state_path, state)
+            raise
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()
