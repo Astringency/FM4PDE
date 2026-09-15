@@ -1,5 +1,5 @@
 """Scientific figures from verified physical-unit summaries and step traces."""
-import argparse,csv,hashlib,json,math,pathlib
+import argparse,csv,hashlib,json,math,pathlib,sys
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -11,12 +11,15 @@ TITLES=[r'Full-field $a$',r'Full-field $u$',r'Observed $a$',r'Observed $u$',r'Co
 
 def sha(p):return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
 def style():
- plt.rcParams.update({'font.family':'DejaVu Sans','font.size':9,'axes.labelsize':9,'axes.titlesize':10,'legend.fontsize':9,'pdf.fonttype':42,'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.grid':True,'grid.alpha':.18,'figure.dpi':150,'savefig.dpi':220})
+ sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'plot'))
+ from publication_style import use_times_new_roman
+ use_times_new_roman()
+ plt.rcParams.update({'font.size':9,'axes.labelsize':9,'axes.titlesize':10,'legend.fontsize':9,'pdf.fonttype':42,'ps.fonttype':42,'axes.spines.top':False,'axes.spines.right':False,'axes.grid':True,'grid.alpha':.18,'figure.dpi':150,'savefig.dpi':220})
 
 def cocogen(root,summary,out):
  audit=json.load(open(root/'cocogen/reuse_audit.json'));assert audit['status']=='pass' and audit['samples_verified']==9000
  fm={x['cell_id']:x for x in csv.DictReader(open(summary))};co={x['cell']:x for x in audit['cells']};rows=[]
- fig,axes=plt.subplots(1,4,figsize=(12.4,3.5),layout='constrained')
+ fig,axes=plt.subplots(2,2,figsize=(6.4,4.4),layout='constrained');axes=axes.ravel()
  for ax,(setting,field,title) in zip(axes,[('sparse_forward','u',r'Forward: $u$'),('sparse_inverse','a',r'Inverse: $a$'),('sparse_joint','a',r'Joint: $a$'),('sparse_joint','u',r'Joint: $u$')]):
   for dist in ['id','smooth','rough']:
    cell=f'darcy/{dist}/{setting}';s=co[cell]['summary'];f=fm['supervised/'+cell];assert int(f['n'])==1000
@@ -49,7 +52,7 @@ def traces(root,out,allow_partial):
     raise ValueError(f'{pde}/{method}: {len(values)}/20 complete')
    matrices[method]={k:np.stack([v[k] for v in values]) for k in values[0]}
   for xaxis,suffix in [('step','steps'),('sampling_seconds_excluding_diagnostics','sampling_time')]:
-   fig,axes=plt.subplots(1,5,figsize=(15.0,3.5),layout='constrained')
+   fig,axes=plt.subplots(2,3,figsize=(6.4,4.8),layout='constrained');axes=axes.ravel();axes[-1].set_axis_off()
    for ax,metric,title in zip(axes,METRICS,TITLES):
     ax.set_title(title)
     if pde=='burger' and metric in ['relative_l2_a','observed_relative_l2_a']:
@@ -63,13 +66,13 @@ def traces(root,out,allow_partial):
      ax.fill_between(x,np.maximum(mean-ci,np.finfo(float).tiny),mean+ci,color=COLORS[method],alpha=.12,lw=0)
      if suffix=='steps':
       for k in range(1001):aggregate.append({'pde':pde,'method':method,'step':k,'n':20,'metric':metric,'mean':mean[k],'sample_sd':sd[k],'mean_ci95_halfwidth':ci[k],'unit':'physical residual MSE' if metric=='L_pde' else 'percent','mean_sampling_seconds_excluding_diagnostics':m['sampling_seconds_excluding_diagnostics'][:,k].mean(),'mean_elapsed_seconds_including_diagnostics':m['elapsed_seconds_including_diagnostics'][:,k].mean()})
-    ax.set_yscale('log');ax.set_xlabel('Completed sampling steps' if suffix=='steps' else 'Sampling time excluding diagnostics (s)');ax.set_ylabel('Common residual MSE' if metric=='L_pde' else 'Relative $L_2$ error (%)')
+    ax.set_yscale('log');ax.set_xlabel('Completed sampling steps' if suffix=='steps' else 'Elapsed time (s)');ax.set_ylabel('Common residual MSE' if metric=='L_pde' else 'Relative $L_2$ error (%)')
     if suffix=='steps':ax.set_xlim(0,1000)
    legend_ax=axes[1] if pde=='burger' else axes[0];legend_ax.legend(frameon=False)
    name=f'fm_diffusion_{pde}_{suffix}';fig.savefig(out/(name+'.pdf'));fig.savefig(out/(name+'.png'));plt.close(fig)
  with (out/'step_trace_summary.csv').open('w') as f:
   w=csv.DictWriter(f,fieldnames=list(aggregate[0]));w.writeheader();w.writerows(aggregate)
- (out/'step_trace_provenance.json').write_text(json.dumps({'manifest_sha256':sha(root/'manifest.json'),'sources':sources,'uncertainty':'pointwise 95% Student-t CI of mean over 20 fixed examples, df19; no paired significance tests','semantics':'Steps0..999 use a clean endpoint estimate at the current native state (FM endpoint, first Diffusion denoiser evaluation); step1000 uses the final output. A point at step100 belongs to the 1000-step schedule and is not a standalone100-step run.','metric':'Identical physical-unit relative L2 and masked relative L2; PDE MSE is evaluated with the same frozen FM evaluator for both methods within each PDE. Residual mode and boundary normalization are recorded per receipt; NS endpoint-secant is an approximate residual.','timing':'Cumulative synchronized wall time excludes diagnostic callbacks but retains instrumentation/synchronization overhead. It is a diagnostic trace, not a replacement for the original independent strict resident-model sampling timing. Error-time coordinates are mean elapsed and mean error at the same sampling step; no interpolation or extrapolation.','step0':'Actual network estimate from the initial random state; not a fabricated zero-error point.','burgers':'Only u denotes the full time-space trajectory; coefficient panels are not applicable.'},indent=2)+'\n')
+ (out/'step_trace_provenance.json').write_text(json.dumps({'manifest_sha256':sha(root/'manifest.json'),'sources':sources,'uncertainty':'pointwise 95% Student-t CI of mean over 20 fixed examples, df19; no paired significance tests','semantics':'Steps0..999 use a clean endpoint estimate at the current native state (FM endpoint, first Diffusion denoiser evaluation); step1000 uses the final output. A point at step100 belongs to the 1000-step schedule and is not a standalone100-step run.','metric':'Identical physical-unit relative L2 and masked relative L2; PDE MSE is evaluated with the same frozen FM evaluator for both methods within each PDE. Residual mode and boundary normalization are recorded per receipt; NS endpoint-secant is an approximate residual.','timing':'Elapsed time excludes metric evaluation but includes the additional field conversions and synchronization used to record the trajectories. This is not a replacement for the original independent resident-model sampling timing. Error-time coordinates are mean elapsed and mean error at the same sampling step; no interpolation or extrapolation. The original producer column named sampling_seconds_excluding_diagnostics includes this recording overhead, and is interpreted only under this definition.','step0':'Actual network estimate from the initial random state; not a fabricated zero-error point.','burgers':'Only u denotes the full time-space trajectory; coefficient panels are not applicable.'},indent=2)+'\n')
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);p.add_argument('--fm-summary',type=pathlib.Path);p.add_argument('--traces',action='store_true');p.add_argument('--allow-partial',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True);style()
