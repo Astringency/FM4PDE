@@ -383,7 +383,7 @@ def main():
     if args.mode == "run":
         assert args.pilot_certificate is not None
         cert = load_json(args.pilot_certificate)
-        assert cert["status"] == "pass" and cert["protocol_sha256"] == file_hash(args.protocol)
+        assert cert["status"] == "pass" and cert["protocol_sha256"] == protocol.get("pilot_protocol_sha256", file_hash(args.protocol))
         assert cert["code_identity"] == identity and cert["model_sha256"] == protocol["model_sha256"]
         assert cert["gpu"] == torch.cuda.get_device_name() and cert["torch"] == torch.__version__
         assert set(cert["jobs"]) == PILOT_JOB_IDS
@@ -431,6 +431,7 @@ def main():
                 completed.append(job["job_id"])
         atomic_json(state, dict(status="complete", completed=completed, pid=os.getpid(), finished_unix=time.time()))
         if args.mode == "pilot":
+            assert set(completed) == PILOT_JOB_IDS
             atomic_json(args.output / "pilot_complete.json", dict(status="pass", jobs=completed,
                         protocol_sha256=file_hash(args.protocol), model_sha256=MODEL_SHA256,
                         code_identity=identity, torch=torch.__version__, gpu=torch.cuda.get_device_name()))
