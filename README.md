@@ -1,115 +1,224 @@
-# FM4PDE
+# Guided Flow Matching for Forward and Inverse PDE Problems with Sparse Observations: Algorithm and Theory
 
-Flow matching for joint physical-field generation and conditional reconstruction.
-The same trained network supports forward, inverse and joint tasks for each PDE.
-
-## Setup and assets
-
-Use the supplied `environment.yml` (environment name `fm4pde`). Training and
-sampling require the datasets and trained weights; these are external to the code.
-
-```bash
-export DATA_ROOT=/path/to/PDEdata
-export CHECKPOINT_ROOT=/path/to/pretrained
-python -m sampling.validate_configs
-```
-
-`DATA_ROOT` replaces `datasets/` in sampling configurations. `CHECKPOINT_ROOT`
-replaces `outputs/pretrained/` while retaining the remaining subdirectories.
-Alternatively, set a complete checkpoint filename per equation, for example
-`CHECKPOINT_NSNONBOUNDED=/path/to/fm4nsnonbounded.pth`.
-Explicit `--override checkpoint_path=...` takes precedence. Add `--check-assets`
-to the validator to check that all referenced data and weight files are installed.
+Sparse observations of partial differential equations (PDEs) often leave
+input fields, solution fields, or both only partially known. We propose
+FM4PDE, a flow-matching method that learns a joint prior over these fields
+for each equation and uses the same prior for forward, inverse, and joint
+reconstruction. During inference, observation and PDE residuals guide
+sampling through predicted endpoints expressed in physical units.
+We develop deterministic, stochastic, and hybrid samplers with gradient
+clipping and establish finite-step bounds under local regularity and
+geometric assumptions, with explicit error floors. Experiments on static and time-dependent benchmark PDEs examine
+reconstruction accuracy and computational cost across the three tasks.
+The results show competitive reconstruction accuracy on several tasks
+and faster sampling than DiffusionPDE in controlled comparisons.
 
 ## Training
 
+Run the commands below from this repository's root in Bash (Linux or WSL).
+Create the environment from [environment.yml](environment.yml); datasets and
+trained weights must be supplied separately.
+
 ```bash
-PDE=poisson bash scripts/training/run_train.sh
-PDE=nsnonbounded NPROC_PER_NODE=2 bash scripts/training/run_train.sh
-PDE=poisson RESUME=/path/to/checkpoint.pth bash scripts/training/run_train.sh
+conda env create -f environment.yml
+conda activate fm4pde
+export DATA_ROOT=/path/to/PDEdata
+export PYTHON_BIN=python
 ```
 
-Omit `PDE` to train all eleven equations, or provide `PDE_LIST`.
-`configs/training_data.yaml` lists five training shards per equation. The launcher
-supports gradient accumulation, distributed training and checkpoint resume.
-`DRY_RUN=true` prints commands. `PYTHON_BIN` selects the Python executable.
-Navier–Stokes uses the **44,121,218-parameter light model**, including its ablations.
-Export an inference checkpoint with `python scripts/training/export_checkpoint.py SOURCE OUTPUT`.
+The training entry is `main(args)` in [train.py](train.py).
+It loads data, fits the normalization, constructs the model, and manages
+validation and checkpoints. The flow-matching objective and parameter updates
+are implemented by `train_one_epoch()` in [training/train_loop.py](training/train_loop.py);
+the same file provides `validate_one_epoch()`.
+[configs/training_data.yaml](configs/training_data.yaml) lists the five training
+shards for each equation.
 
-## Main sampling
+For example, launch Poisson training directly on one GPU:
 
 ```bash
+python train.py \
+  --dataset poisson \
+  --data_path "$DATA_ROOT/" \
+  --train_data_config configs/training_data.yaml \
+  --data_size 5 \
+  --epochs 300 --batch_size 4 --accum_iter 16 \
+  --lr 0.0001 --lr_scheduler warmup_cosine \
+  --model_profile recommended --device cuda \
+  --output_dir outputs/pretrained/formal/poisson
+```
+
+The Bash launcher [scripts/training/run_train.sh](scripts/training/run_train.sh)
+sets the per-GPU batch size and gradient accumulation and supports distributed
+training and checkpoint resume:
+
+```bash
+# Inspect the training command.
+PDE=poisson DRY_RUN=true bash scripts/training/run_train.sh
+
+# Train one equation, or select several equations and two GPUs.
+PDE=poisson bash scripts/training/run_train.sh
+PDE_LIST="poisson helmholtz nsnonbounded" NPROC_PER_NODE=2 \
+  bash scripts/training/run_train.sh
+
+# Resume one equation from a training checkpoint.
+PDE=poisson RESUME=/path/to/checkpoint.pth \
+  bash scripts/training/run_train.sh
+```
+
+Omit both `PDE` and `PDE_LIST` to train all eleven supported equations.
+The launcher defaults to 300 epochs and an effective batch size of 64;
+`EPOCHS`, `TARGET_EFFECTIVE_BATCH`, and `OUTPUT_DIR` override these settings.
+Navier–Stokes (`nsnonbounded`) uses the light model with 44,121,218
+parameters; select `--model_profile light` for a direct Python launch.
+
+To export a compact inference checkpoint and select it for Poisson sampling:
+
+```bash
+python scripts/training/export_checkpoint.py \
+  /path/to/training-checkpoint.pth /path/to/fm4poisson.pth
+export CHECKPOINT_POISSON=/path/to/fm4poisson.pth
+```
+
+## Main Sampling
+
+[sample.py](sample.py) delegates to `main()` in [sampling/runner.py](sampling/runner.py).
+Its `run_single_ablation()` function implements a single sampling run for
+both main experiments and ablations, using the samplers in
+[sampling/sampler_wrappers.py](sampling/sampler_wrappers.py).
+Main experiments load profiles from [configs/main](configs/main), organized
+as `<task>/<pde>.yaml`.
+
+The task names are `forward` (observe the input field and reconstruct the
+solution), `inverse` (observe the solution and reconstruct the input), and
+`both` (joint reconstruction from observations of both fields).
+Burgers uses `both` for space–time trajectory reconstruction.
+
+`DATA_ROOT` replaces the `datasets/` prefix in sampling profiles.
+Use `CHECKPOINT_<PDE>` for a complete weight filename, or
+`CHECKPOINT_ROOT` to replace `outputs/pretrained/` while keeping the
+remaining subdirectories. An explicit `--override checkpoint_path=...`
+takes precedence. Set the corresponding checkpoint for every selected PDE.
+
+Examples of direct Python sampling:
+
+```bash
+# Sparse forward reconstruction on Poisson ID inputs.
+python sample.py --config configs/main/forward/poisson.yaml \
+  --override num_steps=100 --override num_obs=500 \
+  --override output_dir=outputs/examples/poisson_forward
+
+# Sparse inverse reconstruction on the Smooth distribution.
+python sample.py --config configs/main/inverse/poisson.yaml \
+  --override test_type=smooth --override num_steps=100 \
+  --override output_dir=outputs/examples/poisson_inverse
+
+# Joint reconstruction; the module entry is equivalent to sample.py.
+python -m sampling.runner --config configs/main/both/poisson.yaml \
+  --override batch_size=4 --override num_steps=100 \
+  --override output_dir=outputs/examples/poisson_joint
+
+# Full-field forward reconstruction on a 128 x 128 grid.
+python sample.py --config configs/main/forward/poisson.yaml \
+  --override num_obs=16384 \
+  --override output_dir=outputs/examples/poisson_full_forward
+
+# Burgers trajectory reconstruction from random space-time observations.
+python sample.py --config configs/main/both/burger.yaml \
+  --override sensor_mode=random --override num_obs=500 \
+  --override output_dir=outputs/examples/burger_random
+```
+
+The scripts provide single runs and complete sweeps:
+
+```bash
+# One PDE/task.
+PDE=poisson TASK=both TEST_TYPE=id \
+  bash scripts/sampling/main/run_sample.sh
+
+# Inspect all main jobs, then run them on two GPUs.
 PLAN_ONLY=true bash scripts/sampling/main/run.sh
 DEVICE_LIST="cuda:0 cuda:1" bash scripts/sampling/main/run.sh
-PDE=poisson TASK=both TEST_TYPE=id bash scripts/sampling/main/run_sample.sh
+
+# A smaller sweep with explicit PDE, task, and sample counts.
+PDE_LIST="poisson helmholtz" TASK_LIST="forward inverse both" \
+  TEST_TYPE=smooth NUM_SAMPLES=100 MAX_BATCH_SIZE=10 \
+  OUTPUT_DIR=outputs/main_subset \
+  bash scripts/sampling/main/run_sample_sweep.sh
+
+# Burgers: both configured observation layouts.
+bash scripts/sampling/main/run_sample_sweep_burger.sh
 ```
 
-The main launcher covers full-field forward/inverse and three sparse tasks for
-Poisson, Helmholtz, Darcy and Navier–Stokes, plus the two Burgers layouts, on
-ID/Smooth/Rough. It uses 1,000 inputs and 100 steps per comparison by default.
-The default output is `outputs/main`; `OUTPUT_ROOT` selects a new root. Existing
-successful sampler results can be resumed. `run_sample_sweep.sh` also accepts
-`PDE_LIST`, `TASK_LIST`, `NUM_SAMPLES`, `MAX_BATCH_SIZE`, and `PLAN_ONLY=true`.
+The complete `run.sh` workflow covers sparse forward, inverse, and joint
+tasks and full-field forward/inverse tasks for Poisson, Helmholtz, Darcy, and
+Navier–Stokes, plus the two Burgers layouts, on ID/Smooth/Rough. It defaults to
+1,000 inputs and 100 steps per comparison. Use `OUTPUT_ROOT` to change
+`outputs/main`, and `TEST_TYPE_LIST` to select distributions.
+Matching completed jobs can be resumed.
 
-The paper's aligned main results use saved input and observation tensors. Replay
-those exact inputs with the retained inference implementation:
+For the saved aligned comparisons, use
+[experiments/aligned_sampling/run_inference.py](experiments/aligned_sampling/run_inference.py)
+through its launcher:
 
 ```bash
-STUDY_ROOT=/path/to/baseline_pairing_20260915_57k \
+STUDY_ROOT=/path/to/saved_aligned_study \
 CELL=supervised/poisson/id/sparse_joint \
-OUTPUT_ROOT=outputs/reproductions/aligned bash scripts/sampling/main/run_matched_cell.sh
+OUTPUT_ROOT=outputs/reproductions/aligned \
+  bash scripts/sampling/main/run_matched_cell.sh
 ```
 
-This command runs the batch-consistency check and then the selected cell. It
-requires the saved protocol, inputs, masks and weights. It preserves completed
-results. `run_matched.sh --help` exposes individual pilot/production controls.
-Fresh `run.sh` sampling generates observations from the supplied configurations;
-use the matched entry point when reproducing the saved aligned comparisons.
+This requires the study's `protocol.json`, saved inputs, observation masks,
+and weights. The script runs a batch-consistency pilot before replaying the
+selected cell. Use this entry to reproduce saved aligned inputs; the ordinary
+main scripts construct observations from their current configurations.
 
-## Ablations and repeated sampling
+## Ablations
+
+Ordinary ablations use [sampling/sweep.py](sampling/sweep.py) to expand
+[configs/ablations/paper.yaml](configs/ablations/paper.yaml), then call the same
+[sampling/runner.py](sampling/runner.py) used for main sampling.
+Their base profiles live in [configs/ablations/base](configs/ablations/base);
+these preserve separate guidance weights and gradient limits. The datasets
+default to ID.
 
 ```bash
+# Inspect a sampler ablation directly in Python; omit --list to run it.
+python -m sampling.sweep --grid configs/ablations/paper.yaml \
+  --pde poisson --group sampler_phase --list
+
+# Inspect all ordinary ablations.
 PLAN_ONLY=true bash scripts/sampling/ablations/run.sh
-PDE_LIST="poisson nsnonbounded" bash scripts/sampling/ablations/run.sh sampler_phase
-bash scripts/sampling/ablations/run_study.sh averaging --help
-bash scripts/sampling/ablations/run_traces.sh --help
+
+# Run selected factors on two equations.
+PDE_LIST="poisson nsnonbounded" \
+  bash scripts/sampling/ablations/run.sh guidance_components sampler_phase
+
+# Run step-budget and observation-density ablations concurrently.
+PDE_LIST=poisson PARALLEL=true MAX_PARALLEL_TASKS=2 \
+  DEVICE_LIST="cuda:0 cuda:1" OUTPUT_DIR=outputs/ablations/poisson \
+  bash scripts/sampling/ablations/run.sh num_steps_by_sampler sensor_sparsity
 ```
 
-`configs/ablations/paper.yaml` contains the retained factor sweeps. The separate
-`configs/ablations/base/<task>/<pde>.yaml` profiles preserve the paper's ablation
-weights and gradient limits; main and ablation settings need not coincide.
-All ablation datasets default to ID. Synthetic configurations live only in test fixtures.
+The other available groups are `loss_state_by_sampler`, `sensor_mode`,
+`noise_robustness`, `temporal_residual_mode`, and `statistics_stability`.
+`BATCH_SIZE` controls the inputs in each ablation job (default: 1);
+`OFFSET` selects their starting index.
 
-| Study | Entry |
+Additional studies are exposed by
+[scripts/sampling/ablations/run_study.sh](scripts/sampling/ablations/run_study.sh):
+
+| Study argument | Experiment |
 | --- | --- |
-| Guidance, loss state, D/S and switches, steps, density, noise, temporal residual | `scripts/sampling/ablations/run.sh` |
-| 32 inputs × 3 draws | `run_study.sh ensemble` |
-| Repeated guidance trajectories | `run_study.sh guidance` |
-| Poisson conditional averaging | `run_study.sh averaging` |
-| Four observation layouts, each with shared/separate locations | `run_study.sh layouts` |
-| Physical-guidance weights, including NS | `run_study.sh weights` |
-| Unconditional examples | `run_study.sh prior` |
-| FM4PDE/DiffusionPDE error–time trajectories | `run_traces.sh` |
-
-The Python runners, input preparation tools and figure scripts are listed by
-task in [Experiment and plotting tools](plot/README.md).
-
-NS uses the same entries as every other PDE. Select it with
-`PDE_LIST=nsnonbounded` for the ordinary ablation sweep, or
-`--pdes nsnonbounded` for repeated studies. No model-specific experiment directory
-or NS-only launcher is needed.
-
-`ensemble`, `guidance`, and `weights` read checkpoint paths and model profiles
-from `configs/ablations/base/both/<pde>.yaml`. These profiles already select the
-44M NS model. `CHECKPOINT_<PDE>` and `CHECKPOINT_ROOT` work as for main sampling;
-`--checkpoint PATH` overrides the weights for one selected PDE, and
-`--model-profile light` or `auto` overrides the architecture choice.
-`--config-dir` selects a different set of model defaults. The prepared inputs,
-guidance parameters, seeds and weight-selection rule retain their existing meaning.
-Choose a new output directory when changing the model: saved predictions from a
-different checkpoint are never reused.
+| `ensemble` | Repeated sampling: 32 inputs × 3 draws |
+| `guidance` | Repeated guidance trajectories |
+| `averaging` | Poisson conditional sample averaging |
+| `layouts` | Random, fixed, grid, and column observations with shared/separate locations |
+| `weights` | Observation/PDE guidance-weight sweeps |
+| `prior` | Unconditional samples |
 
 ```bash
+bash scripts/sampling/ablations/run_study.sh averaging --help
 bash scripts/sampling/ablations/run_study.sh ensemble \
   --pdes nsnonbounded --inputs /path/to/prepared_inputs \
   --output /path/to/ensemble_results --checkpoint /path/to/fm4nsnonbounded.pth
@@ -119,60 +228,53 @@ bash scripts/sampling/ablations/run_study.sh weights \
   --checkpoint /path/to/fm4nsnonbounded.pth
 ```
 
-Repeated studies still require their prepared physical inputs and selected
-settings (`selection.json` for `ensemble`, `--anchors` for `weights`); changing
-the checkpoint does not change those experimental controls. Use `--plan-only`
-to inspect model choices without reading the inputs or running inference.
+These studies require their prepared inputs and selected settings, including
+`selection.json` for `ensemble` and an anchors file for `weights`.
+The ensemble, guidance, and weight studies read model defaults from
+`configs/ablations/base/both/<pde>.yaml`, including the light NS model.
 
-Sampling-trajectory code lives in `experiments/trajectories/` and figure exporters
-in `plot/`. The trajectory entry accepts `prepare`, `run` (the default), `verify`,
-and `plot`; each subcommand supports `--help`. Existing prepared trajectory inputs
-retain their model profiles and sampler definitions.
+Paired FM4PDE/DiffusionPDE error–time trajectories are implemented in
+[experiments/trajectories](experiments/trajectories):
 
 ```bash
-bash scripts/sampling/ablations/run_traces.sh run --root /path/to/trace_study
+bash scripts/sampling/ablations/run_traces.sh prepare --help
+DIFFUSION_ROOT=/path/to/DiffusionPDE \
+  bash scripts/sampling/ablations/run_traces.sh run --root /path/to/trace_study
+bash scripts/sampling/ablations/run_traces.sh verify --root /path/to/trace_study
 bash scripts/sampling/ablations/run_traces.sh plot \
   --root /path/to/trace_study --output /path/to/figures
 ```
 
-The complete layout comparison uses `run_study.sh layouts --inputs
-/path/to/prepared_inputs --output /absolute/path/to/layout_results`, where the
-input root contains `helmholtz/`. It runs Random, Fixed (left half), Grid and
-Columns with both shared and separate locations.
+The run, verification, and plotting commands require an already prepared study.
+Further input preparation and figure tools are listed in [plot/README.md](plot/README.md).
 
-Controlled FM4PDE/DiffusionPDE timing uses `plot/run_diffusion_fm_timing.py`
-(`prepare` and `run` modes). It reads the model profile from the prepared
-protocol, including the light NS checkpoint.
+## Baseline and other info
 
-The Poisson/Darcy frequency comparison uses predictions from
-`plot/run_matched_timing.py`. Its study directory contains `inputs_v2/` and
-`results_v3/`. Compute the spectra and input-level statistics with:
+Companion experiment repositories:
+
+- [RecFNO and other baselines](https://github.com/Astringency/FM4PDEbaseline.git):
+  FNO, DeepONet, iFNO, RecFNO, Senseiver, VoronoiCNN, PINN-Sparse, PDE-Opt,
+  PC-BNN, 4D-Var, and VIVID.
+- [DiffusionPDE experiments](https://github.com/Astringency/DiffusionPDE.git).
+- [CoCoGen experiments](https://github.com/Astringency/CoCoGen.git).
+
+The `experiments/` directory is required for the retained reproduction
+workflows. `scripts/sampling/main/run_matched.sh` imports
+`experiments/aligned_sampling/run_inference.py`, and
+`scripts/sampling/ablations/run_traces.sh` calls the preparation,
+sampling, and verification code in `experiments/trajectories/`.
+Keep this directory to preserve both workflows.
+
+Navier–Stokes main sampling and ordinary ablations use endpoint-secant
+residuals. Heat, Wave, Advection–Diffusion, Reaction–Diffusion, and Shallow Water
+use Hermite bridges by default; Burgers uses full-trajectory finite differences.
+Static equations use spatial residuals. Training optimizes flow matching;
+its periodic generated-sample diagnostics retain their own residual settings.
+
+Validate the published profiles and ablation combinations without sampling:
 
 ```bash
-python plot/export_matched_spectra.py \
-  --study /path/to/frequency_study --output /path/to/frequency_report
-python plot/summarize_spectral_evidence.py --report /path/to/frequency_report
+python -m sampling.validate_configs
+# Also check that all configured datasets and checkpoints exist locally.
+python -m sampling.validate_configs --check-assets
 ```
-
-These commands compute frequency-band errors, predicted/reference energy
-ratios and coefficient alignment from the saved physical predictions.
-`plot/export_frequency_tables.py` exports the resulting paper tables.
-
-## Physical residuals
-
-Navier–Stokes main sampling and ordinary ablations use **endpoint secants**.
-Its temporal-residual comparison explicitly includes Hermite and near-endpoint
-variants. Heat, Wave, Advection–Diffusion, Reaction–Diffusion and Shallow Water use
-Hermite bridges by default; Burgers uses full-trajectory finite differences.
-Static equations use their spatial residuals. The training objective is flow matching;
-periodic generated-sample diagnostics retain `eval_residual_mode=auto`, which
-resolves to Hermite for NS, as in its saved training log. See [residual definitions](docs/time_dependent_residuals.md),
-[normalization](docs/normalization.md) and [sampling options](docs/sampling.md).
-
-## Verification and local backups
-
-`python -m pytest tests` runs CPU tests. GPU experiments require their external
-assets and are not launched by configuration validation. Earlier parameter
-searches and development scripts are preserved under ignored `bak/`, with file
-hashes in `bak/release_20260916/manifest.json`. Existing experiment outputs and
-local research notes are preserved.
