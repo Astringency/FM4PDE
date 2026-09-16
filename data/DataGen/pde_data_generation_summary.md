@@ -47,7 +47,7 @@ Helmholtz 默认 `k=1`，文件名不再添加 `k` 后缀。兼容入口仍接�
 采样配置在 `data_paths` 中保存三条测试路径，并用 `test_type` 选择。命令行可直接执行：
 
 ```bash
-PDE=poisson TASK=both TEST_TYPE=rough bash scripts/sample/run_sample.sh
+PDE=poisson TASK=both TEST_TYPE=rough bash scripts/sampling/main/run_sample.sh
 python -m sampling.runner --config configs/main/both/poisson.yaml --override test_type=smooth
 ```
 

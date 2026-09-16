@@ -25,6 +25,7 @@ from contextlib import redirect_stderr, redirect_stdout
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from sampling.study_models import add_model_arguments, model_config, bind_model, print_model_plan
 PDES = ['poisson', 'helmholtz', 'darcy', 'nsnonbounded', 'burger',
         'reaction_diffusion', 'shallow_water', 'heat', 'wave',
         'advection_diffusion', 'steady_heat_conduction']
@@ -57,7 +58,7 @@ def prepare(args):
     import scipy.io
     from sampling.config import load_config
     from sampling.data import load_ground_truth
-    from scripts.tuning.make_inference_checkpoint import make_inference_checkpoint
+    from scripts.training.export_checkpoint import make_inference_checkpoint
     target = args.inputs
     target.mkdir(parents=True, exist_ok=True)
     # The MATLAB loader otherwise reads the entire multi-GB file for each ID.
@@ -89,9 +90,7 @@ def prepare(args):
                                  old_errors={f:float(row['rel_l2_'+f]) for f in ['a','u']}))
         base = {task:load_config(ROOT/f'configs/main/{task}/{pde}.yaml').asdict()
                 for task in (['both'] if pde == 'burger' else ['both','forward','inverse'])}
-        ckpt = args.archive/base['both']['checkpoint_path']
-        assert all(c['checkpoint_path'] == base['both']['checkpoint_path'] for c in base.values())
-        assert all(c['config']['checkpoint_path'] == base['both']['checkpoint_path'] for c in archived)
+        ckpt = Path(model_config(args, pde).checkpoint_path)
         weight = dest/'weights.pth'
         make_inference_checkpoint(ckpt, weight)
         truths = {}
@@ -140,7 +139,7 @@ def run(args):
     import torch
     from sampling.config import AblationConfig
     from sampling.model_io import load_fm4pde_checkpoint_bundle
-    from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+    from sampling.batching import combine_truths
     import sampling.runner as runner
     torch.set_num_threads(2)
     torch.set_num_interop_threads(2)
@@ -152,17 +151,18 @@ def run(args):
         protocol = json.loads((source/'protocol.json').read_text())
         ph = digest(source/'protocol.json')
         assert digest(source/'truths.pt') == protocol['truth_sha256']
-        assert digest(source/'weights.pth') == protocol['weights_sha256']
         target = args.output/pde
         target.mkdir(parents=True, exist_ok=True)
         with (target/f'{args.mode}.lock').open('a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+            selected_model = model_config(args, pde)
+            bind_model(target, selected_model)
             write(target/f'environment_{args.mode}.json',dict(host=socket.gethostname(), pid=os.getpid(),
                 protocol_sha256=ph, python=sys.version, torch=torch.__version__, cuda=torch.version.cuda,
                 gpu=torch.cuda.get_device_name(), visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
                 tf32=False, commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()))
             truths = torch.load(source/'truths.pt',map_location='cpu',weights_only=False)
-            bundle = load_fm4pde_checkpoint_bundle(str(source/'weights.pth'),pde,'cuda:0',model_profile='recommended')
+            bundle = load_fm4pde_checkpoint_bundle(selected_model.checkpoint_path,pde,'cuda:0',model_profile=selected_model.model_profile)
             calls = {'count':0}
             def hook(*_): calls['count'] += 1
             handle = bundle[0].model.register_forward_hook(hook)
@@ -176,7 +176,7 @@ def run(args):
                     return row
                 folder.mkdir(parents=True, exist_ok=True)
                 c = copy.deepcopy(conf)
-                c.update(checkpoint_path=str(source/'weights.pth'), device='cuda:0', output_dir=str(folder),
+                c.update(checkpoint_path=selected_model.checkpoint_path, model_profile=selected_model.model_profile, device='cuda:0', output_dir=str(folder),
                          batch_size=len(ids), offset=ids[0], save_plots=False,save_intermediate=False,
                          save_per_sample_curves=True,ablation_name='paper_revision',allow_synthetic_data=False)
                 cfg = AblationConfig(**c)
@@ -271,7 +271,9 @@ def main():
     parser.add_argument('--output',type=Path)
     parser.add_argument('--archive',type=Path)
     parser.add_argument('--pdes',nargs='+',choices=PDES,default=PDES)
+    add_model_arguments(parser)
     args=parser.parse_args()
+    if print_model_plan(args): return
     args.inputs=args.inputs.resolve()
     if args.mode=='prepare':
         if not args.archive: parser.error('--archive required for preparation')

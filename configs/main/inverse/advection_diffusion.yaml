@@ -1,11 +1,11 @@
 pde: advection_diffusion
 task: inverse
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_10000-128-128_id.h5
+data_path: datasets/advection_diffusion/advection_diffusion_test_10000-128-128_id.h5
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_10000-128-128_id.h5
-  smooth: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_10000-128-128_smooth.h5
-  rough: /large_storage/zhangxf/PDEdata/advection_diffusion/advection_diffusion_test_10000-128-128_rough.h5
+  id: datasets/advection_diffusion/advection_diffusion_test_10000-128-128_id.h5
+  smooth: datasets/advection_diffusion/advection_diffusion_test_10000-128-128_smooth.h5
+  rough: datasets/advection_diffusion/advection_diffusion_test_10000-128-128_rough.h5
 loadby: pair_h5
 coef_name: input_data
 solution_name: output_data
@@ -41,7 +41,10 @@ bc_weight: 1.0
 endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
-hermite_collocation_times: [0.25, 0.5, 0.75]
+hermite_collocation_times:
+- 0.25
+- 0.5
+- 0.75
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0
 num_obs: 500
@@ -59,7 +62,6 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Standard six-PDE tuning retained this baseline on id/smooth/rough.
 zeta_obs_a: 0.0
 zeta_obs_u: 1000000.0
 zeta_pde: 0.0

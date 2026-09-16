@@ -1,11 +1,11 @@
 pde: helmholtz
 task: both
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_id.mat
+data_path: datasets/helmholtz/helmholtz_test_10000-128-128_id.mat
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_id.mat
-  smooth: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_smooth.mat
-  rough: /large_storage/zhangxf/PDEdata/helmholtz/helmholtz_test_10000-128-128_rough.mat
+  id: datasets/helmholtz/helmholtz_test_10000-128-128_id.mat
+  smooth: datasets/helmholtz/helmholtz_test_10000-128-128_smooth.mat
+  rough: datasets/helmholtz/helmholtz_test_10000-128-128_rough.mat
 loadby: scipy
 coef_name: f_data
 solution_name: psi_data
@@ -55,7 +55,6 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Round3 holdout-validated candidate: both_obs_1p25x.
 zeta_obs_a: 25000.0
 zeta_obs_u: 100000000.0
 zeta_pde: 0.1

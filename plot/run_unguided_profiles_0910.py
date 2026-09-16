@@ -9,7 +9,7 @@ from sampling.model_io import load_fm4pde_checkpoint_bundle
 from sampling.runner import _scalar_conditioning_for_sampling
 from sampling.sampler_wrappers import _call_velocity_model
 from sampling.state import standardized_to_physical_state
-from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+from sampling.batching import combine_truths
 from run_paper_ablation_revision import digest,write,PDES
 
 def main(args):

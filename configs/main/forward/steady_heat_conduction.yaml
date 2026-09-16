@@ -1,11 +1,11 @@
 pde: steady_heat_conduction
 task: forward
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_id.h5
+data_path: datasets/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_id.h5
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_id.h5
-  smooth: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_smooth.h5
-  rough: /large_storage/zhangxf/PDEdata/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_rough.h5
+  id: datasets/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_id.h5
+  smooth: datasets/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_smooth.h5
+  rough: datasets/steady_heat_conduction/steady_heat_conduction_test_10000-128-128_rough.h5
 loadby: pair_h5
 coef_name: input_data
 solution_name: output_data
@@ -56,7 +56,6 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Standard six-PDE tune winner; finite on id/smooth/rough, holdout pending.
 zeta_obs_a: 100000.0
 zeta_obs_u: 0.0
 zeta_pde: 0.1

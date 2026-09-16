@@ -1,6 +1,0 @@
-# Source/data archives are transferred as checksummed artifacts, not nested Git history.
-source_snapshots/
-verification_runs/
-dependencies/
-paper_assets/
-paper_assets_final_20260909/

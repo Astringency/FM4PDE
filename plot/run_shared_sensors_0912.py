@@ -20,7 +20,7 @@ import torch
 from sampling.config import AblationConfig
 from sampling.model_io import load_fm4pde_checkpoint_bundle
 from sampling.runner import run_single_ablation
-from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+from sampling.batching import combine_truths
 
 
 def sha(p):

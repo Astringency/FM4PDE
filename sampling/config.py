@@ -486,8 +486,35 @@ def load_config(path: str | os.PathLike[str], overrides: dict[str, Any] | None =
         # An explicit file path is a complete override.  Do not let the
         # per-test-type mapping replace it during validation.
         cfg.data_paths = {}
+    resolve_resource_paths(cfg, use_checkpoint_environment='checkpoint_path' not in normalized_overrides)
     cfg.validate()
     return cfg
+
+
+def resolve_resource_paths(cfg: AblationConfig, *, use_checkpoint_environment: bool = True) -> None:
+    """Resolve public data/checkpoint locations without changing scientific settings.
+
+    Absolute paths and explicit CLI overrides retain their meaning. DATA_ROOT
+    replaces the ``datasets/`` prefix; CHECKPOINT_ROOT replaces
+    ``outputs/pretrained/``. CHECKPOINT_<PDE> selects one equation's weights.
+    """
+    root = Path(__file__).resolve().parents[1]
+
+    def resolve(value: str, prefix: str, environment: str) -> str:
+        if not value:
+            return value
+        value = os.path.expandvars(os.path.expanduser(str(value)))
+        p = Path(value)
+        if p.is_absolute():
+            return str(p)
+        if value.startswith(prefix + '/') and os.environ.get(environment):
+            return str(Path(os.environ[environment]).expanduser().resolve() / value[len(prefix)+1:])
+        return str(root / p)
+
+    cfg.data_path = resolve(cfg.data_path, 'datasets', 'DATA_ROOT')
+    cfg.data_paths = {k: resolve(v, 'datasets', 'DATA_ROOT') for k, v in cfg.data_paths.items()}
+    checkpoint = os.environ.get('CHECKPOINT_' + cfg.pde.upper()) if use_checkpoint_environment else None
+    cfg.checkpoint_path = resolve(checkpoint or cfg.checkpoint_path, 'outputs/pretrained', 'CHECKPOINT_ROOT')
 
 def save_resolved_config(cfg: AblationConfig, output_dir: str | os.PathLike[str]) -> Path:
     path = Path(output_dir) / "resolved_config.yaml"

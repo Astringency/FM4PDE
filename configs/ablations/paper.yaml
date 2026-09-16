@@ -1,0 +1,219 @@
+suite_config: configs/ablations/formal_suite.yaml
+groups:
+  guidance_components:
+    fixed:
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      loss_state: endpoint
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    product: true
+    matrix:
+      task:
+      - both
+      - forward
+      - inverse
+      guidance_components:
+      - noguide
+      - obs_only
+      - pde_only
+      - obs_pde
+  loss_state_by_sampler:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    product: true
+    matrix:
+      loss_state:
+      - xt
+      - x_next
+      - endpoint
+      sampler_phase:
+      - deterministic
+      - stochastic
+    conditional_overrides:
+      poisson_stochastic_xnext:
+        when:
+          pde: poisson
+          loss_state: x_next
+          sampler_phase: stochastic
+        set:
+          zeta_obs_a: 600000
+          zeta_obs_u: 2000000000.0
+          zeta_pde: 1.0
+  sampler_phase:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      sampler_phase:
+      - deterministic
+      - stochastic
+      - hybrid_d2s
+      - hybrid_d2s
+      - hybrid_d2s
+      - hybrid_s2d
+      - hybrid_s2d
+      - hybrid_s2d
+      switch_ratio:
+      - 0.5
+      - 0.5
+      - 0.2
+      - 0.5
+      - 0.8
+      - 0.2
+      - 0.5
+      - 0.8
+  num_steps_by_sampler:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      step_method: euler
+    product: true
+    matrix:
+      num_steps:
+      - 10
+      - 50
+      - 100
+      - 200
+      - 500
+      - 1000
+      - 2000
+      sampler_phase:
+      - deterministic
+      - stochastic
+      - hybrid_d2s
+      - hybrid_s2d
+  sensor_sparsity:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      num_obs:
+      - 50
+      - 100
+      - 250
+      - 500
+      - 1000
+  sensor_mode:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      sensor_mode:
+      - random
+      - fixed
+      - grid
+      - sensor_column
+      - per_sample_random
+  noise_robustness:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      noise_level:
+      - 0.0
+      - 0.01
+      - 0.05
+      - 0.1
+  temporal_residual_mode:
+    pdes:
+    - heat
+    - wave
+    - advection_diffusion
+    - reaction_diffusion
+    - shallow_water
+    - nsnonbounded
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      residual_mode:
+      - endpoint_secant
+      - hermite_bridge
+      - near_endpoint_temporal
+  statistics_stability:
+    fixed:
+      task: both
+      guidance_components: obs_pde
+      loss_state: endpoint
+      sampler_phase: stochastic
+      switch_ratio: 0.5
+      sensor_mode: per_sample_random
+      num_obs: 500
+      noise_level: 0.0
+      noise_seed: 0
+      offset: 0
+      time_grid: uniform
+      num_steps: 100
+      step_method: euler
+    matrix:
+      sample_seed:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      mask_seed:
+      - 0
+      - 11
+      - 22
+      - 33
+      - 44

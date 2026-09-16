@@ -1,11 +1,11 @@
 pde: darcy
 task: forward
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_id.mat
+data_path: datasets/darcy/darcy_test_10000-128-128_id.mat
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_id.mat
-  smooth: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_smooth.mat
-  rough: /large_storage/zhangxf/PDEdata/darcy/darcy_test_10000-128-128_rough.mat
+  id: datasets/darcy/darcy_test_10000-128-128_id.mat
+  smooth: datasets/darcy/darcy_test_10000-128-128_smooth.mat
+  rough: datasets/darcy/darcy_test_10000-128-128_rough.mat
 loadby: h5py
 coef_name: thresh_a_data
 solution_name: thresh_p_data
@@ -57,7 +57,6 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Round3 holdout-validated candidate: obs_a_1p25x.
 zeta_obs_a: 12.5
 zeta_obs_u: 500000000.0
 zeta_pde: 0.1

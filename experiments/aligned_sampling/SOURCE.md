@@ -1,0 +1,1 @@
+The aligned main-study inference and input readers are retained from FM4PDE commit `0c3fcf7f2830ba2bda30279e0ec41afd0ea2613f`. Only module locations were changed. They consume the saved protocol, input tensors, observation masks, and model weights. New runs write to an explicit output directory; completed results are preserved.

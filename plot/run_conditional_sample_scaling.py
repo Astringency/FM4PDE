@@ -42,7 +42,7 @@ def tensor_digest(value):
 
 def source_identity():
     paths = sorted({*ROOT.glob('sampling/*.py'), *ROOT.glob('flow_matching/path/*.py'),
-                    ROOT / 'scripts/tuning/compare_pde_guidance_schedules.py'})
+                    ROOT / 'sampling/batching.py'})
     return {str(p.relative_to(ROOT)): digest(p) for p in paths if p.is_file()}
 
 
@@ -135,7 +135,7 @@ def configuration(protocol, selection, task, source):
 
 def fast_sample(cfg, truth, bundle, indices, fixed, steps=100):
     import torch
-    from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+    from sampling.batching import combine_truths
     import sampling.runner as r
     c = copy.deepcopy(cfg)
     c.batch_size = len(indices)

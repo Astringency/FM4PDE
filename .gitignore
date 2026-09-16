@@ -16,3 +16,11 @@ outputs/MAIN1000_100_TRAIN/*
 outputs/*
 
 reports
+
+# Local copies of earlier experiments and development scripts.
+/bak/
+/reproducibility/
+
+# Local documentation and development tests; excluded from publication.
+/docs/
+/tests/

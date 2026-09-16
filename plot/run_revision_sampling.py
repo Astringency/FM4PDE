@@ -66,8 +66,8 @@ def configs():
 def prepare(args):
     import torch
     from sampling.config import load_config
-    from scripts.tuning.compare_pde_guidance_schedules import prepare_samples
-    from scripts.tuning.make_inference_checkpoint import make_inference_checkpoint
+    from sampling.cached_inputs import prepare_samples
+    from scripts.training.export_checkpoint import make_inference_checkpoint
     target = args.inputs
     target.mkdir(parents=True, exist_ok=True)
     protocol_path = target/'protocol.json'
@@ -126,20 +126,21 @@ def run_pde(args, pde, protocol):
     from sampling.model_io import load_fm4pde_checkpoint_bundle
     import sampling.runner as runner
     run_single_ablation = runner.run_single_ablation
-    from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+    from sampling.batching import combine_truths
     target=args.output/pde; target.mkdir(parents=True,exist_ok=True)
     with (target/'worker.lock').open('a+') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         protocol_hash=digest(args.inputs/'protocol.json')
         write_json(target/'worker.json',dict(pid=os.getpid(),host=socket.gethostname(),
                                             protocol_sha256=protocol_hash,command=sys.argv))
-        checkpoint=args.inputs/'weights'/f'{pde}.pth'
-        weight=next(w for w in protocol['weights'] if w['pde']==pde)
-        assert digest(checkpoint)==weight['file_sha256'],checkpoint
+        from sampling.study_models import model_config, bind_model
+        selected_model=model_config(args,pde)
+        bind_model(target,selected_model)
+        checkpoint=Path(selected_model.checkpoint_path)
         cache=args.inputs/'cache'/f'{pde}_ground_truth.pt'
         assert digest(cache)==protocol['cache_sha256'][pde],cache
         truths=torch.load(cache,map_location='cpu',weights_only=False)['truths']
-        bundle=load_fm4pde_checkpoint_bundle(str(checkpoint),pde,args.device,model_profile='recommended')
+        bundle=load_fm4pde_checkpoint_bundle(str(checkpoint),pde,args.device,model_profile=selected_model.model_profile)
         # Count actual model forward calls; this includes endpoint prediction.
         counter={'calls':0}
         def count(*_): counter['calls']+=1
@@ -153,7 +154,7 @@ def run_pde(args, pde, protocol):
                          gpu_inventory=subprocess.check_output(['nvidia-smi','--query-gpu=index,uuid,name,memory.used,utilization.gpu','--format=csv'],text=True))
         write_json(target/'environment.json',environment)
         base=copy.deepcopy(protocol['base_configs'][pde])
-        base.update(checkpoint_path=str(checkpoint),device=args.device,clip_threshold=50.,
+        base.update(checkpoint_path=str(checkpoint),model_profile=selected_model.model_profile,device=args.device,clip_threshold=50.,
                     clip_mode='global_norm',save_plots=False,save_intermediate=False,
                     save_per_sample_curves=True,sensor_mode='per_sample_random',
                     num_obs=500,noise_level=0.,time_grid='uniform',step_method='euler',
@@ -260,7 +261,10 @@ def main():
     parser.add_argument('--source-root',type=Path,default=ROOT/'outputs/main/MAIN1000_100_TEST_id')
     parser.add_argument('--pdes',nargs='+',default=PDES,choices=PDES)
     parser.add_argument('--device',default='cuda:0')
+    from sampling.study_models import add_model_arguments, print_model_plan
+    add_model_arguments(parser)
     args=parser.parse_args(); args.inputs=args.inputs.resolve()
+    if print_model_plan(args): return
     if args.mode=='prepare': prepare(args); return
     if args.output is None: parser.error('--output is required for sampling')
     args.output=args.output.resolve()

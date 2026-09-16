@@ -1,11 +1,11 @@
 pde: shallow_water
 task: inverse
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_id.h5
+data_path: datasets/shallow_water/shallow_water_test_10000-128-128-10_id.h5
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_id.h5
-  smooth: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_smooth.h5
-  rough: /large_storage/zhangxf/PDEdata/shallow_water/shallow_water_test_10000-128-128-10_rough.h5
+  id: datasets/shallow_water/shallow_water_test_10000-128-128-10_id.h5
+  smooth: datasets/shallow_water/shallow_water_test_10000-128-128-10_smooth.h5
+  rough: datasets/shallow_water/shallow_water_test_10000-128-128-10_rough.h5
 loadby: swe
 coef_name: init
 solution_name: final
@@ -41,7 +41,10 @@ bc_weight: 1.0
 endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
-hermite_collocation_times: [0.25, 0.5, 0.75]
+hermite_collocation_times:
+- 0.25
+- 0.5
+- 0.75
 hermite_include_integral_residual: true
 hermite_integral_weight: 1.0
 num_obs: 500
@@ -59,7 +62,6 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Standard six-PDE tune winner; finite on id/smooth/rough, holdout pending.
 zeta_obs_a: 0.0
 zeta_obs_u: 800000.0
 zeta_pde: 0.0

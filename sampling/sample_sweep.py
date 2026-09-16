@@ -876,7 +876,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="configs/main",
         help="task config root containing both/, forward/, and inverse/",
     )
-    parser.add_argument("--sample-script", default="scripts/sample/run_sample.sh")
+    parser.add_argument("--sample-script", default="scripts/sampling/main/run_sample.sh")
     parser.add_argument("--devices", nargs="+", default=["cuda"])
     parser.add_argument("--max-parallel-tasks", type=int, default=2)
     parser.add_argument("--progress-interval", type=float, default=1.0)

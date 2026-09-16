@@ -17,7 +17,7 @@ from sampling.config import AblationConfig
 from sampling.model_io import load_fm4pde_checkpoint_bundle
 from sampling.runner import run_single_ablation
 from sampling.masks import PairMasks, make_mask
-from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+from sampling.batching import combine_truths
 from run_paper_ablation_revision import digest
 
 

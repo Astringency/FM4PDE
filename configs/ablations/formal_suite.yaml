@@ -1,26 +1,20 @@
-# Shared source and runtime profile for formal ablation grids.
-# Algorithm/PDE/task defaults (including zeta) come from configs/main.
-main_config_root: configs/main
+main_config_root: configs/ablations/base
 default_task: both
 pdes:
-  - darcy
-  - poisson
-  - helmholtz
-  - nsnonbounded
-  - burger
-  - reaction_diffusion
-  - shallow_water
-  - heat
-  - wave
-  - advection_diffusion
-  - steady_heat_conduction
-
+- darcy
+- poisson
+- helmholtz
+- nsnonbounded
+- burger
+- reaction_diffusion
+- shallow_water
+- heat
+- wave
+- advection_diffusion
+- steady_heat_conduction
 common_overrides:
   output_dir: outputs/ablations
   allow_synthetic_data: false
   test_type: id
   pde_guidance_start_ratio: 0.8
   pde_guidance_ramp_ratio: 0.0
-
-# The selected path comes from data_paths in configs/main/<task>/<pde>.yaml.
-# Override test_type on the sweep CLI to evaluate smooth or rough OOD data.

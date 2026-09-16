@@ -1,11 +1,11 @@
 pde: burger
 task: both
 test_type: id
-data_path: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128_id.mat
+data_path: datasets/burgers/burger_test_10000-128-128_id.mat
 data_paths:
-  id: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128_id.mat
-  smooth: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128_smooth.mat
-  rough: /large_storage/zhangxf/PDEdata/burgers/burger_test_10000-128-128_rough.mat
+  id: datasets/burgers/burger_test_10000-128-128_id.mat
+  smooth: datasets/burgers/burger_test_10000-128-128_smooth.mat
+  rough: datasets/burgers/burger_test_10000-128-128_rough.mat
 loadby: scipy
 coef_name: output
 solution_name: output
@@ -34,7 +34,7 @@ pde_guidance_ramp_ratio: 0.0
 clip_mode: global_norm
 clip_threshold: 50.0
 pde_residual_region: full
-residual_mode: auto
+residual_mode: full_trajectory_fd
 enforce_boundary_conditions: true
 boundary_condition_mode: periodic
 bc_weight: 1.0
@@ -44,7 +44,6 @@ allow_unknown_boundary_conditions: false
 num_obs: 500
 num_sensor_columns: 16
 sensor_mode: random
-# sensor_mode: sensor_column
 shared_mask: false
 mask_seed: 0
 noise_level: 0.0
@@ -56,7 +55,6 @@ batch_size: 1
 sample_seed: 0
 device: cpu
 dtype: float32
-# Tuned for 100-step random and 16-column observations on disjoint test offsets.
 zeta_obs_a: 0.0
 zeta_obs_u: 409600.0
 zeta_pde: 10.0

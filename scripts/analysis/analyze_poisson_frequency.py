@@ -36,12 +36,11 @@ from scipy.fft import dctn, dstn, idctn, idstn
 from scipy.io import whosmat
 
 
-FM_ROOT_DEFAULT = Path("/home/tat512/C01Python/FM4PDE/outputs/MAIN1000_100/poisson")
-BASELINE_ROOT_DEFAULT = Path("/home/tat512/share/outputs/FM4PDEbaseline/runs/main_results")
-DATA_DEFAULT = Path("/home/tat512/share/PDEdata/poisson/poisson_test_10000-128-128.mat")
-OUTPUT_DEFAULT = Path(
-    "/home/tat512/C01Python/FM4PDE/outputs/MAIN1000_100/poisson_frequency_analysis"
-)
+ROOT = Path(__file__).resolve().parents[2]
+FM_ROOT_DEFAULT = ROOT / "outputs/main/sparse_id/poisson"
+BASELINE_ROOT_DEFAULT = ROOT.parent / "FM4PDEbaseline/outputs/main_results/runs/main_results"
+DATA_DEFAULT = ROOT / "datasets/poisson/poisson_test_10000-128-128_id.mat"
+OUTPUT_DEFAULT = ROOT / "outputs/analysis/poisson_frequency"
 
 TASK_FIELDS = {
     "forward": ("solution",),

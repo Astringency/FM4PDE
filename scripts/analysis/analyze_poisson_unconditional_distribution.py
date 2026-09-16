@@ -39,10 +39,7 @@ DEFAULT_TRAIN_DIR = ROOT / (
 )
 DEFAULT_CHECKPOINT = DEFAULT_TRAIN_DIR / "fm4poisson-checkpoint-99.pth"
 DEFAULT_OUTPUT = ROOT / "outputs/artifacts/poisson_unconditional_distribution_epoch100"
-DEFAULT_REAL_CACHE = Path(
-    "/home/tat512/C01Python/RecFNO/"
-    "poisson_recfno_id_smooth_rough_500sensors/cache"
-)
+DEFAULT_REAL_CACHE = ROOT / "outputs/analysis/poisson_real_cache"
 
 DATASETS = ("generated", "id", "smooth", "rough")
 REAL_DATASETS = ("id", "smooth", "rough")

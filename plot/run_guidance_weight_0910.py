@@ -16,9 +16,10 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from sampling.config import AblationConfig
 from sampling.model_io import load_fm4pde_checkpoint_bundle
+from sampling.study_models import add_model_arguments, model_config, bind_model, print_model_plan
 from sampling.losses import _pde_params_with_residual_options
 from sampling.pde_residuals import compute_pde_residual
-from scripts.tuning.compare_pde_guidance_schedules import combine_truths
+from sampling.batching import combine_truths
 from run_paper_ablation_revision import digest,write,physical_errors
 import sampling.runner as runner
 
@@ -27,6 +28,7 @@ DEV=[1100,1101,1102,1103]
 CONFIRM=list(range(1500,1508))
 
 def main(args):
+    if print_model_plan(args): return
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False
     torch.backends.cudnn.allow_tf32=False
@@ -39,13 +41,14 @@ def main(args):
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
             source=args.inputs/pde;old=json.loads((source/'protocol.json').read_text())
             assert digest(source/'truths.pt')==old['truth_sha256']
-            assert digest(source/'weights.pth')==old['weights_sha256']
+            selected_model=model_config(args,pde)
+            model_identity=bind_model(target,selected_model)
             cfgbase=anchors[pde]['config']
             protocol=dict(pde=pde,anchor=anchors[pde],multipliers=MULTIPLIERS,
                 development=DEV,confirmation=CONFIRM,batch_size=4,
                 sample_seed=20260910,mask_seed=20260910,
                 selection='min mean physical MSE; each field mean RelL2 <= 1.02 times Obs-only; multipliers > 1',
-                weights_sha256=old['weights_sha256'],truths_sha256=old['truth_sha256'],
+                weights_sha256=model_identity['checkpoint_sha256'],model_profile=selected_model.model_profile,truths_sha256=old['truth_sha256'],
                 source_sha256=digest(Path(__file__)),residual_sha256=digest(ROOT/'sampling/pde_residuals.py'))
             if (target/'protocol.json').exists():assert json.loads((target/'protocol.json').read_text())==protocol
             else:write(target/'protocol.json',protocol)
@@ -56,7 +59,7 @@ def main(args):
             free,_=torch.cuda.mem_get_info()
             assert free>60*2**30,(pde,'expected idle 80GB GPU',free)
             truths=torch.load(source/'truths.pt',map_location='cpu',weights_only=False)
-            bundle=load_fm4pde_checkpoint_bundle(str(source/'weights.pth'),pde,'cuda:0',model_profile='recommended')
+            bundle=load_fm4pde_checkpoint_bundle(selected_model.checkpoint_path,pde,'cuda:0',model_profile=selected_model.model_profile)
             captures={}
             original=runner._sample_initial_noise
             def capture(*a,**kw):
@@ -74,7 +77,7 @@ def main(args):
                     assert digest(r['result_path'])==r['result_sha256']
                     return r
                 folder.mkdir(parents=True,exist_ok=True)
-                cfg=AblationConfig(**dict(cfgbase,checkpoint_path=str(source/'weights.pth'),
+                cfg=AblationConfig(**dict(cfgbase,checkpoint_path=selected_model.checkpoint_path,model_profile=selected_model.model_profile,
                     output_dir=str(folder),device='cuda:0',batch_size=len(ids),offset=ids[0],
                     zeta_pde=float(cfgbase['zeta_pde'])*multiplier,
                     guidance_components='obs_only' if multiplier==0 else 'obs_pde',
@@ -144,4 +147,5 @@ if __name__=='__main__':
     p.add_argument('--anchors',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--pdes',nargs='+',required=True)
+    add_model_arguments(p)
     main(p.parse_args())
