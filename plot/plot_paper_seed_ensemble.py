@@ -12,7 +12,7 @@ from matplotlib.ticker import FixedLocator, NullLocator
 
 from publication_style import use_times_new_roman, error_number
 from export_paper_seed_ensemble import NAMES, NONPERIODIC
-from run_paper_ablation_revision import digest, write
+from run_ablation_study import digest, write
 
 BLUE, GOLD, INK = '#246591', '#C99732', '#2B2B2B'
 

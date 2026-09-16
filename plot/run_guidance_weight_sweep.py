@@ -20,7 +20,7 @@ from sampling.study_models import add_model_arguments, model_config, bind_model,
 from sampling.losses import _pde_params_with_residual_options
 from sampling.pde_residuals import compute_pde_residual
 from sampling.batching import combine_truths
-from run_paper_ablation_revision import digest,write,physical_errors
+from run_ablation_study import digest,write,physical_errors
 import sampling.runner as runner
 
 MULTIPLIERS=[0,1,10,100,1000,10000,1000000]

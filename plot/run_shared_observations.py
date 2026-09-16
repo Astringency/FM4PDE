@@ -1,4 +1,4 @@
-"""Paired Helmholtz sensor-location control for the September 12 revision.
+"""Compare shared and independent random observation locations for Helmholtz.
 
 One physical input, five paired sampling/mask seeds; batch one throughout.
 Only shared_mask changes within each pair. Long-term output is explicit.

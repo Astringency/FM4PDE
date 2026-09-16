@@ -18,7 +18,7 @@ from sampling.model_io import load_fm4pde_checkpoint_bundle
 from sampling.runner import run_single_ablation
 from sampling.masks import PairMasks, make_mask
 from sampling.batching import combine_truths
-from run_paper_ablation_revision import digest
+from run_ablation_study import digest
 
 
 def write(path, obj):
@@ -59,7 +59,7 @@ def main():
     args=p.parse_args();assert args.output.is_absolute()
     torch.set_num_threads(2);torch.set_num_interop_threads(2)
     torch.backends.cuda.matmul.allow_tf32=False;torch.backends.cudnn.allow_tf32=False
-    plan_path=ROOT/'plot/revision_0912_full_plan.json';plan=json.loads(plan_path.read_text())
+    plan_path=ROOT/'plot/sensor_and_temporal_controls.json';plan=json.loads(plan_path.read_text())
     write(args.output/'plan.json',plan)
     env=dict(commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         torch=torch.__version__,cuda=torch.version.cuda,gpu=torch.cuda.get_device_name(),

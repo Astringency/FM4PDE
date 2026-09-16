@@ -1,4 +1,4 @@
-"""Frozen sampling-only confirmation and synchronized timing for JMLR.
+"""Compare guidance and sampling variants on fixed inputs and observations.
 
 Prepare on the local mounted archive, then synchronize code with Git and copy
 the new input directory to an isolated remote checkout. No historical output

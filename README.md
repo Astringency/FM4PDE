@@ -91,6 +91,9 @@ All ablation datasets default to ID. Synthetic configurations live only in test 
 | Unconditional examples | `run_study.sh prior` |
 | FM4PDE/DiffusionPDE error–time trajectories | `run_traces.sh` |
 
+The Python runners, input preparation tools and figure scripts are listed by
+task in [Experiment and plotting tools](plot/README.md).
+
 NS uses the same entries as every other PDE. Select it with
 `PDE_LIST=nsnonbounded` for the ordinary ablation sweep, or
 `--pdes nsnonbounded` for repeated studies. No model-specific experiment directory

@@ -10,7 +10,7 @@ from matplotlib.colors import Normalize,TwoSlopeNorm
 from matplotlib.ticker import MaxNLocator
 from publication_style import use_times_new_roman
 from plot_paper_ablation_fields import FIELD_CMAP
-from run_paper_ablation_revision import digest
+from run_ablation_study import digest
 
 NAMES={'poisson':'Poisson','helmholtz':'Helmholtz','darcy':'Darcy','burger':'Burgers',
  'heat':'Heat','advection_diffusion':'Advection–Diffusion','reaction_diffusion':'Reaction–Diffusion',

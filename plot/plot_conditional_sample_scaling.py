@@ -14,7 +14,7 @@ from matplotlib.colors import Normalize,LinearSegmentedColormap
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'plot'))
 from publication_style import use_times_new_roman,error_number
-from run_paper_ablation_revision import digest,write
+from run_ablation_study import digest,write
 from audit_conditional_timing import build as audit_timing, save_report as save_timing
 KS=[1,3,10,100,1000]
 FIELDS=[('forward','u','Forward'),('inverse','a','Inverse'),('both','a','Joint'),('both','u','Joint')]

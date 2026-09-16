@@ -45,11 +45,11 @@ def main():
         shared=['--inputs',str(a.inputs),'--output',str(a.output),'--pdes',pde]
         target=a.output/pde
         if pde in REVISED and not (target/'diagnose_complete.json').exists():
-            subprocess.run([sys.executable,'-u',str(HERE/'run_paper_ablation_revision.py'),'diagnose',*shared],check=True)
-        subprocess.run([sys.executable,'-u',str(HERE/'select_paper_ablation_revision.py'),*shared],check=True)
+            subprocess.run([sys.executable,'-u',str(HERE/'run_ablation_study.py'),'diagnose',*shared],check=True)
+        subprocess.run([sys.executable,'-u',str(HERE/'select_ablation_parameters.py'),*shared],check=True)
         for mode in (['rerun','ensemble'] if pde in REVISED else ['ensemble']):
             if not (target/f'{mode}_complete.json').exists():
-                subprocess.run([sys.executable,'-u',str(HERE/'run_paper_ablation_revision.py'),mode,*shared],check=True)
+                subprocess.run([sys.executable,'-u',str(HERE/'run_ablation_study.py'),mode,*shared],check=True)
     print('QUEUE COMPLETE',a.pdes,flush=True)
 
 

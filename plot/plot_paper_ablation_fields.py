@@ -25,7 +25,7 @@ sys.path.insert(0,str(ROOT))
 from data.specs import get_pde_spec
 from publication_style import use_times_new_roman, error_number
 from export_paper_seed_ensemble import NAMES
-from run_paper_ablation_revision import PDES,digest
+from run_ablation_study import PDES,digest
 
 BLUE='#27638b'; GOLD='#bf922f'; INK='#282828'
 FIELD_CMAP=LinearSegmentedColormap.from_list('field_blue_gold',[BLUE,'#f7f7f3','#d5a246'])

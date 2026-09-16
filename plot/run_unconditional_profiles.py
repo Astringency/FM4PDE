@@ -10,7 +10,7 @@ from sampling.runner import _scalar_conditioning_for_sampling
 from sampling.sampler_wrappers import _call_velocity_model
 from sampling.state import standardized_to_physical_state
 from sampling.batching import combine_truths
-from run_paper_ablation_revision import digest,write,PDES
+from run_ablation_study import digest,write,PDES
 
 def main(args):
     torch.set_num_threads(2);torch.set_num_interop_threads(2)

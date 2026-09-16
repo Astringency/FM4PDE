@@ -1,4 +1,4 @@
-"""Compact, source-checked figures for the September 10 manuscript revision.
+"""Plot guidance, sampling-budget, observation-density and noise ablations.
 
 Contract: four preselected PDE families; every tested level retained. Ordered
 budget/density/noise sweeps share panels with colors AND markers for PDEs.

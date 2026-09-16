@@ -17,8 +17,8 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from run_paper_ablation_revision import PDES, EXCLUDED_GROUPS, digest
-from run_paper_revision_queue import REVISED
+from run_ablation_study import PDES, EXCLUDED_GROUPS, digest
+from run_ablation_queue import REVISED
 
 
 def write_csv(path, rows):

@@ -25,7 +25,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from run_revision_sampling import digest, write_json
+from run_guidance_comparison import digest, write_json
 
 METHODS = {'RecFNO': 'recfno', 'Senseiver': 'senseiver',
            'VoronoiCNN': 'voronoicnn', 'PDE-Opt': 'pde_opt'}

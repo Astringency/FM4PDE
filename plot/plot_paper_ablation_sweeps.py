@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from run_paper_ablation_revision import PDES, digest
+from run_ablation_study import PDES, digest
 from export_paper_seed_ensemble import NAMES
 from publication_style import use_times_new_roman
 

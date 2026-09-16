@@ -18,7 +18,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from run_paper_ablation_revision import PDES, digest
+from run_ablation_study import PDES, digest
 from publication_style import error_number
 
 NONPERIODIC = {'poisson', 'helmholtz', 'darcy', 'reaction_diffusion',

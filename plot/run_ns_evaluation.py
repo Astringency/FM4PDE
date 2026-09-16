@@ -1,4 +1,4 @@
-"""NS revision: frozen endpoint-pair evaluation and controlled latency update.
+"""Evaluate Navier–Stokes endpoint reconstruction and controlled sampling latency.
 
 Formal targets are used only by score(); infer() receives masked observations.
 Canonical Gaussian rows keep each stochastic path invariant to batch partition.

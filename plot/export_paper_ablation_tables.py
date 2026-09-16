@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import numpy as np
 
-from run_paper_ablation_revision import PDES, digest
+from run_ablation_study import PDES, digest
 from export_paper_seed_ensemble import NAMES
 
 PHASES = [('stochastic','S'),('deterministic','D'),('hybrid_d2s',r'D$\to$S'),('hybrid_s2d',r'S$\to$D')]

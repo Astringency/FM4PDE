@@ -1,4 +1,4 @@
-"""Reproducible source-checked LaTeX figures for the September 12 revision.
+"""Plot field reconstructions, guidance states, switching times and shared sensors.
 
 Prepare a compact numeric archive once; --render-only redraws from that archive.
 No synthetic fields, averaging, rescaling of predictions, or hidden channels.

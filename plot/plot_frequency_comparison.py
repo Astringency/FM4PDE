@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from publication_style import use_times_new_roman
 from spectral_diagnostics import paired_bootstrap,filtered_field
-from run_paper_ablation_revision import digest
+from run_ablation_study import digest
 from plot_paper_ablation_fields import FIELD_CMAP,ERROR_CMAP
 
 COLORS={'FM4PDE':'#27638b','RecFNO':'#bf922f','Senseiver':'#282828','VoronoiCNN':'#27638b'}

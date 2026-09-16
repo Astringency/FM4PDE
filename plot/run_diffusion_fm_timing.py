@@ -23,7 +23,7 @@ import time
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from prepare_diffusion_revision import PDES, digest
+from prepare_diffusion_comparison import PDES, digest
 from diffusion_timing_adapter import build, MODULES
 
 

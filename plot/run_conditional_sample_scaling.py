@@ -23,7 +23,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'plot'))
-from run_paper_ablation_revision import digest, write
+from run_ablation_study import digest, write
 KS = [1, 3, 10, 100, 1000]
 TASKS = ['forward', 'inverse', 'both']
 OFFSETS = list(range(1500, 1532))

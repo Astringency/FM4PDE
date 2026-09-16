@@ -11,7 +11,7 @@ from contextlib import redirect_stdout, redirect_stderr
 import torch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / 'plot'))
-from run_paper_ablation_revision import digest, write
+from run_ablation_study import digest, write
 from run_conditional_sample_scaling import TASKS, fixed_observations
 from sampling.batching import combine_truths
 from sampling.config import AblationConfig

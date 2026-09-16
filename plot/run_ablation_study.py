@@ -1,4 +1,4 @@
-"""Traceable revision of archived single-input ablations and seed ensembles.
+"""Run single-input ablations, parameter selection trials and seed ensembles.
 
 Prepare from the read-only original archive on server197. Run in an isolated
 Git checkout. No original configuration, checkpoint, or output is overwritten.
