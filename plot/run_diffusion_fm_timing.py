@@ -139,7 +139,8 @@ def run(args):
         for pde in args.pdes:
             target=args.output/pde;target.mkdir(parents=True,exist_ok=True)
             monitor.wait_idle()
-            fm=load_fm4pde_checkpoint_bundle(str(args.inputs/'weights'/f'fm_{pde}.pth'),pde,device,model_profile='recommended')
+            fm=load_fm4pde_checkpoint_bundle(str(args.inputs/'weights'/f'fm_{pde}.pth'),pde,device,
+                model_profile=protocol['fm_configs'][pde].get('model_profile', 'auto'))
             with (args.inputs/'weights'/f'pretrained-{MODULES[pde].replace("_","-")}.pkl').open('rb') as f:dm=pickle.load(f)['ema'].to(device).eval()
             dm.requires_grad_(False)
             fast,source=build(args.diffusion_root,pde)

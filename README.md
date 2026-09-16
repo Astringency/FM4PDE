@@ -86,7 +86,7 @@ All ablation datasets default to ID. Synthetic configurations live only in test 
 | 32 inputs × 3 draws | `run_study.sh ensemble` |
 | Repeated guidance trajectories | `run_study.sh guidance` |
 | Poisson conditional averaging | `run_study.sh averaging` |
-| Shared observation locations | `run_study.sh layouts` |
+| Four observation layouts, each with shared/separate locations | `run_study.sh layouts` |
 | Physical-guidance weights, including NS | `run_study.sh weights` |
 | Unconditional examples | `run_study.sh prior` |
 | FM4PDE/DiffusionPDE error–time trajectories | `run_traces.sh` |
@@ -131,6 +131,29 @@ bash scripts/sampling/ablations/run_traces.sh run --root /path/to/trace_study
 bash scripts/sampling/ablations/run_traces.sh plot \
   --root /path/to/trace_study --output /path/to/figures
 ```
+
+The complete layout comparison uses `run_study.sh layouts --inputs
+/path/to/prepared_inputs --output /absolute/path/to/layout_results`, where the
+input root contains `helmholtz/`. It runs Random, Fixed (left half), Grid and
+Columns with both shared and separate locations.
+
+Controlled FM4PDE/DiffusionPDE timing uses `plot/run_diffusion_fm_timing.py`
+(`prepare` and `run` modes). It reads the model profile from the prepared
+protocol, including the light NS checkpoint.
+
+The Poisson/Darcy frequency comparison uses predictions from
+`plot/run_matched_timing.py`. Its study directory contains `inputs_v2/` and
+`results_v3/`. Compute the spectra and input-level statistics with:
+
+```bash
+python plot/export_matched_spectra.py \
+  --study /path/to/frequency_study --output /path/to/frequency_report
+python plot/summarize_spectral_evidence.py --report /path/to/frequency_report
+```
+
+These commands compute frequency-band errors, predicted/reference energy
+ratios and coefficient alignment from the saved physical predictions.
+`plot/export_frequency_tables.py` exports the resulting paper tables.
 
 ## Physical residuals
 
