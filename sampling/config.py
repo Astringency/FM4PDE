@@ -83,7 +83,7 @@ VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "per
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
 VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm", "legacy_l2_mean"}
-VALID_TEST_TYPES = {"id", "smooth", "rough"}
+VALID_TEST_TYPES = {"id", "smooth", "rough", "rough2", "rough3"}
 
 
 @dataclass
@@ -337,7 +337,7 @@ class AblationConfig:
         unknown = sorted(set(self.data_paths).difference(VALID_TEST_TYPES))
         if unknown:
             raise ValueError(f"Unknown data_paths test types: {', '.join(unknown)}")
-        missing = sorted(VALID_TEST_TYPES.difference(self.data_paths))
+        missing = sorted(({"id", "smooth", "rough"} | {self.test_type}).difference(self.data_paths))
         if missing:
             raise ValueError(f"data_paths is missing test types: {', '.join(missing)}")
         if self.test_type not in VALID_TEST_TYPES:
