@@ -1,7 +1,6 @@
-"""Two or more tmux workers claim distinct evaluation cells under a file lock."""
+"""Tmux workers claim distinct cells using atomic directories on shared storage."""
 from __future__ import annotations
 import argparse
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -38,11 +37,17 @@ def main():
     for cell in cells:
         key=f"{cell['method']}_{cell['task']}_{cell['distribution']}_obs{cell['num_obs']}"
         job=state/f"{key}.json"
-        with (state/"claims.lock").open("a") as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX)
-            if job.exists():
-                continue
-            write_json(job,dict(status="claimed",worker=worker,cell=cell,claimed_at=time.time()))
+        if job.exists():
+            continue
+        # mkdir is atomic at the storage server, including through SSHFS;
+        # a local advisory lock need not coordinate two different hosts.
+        try:
+            (state/f"{key}.claim").mkdir()
+        except FileExistsError:
+            continue
+        if job.exists():
+            continue
+        write_json(job,dict(status="claimed",worker=worker,cell=cell,claimed_at=time.time()))
         while True:
             free=int(subprocess.check_output(["nvidia-smi",f"--id={args.gpu}","--query-gpu=memory.free","--format=csv,noheader,nounits"],text=True).strip())
             if free>=args.min_free_mib:
