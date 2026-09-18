@@ -118,7 +118,7 @@ def prepare(args):
         source = Path(args.data_root) / source_name(args.pde, distribution)
         initial_stat = source.stat()
         raw = registry.load_raw(args.pde, args.data_root, split="test", max_samples=args.count,
-            strict_size=True, data_files={"test": [str(source)]}, load_full_trajectory=False)
+            strict_size=True, data_files={"test": [source_name(args.pde, distribution)]}, load_full_trajectory=False)
         raw = registry.to_canonical(raw, args.pde)
         full = raw["full_tensor"]
         if full.shape != (args.count, 2, 128, 128) or not torch.isfinite(full).all():
