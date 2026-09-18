@@ -7,6 +7,7 @@ All errors are recomputed per sample in physical units with float64 norms.
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import csv
 import hashlib
 import json
@@ -221,6 +222,12 @@ def run(args):
         identity.update(checkpoint=dict(path=str(checkpoint),sha256=sha256(checkpoint)),
             fm_reference_cell=reference["cell_id"], fm_protocol_sha256=sha256(args.fm_protocol),
             fm_config=reference["config"])
+        noise_bank = None
+        if args.noise_root:
+            from experiments.rough_stress.noise import NoiseBank
+            noise_bank = NoiseBank(args.noise_root)
+            identity["noise_replay"] = dict(manifest_sha256=noise_bank.manifest_sha256,
+                protocol=noise_bank.manifest["protocol"])
         bundle = load_fm4pde_checkpoint_bundle(str(checkpoint), args.pde, args.device,
             model_profile=reference["config"].get("model_profile"))
         ma = pack["masks"][args.num_obs] if args.task in {"forward","both"} else torch.zeros_like(pack["masks"][args.num_obs])
@@ -269,7 +276,10 @@ def run(args):
             indices=list(range(lo,hi))
             cfg=effective_config(reference,checkpoint,args.device,indices,count,cell)
             gt,masks,hashes=observation_batch(data,cfg,indices,args.device)
-            pred,runtime=infer(cfg,bundle,gt,masks,indices)
+            with noise_bank.replay(indices) if noise_bank is not None else nullcontext():
+                pred,runtime=infer(cfg,bundle,gt,masks,indices)
+            if noise_bank is not None:
+                runtime["noise_manifest_sha256"] = noise_bank.manifest_sha256
             actual_mask_hash=tensor_hash(pack["masks"][args.num_obs][lo:hi])
         if not torch.isfinite(pred).all():
             raise ValueError("Nonfinite prediction")
@@ -309,6 +319,7 @@ def main():
     parser.add_argument("--threads",type=int,default=2)
     parser.add_argument("--fm-protocol")
     parser.add_argument("--fm-checkpoint")
+    parser.add_argument("--noise-root")
     args=parser.parse_args()
     if args.baseline_root:
         sys.path.insert(0,str(Path(args.baseline_root).resolve()))
