@@ -1,9 +1,10 @@
 function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, overwrite, shard_id)
     if nargin < 1
-        error('dataset_type is required: train, id, smooth, or rough');
+        error('dataset_type is required: train, id, smooth, rough, rough2, or rough3');
     end
+    profile = get_generation_profile('burgers', dataset_type);
     if nargin < 2 || isempty(N)
-        N = 10000;
+        N = profile.default_samples;
     end
     if nargin < 3 || isempty(s)
         s = 128;
@@ -15,7 +16,6 @@ function output_path = gen_burgers1(dataset_type, N, s, steps, out_root, seed, o
         out_root = '/large_storage/zhangxf/PDEdata';
     end
 
-    profile = get_generation_profile('burgers', dataset_type);
     if nargin < 6 || isempty(seed)
         seed = profile.seed_offset;
     end

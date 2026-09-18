@@ -40,20 +40,57 @@ entry for all eleven PDEs. It dispatches to these solvers:
 # Preview generation for every PDE without running a solver.
 PDE=all DRY_RUN=true OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
 
-# Generate Poisson training and all three test distributions (requires MATLAB).
+# Generate Poisson training and all five test distributions (requires MATLAB).
 PDE=poisson TYPE=all OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
+
+# Generate the two extra rough test sets for these five PDEs, 1,000 samples each.
+for dataset_type in rough2 rough3; do
+  PDE="poisson helmholtz darcy nsnonbounded burger" TYPE="$dataset_type" \
+    OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
+done
 
 # Generate only the Heat and Wave training sets.
 PDE="heat wave" TYPE=train OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
 ```
 
 The defaults are five training shards of 10,000 samples each, 10,000 test samples
-for each of ID/Smooth/Rough, and resolution 128. `TYPE` selects `all`, `train`,
-`id`, `smooth`, or `rough`; existing files are skipped unless `OVERWRITE=true`.
+for each of ID/Smooth/Rough, and resolution 128. Poisson, Helmholtz, Darcy,
+Navier–Stokes, and Burgers also support `rough2` and `rough3`, with **1,000 samples
+per new test type**. Set `TEST_SAMPLES` to override the count for every selected
+test type. `TYPE=all` includes all supported types for each PDE; requesting
+`rough2` or `rough3` explicitly for other PDEs fails before generation starts.
+Existing files are skipped unless `OVERWRITE=true`.
 Set `OUT_ROOT="$DATA_ROOT"` explicitly for generation.
 [configs/training_data.yaml](configs/training_data.yaml) lists the resulting
 training files; [configs/main](configs/main) contains test-data paths.
 Datasets and trained weights are stored separately from the code.
+
+The five PDEs use the following extra rough GRF settings (`alpha` is called
+`gamma` in Burgers):
+
+| Test type | alpha | tau | Default samples via `gen_pde.sh` | Seed offset |
+| --- | --- | --- | --- | --- |
+| `rough` | 1.5 | 5 | 10,000 | 30,000,000 |
+| `rough2` | 1.2 | 12 | 1,000 | 40,000,000 |
+| `rough3` | 1.05 | 24 | 1,000 | 50,000,000 |
+
+Lower alpha slows spectral decay; larger tau increases relative small-scale
+power. Both changes create wider separation than a small alpha-only adjustment.
+They apply to the source in Poisson/Helmholtz, the latent coefficient field in
+Darcy (the thresholded coefficient still takes values 4 and 12), the initial
+vorticity in Navier–Stokes, and the initial velocity in Burgers. Field variance
+is not held fixed, so these are distribution shifts in both spectrum and
+potential amplitude, rather than a fixed-variance smoothness sweep.
+
+Files keep the existing schema and record the actual GRF parameters. New test
+filenames end in `_rough2.mat` or `_rough3.mat`, for example
+`poisson/poisson_test_1000-128-128_rough2.mat` and
+`nsnonbounded/nsnonbounded_test_1000-128-128-10_rough3.mat`.
+The MATLAB profiles live in
+[get_generation_profile.m](data/DataGen/static/get_generation_profile.m);
+the Python profiles live in
+[generation_profiles.py](data/DataGen/generation_profiles.py).
+The existing sampling configs still select ID/Smooth/Rough.
 
 ## Training
 

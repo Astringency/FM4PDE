@@ -1,9 +1,10 @@
 function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root, seed, overwrite, shard_id)
     if nargin < 1
-        error('dataset_type is required: train, id, smooth, or rough');
+        error('dataset_type is required: train, id, smooth, rough, rough2, or rough3');
     end
+    profile = get_generation_profile('helmholtz', dataset_type);
     if nargin < 2 || isempty(N)
-        N = 10000;
+        N = profile.default_samples;
     end
     if nargin < 3 || isempty(S)
         S = 128;
@@ -15,7 +16,6 @@ function output_path = generate_inhom_helmholtz(dataset_type, N, S, k, out_root,
         out_root = '/large_storage/zhangxf/PDEdata';
     end
 
-    profile = get_generation_profile('helmholtz', dataset_type);
     if nargin < 6 || isempty(seed)
         seed = profile.seed_offset;
     end

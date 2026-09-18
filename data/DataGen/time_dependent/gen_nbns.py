@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--dataset-type",
         choices=sorted(DATASET_TYPE_ALIASES),
         default=None,
-        help="Distribution profile: train, id, smooth, or rough.",
+        help="Distribution profile: train, id, smooth, rough, rough2, or rough3.",
     )
     parser.add_argument(
         "--split",
@@ -198,7 +198,7 @@ def generate_dataset(args: argparse.Namespace) -> list[Path]:
         samples_per_file = args.total_samples if dataset_type != "train" else 10000
     if dataset_type != "train" and int(samples_per_file) != int(args.total_samples):
         raise ValueError(
-            "each id, smooth, or rough test split writes one file; "
+            "each non-training test split writes one file; "
             "omit --samples-per-file or set it equal to --total-samples"
         )
     counts = _sample_counts(args.total_samples, samples_per_file)

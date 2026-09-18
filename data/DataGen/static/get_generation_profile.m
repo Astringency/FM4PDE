@@ -3,6 +3,7 @@ function profile = get_generation_profile(pde, dataset_type)
 
     canonical_type = canonicalize_dataset_type(dataset_type);
     pde = lower(char(pde));
+    default_samples = 10000;
 
     switch canonical_type
         case 'train'
@@ -13,6 +14,12 @@ function profile = get_generation_profile(pde, dataset_type)
             seed_offset = 20000000;
         case 'rough'
             seed_offset = 30000000;
+        case 'rough2'
+            seed_offset = 40000000;
+            default_samples = 1000;
+        case 'rough3'
+            seed_offset = 50000000;
+            default_samples = 1000;
         otherwise
             error('Unsupported dataset type: %s', canonical_type);
     end
@@ -32,11 +39,18 @@ function profile = get_generation_profile(pde, dataset_type)
                 case 'rough'
                     alpha = 1.5;
                     tau = 5.0;
+                case 'rough2'
+                    alpha = 1.2;
+                    tau = 12.0;
+                case 'rough3'
+                    alpha = 1.05;
+                    tau = 24.0;
             end
             profile = struct( ...
                 'dataset_type', canonical_type, ...
                 'alpha', alpha, ...
                 'tau', tau, ...
+                'default_samples', default_samples, ...
                 'seed_offset', seed_offset);
 
         case {'burger', 'burgers', 'nsnonbounded'}
@@ -53,11 +67,18 @@ function profile = get_generation_profile(pde, dataset_type)
                 case 'rough'
                     alpha = 1.5;
                     tau = 5.0;
+                case 'rough2'
+                    alpha = 1.2;
+                    tau = 12.0;
+                case 'rough3'
+                    alpha = 1.05;
+                    tau = 24.0;
             end
             profile = struct( ...
                 'dataset_type', canonical_type, ...
                 'alpha', alpha, ...
                 'tau', tau, ...
+                'default_samples', default_samples, ...
                 'seed_offset', seed_offset);
 
         otherwise
@@ -77,8 +98,10 @@ function canonical_type = canonicalize_dataset_type(dataset_type)
             canonical_type = 'smooth';
         case {'hardtest', 'hard', 'rough'}
             canonical_type = 'rough';
+        case {'rough2', 'rough3'}
+            canonical_type = dataset_type;
         otherwise
-            error(['dataset_type must be train, id, smooth, or rough ' ...
+            error(['dataset_type must be train, id, smooth, rough, rough2, or rough3 ' ...
                    '(legacy aliases easytest and hardtest are accepted).']);
     end
 end

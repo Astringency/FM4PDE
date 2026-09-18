@@ -14,6 +14,7 @@ Usage:
   PDE=poisson bash data/DataGen/gen_pde.sh
   bash data/DataGen/gen_pde.sh PDE=poisson TYPE=smooth
   PDE=poisson TYPE=smooth bash data/DataGen/gen_pde.sh
+  PDE="poisson helmholtz darcy nsnonbounded burger" TYPE=rough2 bash data/DataGen/gen_pde.sh
   PDE="heat wave" TYPE=train bash data/DataGen/gen_pde.sh
   PDE=all TYPE=all bash data/DataGen/gen_pde.sh
 
@@ -21,10 +22,11 @@ Required environment variable:
   PDE                   One or more PDE names, or all
 
 Optional environment variables:
-  TYPE=all              all, train, id, smooth, or rough
+  TYPE=all              all, train, id, smooth, rough, rough2, or rough3
   TRAIN_SHARDS=5        Number of training files
   SAMPLES_PER_SHARD=10000
-  TEST_SAMPLES=10000
+  TEST_SAMPLES          Override samples per test type (default: 10000 for
+                        id/smooth/rough, 1000 for rough2/rough3)
   RESOLUTION=128
   OUT_ROOT=/large_storage/zhangxf/PDEdata
   DEVICE=cuda:0         Device used by nsnonbounded
@@ -38,8 +40,9 @@ Supported PDEs:
   advection_diffusion reaction_diffusion shallow_water
   steady_heat_conduction
 
-Without TYPE, one PDE invocation creates five training shards plus id, smooth,
-and rough test files. Existing files are skipped unless OVERWRITE=true.
+rough2 and rough3 support only poisson, helmholtz, darcy, nsnonbounded, and burger.
+Without TYPE, one PDE invocation creates five training shards plus all supported
+test types. Existing files are skipped unless OVERWRITE=true.
 EOF
 }
 
@@ -50,6 +53,7 @@ canonical_type() {
     id|test) printf '%s' 'id' ;;
     smooth|easy|easytest) printf '%s' 'smooth' ;;
     rough|hard|hardtest) printf '%s' 'rough' ;;
+    rough2|rough3) printf '%s' "${1,,}" ;;
     *)
       printf 'Unsupported TYPE: %s\n' "$1" >&2
       exit 2
@@ -77,7 +81,27 @@ seed_for_type() {
     id) printf '%s' '10000000' ;;
     smooth) printf '%s' '20000000' ;;
     rough) printf '%s' '30000000' ;;
+    rough2) printf '%s' '40000000' ;;
+    rough3) printf '%s' '50000000' ;;
   esac
+}
+
+supports_extra_rough() {
+  case "$1" in
+    poisson|helmholtz|darcy|nsnonbounded|burger) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+test_samples_for_type() {
+  if [[ -n "$TEST_SAMPLES" ]]; then
+    printf '%s' "$TEST_SAMPLES"
+  else
+    case "$1" in
+      rough2|rough3) printf '%s' '1000' ;;
+      *) printf '%s' '10000' ;;
+    esac
+  fi
 }
 
 require_positive_integer() {
@@ -133,6 +157,7 @@ run_matlab_static() {
 run_nsnonbounded() {
   local dataset_type="$1"
   local seed="$2"
+  local test_samples="$3"
   local total_samples
   local command=(
     "$PYTHON_BIN" "${TIME_DIR}/gen_nbns.py"
@@ -147,7 +172,7 @@ run_nsnonbounded() {
     total_samples=$((TRAIN_SHARDS * SAMPLES_PER_SHARD))
     command+=(--total-samples "$total_samples" --samples-per-file "$SAMPLES_PER_SHARD")
   else
-    command+=(--total-samples "$TEST_SAMPLES" --samples-per-file "$TEST_SAMPLES")
+    command+=(--total-samples "$test_samples" --samples-per-file "$test_samples")
   fi
   if [[ "$OVERWRITE" == true ]]; then
     command+=(--overwrite)
@@ -159,6 +184,7 @@ run_pair_h5() {
   local pde="$1"
   local dataset_type="$2"
   local seed="$3"
+  local test_samples="$4"
   local total_train=$((TRAIN_SHARDS * SAMPLES_PER_SHARD))
   local command=(
     "$PYTHON_BIN" "${PYTHON_DIR}/generate_pair_h5s.py"
@@ -176,7 +202,7 @@ run_pair_h5() {
       --base-seed-train "$seed"
     )
   else
-    command+=(--split test --n-test "$TEST_SAMPLES" --base-seed-test "$seed")
+    command+=(--split test --n-test "$test_samples" --base-seed-test "$seed")
   fi
   if [[ "$OVERWRITE" == true ]]; then
     command+=(--overwrite)
@@ -187,6 +213,7 @@ run_pair_h5() {
 run_reaction_diffusion() {
   local dataset_type="$1"
   local seed="$2"
+  local test_samples="$3"
   local total_train=$((TRAIN_SHARDS * SAMPLES_PER_SHARD))
   local command=(
     "$PYTHON_BIN" "${TIME_DIR}/gen_rd.py"
@@ -200,7 +227,7 @@ run_reaction_diffusion() {
   if [[ "$dataset_type" == train ]]; then
     command+=(--split train --total-samples "$total_train" --samples-per-file "$SAMPLES_PER_SHARD")
   else
-    command+=(--split test --total-samples "$TEST_SAMPLES" --samples-per-file "$TEST_SAMPLES")
+    command+=(--split test --total-samples "$test_samples" --samples-per-file "$test_samples")
   fi
   if [[ "$OVERWRITE" == true ]]; then
     command+=(--overwrite)
@@ -211,6 +238,7 @@ run_reaction_diffusion() {
 run_shallow_water() {
   local dataset_type="$1"
   local seed="$2"
+  local test_samples="$3"
   local total_train=$((TRAIN_SHARDS * SAMPLES_PER_SHARD))
   local command=(
     "$PYTHON_BIN" "${TIME_DIR}/gen_swe.py"
@@ -223,7 +251,7 @@ run_shallow_water() {
   if [[ "$dataset_type" == train ]]; then
     command+=(--split train --total-samples "$total_train" --samples-per-file "$SAMPLES_PER_SHARD")
   else
-    command+=(--split test --total-samples "$TEST_SAMPLES" --samples-per-file "$TEST_SAMPLES")
+    command+=(--split test --total-samples "$test_samples" --samples-per-file "$test_samples")
   fi
   if [[ "$OVERWRITE" == true ]]; then
     command+=(--overwrite)
@@ -236,6 +264,8 @@ generate_one() {
   local dataset_type="$2"
   local seed
   seed="$(seed_for_type "$dataset_type")"
+  local test_samples
+  test_samples="$(test_samples_for_type "$dataset_type")"
   printf '\n[%s] type=%s seed=%s\n' "$pde" "$dataset_type" "$seed"
 
   case "$pde" in
@@ -247,20 +277,20 @@ generate_one() {
           run_matlab_static "$pde" train "$SAMPLES_PER_SHARD" "$shard_seed" "$shard"
         done
       else
-        run_matlab_static "$pde" "$dataset_type" "$TEST_SAMPLES" "$seed" 0
+        run_matlab_static "$pde" "$dataset_type" "$test_samples" "$seed" 0
       fi
       ;;
     nsnonbounded)
-      run_nsnonbounded "$dataset_type" "$seed"
+      run_nsnonbounded "$dataset_type" "$seed" "$test_samples"
       ;;
     heat|wave|advection_diffusion|steady_heat_conduction)
-      run_pair_h5 "$pde" "$dataset_type" "$seed"
+      run_pair_h5 "$pde" "$dataset_type" "$seed" "$test_samples"
       ;;
     reaction_diffusion)
-      run_reaction_diffusion "$dataset_type" "$seed"
+      run_reaction_diffusion "$dataset_type" "$seed" "$test_samples"
       ;;
     shallow_water)
-      run_shallow_water "$dataset_type" "$seed"
+      run_shallow_water "$dataset_type" "$seed" "$test_samples"
       ;;
   esac
 }
@@ -299,7 +329,7 @@ fi
 TYPE="$(canonical_type "${TYPE:-all}")"
 TRAIN_SHARDS="${TRAIN_SHARDS:-5}"
 SAMPLES_PER_SHARD="${SAMPLES_PER_SHARD:-10000}"
-TEST_SAMPLES="${TEST_SAMPLES:-10000}"
+TEST_SAMPLES="${TEST_SAMPLES:-}"
 RESOLUTION="${RESOLUTION:-128}"
 OUT_ROOT="${OUT_ROOT:-${PDE_DATA_ROOT:-/large_storage/zhangxf/PDEdata}}"
 DEVICE="${DEVICE:-cuda:0}"
@@ -314,7 +344,9 @@ SWE_STEPS="${SWE_STEPS:-10}"
 
 require_positive_integer TRAIN_SHARDS "$TRAIN_SHARDS"
 require_positive_integer SAMPLES_PER_SHARD "$SAMPLES_PER_SHARD"
-require_positive_integer TEST_SAMPLES "$TEST_SAMPLES"
+if [[ -n "$TEST_SAMPLES" ]]; then
+  require_positive_integer TEST_SAMPLES "$TEST_SAMPLES"
+fi
 require_positive_integer RESOLUTION "$RESOLUTION"
 require_positive_integer NS_RECORD_STEPS "$NS_RECORD_STEPS"
 require_positive_integer BURGERS_STEPS "$BURGERS_STEPS"
@@ -344,21 +376,37 @@ for raw_pde in "${RAW_PDES[@]}"; do
 done
 
 if [[ "$TYPE" == all ]]; then
-  TYPES=(train id smooth rough)
+  TYPES=(train id smooth rough rough2 rough3)
 else
   TYPES=("$TYPE")
+fi
+
+# Reject unsupported explicit requests before starting any generation.
+if [[ "$TYPE" == rough2 || "$TYPE" == rough3 ]]; then
+  for selected_pde in "${PDES[@]}"; do
+    if ! supports_extra_rough "$selected_pde"; then
+      printf 'TYPE=%s is not supported for PDE=%s; supported PDEs: poisson helmholtz darcy nsnonbounded burger\n' "$TYPE" "$selected_pde" >&2
+      exit 2
+    fi
+  done
 fi
 
 printf 'PDEs: %s\n' "${PDES[*]}"
 printf 'Types: %s\n' "${TYPES[*]}"
 printf 'Train: %s shards x %s samples\n' "$TRAIN_SHARDS" "$SAMPLES_PER_SHARD"
-printf 'Tests: %s samples per type\n' "$TEST_SAMPLES"
+printf 'Tests: %s samples for id/smooth/rough; %s for rough2/rough3 (where supported)\n' \
+  "$(test_samples_for_type id)" "$(test_samples_for_type rough2)"
 printf 'Resolution: %s\n' "$RESOLUTION"
 printf 'Output root: %s\n' "$OUT_ROOT"
 printf 'Overwrite: %s\n' "$OVERWRITE"
 
 for selected_pde in "${PDES[@]}"; do
   for selected_type in "${TYPES[@]}"; do
+    if [[ "$selected_type" == rough2 || "$selected_type" == rough3 ]]; then
+      if ! supports_extra_rough "$selected_pde"; then
+        continue
+      fi
+    fi
     generate_one "$selected_pde" "$selected_type"
   done
 done

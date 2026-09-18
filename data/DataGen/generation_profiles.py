@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Final
 
 
-CANONICAL_DATASET_TYPES: Final = ("train", "id", "smooth", "rough")
+CANONICAL_DATASET_TYPES: Final = ("train", "id", "smooth", "rough", "rough2", "rough3")
 DATASET_TYPE_ALIASES: Final = {
     "train": "train",
     "id": "id",
@@ -16,19 +16,28 @@ DATASET_TYPE_ALIASES: Final = {
     "hardtest": "rough",
     "rough": "rough",
     "ood_rough": "rough",
+    "rough2": "rough2",
+    "rough3": "rough3",
 }
 SEED_OFFSETS: Final = {
     "train": 0,
     "id": 10_000_000,
     "smooth": 20_000_000,
     "rough": 30_000_000,
+    "rough2": 40_000_000,
+    "rough3": 50_000_000,
 }
 
+# Extra rough profiles are used only by Poisson, Helmholtz, Darcy, NS and
+# Burgers. Lower alpha and higher tau increase relative high-frequency power;
+# keep alpha > 1 for the two-dimensional GRFs.
 STATIC_GRF_PROFILES: Final = {
     "train": (2.0, 3.0),
     "id": (2.0, 3.0),
     "smooth": (3.0, 4.0),
     "rough": (1.5, 5.0),
+    "rough2": (1.2, 12.0),
+    "rough3": (1.05, 24.0),
 }
 
 TEMPORAL_GRF_PROFILES: Final = {
@@ -36,6 +45,8 @@ TEMPORAL_GRF_PROFILES: Final = {
     "id": (2.5, 7.0),
     "smooth": (3.0, 6.5),
     "rough": (1.5, 5.0),
+    "rough2": (1.2, 12.0),
+    "rough3": (1.05, 24.0),
 }
 
 REACTION_DIFFUSION_GRF_PROFILES: Final = {
@@ -65,7 +76,7 @@ def canonical_dataset_type(dataset_type: str) -> str:
         return DATASET_TYPE_ALIASES[str(dataset_type).strip().lower()]
     except KeyError as exc:
         raise ValueError(
-            "dataset type must be train, id, smooth, or rough "
+            "dataset type must be train, id, smooth, rough, rough2, or rough3 "
             "(legacy aliases easytest and hardtest are also accepted)"
         ) from exc
 
@@ -85,4 +96,6 @@ def shifted_periodic_grf_parameters(
         return float(train_smoothness), float(train_tau)
     if profile == "smooth":
         return float(train_smoothness + 1.0), float(train_tau + 1.0)
-    return float(max(1.0, train_smoothness - 1.5)), float(train_tau + 2.0)
+    if profile == "rough":
+        return float(max(1.0, train_smoothness - 1.5)), float(train_tau + 2.0)
+    raise ValueError(f"{profile} is not supported by the pair-H5 periodic GRF generators")
