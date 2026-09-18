@@ -1,6 +1,7 @@
 """Import existing controls only after input, model, code and replay checks."""
 from __future__ import annotations
 import argparse
+import ast
 import copy
 import hashlib
 import json
@@ -97,7 +98,17 @@ def main():
                 require(record["checkpoint_sha256"] == old_sha, "Original inference checkpoint differs")
                 require(record["identity"]["torch"] == "2.8.0+cu128" and not record["identity"]["tf32"], "Original numerical environment differs")
                 for name, digest in record["source_hashes"].items():
-                    if name not in unused_changed_sources:
+                    if name.startswith("revision_pairing_0915/"):
+                        old_code = source/"code_v4"/name
+                        new_code = ROOT/"experiments/aligned_sampling"/Path(name).name
+                        require(sha256(old_code) == digest, "Archived inference source changed")
+                        def functions(path):
+                            return {node.name:ast.dump(node, include_attributes=False)
+                                for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef)}
+                        old_functions, new_functions = functions(old_code), functions(new_code)
+                        names = ("infer","effective_config","observation_batch","configure_runtime","_slice_params","tensor_digest") if Path(name).name == "run_inference.py" else tuple(old_functions)
+                        require(all(old_functions[k] == new_functions.get(k) for k in names), "Executed inference functions changed")
+                    elif name not in unused_changed_sources:
                         require(sha256(ROOT/name) == digest, f"Inference source changed: {name}")
                 cfg = effective_config(reference, new_weight, "cuda:0", ids, 1000, output/"unwritten_reuse_check")
                 current, previous = cfg.asdict(), saved["effective_config"]
