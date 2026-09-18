@@ -24,6 +24,7 @@ def main():
     p.add_argument("--fm-protocol")
     p.add_argument("--fm-checkpoint")
     p.add_argument("--noise-root")
+    p.add_argument("--noise-cache")
     args=p.parse_args()
     root=Path(args.root).resolve()
     input_root=Path(args.input_root or args.root).resolve()
@@ -60,7 +61,7 @@ def main():
             "--batch-size",str(args.batch_size),"--device","cuda:0"]
         for key2,value in cell.items():
             command += ["--"+key2.replace("_","-"),str(value)]
-        for option in ("baseline_root","fm_protocol","fm_checkpoint","noise_root"):
+        for option in ("baseline_root","fm_protocol","fm_checkpoint","noise_root","noise_cache"):
             if getattr(args,option):
                 command += ["--"+option.replace("_","-"),getattr(args,option)]
         with (logs/f"{key}.log").open("a",buffering=1) as log:

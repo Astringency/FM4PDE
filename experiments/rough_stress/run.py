@@ -225,7 +225,7 @@ def run(args):
         noise_bank = None
         if args.noise_root:
             from experiments.rough_stress.noise import NoiseBank
-            noise_bank = NoiseBank(args.noise_root)
+            noise_bank = NoiseBank(args.noise_root, args.noise_cache)
             identity["noise_replay"] = dict(manifest_sha256=noise_bank.manifest_sha256,
                 protocol=noise_bank.manifest["protocol"])
         bundle = load_fm4pde_checkpoint_bundle(str(checkpoint), args.pde, args.device,
@@ -320,6 +320,7 @@ def main():
     parser.add_argument("--fm-protocol")
     parser.add_argument("--fm-checkpoint")
     parser.add_argument("--noise-root")
+    parser.add_argument("--noise-cache")
     args=parser.parse_args()
     if args.baseline_root:
         sys.path.insert(0,str(Path(args.baseline_root).resolve()))

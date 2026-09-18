@@ -60,8 +60,9 @@ def make_bank(root, device="cuda:0"):
 
 
 class NoiseBank:
-    def __init__(self, root):
+    def __init__(self, root, cache_root=None):
         self.root = Path(root)
+        self.cache_root = Path(cache_root) if cache_root else None
         self.manifest = json.loads((self.root/"manifest.json").read_text())
         self.manifest_sha256 = sha256(self.root/"manifest.json")
         if (self.manifest["seed"],self.manifest["count"],self.manifest["steps"]) != (0,1000,100):
@@ -74,6 +75,12 @@ class NoiseBank:
             if not wanted:
                 continue
             path = self.root/chunk["file"]
+            # A cache may still be copying in parallel. Only use a complete,
+            # digest-verified file; otherwise read the persistent reference.
+            if self.cache_root is not None:
+                cached = self.cache_root/chunk["file"]
+                if cached.exists() and sha256(cached) == chunk["sha256"]:
+                    path = cached
             if sha256(path) != chunk["sha256"]:
                 raise ValueError(f"Noise chunk is corrupt: {path}")
             array = np.load(path, mmap_mode="r", allow_pickle=False)
