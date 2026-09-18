@@ -81,7 +81,18 @@ def audit_cell(cell, data, receipt, expected_checkpoint):
     require(identity["input_receipt"] == receipt, f"Input changed: {cell}")
     method, task, dist, n = (identity[k] for k in ("method", "task", "distribution", "num_obs"))
     require(cell.parts[-4:] == (method, task, dist, f"obs{n}"), "Identity/path mismatch")
-    require(identity["checkpoint"]["sha256"] == expected_checkpoint, "Checkpoint changed")
+    if identity.get("origin") == "verified_prior_paired_evaluation":
+        require(method == "fm4pde" and dist in {"id","rough"} and n == 500, "Invalid reused control")
+        proof_path = cell.parents[5]/identity["checkpoint_equivalence_file"]
+        require(sha256(proof_path) == identity["checkpoint_equivalence_sha256"], "Equivalence proof changed")
+        proof = json.loads(proof_path.read_text())
+        require(proof["status"] == "verified" and proof["model_parameters_exact"] and proof["normalizer_exact"], "Checkpoint equivalence failed")
+        require(proof["source_checkpoint_sha256"] == identity["checkpoint"]["sha256"], "Wrong archived checkpoint")
+        require(proof["equivalent_checkpoint_sha256"] == expected_checkpoint == identity["equivalent_current_checkpoint"]["sha256"], "Wrong equivalent checkpoint")
+        match = next(x for x in proof["cells"] if x["task"] == task and x["distribution"] == dist)
+        require(match["current_input_receipt"] == receipt and match["count"] == 1000 and match["replay_max_relative_difference"] < 1e-4, "Control reuse was not verified")
+    else:
+        require(identity["checkpoint"]["sha256"] == expected_checkpoint, "Checkpoint changed")
     require(identity["count"] == 1000 and not identity["tf32"], "Run protocol changed")
     files = sorted(cell.glob("batch_*.json"))
     coverage, per_sample = [], []
