@@ -125,6 +125,18 @@ def get_args_parser():
         action="store_true",
         help="Use skewed timestep sampling proposed in the EDM paper: https://arxiv.org/abs/2206.00364.",
     )
+    parser.add_argument('--timestep_sampling', default=None,
+                        choices=['uniform', 'stratified_uniform', 'logit_normal', 'legacy_skewed'],
+                        help='Training time distribution. Validation stays uniform for comparison.')
+    parser.add_argument('--logit_time_mean', type=float, default=0.0)
+    parser.add_argument('--logit_time_std', type=float, default=1.0)
+    parser.add_argument('--validation_seed', type=int, default=20260919,
+                        help='Fixed validation noise/time stream, isolated from training RNG.')
+    parser.add_argument('--resume_add_ema', action='store_true',
+                        help='With --resume and --use_ema, initialize EMA from raw saved weights, retaining Adam.')
+    parser.add_argument('--ema_decay', type=float, default=.999)
+    parser.add_argument('--ema_warmup', action=argparse.BooleanOptionalAction, default=True,
+                        help='Warm up EMA decay; disable for fixed-decay pretrained continuation.')
     parser.add_argument(
         "--edm_schedule",
         action="store_true",

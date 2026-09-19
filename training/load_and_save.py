@@ -83,10 +83,18 @@ def _resume_state_dict(model_without_ddp) -> dict[str, Any]:
     return _clone_state_dict(model_without_ddp.state_dict())
 
 
-def _load_resume_state(model_without_ddp, checkpoint: dict[str, Any]) -> None:
+def _load_resume_state(model_without_ddp, checkpoint: dict[str, Any], *, add_ema=False) -> None:
     resume_state = checkpoint.get("model_for_resume")
     if not isinstance(resume_state, dict) or not resume_state:
         raise ValueError("Checkpoint has no model_for_resume state_dict")
+    if add_ema:
+        if not _is_ema_module(model_without_ddp):
+            raise ValueError('--resume_add_ema requires --use_ema')
+        if checkpoint.get('has_ema') or checkpoint.get('use_ema') or 'num_updates' in resume_state:
+            raise ValueError('--resume_add_ema is only for checkpoints without EMA')
+        model_without_ddp.model.load_state_dict(resume_state, strict=True)
+        model_without_ddp.reset_from_model()
+        return
     try:
         model_without_ddp.load_state_dict(resume_state)
     except RuntimeError as exc:
@@ -94,6 +102,25 @@ def _load_resume_state(model_without_ddp, checkpoint: dict[str, Any]) -> None:
             "Checkpoint model_for_resume does not match the current model. "
             "Use the same --use_ema and model configuration as the saved run."
         ) from exc
+
+
+def _optimizer_state_without_ema_shadows(model, state_dict):
+    """Migrate old one-group optimizers that included non-trainable EMA shadows."""
+    if not _is_ema_module(model):
+        return state_dict
+    params = list(model.parameters())
+    groups = state_dict['param_groups']
+    if len(groups) != 1 or len(groups[0]['params']) != len(params):
+        return state_dict
+    frozen_ids = [pid for pid, param in zip(groups[0]['params'], params) if not param.requires_grad]
+    if any(state_dict['state'].get(pid) for pid in frozen_ids):
+        raise ValueError('EMA shadow parameters unexpectedly have optimizer state')
+    group = dict(groups[0])
+    group['params'] = [pid for pid, param in zip(group['params'], params) if param.requires_grad]
+    if 'param_names' in group:
+        group['param_names'] = [name for name, param in zip(group['param_names'], params) if param.requires_grad]
+    return dict(state_dict, param_groups=[group],
+                state={k:v for k,v in state_dict['state'].items() if k not in frozen_ids})
 
 
 def _load_optimizer_state_preserving_runtime_options(
@@ -182,6 +209,8 @@ def save_model(
         "model_for_resume": resume_state,
         "use_ema": bool(getattr(args, "use_ema", False) or has_ema),
         "has_ema": bool(has_ema),
+        "ema_decay": model_without_ddp.decay if has_ema else None,
+        "ema_warmup": model_without_ddp.warmup if has_ema else None,
         "inference_weight": "ema" if has_ema else "raw",
         "checkpoint_schema_version": CHECKPOINT_SCHEMA_VERSION,
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
@@ -325,6 +354,8 @@ def inspect_checkpoint_architecture(path: str | Path) -> dict[str, Any]:
 
 def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> dict[str, Any] | None:
     if not args.resume:
+        if getattr(args, 'resume_add_ema', False):
+            raise ValueError('--resume_add_ema requires --resume')
         return None
     if args.resume.startswith("https"):
         checkpoint = torch.hub.load_state_dict_from_url(
@@ -333,12 +364,22 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
     else:
         checkpoint = read_checkpoint(args.resume, args.dataset)
     if checkpoint.get("legacy_compatibility"):
-        validate_legacy_optimizer(model_without_ddp, checkpoint)
+        legacy_base = model_without_ddp.model if _is_ema_module(model_without_ddp) else model_without_ddp
+        validate_legacy_optimizer(legacy_base, checkpoint)
         expected = checkpoint["resolved_lr_scheduler"]
         actual = getattr(args, "resolved_lr_scheduler", getattr(args, "lr_scheduler", None))
         if actual != expected and not getattr(args, "resume_reset_lr_schedule", False):
             raise ValueError(f"Legacy resume requires --lr_scheduler {expected}; use scripts/train/resume_bak.py")
-    _load_resume_state(model_without_ddp, checkpoint)
+    _load_resume_state(model_without_ddp, checkpoint, add_ema=getattr(args, 'resume_add_ema', False))
+    if _is_ema_module(model_without_ddp) and checkpoint.get('ema_decay') is not None:
+        decay = float(checkpoint['ema_decay'])
+        if not math.isfinite(decay) or not 0 <= decay < 1:
+            raise ValueError('Invalid saved EMA decay')
+        model_without_ddp.decay = decay
+    if _is_ema_module(model_without_ddp):
+        # Old EMA checkpoints predate this metadata and used warmup.
+        if checkpoint.get('has_ema') or checkpoint.get('use_ema'):
+            model_without_ddp.warmup = bool(checkpoint.get('ema_warmup', True))
     print(f"Resume {args.dataset} checkpoint {args.resume}")
     if checkpoint.get("checkpoint_schema_version") != CHECKPOINT_SCHEMA_VERSION:
         raise ValueError(
@@ -353,7 +394,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
         and "epoch" in checkpoint
     ):
         _load_optimizer_state_preserving_runtime_options(
-            optimizer, checkpoint["optimizer"]
+            optimizer, _optimizer_state_without_ema_shadows(model_without_ddp, checkpoint["optimizer"])
         )
         _apply_resume_optimizer_betas(optimizer, getattr(args, "resume_optimizer_betas", None))
         args.effective_optimizer_betas = [list(group["betas"]) for group in optimizer.param_groups]

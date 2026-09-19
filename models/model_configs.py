@@ -694,6 +694,8 @@ def instantiate_model(
     num_classes: int | None = None,
     profile: str = "recommended",
     model_config: Mapping[str, Any] | None = None,
+    ema_decay: float = 0.999,
+    ema_warmup: bool = True,
 ) -> Union[UNetModel, DiscreteUNetModel, EMA]:
     if model_config is not None:
         cfg = deepcopy(dict(model_config))
@@ -714,4 +716,4 @@ def instantiate_model(
         cfg["num_classes"] = int(num_classes)
 
     model = UNetModel(**model_constructor_config(cfg))
-    return EMA(model=model) if use_ema else model
+    return EMA(model=model, decay=ema_decay, warmup=ema_warmup) if use_ema else model

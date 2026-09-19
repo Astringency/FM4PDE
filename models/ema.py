@@ -4,6 +4,7 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 import logging
+import math
 from typing import List
 
 import torch
@@ -13,10 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class EMA(Module):
-    def __init__(self, model: Module, decay: float = 0.999):
+    def __init__(self, model: Module, decay: float = 0.999, warmup: bool = True):
         super().__init__()
         self.model = model
         self.decay = decay
+        self.warmup = bool(warmup)
 
         # Put this in a buffer so that it gets included in the state dict
         self.register_buffer("num_updates", torch.tensor(0))
@@ -29,6 +31,19 @@ class EMA(Module):
             ]
         )
         self.backup_params: List[torch.Tensor] = []
+
+        if not math.isfinite(decay) or not 0 <= decay < 1:
+            raise ValueError('EMA decay must be finite and in [0, 1)')
+
+    @torch.no_grad()
+    def reset_from_model(self) -> None:
+        """Initialize EMA after loading a raw checkpoint; do not touch Adam."""
+        if not self.training:
+            raise RuntimeError('Initialize EMA in training mode with raw weights installed')
+        for shadow, param in zip(self.shadow_params, (p for p in self.model.parameters() if p.requires_grad)):
+            shadow.copy_(param)
+        self.num_updates.zero_()
+        self.backup_params.clear()
 
     def train(self, mode: bool) -> None:
         if self.training == mode:
@@ -50,7 +65,7 @@ class EMA(Module):
     def update_ema(self) -> None:
         self.num_updates += 1
         num_updates = self.num_updates.item()
-        decay = min(self.decay, (1 + num_updates) / (10 + num_updates))
+        decay = min(self.decay, (1 + num_updates) / (10 + num_updates)) if self.warmup else self.decay
         with torch.no_grad():
             params = [p for p in self.model.parameters() if p.requires_grad]
             for shadow, param in zip(self.shadow_params, params):
