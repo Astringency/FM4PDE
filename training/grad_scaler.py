@@ -3,6 +3,8 @@
 #
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
+import math
+
 import torch
 
 from torch import Tensor
@@ -33,6 +35,7 @@ class NativeScalerWithGradNormCount:
 
     def __init__(self):
         self._scaler = torch.amp.GradScaler("cuda")
+        self.optimizer_step_succeeded = False
 
     def __call__(
         self,
@@ -43,8 +46,12 @@ class NativeScalerWithGradNormCount:
         create_graph=False,
         update_grad=True,
     ):
+        self.optimizer_step_succeeded = False
         self._scaler.scale(loss).backward(create_graph=create_graph)
         if update_grad:
+            scale_before = self._scaler.get_scale()
+            if not math.isfinite(scale_before) or scale_before <= 0:
+                raise FloatingPointError('AMP scale must remain positive and finite')
             if clip_grad is not None:
                 assert parameters is not None
                 self._scaler.unscale_(
@@ -58,6 +65,10 @@ class NativeScalerWithGradNormCount:
                 norm = None
             self._scaler.step(optimizer)
             self._scaler.update()
+            # This wrapper has one optimizer and never supplies a manual scale.
+            # A skipped update reduces the scale; successful updates retain or
+            # increase it. This also covers fused AdamW's internal skip path.
+            self.optimizer_step_succeeded = self._scaler.get_scale() >= scale_before
         else:
             norm = None
         return norm

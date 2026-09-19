@@ -17,6 +17,7 @@ from flow_matching.path import CondOTProbPath
 from models.ema import EMA
 from torch.nn.parallel import DistributedDataParallel
 from training.grad_scaler import NativeScalerWithGradNormCount
+from training.timesteps import sample_timesteps
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,9 @@ def train_one_epoch(
             class_drop_prob=args.class_drop_prob,
             skewed_timesteps=args.skewed_timesteps,
             sampling_dtype=getattr(args, "sampling_dtype", "float32"),
+            timestep_sampling=getattr(args, 'timestep_sampling', None),
+            logit_time_mean=getattr(args, 'logit_time_mean', 0.0),
+            logit_time_std=getattr(args, 'logit_time_std', 1.0),
         )
 
         loss_value = loss.detach().item()
@@ -108,10 +112,11 @@ def train_one_epoch(
             parameters=model.parameters(),
             update_grad=apply_update,
         )
-        if apply_update and isinstance(model, EMA):
+        optimizer_updated = apply_update and getattr(loss_scaler, 'optimizer_step_succeeded', True)
+        if optimizer_updated and isinstance(model, EMA):
             model.update_ema()
         elif (
-            apply_update
+            optimizer_updated
             and isinstance(model, DistributedDataParallel)
             and isinstance(model.module, EMA)
         ):
@@ -139,6 +144,13 @@ def validate_one_epoch(
     epoch_loss = MeanAccumulator()
     path = CondOTProbPath()
 
+    rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+    devices = [device.index if device.index is not None else torch.cuda.current_device()] if device.type == 'cuda' else []
+    rng_context = torch.random.fork_rng(devices=devices)
+    rng_context.__enter__()
+    torch.manual_seed(int(getattr(args, 'validation_seed', 20260919)) + rank)
+    bins = torch.zeros(10, 2, dtype=torch.float64, device=device)
+    channel_sums = None
     try:
         for data_iter_step, batch in enumerate(data_loader):
             samples, labels, scalar_conditioning = _unpack_batch(batch)
@@ -146,7 +158,7 @@ def validate_one_epoch(
             labels = labels.to(device, non_blocking=True).long()
             if scalar_conditioning is not None:
                 scalar_conditioning = scalar_conditioning.to(device, non_blocking=True).float()
-            loss = _flow_matching_loss(
+            loss, timestep, per_channel = _flow_matching_loss(
                 model=model,
                 samples=samples,
                 labels=labels,
@@ -154,9 +166,17 @@ def validate_one_epoch(
                 path=path,
                 device=device,
                 class_drop_prob=0.0,
-                skewed_timesteps=getattr(args, "skewed_timesteps", False),
+                skewed_timesteps=False,
                 sampling_dtype=getattr(args, "sampling_dtype", "float32"),
+                timestep_sampling='uniform',
+                return_details=True,
             )
+            index = (timestep * 10).long().clamp_max(9)
+            bins[:, 0].scatter_add_(0, index, per_channel.mean(1).double())
+            bins[:, 1].scatter_add_(0, index, torch.ones_like(timestep, dtype=torch.float64))
+            if channel_sums is None:
+                channel_sums = torch.zeros(per_channel.shape[1], device=device, dtype=torch.float64)
+            channel_sums += per_channel.double().sum(0)
             loss_value = loss.detach().item()
             if not math.isfinite(loss_value):
                 raise ValueError(f"Validation loss is {loss_value}, stopping training")
@@ -167,6 +187,7 @@ def validate_one_epoch(
                 )
     finally:
         model.train(was_training)
+        rng_context.__exit__(None, None, None)
 
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         totals = torch.tensor(
@@ -175,10 +196,23 @@ def validate_one_epoch(
             dtype=torch.float64,
         )
         torch.distributed.all_reduce(totals, op=torch.distributed.ReduceOp.SUM)
+        torch.distributed.all_reduce(bins, op=torch.distributed.ReduceOp.SUM)
+        channels = torch.tensor(0 if channel_sums is None else channel_sums.numel(), device=device)
+        torch.distributed.all_reduce(channels, op=torch.distributed.ReduceOp.MAX)
+        if int(channels) > 0:
+            if channel_sums is None:
+                channel_sums = torch.zeros(int(channels), device=device, dtype=torch.float64)
+            torch.distributed.all_reduce(channel_sums, op=torch.distributed.ReduceOp.SUM)
         global_loss = float((totals[0] / totals[1].clamp_min(1.0)).cpu())
     else:
         global_loss = epoch_loss.compute()
-    return {"loss": global_loss}
+    counts = bins[:, 1].cpu().tolist()
+    means = (bins[:, 0] / bins[:, 1].clamp_min(1)).cpu().tolist()
+    return {"loss": global_loss,
+            'loss_by_time_bin': [v if n else None for v, n in zip(means, counts)],
+            'time_bin_counts': counts,
+            'loss_by_channel': (channel_sums / bins[:, 1].sum().clamp_min(1)).cpu().tolist() if channel_sums is not None else [],
+            'time_distribution': 'uniform', 'validation_seed': int(getattr(args, 'validation_seed', 20260919))}
 
 
 def _flow_matching_loss(
@@ -191,6 +225,10 @@ def _flow_matching_loss(
     class_drop_prob: float,
     skewed_timesteps: bool,
     sampling_dtype: str,
+    timestep_sampling: str | None = None,
+    logit_time_mean: float = 0.0,
+    logit_time_std: float = 1.0,
+    return_details: bool = False,
 ) -> torch.Tensor:
     if samples.ndim != 4:
         raise ValueError(f"Flow matching expects samples [N,C,H,W], got {tuple(samples.shape)}")
@@ -211,10 +249,13 @@ def _flow_matching_loss(
         conditioning["scalar_conditioning"] = scalar_conditioning
 
     noise = torch.randn_like(samples)
-    if skewed_timesteps:
+    if skewed_timesteps and timestep_sampling not in (None, 'legacy_skewed'):
+        raise ValueError('Choose either --skewed_timesteps or --timestep_sampling')
+    if skewed_timesteps and timestep_sampling is None:
         t = skewed_timestep_sample(samples.shape[0], device=device)
     else:
-        t = torch.rand(samples.shape[0], device=device).clamp(TIMESTEP_EPS, 1.0 - TIMESTEP_EPS)
+        t = sample_timesteps(samples.shape[0], device, timestep_sampling or 'uniform',
+                             logit_mean=logit_time_mean, logit_std=logit_time_std)
 
     path_sample = path.sample(t=t, x_0=noise, x_1=samples)
     x_t = path_sample.x_t
@@ -224,7 +265,11 @@ def _flow_matching_loss(
         model_out = model(x_t, t, extra=conditioning)
         if model_out.shape != u_t.shape:
             raise ValueError(f"Model output shape {tuple(model_out.shape)} does not match target {tuple(u_t.shape)}")
-        return torch.pow(model_out - u_t, 2).mean()
+        error = torch.pow(model_out - u_t, 2)
+        loss = error.mean()
+        if return_details:
+            return loss, t.detach(), error.detach().mean((2, 3))
+        return loss
 
 
 def _unpack_batch(batch) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:

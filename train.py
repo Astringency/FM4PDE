@@ -35,6 +35,7 @@ from data.scalar_conditioning import (
 from data.specs import get_pde_spec
 from data.training_manifest import load_training_file_manifest
 from data.transform import PDEStandardizer
+from models.ema import EMA
 from models.model_configs import (
     get_model_config,
     get_model_config_metadata,
@@ -320,6 +321,8 @@ def main(args):
         architechture=model_arch,
         use_ema=args.use_ema,
         model_config=model_config,
+        ema_decay=getattr(args, 'ema_decay', .999),
+        ema_warmup=getattr(args, 'ema_warmup', True),
     )
     model.to(device)
 
@@ -348,7 +351,7 @@ def main(args):
         device.type == "cuda" and getattr(args, "fused_adamw", True)
     )
     optimizer = torch.optim.AdamW(
-        model_without_ddp.parameters(),
+        (p for p in model_without_ddp.parameters() if p.requires_grad),
         lr=args.lr,
         betas=args.optimizer_betas,
         fused=fused_adamw,
@@ -433,6 +436,12 @@ def main(args):
             loss_scaler=loss_scaler,
             args=args,
         )
+        raw_val_stats = None
+        if isinstance(model_without_ddp, EMA):
+            raw_val_stats = validate_one_epoch(
+                model=model_without_ddp.model, data_loader=data_loader_val,
+                device=device, epoch=epoch, args=args,
+            )
         val_stats = validate_one_epoch(
             model=model,
             data_loader=data_loader_val,
@@ -451,6 +460,9 @@ def main(args):
             "lr_scheduler": resolved_lr_scheduler,
             "num_channels": num_channels,
         }
+        if raw_val_stats is not None:
+            log_stats.update({f'val_raw_{k}': v for k, v in raw_val_stats.items()})
+            log_stats['val_weight'] = 'ema'
 
         should_eval = args.output_dir and args.eval_frequency > 0 and (epoch + 1) % args.eval_frequency == 0
         if should_eval and distributed_mode.is_main_process():
