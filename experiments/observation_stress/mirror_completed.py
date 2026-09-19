@@ -18,6 +18,19 @@ def ssh(host, command, **kwargs):
     return subprocess.run(["ssh", "-o", "BatchMode=yes", host, command], check=True, **kwargs)
 
 
+def reconcile_distribution(completed):
+    update = """import json,pathlib,sys
+r=pathlib.Path(ROOT)/'distribution_queue/queue_state'
+for source in json.load(sys.stdin):
+ key=source['job']['key']; p=r/(key+'.json'); prior=json.loads(p.read_text())
+ assert prior.get('delegated_to')=='server216', key
+ assert prior['status'] in ['delegated','complete'], (key,prior['status'])
+ prior.update(status='complete',remote_result=source,exit_code=0)
+ tmp=p.with_suffix('.tmp'); tmp.write_text(json.dumps(prior,indent=2)+'\\n'); tmp.replace(p)
+""".replace("ROOT", repr(DEST))
+    ssh("server197", shlex.join(["python3", "-c", update]), input=json.dumps(completed), text=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--study", choices=["observations", "distribution"], default="observations")
@@ -37,6 +50,8 @@ def main():
                              capture_output=True, text=True).stdout)
     pending = [c for c in completed if c["job"]["key"] not in mirrored]
     if not pending:
+        if args.study == "distribution":
+            reconcile_distribution(completed)
         print(f"MIRROR {args.study}: no new cells; {len(mirrored)} already copied", flush=True)
         return
     folders = []
@@ -66,16 +81,7 @@ def main():
     save = "import sys,pathlib; p=pathlib.Path("+repr(receipt)+"); t=p.with_suffix('.tmp'); t.write_text(sys.stdin.read()); t.replace(p)"
     ssh("server197", shlex.join(["python3", "-c", save]), input=json.dumps(mirrored, indent=2), text=True)
     if args.study == "distribution":
-        update = """import json,pathlib,sys
-r=pathlib.Path(ROOT)/'distribution_queue/queue_state'
-for source in json.load(sys.stdin):
- key=source['job']['key']; p=r/(key+'.json'); prior=json.loads(p.read_text())
- assert prior.get('delegated_to')=='server216', key
- assert prior['status'] in ['delegated','complete'], (key,prior['status'])
- prior.update(status='complete',remote_result=source,exit_code=0)
- tmp=p.with_suffix('.tmp'); tmp.write_text(json.dumps(prior,indent=2)+'\\n'); tmp.replace(p)
-""".replace("ROOT", repr(DEST))
-        ssh("server197", shlex.join(["python3", "-c", update]), input=json.dumps(completed), text=True)
+        reconcile_distribution(completed)
     print(f"MIRROR {args.study}: copied {len(pending)} complete cells; {len(mirrored)} total. Prediction hashes remain subject to the audit.", flush=True)
 
 
