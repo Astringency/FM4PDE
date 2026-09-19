@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 from __future__ import annotations
 
+import math
 import warnings
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,18 @@ from training.distributed_mode import is_main_process
 
 CHECKPOINT_SCHEMA_VERSION = 3
 OPTIMIZER_RUNTIME_OPTION_KEYS = ("foreach", "fused")
+
+
+def _apply_resume_optimizer_betas(optimizer, betas):
+    """Intentional hyperparameter change, retaining all restored Adam state."""
+    if betas is None:
+        return
+    if len(betas) != 2 or any(not math.isfinite(float(x)) or not 0 <= float(x) < 1 for x in betas):
+        raise ValueError("--resume_optimizer_betas requires two finite values in [0, 1)")
+    for group in optimizer.param_groups:
+        if "betas" not in group:
+            raise ValueError("--resume_optimizer_betas requires an Adam-style optimizer")
+        group["betas"] = tuple(float(x) for x in betas)
 
 
 def save_on_master(*args, **kwargs):
@@ -342,6 +355,10 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
         _load_optimizer_state_preserving_runtime_options(
             optimizer, checkpoint["optimizer"]
         )
+        _apply_resume_optimizer_betas(optimizer, getattr(args, "resume_optimizer_betas", None))
+        args.effective_optimizer_betas = [list(group["betas"]) for group in optimizer.param_groups]
+        print(f"Effective resumed optimizer betas: {args.effective_optimizer_betas}")
+        print(f"Effective resumed optimizer learning rates: {[group['lr'] for group in optimizer.param_groups]}")
         if "lr_schedule" in checkpoint and checkpoint.get("lr_schedule") is not None:
             try:
                 lr_schedule.load_state_dict(checkpoint["lr_schedule"])

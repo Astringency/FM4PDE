@@ -284,6 +284,13 @@ def get_args_parser():
     # Checkpoint and Resume training
     parser.add_argument("--resume", default="", help="resume from checkpoint which is a path to the checkpoint file")
     parser.add_argument(
+        "--resume_optimizer_betas", type=float, nargs=2, default=None,
+        metavar=("BETA1", "BETA2"),
+        help=("Explicitly override Adam betas AFTER restoring a checkpoint. "
+              "Keeps its first/second moments and step counters. Without this option, "
+              "resume restores the saved betas; --optimizer_betas configures new training."),
+    )
+    parser.add_argument(
         "--start_epoch",
         default=0,
         type=int,

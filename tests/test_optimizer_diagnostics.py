@@ -2,6 +2,7 @@ import copy
 import torch
 
 from experiments.optimizer_diagnostics.study import layer_stats, restore
+from training.load_and_save import _apply_resume_optimizer_betas
 
 
 def test_resume_overrides_keep_moments_and_do_not_mutate_source():
@@ -39,3 +40,23 @@ def test_measured_update_detects_fp32_roundoff_despite_nonzero_gradient():
     assert stats['grad_norm']>0
     assert stats['update_norm']==0
     assert stats['update_zero_fraction']==1
+
+
+def test_native_beta_override_preserves_states_and_validates_range():
+    model=torch.nn.Linear(2,1)
+    opt=torch.optim.AdamW(model.parameters(),lr=1e-4)
+    model(torch.ones(3,2)).sum().backward()
+    opt.step()
+    states=copy.deepcopy(opt.state_dict()['state'])
+    _apply_resume_optimizer_betas(opt,(.8,.99))
+    assert opt.param_groups[0]['betas']==(.8,.99)
+    for state,old in zip(opt.state_dict()['state'].values(),states.values()):
+        for k in ('step','exp_avg','exp_avg_sq'):
+            torch.testing.assert_close(state[k],old[k],rtol=0,atol=0)
+    for invalid in ((.9,1),(.9,-.1),(float('nan'),.99),(.9,)):
+        try:
+            _apply_resume_optimizer_betas(opt,invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f'Accepted invalid betas {invalid}')
