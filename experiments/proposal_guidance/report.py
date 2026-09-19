@@ -123,6 +123,83 @@ def main():
         "The code exposes --override gradient_target=proposal_state_chain_rule for sample.py with "
         "endpoint loss, Euler integration and single-step endpoint prediction. The default remains unchanged."]
     (out / "report.md").write_text("\n".join(lines) + "\n")
+    if all((args.root / "diagnostics" / f"{task}.json").exists() for task in p["cells"]):
+        import torch
+        from experiments.aligned_sampling.run_inference import tensor_digest
+        diagnostics = {}
+        for task in p["cells"]:
+            record = json.loads((args.root / "diagnostics" / f"{task}.json").read_text())
+            baseline = torch.load(args.root / "runs" / task / "original_seed0_batch0000.pt",
+                                  map_location="cpu", weights_only=False)
+            assert record["final_prediction_sha256"] == tensor_digest(baseline["prediction"])
+            assert record["initial_noise_sha256"] == baseline["runtime"]["initial_noise_sha256"]
+            trace = record["trace"]
+            diagnostics[task] = dict(original_path_reproduced_bitwise=True,
+                fresh_lower_than_stale=sum(x["objective_after_fresh"]<x["objective_after_stale"] for x in trace),
+                fresh_objective_ascent_steps=[x["step"] for x in trace if x["objective_after_fresh"]>x["objective_at_proposal"]],
+                checked_steps=len(trace), checked_cases=len(record["indices"]), last_step=trace[-1])
+        (out / "diagnostic_summary.json").write_text(json.dumps(diagnostics, indent=2) + "\n")
+        with (out / "report.md").open("a") as stream:
+            stream.write("\n## Gradient transport diagnostic\n\n"
+                "All diagnostic trajectories reproduce the original seed-0, first-batch predictions bitwise. "
+                "Each probe compares corrections on the same original-path proposal; objective values "
+                "are means over the four diagnostic cases.\n\n")
+            for task, value in diagnostics.items():
+                stream.write(f"- {task}: fresh correction yields lower endpoint objective than stale "
+                    f"correction at {value['fresh_lower_than_stale']}/{value['checked_steps']} checked times; "
+                    f"fresh correction increases the objective relative to its proposal at steps "
+                    f"{value['fresh_objective_ascent_steps']}.\n")
+            stream.write("\nThus a correctly located gradient does not remove the step-size restriction. "
+                "The gradient diagnostic covers four cases, not the full error-estimation sample.\n")
+    budget_root = args.root / "budget_control"
+    if (budget_root / "complete.json").exists():
+        plan = json.loads((budget_root / "protocol.json").read_text())
+        records = {}
+        total_seconds = 0.
+        for seed in seeds:
+            for start in range(0, len(indices), p["batch_size"]):
+                file = budget_root / f"original_seed{seed}_batch{start:04d}.json"
+                record = json.loads(file.read_text())
+                assert sha(file.with_suffix(".pt")) == record["sha256"]
+                proposal = json.loads((args.root / "runs" / "sparse_forward" /
+                                      f"proposal_seed{seed}_batch{start:04d}.json").read_text())
+                assert record["indices"] == proposal["indices"]
+                assert record["input_hashes"] == proposal["input_hashes"]
+                assert record["runtime"]["nfe"] == plan["steps"]
+                assert record["runtime"]["initial_noise_sha256"] == proposal["runtime"]["initial_noise_sha256"]
+                assert record["runtime"]["bridge_noise_sha256"][:100] == proposal["runtime"]["bridge_noise_sha256"]
+                total_seconds += record["runtime"]["seconds"]
+                for a, b in zip(record["rows"], proposal["rows"]):
+                    assert a["index"] == b["index"]
+                    records[seed, a["index"]] = (a["rel_l2_u"], b["rel_l2_u"])
+        b = np.array([[records[s, i][0] for i in indices] for s in seeds])
+        c = np.array([[records[s, i][1] for i in indices] for s in seeds])
+        delta = (c-b).mean(0)
+        draw = np.random.default_rng(20260919).integers(0, len(indices), size=(20000, len(indices)))
+        budget = dict(original_steps=plan["steps"], proposal_steps=100,
+            original_mean=float(b.mean()), proposal_mean=float(c.mean()),
+            relative_improvement_pct=float(100*(1-c.mean()/b.mean())),
+            paired_difference_ci95=np.quantile(delta[draw].mean(1), [.025,.975]).tolist(),
+            improved_cases=int((delta<0).sum()), cases=len(indices),
+            original_seconds_per_sample=total_seconds/(len(indices)*len(seeds)),
+            proposal_seconds_per_sample=summary["sparse_forward"]["seconds_per_sample"]["proposal"],
+            hardware="RTX 4090; budget control on GPU 1, main forward pair on GPU 0; approximate wall-time matching",
+            selection=plan["selection"])
+        (out / "budget_summary.json").write_text(json.dumps(budget, indent=2) + "\n")
+        lo, hi = np.array(budget["paired_difference_ci95"])*100
+        with (out / "report.md").open("a") as stream:
+            stream.write(f"\n## Approximate runtime control: forward task\n\n"
+                f"Original {plan['steps']} steps: {b.mean()*100:.4f}% solution error, "
+                f"{budget['original_seconds_per_sample']:.3f} s/sample. "
+                f"Proposal 100 steps: {c.mean()*100:.4f}%, "
+                f"{budget['proposal_seconds_per_sample']:.3f} s/sample. "
+                f"Relative improvement: {budget['relative_improvement_pct']:+.2f}%; "
+                f"paired difference CI95: [{lo:+.4f}, {hi:+.4f}] percentage points.\n\n"
+                "The original step count is selected from runtime only. Guidance coefficients remain "
+                "unchanged. This control has the same cases, seeds and initial noise; its first 100 "
+                "bridge noise draws agree, but their associated time grid differs. "
+                "The control runs on the other RTX 4090, so runtime matching is approximate.\n")
+        print("BUDGET", json.dumps(budget), flush=True)
     print(json.dumps(summary, indent=2), flush=True)
 
 
