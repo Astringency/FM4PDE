@@ -4,7 +4,7 @@ import json
 import subprocess
 import time
 
-from experiments.optimizer_diagnostics.relay import ssh, pipe
+from experiments.ema_timesteps.transport import ssh, pipe
 from experiments.ema_timesteps.transfer_inputs import CANONICAL, CACHE
 from experiments.ema_timesteps.relay_sampling import remote_python
 

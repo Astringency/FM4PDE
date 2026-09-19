@@ -4,7 +4,7 @@ import json
 import shlex
 import time
 
-from experiments.optimizer_diagnostics.relay import ssh, pipe
+from experiments.ema_timesteps.transport import ssh, pipe
 from experiments.ema_timesteps.transfer_inputs import CANONICAL, CACHE, PYTHON
 
 
