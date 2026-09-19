@@ -6,7 +6,9 @@ def command(host):
     assert host in ('server197', 'server216')
     suffix = host.removeprefix('server')
     args = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15',
-            '-o', 'ControlMaster=auto', '-o', 'ControlPersist=600',
+            # Foreground masters live in task-owned tmux sessions. A short-lived
+            # inspection command must never own a shared transfer connection.
+            '-o', 'ControlMaster=no', '-o', 'ControlPersist=no',
             '-o', f'ControlPath=/tmp/fm4pde_ema_20260919_{suffix}.sock']
     if host == 'server216':
         args += ['-J', 'server197']
