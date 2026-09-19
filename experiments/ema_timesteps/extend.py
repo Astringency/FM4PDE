@@ -16,13 +16,14 @@ from experiments.optimizer_diagnostics.study import write, sha
 ARMS = ['uniform', 'stratified_uniform', 'logit_normal', 'beta1_05']
 
 
-def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
+def run(root, pde, arm, gpu, epochs, checkout, min_free_mib, resume_epoch=2):
     out = root/'extensions'/pde/arm
     out.mkdir(parents=True, exist_ok=True)
     plan = json.loads((root/'extension_plan.json').read_text())
     decision = plan['pdes'][pde][arm]
     assert decision['target_epochs'] == epochs and epochs > 2
     assert decision['role'] in ['control', 'candidate']
+    assert 2 <= resume_epoch < epochs
     overlap = decision.get('overlap_screening', False)
     if overlap:
         # A prespecified control can use an otherwise idle GPU. Adaptive recipe
@@ -70,6 +71,11 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
         assert json.loads((root/'extension_plan.json').read_text())['pdes'][pde][arm] == decision
         audits = {a:checkpoint(root,pde,a,2) for a in ([arm] if overlap else ARMS)}
         write(out/'screen_audits.json', audits)
+        resume_audit = (audits[arm] if resume_epoch == 2 else
+                        checkpoint(root, pde, arm, resume_epoch))
+        resume_path = root/'runs'/pde/arm/'last.pth'
+        assert sha(resume_path) == resume_audit['checkpoint_sha256'], 'Resume state differs from reviewed snapshot'
+        write(out/'resume_audit.json', resume_audit)
         while True:
             free = subprocess.check_output(['nvidia-smi','--query-gpu=memory.free',
                     '--format=csv,noheader,nounits'],text=True).splitlines()
@@ -82,8 +88,8 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
         record = dict(decision=decision, plan_sha256=sha(root/'extension_plan.json'),
             checkout=str(checkout), command=command, observed_free_mib=int(free[gpu]),
             git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=checkout,text=True).strip(),
-            original_stage1_queue=queue, resume_snapshot_sha256=audits[arm]['checkpoint_sha256'],
-            source_epoch=2, target_epoch=epochs, overlaps_remaining_screening=overlap,
+            original_stage1_queue=queue, resume_snapshot_sha256=resume_audit['checkpoint_sha256'],
+            resume_path=str(resume_path), source_epoch=resume_epoch, target_epoch=epochs, overlaps_remaining_screening=overlap,
             audited_screening_arms=list(audits),
             all_arm_audits_required_before_recipe_selection=True)
         write(out/'launch.json',record)
@@ -109,5 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs',type=int,default=10)
     parser.add_argument('--checkout',type=Path,required=True)
     parser.add_argument('--min-free-mib',type=int,default=70000)
+    parser.add_argument('--resume-epoch',type=int,default=2,
+                        help='Reviewed complete snapshot to resume; last.pth must have the same SHA')
     args=parser.parse_args()
-    run(args.root,args.pde,args.arm,args.gpu,args.epochs,args.checkout,args.min_free_mib)
+    run(args.root,args.pde,args.arm,args.gpu,args.epochs,args.checkout,args.min_free_mib,args.resume_epoch)
