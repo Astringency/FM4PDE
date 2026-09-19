@@ -12,7 +12,7 @@ def remote_python(host, script):
     return ssh(host, "python3 - <<'PY'\n" + script + "\nPY", capture_output=True, text=True).stdout
 
 
-def inputs(pdes):
+def inputs(pdes, prepare_only=False):
     for pde in pdes:
         stage = f'{CACHE}/incoming_evaluation_{pde}'
         ssh('server216', f'mkdir -p {stage}')
@@ -48,6 +48,9 @@ dest=r/'evaluation_inputs'/{pde!r};dest.parent.mkdir(exist_ok=True)
 assert not dest.exists()
 stage.replace(dest);stage.parent.rmdir()
 (dest/'transfer_verified.json').write_text(json.dumps(dict(status='verified',source={CANONICAL!r})))
+if {prepare_only!r}:
+ print('SAMPLING_INPUTS_VERIFIED',{pde!r})
+ raise SystemExit(0)
 gpu={dict(helmholtz=3,darcy=4,burger=5,nsnonbounded=6,poisson=7)[pde]}
 free=subprocess.check_output(['nvidia-smi','--query-gpu=memory.free','--format=csv,noheader,nounits'],text=True).splitlines()
 assert int(free[gpu])>70000, 'Sampling GPU is no longer free; review before launching'
@@ -109,10 +112,11 @@ if __name__ == '__main__':
     parser.add_argument('mode', choices=['inputs', 'checkpoints'])
     parser.add_argument('--pdes', nargs='+', default=['nsnonbounded','poisson','helmholtz','darcy','burger'])
     parser.add_argument('--epochs', nargs='+', type=int, default=[2])
+    parser.add_argument('--prepare-only',action='store_true',help='Verify inputs; launch separately after a fresh resource check')
     parser.add_argument('--arms', nargs='+', choices=['uniform','stratified_uniform','logit_normal','beta1_05'],
                         default=['uniform','stratified_uniform','logit_normal','beta1_05'])
     args = parser.parse_args()
     if args.mode == 'inputs':
-        inputs(args.pdes)
+        inputs(args.pdes,args.prepare_only)
     else:
         checkpoints(args.epochs, args.pdes, args.arms)
