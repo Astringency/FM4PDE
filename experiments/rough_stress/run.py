@@ -199,6 +199,11 @@ def run(args):
         from baselines.run import load_baseline_checkpoint, _make_inference_batch, _to_device_batch_for_eval
         ckpts = json.loads((Path(args.input_root or args.output_root) / f"{args.pde}_checkpoints.json").read_text())
         ckpt = ckpts[f"{args.method}/{args.task}"]
+        if not Path(ckpt["path"]).exists() and args.baseline_output_root:
+            # The same archived checkpoint is mounted at different paths on
+            # the A100 and 4090 hosts; retain the frozen content hash.
+            ckpt = dict(ckpt, path=str(Path(args.baseline_output_root) / "runs" /
+                ckpt["path"].split("/runs/", 1)[1]))
         if sha256(ckpt["path"]) != ckpt["sha256"]:
             raise ValueError("Checkpoint hash mismatch")
         model = load_baseline_checkpoint(ckpt["path"], map_location=args.device,
@@ -275,6 +280,8 @@ def run(args):
         else:
             indices=list(range(lo,hi))
             cfg=effective_config(reference,checkpoint,args.device,indices,count,cell)
+            if noise_bank is not None:
+                cfg.initial_noise_source_batch_size = noise_bank.manifest["count"]
             gt,masks,hashes=observation_batch(data,cfg,indices,args.device)
             with noise_bank.replay(indices) if noise_bank is not None else nullcontext():
                 pred,runtime=infer(cfg,bundle,gt,masks,indices)
