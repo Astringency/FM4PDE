@@ -61,3 +61,37 @@ diagnostics, full optimizer checkpoints, process exit records and independent
 audits. `report/` contains the consolidated results. A800 jobs use temporary
 server216 caches; their output files must pass SHA256 verification before atomic
 publication to the canonical root. Each training task runs in its own tmux.
+
+## Paired difficult-case sampling
+
+`hard_sampling setup --root ROOT --pde PDE` fixes the 16 worst solution-field
+errors from the existing 1,000-case ID sparse-observation evaluation before any
+new candidate predictions are read. `hard_sampling queue` compares the original
+checkpoint, the LR-only checkpoint and the selected intervention at 128 updates.
+All five PDEs use seeds 0 and 1, the original 100-step stochastic sampler,
+identical masks and guidance, and matching initial and all 100 bridge noises.
+The Helmholtz evaluation uses batch 1; the other PDEs use batch 4.
+
+Training gains are measured against a freshly sampled original-model baseline at
+the same batch size. The archived NS predictions showed strong batch dependence;
+archived errors select cases but are not the denominator for new improvements.
+A repeated original-model execution must agree within relative error 1e-6 before
+candidate sampling proceeds. Saved batches retain identities and all noise hashes.
+
+`extend_ns queue` continues both NS arms from update 128 to update 512 on the full
+original 45,000-example training split, preserving validation membership and the
+original normalizer. Both arms use the same training inputs and random streams.
+`sample_continuations` evaluates their final snapshots on the same fixed cases.
+
+`sampling_audit` independently recomputes physical-space relative L2 errors from
+saved predictions using CPU float64 and verifies hashes, configurations, masks and
+noise pairing. `sampling_figures` exports all 16 solution fields with common
+truth/prediction and error color scales within each case. Quantitative comparisons
+average the two seeds within each input before paired bootstrap over 16 inputs.
+This selected difficult set cannot estimate population-wide performance.
+
+`finalize_sampling` audits each PDE as it finishes, exports figures and writes
+`report/SAMPLING.md`. Remote sampling results are SHA256-verified before publishing
+under `hard_sampling/<pde>/` (NS uses `hard_sampling/` itself). The collector waits
+for all five sampling comparisons, both NS continuations, audits and figures; it
+must not clean working caches based on the optimizer screen alone.
