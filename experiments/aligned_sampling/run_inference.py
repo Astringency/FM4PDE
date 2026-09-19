@@ -290,7 +290,7 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
         actual_steps = cfg.num_steps if steps is None else steps
         for step in range(actual_steps):
             guided = r._has_guidance(cfg)
-            cur = x.detach().requires_grad_(guided)
+            cur = x.detach().requires_grad_(guided and cfg.gradient_target != "proposal_state_chain_rule")
             t, tn = grid[step], grid[step + 1]
             phase = r.phase_for_step(
                 cfg.sampler_phase, cfg.switch_ratio, step, cfg.num_steps
@@ -310,6 +310,7 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
                 deterministic_endpoint_mode=cfg.deterministic_endpoint_mode,
                 deterministic_endpoint_time_grid=grid[step:],
                 deterministic_rollout_checkpoint=cfg.deterministic_rollout_checkpoint,
+                gradient_target=cfg.gradient_target,
             )
             physical = r._physical_from_model_state(out.x_loss_state, cfg, normalizer)
             losses = r.compute_guidance_losses(physical, gt, masks, cfg, observations=observations)
@@ -346,6 +347,8 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
         if not torch.isfinite(pred).all():
             raise RuntimeError("Nonfinite prediction")
         expected_nfe = actual_steps * (1 if cfg.step_method == "euler" else 2)
+        if cfg.gradient_target == "proposal_state_chain_rule":
+            expected_nfe += actual_steps - int(actual_steps == cfg.num_steps)
         if (
             hook is not None
             and cfg.sampler_phase == "stochastic"

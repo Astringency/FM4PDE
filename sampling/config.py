@@ -37,7 +37,10 @@ VALID_GUIDANCE_COMPONENTS = {
     "both_obs",
 }
 VALID_LOSS_STATES = {"xt", "x_next", "endpoint"}
-VALID_GRADIENT_TARGETS = {"current_state_chain_rule", "loss_state_direct", "next_state_direct"}
+VALID_GRADIENT_TARGETS = {
+    "current_state_chain_rule", "loss_state_direct", "next_state_direct",
+    "proposal_state_chain_rule",
+}
 VALID_SAMPLER_PHASES = {"deterministic", "stochastic", "hybrid_d2s", "hybrid_s2d"}
 VALID_GUIDANCE_SCHEDULES = {
     "constant",
@@ -320,6 +323,15 @@ class AblationConfig:
         if self.gradient_target == "next_state_direct" and self.loss_state != "x_next":
             raise ValueError(
                 "gradient_target='next_state_direct' is only connected when loss_state='x_next'"
+            )
+        if self.gradient_target == "proposal_state_chain_rule" and (
+            self.loss_state != "endpoint"
+            or self.step_method != "euler"
+            or self.deterministic_endpoint_mode != "single_step"
+        ):
+            raise ValueError(
+                "proposal_state_chain_rule requires loss_state='endpoint', "
+                "step_method='euler', and deterministic_endpoint_mode='single_step'"
             )
         if self.pde_residual_region == "coef_obs" and self.task not in {"forward", "both"}:
             raise ValueError(f"pde_residual_region='coef_obs' is inactive for task={self.task!r}")

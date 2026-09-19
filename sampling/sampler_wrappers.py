@@ -49,10 +49,38 @@ def sampler_step(
     deterministic_endpoint_mode: str = "single_step",
     deterministic_endpoint_time_grid: Any | None = None,
     deterministic_rollout_checkpoint: bool = False,
+    gradient_target: str = "current_state_chain_rule",
 ) -> SamplerStepOutput:
     import torch
 
     start = time.time()
+    if gradient_target == "proposal_state_chain_rule":
+        if loss_state != "endpoint" or step_method != "euler" or deterministic_endpoint_mode != "single_step":
+            raise ValueError("Proposal endpoint guidance requires endpoint loss and single-step Euler")
+        # The proposal is an independent optimization variable. Do not include
+        # the proposal Jacobian in the gradient applied to that same proposal.
+        with torch.no_grad():
+            out = sampler_step(
+                net, x_cur, t, t_next, phase, step_method, loss_state,
+                device=device, model_extra=model_extra,
+                stochastic_noise_source_batch_size=stochastic_noise_source_batch_size,
+                stochastic_noise_source_indices=stochastic_noise_source_indices,
+            )
+        proposal = out.x_raw_next.detach().requires_grad_(torch.is_grad_enabled())
+        # E_1(x) = x exactly; avoid an unnecessary network call at the boundary.
+        if float(t_next.detach().cpu()) == 1.0:
+            endpoint = proposal
+        else:
+            endpoint = endpoint_from_velocity(
+                proposal, _call_velocity_model(net, proposal, t_next, model_extra), t_next
+            )
+            out.endpoint_model_evaluations += 1
+        out.x_raw_next = proposal
+        out.x_endpoint = endpoint
+        out.x_loss_state = endpoint
+        out.endpoint_prediction_mode = "post_proposal_single_step"
+        out.wall_time = time.time() - start
+        return out
     step_size = t_next - t
     if phase == "deterministic":
         x_endpoint, x_next, endpoint_model_evaluations = _deterministic_step(

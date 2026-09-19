@@ -179,7 +179,7 @@ def run_single_ablation(
             step_start = time.time()
             phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps)
             x_cur = x_next.detach().clone()
-            if _has_guidance(config):
+            if _has_guidance(config) and config.gradient_target != "proposal_state_chain_rule":
                 x_cur.requires_grad_(True)
             t = grid[step]
             t_next = grid[step + 1]
@@ -198,6 +198,7 @@ def run_single_ablation(
                 deterministic_endpoint_mode=config.deterministic_endpoint_mode,
                 deterministic_endpoint_time_grid=grid[step:],
                 deterministic_rollout_checkpoint=config.deterministic_rollout_checkpoint,
+                gradient_target=config.gradient_target,
             )
             phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
             losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
@@ -494,7 +495,7 @@ def _gradient_target_tensor(config: AblationConfig, x_cur: Any, step_out: Any) -
         return x_cur
     if config.gradient_target == "loss_state_direct":
         return step_out.x_loss_state
-    if config.gradient_target == "next_state_direct":
+    if config.gradient_target in {"next_state_direct", "proposal_state_chain_rule"}:
         return step_out.x_raw_next
     raise ValueError(f"Unknown gradient_target={config.gradient_target!r}")
 
