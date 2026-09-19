@@ -67,6 +67,9 @@ The native trainer also supports explicit raw-checkpoint-to-EMA resume:
 Once resuming a checkpoint that already contains EMA, omit `--resume_add_ema`.
 Saved EMA history is restored. Native validation reports both raw and EMA, ten
 time bins, and channels, with a fixed stream isolated from training RNG.
+Native EMA advances only when the accumulated optimizer update succeeds; an AMP
+overflow that skips an update also skips EMA. This is checked with real CPU AMP
+and CUDA fused AdamW, including gradient accumulation and scaler growth/backoff.
 
 Use `--timestep_sampling uniform|stratified_uniform|logit_normal|legacy_skewed`
 for explicit training time selection. The old skewed flag remains supported.
@@ -90,3 +93,4 @@ original-to-continuation comparisons also include a precision change.
 Verification so far: ten targeted tests passed on local PyTorch 2.12 and remote
 PyTorch 2.8; nine existing EMA/checkpoint/optimizer/train-loop tests also passed
 locally. These results are not a claim that the entire repository test suite ran.
+The additional AMP tests passed on both local PyTorch 2.12 and remote PyTorch 2.8.
