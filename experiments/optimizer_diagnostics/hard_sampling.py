@@ -246,6 +246,11 @@ def queue(root,pde='nsnonbounded',screen_root=None):
     for name,path in [('original',root/'inputs'/pde/'source.pth'),
                       ('lr_control_128',screen_root/pde/'lr_control.pth'),
                       ('beta2_128' if pde=='nsnonbounded' else 'selected_128',screen_root/pde/'selected_resume.pth')]:
+        if name!='original':
+            status=screen_root/pde/'run.exit.json'
+            while not status.exists():
+                print('WAIT_FINISHED_SCREEN',pde,flush=True);time.sleep(30)
+            assert json.loads(status.read_text())['exit_code']==0
         cmd=[sys.executable,'-u','-m','experiments.optimizer_diagnostics.hard_sampling',
             'run','--root',str(root),'--pde',pde,'--variant',name,'--checkpoint',str(path),
             '--batch-size','1' if pde=='helmholtz' else '4']
