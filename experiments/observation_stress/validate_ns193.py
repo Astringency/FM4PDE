@@ -50,18 +50,24 @@ def main():
         assert torch.isfinite(a).all() and torch.isfinite(b).all()
         differences = (a-b).flatten(2).norm(dim=2)/a.flatten(2).norm(dim=2).clamp_min(1e-12)
         maximum = differences.max(dim=0).values.tolist()
-        assert max(maximum) <= 2e-5, maximum
         results.append(dict(batch_size=size, max_per_sample_prediction_relative_l2_by_field=maximum,
+            mean_relative_l2_metric_change_pp_by_field={
+                field: 100*sum(right[f"rel_l2_{field}"]-left[f"rel_l2_{field}"]
+                               for left, right in zip(records[0]["rows"], records[1]["rows"]))/size
+                for field in ["a", "u"]},
             reference=str(reference), candidate=str(candidate),
             reference_prediction_sha256=records[0]["prediction_sha256"],
             candidate_prediction_sha256=records[1]["prediction_sha256"],
             candidate_runtime=records[1]["runtime"]))
-    receipt = dict(status="passed", batch_sizes=[4, 16], pde="nsnonbounded", task="both",
+    passed = all(max(item["max_per_sample_prediction_relative_l2_by_field"]) <= 2e-5 for item in results)
+    receipt = dict(status="passed" if passed else "failed", batch_sizes=[4, 16], pde="nsnonbounded", task="both",
         distribution="rough2", tolerance=2e-5,
         criterion="Maximum per-sample physical prediction relative L2 for each field; same batch partition",
         results=results)
     write_json(root/"setup/rtx4090_ns_pilot_equivalence.json", receipt)
     print(json.dumps(receipt, indent=2), flush=True)
+    if not passed:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
