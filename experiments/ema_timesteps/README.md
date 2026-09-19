@@ -116,3 +116,6 @@ Verification so far: ten targeted tests passed on local PyTorch 2.12 and remote
 PyTorch 2.8; nine existing EMA/checkpoint/optimizer/train-loop tests also passed
 locally. These results are not a claim that the entire repository test suite ran.
 The additional AMP tests passed on both local PyTorch 2.12 and remote PyTorch 2.8.
+Native-resume export checks also passed on the real two-epoch Helmholtz and NS
+checkpoints under PyTorch 2.8, including exact Adam-state comparison and explicit
+raw/EMA inference loading. Every final selected export runs those checks again.
