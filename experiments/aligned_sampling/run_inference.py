@@ -237,7 +237,7 @@ def observation_batch(data, cfg, indices, device):
     return gt, masks, hashes
 
 
-def infer(cfg, bundle, gt, masks, indices, *, steps=None):
+def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
     """Reuse stock model, conditioning, sampler, losses, schedules, and updates."""
     import torch
     import sampling.runner as r
@@ -312,7 +312,7 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None):
                 deterministic_rollout_checkpoint=cfg.deterministic_rollout_checkpoint,
             )
             physical = r._physical_from_model_state(out.x_loss_state, cfg, normalizer)
-            losses = r.compute_guidance_losses(physical, gt, masks, cfg)
+            losses = r.compute_guidance_losses(physical, gt, masks, cfg, observations=observations)
             if losses.pde_residual_status == "error":
                 raise RuntimeError("PDE residual failed")
             affine = r.affine_coefficients(

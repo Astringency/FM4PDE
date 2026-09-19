@@ -31,6 +31,7 @@ class ObservationTargets:
     sol_clean: Any
     coef_noisy: Any
     sol_noisy: Any
+    operator: Any | None = None
 
 
 @dataclass
@@ -68,30 +69,34 @@ def compute_guidance_losses(
     clean_coef = observations.coef_clean if observations is not None else ground_truth.coef * masks.coef
     clean_sol = observations.sol_clean if observations is not None else ground_truth.sol * masks.sol
 
-    obs_a_residual = (phys_state.coef - target_coef) * masks.coef
-    obs_u_residual = (phys_state.sol - target_sol) * masks.sol
-    clean_obs_a_residual = (phys_state.coef - clean_coef) * masks.coef
-    clean_obs_u_residual = (phys_state.sol - clean_sol) * masks.sol
+    operator = observations.operator if observations is not None else None
+    predicted_coef = phys_state.coef if operator is None else operator(phys_state.coef)
+    predicted_sol = phys_state.sol if operator is None else operator(phys_state.sol)
+
+    obs_a_residual = (predicted_coef - target_coef) * masks.coef
+    obs_u_residual = (predicted_sol - target_sol) * masks.sol
+    clean_obs_a_residual = (predicted_coef - clean_coef) * masks.coef
+    clean_obs_u_residual = (predicted_sol - clean_sol) * masks.sol
 
     zero = phys_state.coef.sum() * 0.0
     # Evaluation losses are properties of the prediction and must not change
     # when a guidance component or its zeta coefficient is disabled.
-    L_obs_a = _masked_mse(phys_state.coef, target_coef, masks.coef)
-    L_obs_u = _masked_mse(phys_state.sol, target_sol, masks.sol)
+    L_obs_a = _masked_mse(predicted_coef, target_coef, masks.coef)
+    L_obs_u = _masked_mse(predicted_sol, target_sol, masks.sol)
     obs_guidance_reduction = str(getattr(config, "obs_guidance_reduction", "mse"))
     if obs_guidance_reduction == "mse":
         raw_guidance_L_obs_a = L_obs_a
         raw_guidance_L_obs_u = L_obs_u
         obs_guidance_reduction_label = "masked_mse_over_observed_entries"
     elif obs_guidance_reduction in {"l2_norm", "legacy_l2_mean"}:
-        raw_guidance_L_obs_a = _masked_l2_norm(phys_state.coef, target_coef, masks.coef)
-        raw_guidance_L_obs_u = _masked_l2_norm(phys_state.sol, target_sol, masks.sol)
+        raw_guidance_L_obs_a = _masked_l2_norm(predicted_coef, target_coef, masks.coef)
+        raw_guidance_L_obs_u = _masked_l2_norm(predicted_sol, target_sol, masks.sol)
         obs_guidance_reduction_label = "mean_of_per_sample_masked_l2_norm"
         if obs_guidance_reduction == "legacy_l2_mean":
             # Old Burgers retained obs_size (500), even for K*128 column entries.
             denominator = config.num_obs if config.pde == "burger" and config.guidance_operator == "legacy" else None
-            raw_guidance_L_obs_a = _legacy_masked_l2_mean(phys_state.coef, target_coef, masks.coef, denominator)
-            raw_guidance_L_obs_u = _legacy_masked_l2_mean(phys_state.sol, target_sol, masks.sol, denominator)
+            raw_guidance_L_obs_a = _legacy_masked_l2_mean(predicted_coef, target_coef, masks.coef, denominator)
+            raw_guidance_L_obs_u = _legacy_masked_l2_mean(predicted_sol, target_sol, masks.sol, denominator)
             obs_guidance_reduction_label = "mean_of_per_sample_l2_div_observed_count"
             if denominator is not None:
                 obs_guidance_reduction_label = "mean_of_per_sample_l2_div_legacy_obs_size"
@@ -99,8 +104,8 @@ def compute_guidance_losses(
         raise ValueError(f"Unknown obs_guidance_reduction={obs_guidance_reduction!r}")
     guidance_L_obs_a = raw_guidance_L_obs_a if enabled["obs_a"] else zero
     guidance_L_obs_u = raw_guidance_L_obs_u if enabled["obs_u"] else zero
-    clean_L_obs_a = _masked_mse(phys_state.coef, clean_coef, masks.coef)
-    clean_L_obs_u = _masked_mse(phys_state.sol, clean_sol, masks.sol)
+    clean_L_obs_a = _masked_mse(predicted_coef, clean_coef, masks.coef)
+    clean_L_obs_u = _masked_mse(predicted_sol, clean_sol, masks.sol)
     obs_counts = {
         "coef": _masked_count(phys_state.coef, masks.coef),
         "sol": _masked_count(phys_state.sol, masks.sol),
@@ -238,6 +243,7 @@ def compute_guidance_losses(
     pde_meta["guidance_component_losses"] = guidance_component_losses
 
     metadata = {
+        "observation_operator": operator.metadata() if operator is not None else {"kind": "point"},
         "enabled": enabled,
         "pde": pde_meta,
         "pde_params_used": sorted(pde_params),
