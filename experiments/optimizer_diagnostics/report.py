@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from experiments.optimizer_diagnostics.study import PDES, write
+from experiments.optimizer_diagnostics.study import PDES, paired, write
 
 
 def report(root):
@@ -18,14 +18,18 @@ def report(root):
             continue
         complete=json.loads((run/"complete.json").read_text())
         protocol=json.loads((run/"protocol.json").read_text())
+        lr_control=json.loads((run/"lr1e5"/"result.json").read_text())["development"]
         for config in protocol["configs"]:
             result=json.loads((run/config["name"]/"result.json").read_text())
             probe=json.loads((run/config["name"]/"layers_step_0001.json").read_text())["summary"]
             delta=result["paired_development"]
+            vs_lr=paired(result["development"],lr_control)
             rows.append(dict(pde=pde,candidate=config["name"],lr=config["lr"],beta1=config["betas"][0],
                 beta2=config["betas"][1],updates=result["steps"],seconds=result["seconds"],
                 validation=result["development"]["mean"],development_change_pct=delta["relative_change_pct"],
-                paired_ci_low=delta["ci95"][0],paired_ci_high=delta["ci95"][1],**probe))
+                paired_ci_low=delta["ci95"][0],paired_ci_high=delta["ci95"][1],
+                vs_lr_control_pct=vs_lr["relative_change_pct"],
+                vs_lr_control_ci_low=vs_lr["ci95"][0],vs_lr_control_ci_high=vs_lr["ci95"][1],**probe))
         c=complete["confirmations"]
         summary.append(dict(pde=pde,selected=c["selected_resume"]["config"],
             selected_vs_original=c["selected_resume"]["paired_original"],
@@ -50,6 +54,13 @@ def report(root):
         "|---|---|---:|---:|---:|---:|"]
     for r in summary:
         lines.append(f"| {r['pde']} | {r['selected']['name']} | {r['selected_vs_original']['relative_change_pct']:+.3f}% | {r['selected_vs_lr_control']['relative_change_pct']:+.3f}% | {r['microbatch']} | {r['peak_gib']:.2f} |")
+    lines.extend(["","## 单独降低 beta 的开发集对照","",
+        "三组 LR 均为 1e-5，基线 betas=(0.9, 0.999)。负数表示 MSE 降低；区间是绝对 MSE 差。此表用于筛选，不能替代独立确认。","",
+        "| PDE | 调整 | 相比相同 LR 基线 | 配对 95% 区间 |",
+        "|---|---|---:|---|"])
+    for r in rows:
+        if r["candidate"].startswith("beta"):
+            lines.append(f"| {r['pde']} | ({r['beta1']}, {r['beta2']}) | {r['vs_lr_control_pct']:+.3f}% | [{r['vs_lr_control_ci_low']:.4g}, {r['vs_lr_control_ci_high']:.4g}] |")
     lines.extend(["","## 原学习率下的实际更新","",
         "| PDE | 原 LR | 梯度范数 | 参数相对更新 | 未改变参数元素比例 | Adam v / 当前 g² |",
         "|---|---:|---:|---:|---:|---:|"])
@@ -58,7 +69,7 @@ def report(root):
             lines.append(f"| {r['pde']} | {r['lr']:.3g} | {r['grad_norm']:.4g} | {r['relative_update']:.4g} | {100*r['update_zero_fraction']:.3f}% | {r['moment_to_current_g2']:.3g} |")
     lines.extend(["","原 LR 对照为末次 checkpoint 记录的 LR 保持常数。梯度非零不能证明还可有效降低期望损失；随机时间、噪声与 dropout 也会产生非零梯度。v/g² 是一批的聚合诊断，不能单独据此断言历史二阶矩异常。",
         "降低 beta2 后继承的旧二阶矩仍逐步衰减；beta2=0.99 在 128 次更新后保留约 27.6% 的初始二阶矩贡献。不能把这组短筛选当作已完成适应。",
-        "本报告的主要终点是匹配的 FM 验证损失，未据此声称条件采样或 OOD 能力提升。",
+        "本报告的主要终点是匹配的 FM 验证损失，未据此声称条件采样或 OOD 能力提升。NS 原训练为 BF16，本次所有组统一 FP32/TF32，因此相对原 checkpoint 的续训收益也可能包含精度变化；同学习率 beta 对照具有相同精度。",
         "","可复核文件：`runs/<pde>/protocol.json`、`result.json`（各候选目录）、`layers_step_*.json`、`frozen_gradient_probe.json`、`complete.json`、`audit.json`；`selected_resume.pth` 与 `lr_control.pth` 保留完整优化器状态。"])
     (out/"README.md").write_text("\n".join(lines)+"\n")
     print(json.dumps(dict(pending=pending,completed=len(summary))),flush=True)
