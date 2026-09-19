@@ -51,9 +51,12 @@ def main():
     fm_checkpoints["poisson"] = dict(path=str(old_fm/"setup/fm4poisson.pth"),
         sha256=poisson_equivalence["checkpoint_197_sha256"])
 
-    def verify_file(filename, digest):
-        filename = Path(str(filename).replace(
+    def canonical_path(filename):
+        return Path(str(filename).replace(
             "/home/zhangxf/share/zhangxfA100/large_storage/", "/large_storage/zhangxf/"))
+
+    def verify_file(filename, digest):
+        filename = canonical_path(filename)
         if str(filename) not in verified_files:
             assert sha256(filename) == digest, f"Source checksum changed: {filename}"
             verified_files[str(filename)] = digest
@@ -192,7 +195,9 @@ def main():
                 cpfile = base/"measurements/poisson_checkpoints.json" if pde == "poisson" else base/f"{pde}_checkpoints.json"
                 checkpoints[pde] = json.loads(cpfile.read_text())
             checkpoint = checkpoints[pde][f"{method}/{task}"]
-            assert identity["checkpoint"] == checkpoint
+            actual_checkpoint = dict(identity["checkpoint"], path=str(canonical_path(identity["checkpoint"]["path"])))
+            expected_checkpoint = dict(checkpoint, path=str(canonical_path(checkpoint["path"])))
+            assert actual_checkpoint == expected_checkpoint
             assert not identity["backend"].get("fallback_used")
             verify_file(checkpoint["path"], checkpoint["sha256"])
             verify_file(checkpoint["source_summary"], checkpoint["source_summary_sha256"])
