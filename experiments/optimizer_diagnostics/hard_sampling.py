@@ -24,6 +24,24 @@ CELL='supervised/nsnonbounded/id/sparse_joint'
 REFERENCE=Path('/research_data/users/zhangxifeng/C01Python/FM4PDE/outputs/baseline_pairing_20260915_57k')
 
 
+def paired_infer(cfg,bundle,gt,masks,indices):
+    import sampling.sampler_wrappers as sampler
+    original=sampler._stochastic_bridge_noise_like
+    hashes=[]
+    def tracked(*args,**kwargs):
+        value=original(*args,**kwargs)
+        hashes.append(tensor_digest(value))
+        return value
+    sampler._stochastic_bridge_noise_like=tracked
+    try:
+        pred,meta=infer(cfg,bundle,gt,masks,indices)
+    finally:
+        sampler._stochastic_bridge_noise_like=original
+    assert len(hashes)==100
+    meta['bridge_noise_sha256']=hashes
+    return pred,meta
+
+
 def setup(root):
     out=root/'hard_sampling'
     if (out/'selection.json').exists():
@@ -98,21 +116,28 @@ def run(root,variant,checkpoint,batch_size):
         return
     write(target/'identity.json',identity)
     archived=torch.load(out/'selected_reference.pt',map_location='cpu',weights_only=False)
-    # The original is replayed first; a full 100-step single-case gate verifies the archived path.
-    if variant=='original' and not (out/'replay_gate.json').exists():
-        one=ids[:1]
-        cfg=effective_config(selection['cell'],checkpoint,'cuda:0',one,1000,target)
-        gt,masks,_=observation_batch(data,cfg,one,'cuda:0')
-        pred,meta=infer(cfg,bundle,gt,masks,one)
-        diff=relative_differences(pred,archived['prediction'][:1])
-        write(out/'replay_gate.json',dict(difference=diff,runtime=meta,tolerance=1e-4,
-            passed=diff['max_relative']<1e-4))
-        assert diff['max_relative']<1e-4,diff
-        # Single-case peak predicts a conservative upper bound for the chosen batch.
+    # Historical batch 64 is numerically sensitive on the selected hard cases.
+    # Gate exact current-batch reproducibility, and measure every candidate against
+    # a fresh original-model baseline with this SAME batch and all noise draws.
+    if variant=='original' and not (out/'paired_execution_gate.json').exists():
+        diagnosis=json.loads((out/'replay_diagnosis.json').read_text())
+        assert diagnosis['batch1_bank1']['first_case_vs_native']['max_relative']==0
+        assert batch_size==4
+        group=ids[:batch_size]
+        cfg=effective_config(selection['cell'],checkpoint,'cuda:0',group,1000,target)
+        gt,masks,_=observation_batch(data,cfg,group,'cuda:0')
+        pred,meta=paired_infer(cfg,bundle,gt,masks,group)
+        previous=torch.load(out/'replay_batch4_bank1.pt',map_location='cpu',weights_only=False)
+        diff=relative_differences(pred,previous)
+        write(out/'paired_execution_gate.json',dict(difference=diff,runtime=meta,tolerance=1e-6,
+            passed=diff['max_relative']<1e-6,historical_replay_passed=False,
+            comparison_policy='Fresh original-model baseline at identical batch 4, inputs, masks and all 101 noise draws; historical errors select cases only',
+            historical_batch_sensitivity=diagnosis))
+        assert diff['max_relative']<1e-6,diff
         free,_=torch.cuda.mem_get_info()
-        assert meta['peak_allocated_bytes']*batch_size*1.5<free-10*2**30
+        assert meta['peak_allocated_bytes']*1.5<free-10*2**30
         del pred,gt,masks
-    assert json.loads((out/'replay_gate.json').read_text())['passed']
+    assert json.loads((out/'paired_execution_gate.json').read_text())['passed']
     results={}
     for seed in selection['seeds']:
         rows=[];predictions=[];batches=[]
@@ -130,7 +155,7 @@ def run(root,variant,checkpoint,batch_size):
                 cell['config']['sample_seed']=seed
                 cfg=effective_config(cell,checkpoint,'cuda:0',group,1000,target)
                 gt,masks,hashes=observation_batch(data,cfg,group,'cuda:0')
-                pred,meta=infer(cfg,bundle,gt,masks,group)
+                pred,meta=paired_infer(cfg,bundle,gt,masks,group)
                 payload=dict(indices=group,prediction=pred,metrics=score(pred,data,group,cfg),
                     input_hashes=hashes,runtime=meta,effective_config=cfg.asdict())
                 torch.save(payload,saved)
@@ -140,8 +165,6 @@ def run(root,variant,checkpoint,batch_size):
             print('SAMPLING_PROGRESS',variant,seed,start+len(group),len(ids),flush=True)
         pred=torch.cat(predictions)
         replay=relative_differences(pred,archived['prediction']) if variant=='original' and seed==0 else None
-        if replay is not None:
-            assert replay['max_relative']<1e-4,replay
         results[str(seed)]=dict(rows=rows,batches=batches,historical_replay=replay)
     write(target/'complete.json',dict(variant=variant,results=results,checkpoint_sha256=identity['checkpoint_sha256']))
     print('SAMPLING_COMPLETE',variant,flush=True)
@@ -180,6 +203,7 @@ def report(root):
             baseline_batch=torch.load(out/'runs/original'/p.name,map_location='cpu',weights_only=False)
             assert candidate_batch['input_hashes']==baseline_batch['input_hashes']
             assert candidate_batch['runtime']['initial_noise_sha256']==baseline_batch['runtime']['initial_noise_sha256']
+            assert candidate_batch['runtime']['bridge_noise_sha256']==baseline_batch['runtime']['bridge_noise_sha256']
             assert candidate_batch['indices']==baseline_batch['indices']
             config0=dict(baseline_batch['effective_config']);config1=dict(candidate_batch['effective_config'])
             for cfg in [config0,config1]:
@@ -193,6 +217,7 @@ def report(root):
             writer=csv.DictWriter(stream,fieldnames=list(details[0]));writer.writeheader();writer.writerows(details)
     lines=['# 困难样本采样对照','',
         'NS / ID / 500 点稀疏联合恢复；按原模型已有 1000 个结果的解场误差，预先固定最差 16 例。100 步采样、原观测、原指导参数；分别使用 seed 0 和独立 seed 1，原模型与候选严格配对。',
+        '历史 batch 64 与当前小批量在这些困难样本上存在明显数值差异。因此历史误差仅用于选样，所有训练收益均相对于重新运行的原模型 batch 4 基线计算；固定 batch 的重复执行门限为 1e-6，所有 101 次噪声抽样逐次核对。',
         '先按样本平均两个种子，再计算逐例改善与配对 bootstrap 区间。正改善率表示误差降低；这组困难样本不能代表总体泛化表现。','',
         '| 候选 | 场 | 原误差 | 新误差 | 相对改善 | 改善例数 | ≥10% / ≥20% | seed 0 / seed 1 改善 |',
         '|---|---|---:|---:|---:|---:|---|---|']
