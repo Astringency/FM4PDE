@@ -2,7 +2,6 @@
 import argparse
 import json
 from pathlib import Path
-import shlex
 import subprocess
 import time
 
@@ -24,6 +23,9 @@ import json,subprocess
 r=Path({CANONICAL!r})
 p=r/'finalization.json'
 status=json.loads(p.read_text()) if p.exists() else {{'state':'waiting'}}
+active=subprocess.run(['tmux','has-session','-t','fm_opt_0919_finalize'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+if status.get('state')!='complete' and not active:
+    status={{'state':'failed','reason':'Finalizer exited before completion','log_tail':(r/'finalize.log').read_text()[-3000:]}}
 if status.get('state')=='complete':
     for pde in {PDES!r}:
         run=r/'runs'/pde
@@ -31,7 +33,7 @@ if status.get('state')=='complete':
         assert json.loads((run/'run.exit.json').read_text())['exit_code']==0
         assert json.loads((run/'inspect.exit.json').read_text())['exit_code']==0
     assert json.loads((r/'report'/'summary.json').read_text())['status']=='complete'
-    if subprocess.run(['tmux','has-session','-t','fm_opt_0919_finalize'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
+    if active:
         status={{'state':'finalizer_exiting'}}
 print(json.dumps(status))
 ''')
@@ -45,6 +47,12 @@ def finish():
                 stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
             time.sleep(30)
         ssh('server197',f'cd {CANONICAL}/runs/{pde} && sha256sum -c SHA256SUMS > {CANONICAL}/incoming_{pde}/final_verification.log')
+        log=Path(f'/tmp/fm_optrelay_0919_{pde}.log')
+        if log.exists():
+            saved=LOCAL/f'relay_{pde}.log'
+            saved.write_bytes(log.read_bytes())
+            subprocess.run(['scp',str(saved),f'server197:{CANONICAL}/remote_execution/relay_{pde}.log'],check=True)
+            log.unlink()
     subprocess.run(['scp','-r',f'server197:{CANONICAL}/report/.',str(LOCAL)],check=True)
     # All training source versions are ancestors in this complete Git bundle.
     remote_python('server197',f'''
@@ -104,6 +112,7 @@ def main():
     parser.add_argument('--once',action='store_true',help='Read readiness once without publishing or cleaning')
     args=parser.parse_args()
     LOCAL.mkdir(parents=True,exist_ok=True)
+    previous=None
     while True:
         try:
             status=ready()
@@ -114,6 +123,12 @@ def main():
             continue
         print('STATUS',json.dumps(status),flush=True)
         if args.once: return
+        if status.get('state')=='failed':
+            raise RuntimeError(json.dumps(status))
+        marker=(status.get('state'),tuple(status.get('pending',[])))
+        if marker!=previous:
+            subprocess.run(['scp','-r',f'server197:{CANONICAL}/report/.',str(LOCAL)],check=True)
+            previous=marker
         (LOCAL/'delivery.json').write_text(json.dumps(dict(state='waiting',remote_status=status),indent=2)+'\n')
         if status.get('state')=='complete': break
         time.sleep(30)
