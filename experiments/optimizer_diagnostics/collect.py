@@ -52,6 +52,14 @@ if status.get('state')=='complete':
             sessions=subprocess.check_output(['tmux','list-sessions','-F','#{{session_name}}'],text=True).splitlines()
             if any(s.startswith(('fm_optsample','fm_optextend')) for s in sessions):
                 status={{'state':'sampling_finalizer_exiting'}}
+            replica=r/'seed_replicates'
+            if replica.exists():
+                receipt=replica/'combine.exit.json'
+                if not receipt.exists():
+                    status={{'state':'additional_seeds_pending','pending':['darcy']}}
+                else:
+                    assert json.loads(receipt.read_text())['exit_code']==0
+                    assert json.loads((r/'hard_sampling/darcy/four_seed_summary.json').read_text())['status']=='verified'
 print(json.dumps(status))
 ''')
     return json.loads(result)
@@ -93,7 +101,7 @@ for line in (r/'SHA256SUMS').read_text().splitlines():
             subprocess.run(['scp',str(log),f'server197:{CANONICAL}/remote_execution/sampling_relay_{pde}.log'],check=True)
             log.unlink()
     subprocess.run(['scp','-r',f'server197:{CANONICAL}/report/.',str(LOCAL)],check=True)
-    source=subprocess.Popen(['ssh','server197',f'tar -C {CANONICAL} --exclude=*.pth --exclude=full_train.pt -cf - hard_sampling continuation'],stdout=subprocess.PIPE)
+    source=subprocess.Popen(['ssh','server197',f'tar -C {CANONICAL} --exclude=*.pth --exclude=full_train.pt -cf - hard_sampling continuation seed_replicates/hard_sampling seed_replicates/combine.log seed_replicates/combine.exit.json'],stdout=subprocess.PIPE)
     target=subprocess.Popen(['tar','-C',str(LOCAL),'-xf','-'],stdin=source.stdout)
     source.stdout.close()
     assert target.wait()==0 and source.wait()==0
@@ -143,6 +151,7 @@ r=Path({CACHE!r})
 for pde in ['helmholtz','darcy']:
     assert subprocess.run(['tmux','has-session','-t',f'fm_opt_0919_{{pde}}'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0
     assert subprocess.run(['tmux','has-session','-t',f'fm_optsample_0919_{{pde}}'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0
+assert subprocess.run(['tmux','has-session','-t','fm_optsamplerep_0919_darcy'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0
 for proc in Path('/proc').glob('[0-9]*'):
     try: cwd=(proc/'cwd').resolve(strict=True)
     except (OSError,PermissionError): continue
