@@ -33,6 +33,7 @@ def main():
     fm, base, out = map(Path, [args.fm_root, args.baseline_root, args.output_root])
     out.mkdir(parents=True, exist_ok=True)
     cache = {}
+    average_roundoff = []
     def source(pde, dist, case, kind):
         key = (pde, dist, case if kind == "observations" else None)
         if key not in cache:
@@ -49,14 +50,31 @@ def main():
                 mask, full = pack["mask"], pack["raw"]["full_tensor"]
                 k = int(pack["metadata"]["window"])
                 if k == 1:
-                    expected = full*mask
+                    assert torch.equal(pack["clean"], full*mask)
                 else:
-                    expected = torch.zeros_like(full)
+                    # Independent double-precision window reduction. Near-zero
+                    # means require an absolute forward-error bound based on
+                    # the terms being summed, rather than relative tolerance
+                    # against a cancellation-dominated mean.
+                    exact = full.double()
+                    expected = torch.zeros_like(exact)
+                    magnitude = torch.zeros_like(exact)
                     left, right = k//2, k-1-k//2
-                    values = full.unfold(2, k, 1).unfold(3, k, 1).mean((-1, -2))
+                    values = exact.unfold(2, k, 1).unfold(3, k, 1).mean((-1, -2))
+                    abs_values = exact.abs().unfold(2, k, 1).unfold(3, k, 1).mean((-1, -2))
                     expected[..., left:128-right, left:128-right] = values
-                    expected *= mask
-                torch.testing.assert_close(pack["clean"], expected, rtol=5e-6, atol=1e-9)
+                    magnitude[..., left:128-right, left:128-right] = abs_values
+                    selected = mask.bool().expand_as(full)
+                    error = (pack["clean"].double()-expected).abs()[selected]
+                    eps = torch.finfo(full.dtype).eps
+                    gamma = ((k*k+1)*eps)/(1-(k*k+1)*eps)
+                    bound = (gamma*magnitude[selected]).clamp_min(torch.finfo(full.dtype).tiny*eps)
+                    assert bool((error <= bound).all()), f"Window average exceeds floating-point error bound: {key}"
+                    assert not torch.count_nonzero(pack["clean"]*(1-mask))
+                    average_roundoff.append(dict(distribution=dist, case=case,
+                        max_absolute_error=float(error.max()),
+                        max_bound_fraction=float((error/bound).max()),
+                        bound="gamma_(k^2+1) * mean(abs(window)); float32 eps"))
                 assert not bool((mask.bool() & pack["excluded"]).any())
                 assert bool((mask.flatten(1).sum(1) == (640 if case == "columns" else 500)).all())
                 assert not torch.count_nonzero(pack["noisy"]*(1-mask))
@@ -161,7 +179,8 @@ def main():
     write_json(out/"audit.json", dict(expected_cells=len(cells), complete_cells=len(completed),
         status="complete" if not incomplete else "incomplete", samples_per_cell=100,
         metric_rows=len(rows), complete=completed, incomplete=incomplete,
-        independent_prediction_metrics=True, frozen_input_and_measurement_hashes_verified=True))
+        independent_prediction_metrics=True, frozen_input_and_measurement_hashes_verified=True,
+        average_readings_double_precision_checks=average_roundoff))
     print(f"AUDIT {len(completed)}/{len(cells)} cells, {len(rows)} metric rows", flush=True)
     if incomplete and not args.allow_incomplete:
         raise SystemExit(2)
