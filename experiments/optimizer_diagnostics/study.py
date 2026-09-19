@@ -440,9 +440,39 @@ def run(args):
     print("COMPLETE",args.pde,json.dumps(confirmations["selected_vs_lr_control"]),flush=True)
 
 
+def inspect(args):
+    """Compare fixed train loss in eval mode, avoiding stochastic train-log comparisons."""
+    torch.set_num_threads(4)
+    torch.set_num_interop_threads(2)
+    torch.backends.cuda.matmul.allow_tf32=True
+    torch.backends.cudnn.allow_tf32=True
+    torch.backends.cudnn.benchmark=False
+    out=Path(args.output).resolve()/args.pde
+    protocol=json.loads((out/"protocol.json").read_text())
+    inputs=Path(args.inputs)/args.pde
+    source=torch.load(inputs/"source.pth",map_location="cpu",weights_only=False,mmap=True)
+    data=torch.load(inputs/"data.pt",map_location="cpu",weights_only=False,mmap=True)
+    model=instantiate_model(args.pde,use_ema=False,model_config=source["model_config"]).cuda()
+    optimizer=torch.optim.AdamW(model.parameters(),lr=1e-5,fused=True)
+    restore(model,optimizer,source)
+    batch=min(protocol["microbatch"],16)
+    if not (out/"frozen_gradient_probe.json").exists():
+        write(out/"frozen_gradient_probe.json",frozen_gradients(model,optimizer,data["train"],batch))
+    baseline=evaluate(model,data["train"][:256],batch,seed=490900)
+    result={"source":baseline,"evaluation_mode":"eval; fixed train inputs, times and noise; dropout disabled for all candidates"}
+    for name in ("lr_control","selected_resume"):
+        candidate=torch.load(out/f"{name}.pth",map_location="cpu",weights_only=False,mmap=True)
+        model.load_state_dict(candidate["model_for_resume"],strict=True)
+        val=evaluate(model,data["train"][:256],batch,seed=490900)
+        result[name]=dict(metrics=val,paired_source=paired(val,baseline))
+        del candidate
+    write(out/"fixed_train_comparison.json",result)
+    print("INSPECTION_COMPLETE",args.pde,flush=True)
+
+
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument("mode",choices=["prepare","run"])
+    parser.add_argument("mode",choices=["prepare","run","inspect"])
     parser.add_argument("--pde",choices=PDES,required=True)
     parser.add_argument("--output",required=True)
     parser.add_argument("--inputs")
@@ -453,7 +483,7 @@ def main():
     args=parser.parse_args()
     if not Path(args.output).is_absolute():
         parser.error("Use an explicit absolute output directory")
-    (prepare if args.mode=="prepare" else run)(args)
+    {"prepare":prepare,"run":run,"inspect":inspect}[args.mode](args)
 
 
 if __name__=="__main__":

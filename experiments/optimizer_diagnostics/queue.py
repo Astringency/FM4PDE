@@ -12,7 +12,7 @@ from experiments.optimizer_diagnostics.study import write
 
 def main():
     p=argparse.ArgumentParser()
-    p.add_argument("mode",choices=["prepare","run"])
+    p.add_argument("mode",choices=["prepare","run","inspect"])
     p.add_argument("--pdes",nargs="+",required=True)
     p.add_argument("--output",required=True)
     p.add_argument("--inputs")
@@ -30,7 +30,7 @@ def main():
     for name in args.pdes:
         target=out/name
         target.mkdir(parents=True,exist_ok=True)
-        if args.mode=="run":
+        if args.mode in ("run","inspect"):
             while True:
                 gpu=subprocess.check_output(["nvidia-smi",f"--id={args.gpu}",
                     "--query-gpu=memory.free,memory.used,utilization.gpu","--format=csv,noheader,nounits"],text=True).strip()
