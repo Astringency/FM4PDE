@@ -59,6 +59,49 @@ def make_bank(root, device="cuda:0"):
     print("NOISE BANK COMPLETE", root, flush=True)
 
 
+def make_verified_prefix_bank(reference_manifest, root, stop=100, device="cuda:0"):
+    """Reproduce an archived prefix locally, checking every full native draw.
+
+    An A800 with matching launch geometry can avoid transferring gigabytes of
+    random numbers. Any architecture/stream discrepancy fails before sampling.
+    """
+    reference_manifest = Path(reference_manifest)
+    manifest = json.loads(reference_manifest.read_text())
+    if (manifest["seed"], manifest["count"], manifest["steps"], manifest["shape"]) != (0, 1000, 100, [2, 128, 128]):
+        raise ValueError("Unexpected reference noise protocol")
+    if not 0 < stop <= 1000:
+        raise ValueError("Invalid prefix size")
+    root = Path(root)
+    if (root/"manifest.json").exists():
+        raise ValueError("Verified noise destination already exists")
+    root.mkdir(parents=True, exist_ok=True)
+    torch.set_num_threads(2)
+    torch.cuda.set_device(device)
+    chunks = [c for c in manifest["chunks"] if c["start"] < stop]
+    files = [np.lib.format.open_memmap(root/c["file"], mode="w+", dtype=np.float32,
+        shape=(c["stop"]-c["start"], 101, 2, 128, 128)) for c in chunks]
+    torch.manual_seed(0)
+    torch.cuda.manual_seed_all(0)
+    for step in range(101):
+        pool = torch.randn((1000,2,128,128),device=device,dtype=torch.float32) if step == 0 else (
+            torch.randn_like(torch.empty((1000,2,128,128),device=device,dtype=torch.float32)))
+        array = pool.cpu().numpy()
+        if hashlib.sha256(array.tobytes()).hexdigest() != manifest["pool_raw_sha256"][step]:
+            raise ValueError(f"Native GPU stream differs from canonical A100 draw {step}")
+        for c, destination in zip(chunks, files):
+            destination[:, step] = array[c["start"]:c["stop"]]
+        if step % 10 == 0:
+            print(f"VERIFIED NATIVE NOISE {step}/100", flush=True)
+    for c, destination in zip(chunks, files):
+        destination.flush()
+        if sha256(root/c["file"]) != c["sha256"]:
+            raise ValueError(f"Reproduced noise chunk differs: {c['file']}")
+    (root/"manifest.json").write_bytes(reference_manifest.read_bytes())
+    write_json(root/"prefix_verification.json", dict(stop=stop, gpu=torch.cuda.get_device_name(),
+        reference_manifest_sha256=sha256(reference_manifest), verified_full_draws=101,
+        verified_chunks=[c["file"] for c in chunks], scope="prefix only; suffix chunks are not copied"))
+
+
 class NoiseBank:
     def __init__(self, root, cache_root=None):
         self.root = Path(root)
@@ -130,5 +173,10 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output-root", required=True)
     p.add_argument("--device", default="cuda:0")
+    p.add_argument("--reference-manifest")
+    p.add_argument("--stop", type=int, default=100)
     args = p.parse_args()
-    make_bank(args.output_root, args.device)
+    if args.reference_manifest:
+        make_verified_prefix_bank(args.reference_manifest, args.output_root, args.stop, args.device)
+    else:
+        make_bank(args.output_root, args.device)
