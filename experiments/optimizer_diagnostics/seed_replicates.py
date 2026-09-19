@@ -69,6 +69,26 @@ def combine(root,pde):
         independent_seed_audit_sha256=sha(followup/'audit.json'),
         original_audit_sha256=sha(original/'audit.json'),scope=second['scope'])
     write(original/'four_seed_summary.json',result)
+    with (original/'four_seed_per_sample.csv').open('w',newline='') as stream:
+        writer=csv.DictWriter(stream,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+    from experiments.optimizer_diagnostics.sampling_figures import plt,COLORS
+    for field in ['u','a']:
+        fig,axes=plt.subplots(1,2,figsize=(15,5),layout='constrained')
+        for number,name in enumerate(['lr_control_128','selected_128']):
+            lookup={(int(r['seed']),int(r['index'])):r for r in rows if r['variant']==name and r['field']==field}
+            b=np.array([[float(lookup[s,i]['original']) for i in first['indices']] for s in range(4)]).mean(0)
+            c=np.array([[float(lookup[s,i]['candidate']) for i in first['indices']] for s in range(4)]).mean(0)
+            if number==0: axes[0].plot(range(16),100*b,'o--',color='#555555',label='Original')
+            axes[0].plot(range(16),100*c,'o-',color=COLORS[name],label=name)
+            axes[1].plot(range(16),100*(1-c/b),'o-',color=COLORS[name],label=name)
+        for ax in axes:
+            ax.set_xticks(range(16),[str(i) for i in first['indices']],rotation=45,ha='right')
+            ax.set_xlabel('Fixed case ID (historical difficulty order)');ax.grid(axis='y',alpha=.2)
+        axes[0].set_ylabel('Relative L2 error (%)');axes[0].set_ylim(bottom=0);axes[0].legend()
+        axes[1].set_ylabel('Relative error reduction (%)');axes[1].axhline(0,color='#444444',lw=1)
+        axes[1].axhline(10,color='#888888',ls=':',lw=1)
+        fig.suptitle(f'Darcy | field {field} | same 16 cases, mean of FOUR seeds (0, 1, 2, 3)\nSeeds 2/3 added after observing seed 0/1 variability; positive reduction = improvement')
+        fig.savefig(original/'figures'/f'four_seed_errors_{field}.png',dpi=160);plt.close(fig)
     lines=['# Darcy：追加独立种子的采样复核','',
         '在看到最初两个种子的差异后，追加 seeds 2 和 3；保留全部原先结果，样本仍为预先固定的 16 例。以下先按输入平均四个种子，再做配对 bootstrap；不能代表总体泛化。','',
         '| 候选 | 场 | 原误差 | 新误差 | 相对改善 | 改善 / ≥10% / ≥20% | seeds 0 / 1 / 2 / 3 改善 |',
