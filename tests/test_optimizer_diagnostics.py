@@ -1,8 +1,10 @@
 import copy
+import argparse
 import torch
 
 from experiments.optimizer_diagnostics.study import layer_stats, restore
 from training.load_and_save import _apply_resume_optimizer_betas
+from train import _reset_resume_lr_schedule
 
 
 def test_resume_overrides_keep_moments_and_do_not_mutate_source():
@@ -60,3 +62,24 @@ def test_native_beta_override_preserves_states_and_validates_range():
             pass
         else:
             raise AssertionError(f'Accepted invalid betas {invalid}')
+
+
+def test_explicit_schedule_reset_uses_remaining_epochs_and_preserves_adam():
+    model=torch.nn.Linear(2,1)
+    opt=torch.optim.AdamW(model.parameters(),lr=1e-8)
+    model(torch.ones(2,2)).square().mean().backward()
+    opt.step()
+    states=copy.deepcopy(opt.state_dict()['state'])
+    args=argparse.Namespace(resume='existing.pth',epochs=320,start_epoch=300,
+        lr=3e-6,min_lr=1e-6,warmup_epochs=0,warmup_start_factor=.1)
+    scheduler=_reset_resume_lr_schedule(opt,args,'warmup_cosine')
+    assert scheduler.T_max==20
+    assert opt.param_groups[0]['lr']==3e-6
+    for current,old in zip(opt.state_dict()['state'].values(),states.values()):
+        for k in ('step','exp_avg','exp_avg_sq'):
+            torch.testing.assert_close(current[k],old[k],rtol=0,atol=0)
+    opt.zero_grad(set_to_none=True)
+    for _ in range(20):
+        opt.step()
+        scheduler.step()
+    assert abs(opt.param_groups[0]['lr']-1e-6)<1e-15

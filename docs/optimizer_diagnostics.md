@@ -10,9 +10,19 @@ saved first moment, second moment, and step counter, add:
 ```
 
 The native loader prints the effective restored betas and learning rates, and
-saves `effective_optimizer_betas` in the arguments. It leaves the saved LR
-schedule intact. Changing betas does not erase their prior history; the moments
+saves `effective_optimizer_betas` in the arguments. Changing betas does not erase their prior history; the moments
 adapt gradually under the new coefficients.
+
+To intentionally rebuild the LR schedule, add `--resume_reset_lr_schedule` with
+the desired `--lr`, `--min_lr`, `--lr_scheduler`, and `--warmup_epochs`. The new
+schedule spans only the remaining epochs (`--epochs` minus the restored start
+epoch). Adam moments and counters remain intact. Without this flag, exact resume
+preserves the saved LR/schedule even when command-line LR settings differ.
+
+This matters for the June Helmholtz, Darcy and Burgers checkpoints: their stored
+linear scheduler has `end_factor=1e-4` and base LR `1e-4`, yielding `1e-8`, although
+their saved argument `min_lr` says `1e-6`. Restoring their old scheduler also
+restores that discrepancy; current scheduler construction alone does not fix it.
 
 The separate `experiments.optimizer_diagnostics.study` entry point compares a
 constant saved LR, LR `1e-5`, LR `3e-5`, beta1 `0.8`, and beta2 `0.99`. Beta

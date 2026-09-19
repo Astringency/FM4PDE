@@ -14,7 +14,7 @@ import os
 import sys
 import time
 import warnings
-from copy import deepcopy
+from copy import copy, deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -163,6 +163,30 @@ def _step_lr_scheduler(lr_schedule, scheduler_name: str, val_loss: float) -> Non
         lr_schedule.step(float(val_loss))
     else:
         lr_schedule.step()
+
+
+def _reset_resume_lr_schedule(optimizer, args, scheduler_name):
+    """Restart LR intentionally over remaining epochs without resetting Adam."""
+    if not getattr(args, "resume", ""):
+        raise ValueError("--resume_reset_lr_schedule requires --resume")
+    remaining = int(args.epochs) - int(args.start_epoch)
+    if remaining < 1:
+        raise ValueError("The requested final --epochs must exceed the restored start_epoch")
+    schedule_args = copy(args)
+    schedule_args.epochs = remaining
+    _validate_lr_scheduler_args(schedule_args)
+    for group in optimizer.param_groups:
+        group["lr"] = float(args.lr)
+        group["initial_lr"] = float(args.lr)
+    schedule = _build_lr_scheduler(optimizer, schedule_args, scheduler_name)
+    args.resume_lr_schedule_reset_metadata = {
+        "start_epoch": int(args.start_epoch), "remaining_epochs": remaining,
+        "base_lr": float(args.lr), "initial_effective_lrs": [g["lr"] for g in optimizer.param_groups],
+        "min_lr": float(args.min_lr), "scheduler": scheduler_name,
+        "optimizer_moments_and_steps_preserved": True,
+    }
+    logger.info("Explicit resume LR reset: %s", args.resume_lr_schedule_reset_metadata)
+    return schedule
 
 
 def main(args):
@@ -347,6 +371,8 @@ def main(args):
         loss_scaler=loss_scaler,
         lr_schedule=lr_schedule,
     )
+    if getattr(args, "resume_reset_lr_schedule", False):
+        lr_schedule = _reset_resume_lr_schedule(optimizer, args, resolved_lr_scheduler)
     normalizer = _resolve_normalizer(checkpoint, fitted_normalizer, num_channels)
 
     if distributed_mode.is_main_process() and args.output_dir:

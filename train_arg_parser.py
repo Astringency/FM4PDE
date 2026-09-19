@@ -291,6 +291,12 @@ def get_args_parser():
               "resume restores the saved betas; --optimizer_betas configures new training."),
     )
     parser.add_argument(
+        "--resume_reset_lr_schedule", action="store_true",
+        help=("After restoring model and Adam state, rebuild the requested LR schedule "
+              "over epochs - start_epoch using --lr/--min_lr/--warmup_epochs. "
+              "Default resume preserves the checkpoint LR and scheduler."),
+    )
+    parser.add_argument(
         "--start_epoch",
         default=0,
         type=int,
