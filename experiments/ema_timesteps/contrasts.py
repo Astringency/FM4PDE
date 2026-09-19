@@ -24,8 +24,13 @@ def run(root, pde):
             pairs.append(('ema_vs_raw', candidate, variants[(arm, epoch, 'raw')]))
         if arm != 'uniform' and ('uniform', epoch, weight) in variants:
             pairs.append(('recipe_vs_uniform', candidate, variants[('uniform', epoch, weight)]))
-        if epoch > 2 and (arm, 2, weight) in variants:
-            pairs.append(('longer_training_vs_epoch2', candidate, variants[(arm, 2, weight)]))
+        # Compare every earlier saved epoch, including 10 versus 5: comparison
+        # only with epoch 2 can hide whether the later continuation adds value.
+        earlier_epochs = sorted(e for a, e, w in variants
+                                if a == arm and w == weight and e < epoch)
+        for earlier in earlier_epochs:
+            pairs.append((f'longer_training_vs_epoch{earlier}', candidate,
+                          variants[(arm, earlier, weight)]))
     results = []
     for kind, candidate, reference in pairs:
         result = dict(kind=kind, candidate=candidate['variant'], reference=reference['variant'], cohorts={})
