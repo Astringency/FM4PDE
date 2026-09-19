@@ -46,7 +46,7 @@ def main(root):
         '80 个固定困难样本不能代表所有测试样本或 OOD；区间未作多重比较校正。历史 NS 采样存在明显 batch 数值敏感性，因此历史误差只用于选样，所有收益都相对当前相同 batch 的原模型计算。',
         '独立审计从保存预测重新计算 CPU float64 误差，逐例核对输入、mask、全部 101 次噪声、模型与预测 SHA256；训练审计检查实际优化器步数、betas/LR、有限权重和矩状态。每类全部 16 例的真值、预测、绝对误差均保留，图中每例使用一致色标。',
         '', '详细 FM 筛选见 `README.md`；采样汇总见 `SAMPLING.md`；逐例数据和图位于主结果目录的 `hard_sampling/`，Darcy 四种子结果见 `hard_sampling/darcy/FOUR_SEEDS.md`。',
-        '', '主结果目录（server197）：`'+str(root)+'`。续训 checkpoint 包含完整优化器状态；原模型与全部失败对照均保留，便于后续选择训练方案。'])
+        '', '主结果目录（server197）：`'+str(root)+'`。保存的续训 checkpoint 包含完整优化器状态；原模型、筛选指标和采样失败的对照预测均保留，便于后续选择训练方案。'])
     (root/'report/CONCLUSION.md').write_text('\n'.join(lines)+'\n')
     write(root/'report/conclusion_evidence.json',dict(verified=True,sources={str(p.relative_to(root)):sha(p) for p in [root/'report/summary.json',root/'hard_sampling/finalization.json',root/'hard_sampling/darcy/four_seed_summary.json',root/'continuation/nsnonbounded/audit.json',root/'report/candidates.csv']}))
 
