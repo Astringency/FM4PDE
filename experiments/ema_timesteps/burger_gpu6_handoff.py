@@ -29,6 +29,11 @@ def process(pid, module, cwd):
     return dict(pid=pid, command=command, cwd=str(cwd), stat=(path / 'stat').read_text())
 
 
+def alive(pid):
+    path = Path('/proc') / str(pid) / 'stat'
+    return path.exists() and path.read_text().split(') ', 1)[1].split()[0] != 'Z'
+
+
 def run():
     torch.set_num_threads(4)
     assert not OUT.exists(), 'This one-time handoff already has a record'
@@ -94,13 +99,16 @@ def run():
     # second worker until it has exited. The old shell records intentional 143.
     process(OLD_PARENT, 'experiments.ema_timesteps.extend', ROOT / 'code_scheduling')
     process(OLD_CHILD, 'experiments.ema_timesteps.study run', ROOT / 'code_control')
+    free = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.free',
+                                   '--format=csv,noheader,nounits'], text=True).splitlines()
+    assert int(free[6]) >= 65000, 'Target GPU became occupied; original training remains running'
     os.kill(OLD_PARENT, signal.SIGTERM)
     os.kill(OLD_CHILD, signal.SIGTERM)
     for _ in range(100):
-        if not (Path('/proc') / str(OLD_CHILD)).exists():
+        if not alive(OLD_CHILD):
             break
         time.sleep(.1)
-    assert not (Path('/proc') / str(OLD_CHILD)).exists()
+    assert not alive(OLD_CHILD)
     assert sha(FOLDER / 'last.pth') == digest
     assert sha(FOLDER / 'training.jsonl') == log_sha
     record['old_worker_exited_and_complete_state_retained'] = True
