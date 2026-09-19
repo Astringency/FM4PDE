@@ -336,7 +336,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
         validate_legacy_optimizer(model_without_ddp, checkpoint)
         expected = checkpoint["resolved_lr_scheduler"]
         actual = getattr(args, "resolved_lr_scheduler", getattr(args, "lr_scheduler", None))
-        if actual != expected:
+        if actual != expected and not getattr(args, "resume_reset_lr_schedule", False):
             raise ValueError(f"Legacy resume requires --lr_scheduler {expected}; use scripts/train/resume_bak.py")
     _load_resume_state(model_without_ddp, checkpoint)
     print(f"Resume {args.dataset} checkpoint {args.resume}")
@@ -359,7 +359,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule) -> 
         args.effective_optimizer_betas = [list(group["betas"]) for group in optimizer.param_groups]
         print(f"Effective resumed optimizer betas: {args.effective_optimizer_betas}")
         print(f"Effective resumed optimizer learning rates: {[group['lr'] for group in optimizer.param_groups]}")
-        if "lr_schedule" in checkpoint and checkpoint.get("lr_schedule") is not None:
+        if checkpoint.get("lr_schedule") is not None and not getattr(args, "resume_reset_lr_schedule", False):
             try:
                 lr_schedule.load_state_dict(checkpoint["lr_schedule"])
             except Exception as exc:

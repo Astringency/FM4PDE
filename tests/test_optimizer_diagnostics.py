@@ -3,7 +3,7 @@ import argparse
 import torch
 
 from experiments.optimizer_diagnostics.study import layer_stats, restore
-from training.load_and_save import _apply_resume_optimizer_betas
+from training.load_and_save import _apply_resume_optimizer_betas, load_model
 from train import _reset_resume_lr_schedule
 
 
@@ -83,3 +83,30 @@ def test_explicit_schedule_reset_uses_remaining_epochs_and_preserves_adam():
         opt.step()
         scheduler.step()
     assert abs(opt.param_groups[0]['lr']-1e-6)<1e-15
+
+
+def test_legacy_loader_allows_explicit_scheduler_change_and_beta_override(tmp_path):
+    model=torch.nn.Linear(2,1)
+    original_opt=torch.optim.AdamW(model.parameters(),lr=1e-8)
+    model(torch.ones(2,2)).square().mean().backward()
+    original_opt.step()
+    old_schedule=torch.optim.lr_scheduler.LinearLR(original_opt,start_factor=1.,end_factor=.0001,total_iters=300)
+    path=tmp_path/'resume.pth'
+    torch.save(dict(checkpoint_schema_version=3,model=model.state_dict(),
+        model_for_resume=model.state_dict(),optimizer=original_opt.state_dict(),epoch=299,
+        lr_schedule=old_schedule.state_dict(),resolved_lr_scheduler='linear',
+        legacy_compatibility={'test':True},normalizer={}),path)
+    args=argparse.Namespace(resume=str(path),dataset='poisson',resume_reset_lr_schedule=True,
+        resume_optimizer_betas=(.9,.99),resolved_lr_scheduler='warmup_cosine',
+        epochs=320,start_epoch=0,lr=1e-5,min_lr=1e-6,warmup_epochs=0,warmup_start_factor=.1)
+    resumed=torch.nn.Linear(2,1)
+    opt=torch.optim.AdamW(resumed.parameters(),lr=args.lr)
+    schedule=torch.optim.lr_scheduler.CosineAnnealingLR(opt,T_max=320)
+    load_model(args,resumed,opt,None,schedule)
+    schedule=_reset_resume_lr_schedule(opt,args,'warmup_cosine')
+    assert args.start_epoch==300 and schedule.T_max==20
+    assert opt.param_groups[0]['lr']==1e-5 and opt.param_groups[0]['betas']==(.9,.99)
+    for actual,expected in zip(opt.state.values(),original_opt.state.values()):
+        for key in ('step','exp_avg','exp_avg_sq'):
+            torch.testing.assert_close(actual[key],expected[key],rtol=0,atol=0)
+    torch.testing.assert_close(resumed.weight,model.weight,rtol=0,atol=0)

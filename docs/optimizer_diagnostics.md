@@ -6,12 +6,15 @@ not override a saved group. To intentionally change betas while retaining the
 saved first moment, second moment, and step counter, add:
 
 ```text
---resume_optimizer_betas 0.8 0.99
+--resume_optimizer_betas 0.9 0.99
 ```
 
 The native loader prints the effective restored betas and learning rates, and
 saves `effective_optimizer_betas` in the arguments. Changing betas does not erase their prior history; the moments
 adapt gradually under the new coefficients.
+For a separate beta1 comparison, use `--resume_optimizer_betas 0.8 0.999`
+with the same LR, checkpoint and data order. The screening study changes one
+coefficient at a time; it does not yet recommend changing both together.
 
 To intentionally rebuild the LR schedule, add `--resume_reset_lr_schedule` with
 the desired `--lr`, `--min_lr`, `--lr_scheduler`, and `--warmup_epochs`. The new
