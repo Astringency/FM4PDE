@@ -66,6 +66,15 @@ longer runs; `sample_extension` separately waits for the initial nine sampling
 variants and evaluates epoch 5/10 raw and EMA snapshots. The training and
 sampling publication helpers verify all transferred files before publishing.
 
+A reviewed `overlap_screening` plan entry may let the prespecified uniform
+control continue on an idle GPU of the same profiled type after its own two-epoch
+process has exited successfully and its complete saved state has been audited.
+The remaining screening arms keep their original schedules. Every arm must still
+pass its state audit before recipe selection; adaptive alternative extensions
+retain the default requirement to wait for all four screening arms. Record any
+controller handoff and preserve the immutable checkpoints and scientific worker
+checkout. This scheduling option changes no training or evaluation parameter.
+
 ## Native training support
 
 The native trainer also supports explicit raw-checkpoint-to-EMA resume:
