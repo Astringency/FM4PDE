@@ -56,6 +56,9 @@ assert not destination.exists()
 src.replace(destination);stage.rmdir()
 print('SAMPLING_PUBLISHED',{pde!r},{variant!r},len(expected))
 '''), flush=True)
+    ssh('server197', f'cd {CANONICAL}/code_sampling && '
+        '/research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python '
+        f'-m experiments.ema_timesteps.sampling report --root {CANONICAL} --pde {pde}')
 
 
 def run(pdes, watch, epoch):
@@ -66,7 +69,8 @@ import json
 r=Path({CACHE!r});result={{}}
 for pde in {pdes!r}:
  folder=r/'evaluation'/pde
- variants=[p.parent.name for p in sorted((folder/'variants').glob('*/complete.json'))]
+ variants=sorted([p.parent.name for p in (folder/'variants').glob('*/complete.json')],
+                 key=lambda name:(name!='original',name))
  queue=json.loads((folder/'queue.json').read_text()) if (folder/'queue.json').exists() else {{}}
  result[pde]=dict(variants=variants,queue=queue)
 print(json.dumps(result))
