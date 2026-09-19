@@ -94,9 +94,14 @@ def main():
         assert all(set(group[m]) == set(samples) for m in METHODS)
         means = {m: float(np.mean([group[m][sample] for sample in samples])) for m in METHODS}
         best = min(METHODS[:-1], key=means.get)
+        delta = np.array([group["fm4pde"][sample]-group[best][sample] for sample in samples])
+        interval = np.quantile(delta[resamples].mean(1), [.025, .975])
         regional_matrix.append(dict(**dict(zip(KEYS+["region"], key)), count=100,
             **{m+"_mean_rel_l2_pct": means[m] for m in METHODS}, best_baseline=best,
-            fm_minus_best_baseline_pp=means["fm4pde"]-means[best]))
+            fm_minus_best_baseline_pp=means["fm4pde"]-means[best],
+            paired_bootstrap_ci95_low_pp=float(interval[0]),
+            paired_bootstrap_ci95_high_pp=float(interval[1]),
+            fraction_samples_fm_lower_than_best_baseline=float((delta < 0).mean())))
     write_csv(root/"comparison_matrix.csv", matrix)
     write_csv(root/"paired_comparisons.csv", comparisons)
     write_csv(root/"regional_comparison_matrix.csv", regional_matrix)
