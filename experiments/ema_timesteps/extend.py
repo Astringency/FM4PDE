@@ -43,6 +43,10 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
         while True:
             queue_path = root/'queues'/pde/'progress.json'
             queue = json.loads(queue_path.read_text()) if queue_path.exists() else {}
+            for candidate in ARMS:
+                exit_path=root/'queues'/pde/f'{candidate}_02.exit.json'
+                if exit_path.exists() and json.loads(exit_path.read_text())['exit_code'] != 0:
+                    raise RuntimeError(f'Screening failed: {pde}/{candidate}; inspect its log before continuation')
             session = subprocess.run(['tmux','has-session','-t',f'fm_ema_train_{pde}'],capture_output=True)
             ready = all((root/'runs'/pde/a/'complete_02.json').exists() for a in ARMS)
             if queue.get('state') == 'complete' and queue.get('epochs') == 2 and ready and session.returncode != 0:
@@ -50,6 +54,7 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
             status('waiting_stage1_training', stage1_queue=queue)
             time.sleep(30)
         # Check the actual saved states and logs before the first longer update.
+        assert json.loads((root/'extension_plan.json').read_text())['pdes'][pde][arm] == decision
         audits = {a:checkpoint(root,pde,a,2) for a in ARMS}
         write(out/'screen_audits.json', audits)
         while True:
