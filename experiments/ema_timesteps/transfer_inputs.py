@@ -13,7 +13,7 @@ CACHE='/data1/zjinzxf2025/C01Python/FM4PDE/reproducibility/ema_timesteps_2026091
 PYTHON='/data1/zjinzxf2025/miniconda3/envs/fm4pde/bin/python'
 
 
-def transfer(pde,gpu):
+def transfer(pde,gpu,compression=True):
     while True:
         check=subprocess.run(['ssh','server197','test','-f',f'{CANONICAL}/inputs/{pde}/prepared.json'])
         if check.returncode==0:break
@@ -21,8 +21,10 @@ def transfer(pde,gpu):
     print('TRANSFER_START',pde,flush=True)
     stage=f'{CACHE}/incoming_{pde}'
     ssh('server216',f'mkdir -p {stage}')
-    pipe('server197',f'tar -C {CANONICAL}/inputs -chf - {pde}',
-         'server216',f'tar -C {stage} -xf -')
+    compressor="-I 'gzip -1' " if compression else ''
+    extract='-xzf' if compression else '-xf'
+    pipe('server197',f'tar -C {CANONICAL}/inputs {compressor}-chf - {pde}',
+         'server216',f'tar -C {stage} {extract} -')
     script=f'''
 from pathlib import Path
 import hashlib,json,subprocess,shlex
@@ -50,5 +52,6 @@ print('TRANSFER_VERIFIED_PROFILE_LAUNCHED',{pde!r})
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--pdes',nargs='+',default=['helmholtz','darcy','burger'])
+    p.add_argument('--compression',action=argparse.BooleanOptionalAction,default=True)
     a=p.parse_args()
-    for name in a.pdes:transfer(name,{'helmholtz':0,'darcy':1,'burger':2}[name])
+    for name in a.pdes:transfer(name,{'helmholtz':0,'darcy':1,'burger':2}[name],a.compression)
