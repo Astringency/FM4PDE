@@ -112,10 +112,11 @@ def train_one_epoch(
             parameters=model.parameters(),
             update_grad=apply_update,
         )
-        if apply_update and isinstance(model, EMA):
+        optimizer_updated = apply_update and getattr(loss_scaler, 'optimizer_step_succeeded', True)
+        if optimizer_updated and isinstance(model, EMA):
             model.update_ema()
         elif (
-            apply_update
+            optimizer_updated
             and isinstance(model, DistributedDataParallel)
             and isinstance(model.module, EMA)
         ):

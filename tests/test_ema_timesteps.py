@@ -8,7 +8,8 @@ import torch
 from models.ema import EMA
 from training.load_and_save import load_model, CHECKPOINT_SCHEMA_VERSION
 from training.timesteps import sample_timesteps
-from training.train_loop import validate_one_epoch
+from training.train_loop import train_one_epoch, validate_one_epoch
+from training.grad_scaler import NativeScalerWithGradNormCount
 from experiments.ema_timesteps.evaluate import evaluate_pair
 
 
@@ -107,3 +108,31 @@ def test_native_validation_is_fixed_uniform_and_keeps_training_rng():
     second=validate_one_epoch(model,loader,torch.device('cpu'),1,args)
     assert first==second and sum(first['time_bin_counts'])==20
     assert first['time_distribution']=='uniform'
+
+
+@pytest.mark.parametrize('device,fused',[('cpu',False),('cuda',True)])
+def test_ema_counts_only_successful_accumulated_amp_updates(monkeypatch,device,fused):
+    if device=='cuda' and not torch.cuda.is_available():
+        pytest.skip('CUDA fused AdamW check requires a GPU')
+    original_scaler=torch.amp.GradScaler
+    monkeypatch.setattr(torch.amp,'GradScaler',lambda _:original_scaler(
+        device,init_scale=128,growth_interval=1))
+    scaler=NativeScalerWithGradNormCount()
+    model=EMA(Velocity(),warmup=False).to(device)
+    optimizer=torch.optim.AdamW((p for p in model.parameters() if p.requires_grad),lr=.001,fused=fused)
+    data=torch.randn(4,1,4,4)
+    loader=torch.utils.data.DataLoader(torch.utils.data.TensorDataset(
+        data,torch.zeros(4,dtype=torch.long)),batch_size=2)
+    args=argparse.Namespace(accum_iter=2,test_run=False,class_drop_prob=0.0,
+                           skewed_timesteps=False,sampling_dtype='float32',clip_grad=None)
+    before=model.model.scale.detach().clone()
+    hook=model.model.scale.register_hook(lambda grad:torch.full_like(grad,float('inf')))
+    train_one_epoch(model,loader,optimizer,torch.device(device),0,scaler,args)
+    assert not scaler.optimizer_step_succeeded and scaler._scaler.get_scale()==64
+    assert int(model.num_updates)==0 and torch.equal(model.model.scale,before)
+    assert torch.equal(model.shadow_params[0],before)
+    hook.remove()
+    train_one_epoch(model,loader,optimizer,torch.device(device),1,scaler,args)
+    assert scaler.optimizer_step_succeeded and scaler._scaler.get_scale()==128
+    assert int(model.num_updates)==1 and not torch.equal(model.model.scale,before)
+    assert int(optimizer.state[model.model.scale]['step'])==1
