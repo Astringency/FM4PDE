@@ -64,10 +64,9 @@ print('SAMPLING_INPUT_VERIFIED_QUEUE_LAUNCHED',{pde!r})
         print(remote_python('server216', script), flush=True)
 
 
-def checkpoints(epochs):
-    pending = [(pde, arm, epoch) for epoch in epochs for arm in
-               ['uniform', 'stratified_uniform', 'logit_normal', 'beta1_05']
-               for pde in ['nsnonbounded', 'poisson']]
+def checkpoints(epochs, pdes, arms):
+    pending = [(pde, arm, epoch) for epoch in epochs for arm in arms
+               for pde in pdes if pde in ('nsnonbounded', 'poisson')]
     while pending:
         for pde, arm, epoch in pending[:]:
             relative = f'runs/{pde}/{arm}/epoch_{epoch:04d}'
@@ -110,8 +109,10 @@ if __name__ == '__main__':
     parser.add_argument('mode', choices=['inputs', 'checkpoints'])
     parser.add_argument('--pdes', nargs='+', default=['nsnonbounded','poisson','helmholtz','darcy','burger'])
     parser.add_argument('--epochs', nargs='+', type=int, default=[2])
+    parser.add_argument('--arms', nargs='+', choices=['uniform','stratified_uniform','logit_normal','beta1_05'],
+                        default=['uniform','stratified_uniform','logit_normal','beta1_05'])
     args = parser.parse_args()
     if args.mode == 'inputs':
         inputs(args.pdes)
     else:
-        checkpoints(args.epochs)
+        checkpoints(args.epochs, args.pdes, args.arms)
