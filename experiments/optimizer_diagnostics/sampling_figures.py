@@ -13,7 +13,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from experiments.optimizer_diagnostics.hard_sampling import location
 from experiments.optimizer_diagnostics.study import sha, write
 
-COLORS=['#275D93','#B37624','#77609B','#507968']
+COLORS={'lr_control_128':'#275D93','selected_128':'#B37624','beta2_128':'#B37624',
+        'lr_control_512':'#507968','beta2_512':'#77609B'}
 
 
 def predictions(folder,seed=0):
@@ -39,8 +40,8 @@ def main(root,pde):
             original=np.array([np.mean([float(r['original']) for r in table if int(r['index'])==i]) for i in ids])
             candidate=np.array([np.mean([float(r['candidate']) for r in table if int(r['index'])==i]) for i in ids])
             if vnum==0: axes[0].plot(range(16),100*original,'o--',color='#555555',label='Original')
-            axes[0].plot(range(16),100*candidate,'o-',color=COLORS[vnum],label=v['variant'],markersize=4)
-            axes[1].plot(range(16),100*(1-candidate/original),'o-',color=COLORS[vnum],label=v['variant'],markersize=4)
+            axes[0].plot(range(16),100*candidate,'o-',color=COLORS[v['variant']],label=v['variant'],markersize=4)
+            axes[1].plot(range(16),100*(1-candidate/original),'o-',color=COLORS[v['variant']],label=v['variant'],markersize=4)
         for ax in axes:
             ax.set_xticks(range(16),[str(i) for i in ids],rotation=45,ha='right')
             ax.set_xlabel('Fixed case ID (historical difficulty order)');ax.grid(axis='y',alpha=.2)
