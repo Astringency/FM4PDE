@@ -417,8 +417,9 @@ class AblationConfig:
                 deterministic += f"-corrms{self.deterministic_correction_max_rms:g}"
             if not self.deterministic_numerical_guard:
                 deterministic += "-noguard"
+        proposal = "_proposal_chain" if self.gradient_target == "proposal_state_chain_rule" else ""
         return (
-            f"{self.guidance_components}{reduction}_{self.loss_state}_{phase}_"
+            f"{self.guidance_components}{reduction}_{self.loss_state}{proposal}_{phase}_"
             f"{self.guidance_schedule}{pde_gate}{deterministic}_{self.clip_mode}{self.clip_threshold:g}_"
             f"{self.sensor_mode}{self._sensor_budget()}_noise{self.noise_level:g}_"
             f"{self.time_grid}{self.num_steps}_{self.step_method}_"

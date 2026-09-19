@@ -58,3 +58,24 @@ def test_terminal_endpoint_is_identity():
 def test_unsupported_endpoint_definitions_rejected(override):
     with pytest.raises(ValueError, match="proposal_state_chain_rule requires"):
         AblationConfig(gradient_target="proposal_state_chain_rule", **override).validate()
+
+
+@pytest.mark.parametrize("phase", ["stochastic", "deterministic"])
+def test_runner_proposal_mode_writes_real_metrics(tmp_path, phase):
+    from pathlib import Path
+    from sampling.runner import run_single_ablation
+    cfg = AblationConfig(
+        gradient_target="proposal_state_chain_rule", sampler_phase=phase,
+        output_dir=str(tmp_path), dry_run=True, allow_synthetic_data=True,
+        num_steps=3, img_resolution=8, batch_size=1, num_obs=8,
+        save_plots=False, zeta_obs_a=1., zeta_obs_u=1., zeta_pde=0.,
+    )
+    result = run_single_ablation(cfg)
+    assert result["status"] == "ok"
+    assert result["gradient_target"] == "proposal_state_chain_rule"
+    assert (Path(result["run_dir"]) / "metrics_per_sample.csv").exists()
+
+
+def test_new_mode_has_distinct_run_name():
+    assert AblationConfig().resolved_ablation_name() != AblationConfig(
+        gradient_target="proposal_state_chain_rule").resolved_ablation_name()
