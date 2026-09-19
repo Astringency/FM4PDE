@@ -6,8 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import torch
+import numpy as np
 
-from experiments.optimizer_diagnostics.study import sha, write
+from experiments.optimizer_diagnostics.study import sha, tensor_sha, write
 from experiments.aligned_sampling.input_sources import load_cell
 from experiments.aligned_sampling.run_inference import score
 from models.model_configs import instantiate_model
@@ -120,9 +121,95 @@ def sampling(root,pde):
     return output
 
 
+def confirmation(root, pde, selection_path):
+    folder = root/'confirmation'/pde
+    selection = json.loads(selection_path.read_text())
+    digest = sha(selection_path)
+    identity = json.loads((folder/'selection_identity.json').read_text())
+    assert selection['choices_frozen_before_confirmation'] is True
+    assert identity == dict(sha256=digest, selection=selection)
+    assert json.loads((folder/'launch.json').read_text())['selection_sha256'] == digest
+    profile = json.loads((root/'profiles'/pde/'complete.json').read_text())
+    data = torch.load(root/'inputs'/pde/'full_data.pt', map_location='cpu', mmap=True, weights_only=False)
+    expected = profile['input_metadata']['tensor_sha256']
+    for key in ['confirmation', 'confirmation_ids', 'development_ids', 'train_ids']:
+        assert tensor_sha(data[key]) == expected[key]
+    ids = data['confirmation_ids'].tolist()
+    assert len(ids) == len(set(ids)) == 512
+    assert not set(ids) & set(data['development_ids'].tolist())
+    assert not set(ids) & set(data['train_ids'].tolist())
+    entries = [dict(name='original', path='inputs/'+pde+'/source.pth', weight='raw',
+                    sha256=profile['input_metadata']['source_checkpoint_sha256'])]
+    entries += selection['pdes'][pde]['checkpoints']
+    assert len({e['name'] for e in entries}) == len(entries)
+    hashes, records = {}, {}
+    for entry in entries:
+        path = root/entry['path']
+        if path not in hashes:
+            hashes[path] = sha(path)
+        assert hashes[path] == entry['sha256']
+        record = json.loads((folder/(entry['name']+'.json')).read_text())
+        assert record['identity'] == dict(checkpoint_sha256=entry['sha256'], weight=entry['weight'],
+                                         selection_sha256=digest)
+        assert record['confirmation_ids'] == ids and record['microbatch'] == profile['microbatch']
+        metric = record['metrics']
+        values = np.asarray(metric['per_time_input'], dtype=np.float64)
+        assert values.shape == (10, 512) and np.isfinite(values).all() and (values >= 0).all()
+        assert metric['seed'] == 20260925 and metric['bins'] == 10 and metric['input_count'] == 512
+        assert metric['distribution'] == 'uniform; equal mass in every time bin'
+        np.testing.assert_allclose(values.mean(axis=0), metric['per_input'], rtol=2e-6, atol=1e-9)
+        np.testing.assert_allclose(values.mean(axis=1), metric['by_time_bin'], rtol=2e-6, atol=1e-9)
+        assert math.isclose(values.mean(), metric['mean'], rel_tol=2e-6)
+        records[entry['name']] = metric
+
+    def differences(candidate, reference):
+        delta = np.asarray(candidate['per_input']) - np.asarray(reference['per_input'])
+        se = delta.std(ddof=1)/math.sqrt(len(delta))
+        return dict(change=float(delta.mean()), ci95=[float(delta.mean()-1.96*se), float(delta.mean()+1.96*se)],
+                    relative_change_pct=float(100*delta.mean()/np.mean(reference['per_input'])), count=len(delta))
+
+    summary = json.loads((folder/'summary.json').read_text())
+    assert summary['selection_sha256'] == digest
+    assert set(summary['comparisons']) == set(records)-{'original'}
+    for name, reported in summary['comparisons'].items():
+        actual = differences(records[name], records['original'])
+        assert reported['count'] == actual['count']
+        assert math.isclose(reported['change'], actual['change'], abs_tol=1e-12)
+        np.testing.assert_allclose(reported['ci95'], actual['ci95'], rtol=1e-10, atol=1e-12)
+        assert abs(reported['relative_change_pct']-actual['relative_change_pct']) < 5e-5
+        assert len(reported['time_bins']) == 10
+        for index, reported_bin in enumerate(reported['time_bins']):
+            actual_bin = differences(dict(per_input=records[name]['per_time_input'][index]),
+                                     dict(per_input=records['original']['per_time_input'][index]))
+            np.testing.assert_allclose(reported_bin['ci95'], actual_bin['ci95'], rtol=1e-10, atol=1e-12)
+            assert math.isclose(reported_bin['change'], actual_bin['change'], abs_tol=1e-12)
+            assert abs(reported_bin['relative_change_pct']-actual_bin['relative_change_pct']) < 5e-5
+    later = {}
+    for name, candidate in records.items():
+        earlier = name.replace('_e10_', '_e05_')
+        if earlier != name and earlier in records:
+            later[name+'_vs_'+earlier] = differences(candidate, records[earlier])
+    output = dict(status='verified', pde=pde, selection_sha256=digest,
+                  variants=list(records), input_count=512,
+                  reserved_tensors_and_disjoint_ids_verified=True,
+                  snapshot_and_weight_identities_verified=True,
+                  fixed_uniform_metrics_and_paired_intervals_recomputed=True,
+                  epoch10_vs_epoch5=later,
+                  scope='Stored fixed-FM metric audit, not an independent model rerun or physical sampling confirmation; historical pretraining exposure is not ruled out for older PDE models.')
+    write(folder/'audit.json', output)
+    return output
+
+
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('mode',choices=['checkpoint','sampling'])
+    p=argparse.ArgumentParser();p.add_argument('mode',choices=['checkpoint','sampling','confirmation'])
     p.add_argument('--root',type=Path,required=True);p.add_argument('--pde',required=True)
+    p.add_argument('--selection', type=Path)
     p.add_argument('--arm');p.add_argument('--epoch',type=int,default=2);a=p.parse_args()
     torch.set_num_threads(4)
-    print(json.dumps(checkpoint(a.root,a.pde,a.arm,a.epoch) if a.mode=='checkpoint' else sampling(a.root,a.pde)))
+    if a.mode == 'checkpoint':
+        result = checkpoint(a.root,a.pde,a.arm,a.epoch)
+    elif a.mode == 'sampling':
+        result = sampling(a.root,a.pde)
+    else:
+        result = confirmation(a.root,a.pde,a.selection or a.root/'confirmation_selections'/(a.pde+'.json'))
+    print(json.dumps(result))
