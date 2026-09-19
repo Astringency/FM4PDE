@@ -6,6 +6,8 @@ import gc
 import json
 from pathlib import Path
 import time
+import subprocess
+import sys
 
 import numpy as np
 import torch
@@ -201,9 +203,27 @@ def report(root):
     print(json.dumps(variants),flush=True)
 
 
+def queue(root):
+    out=root/'hard_sampling'
+    out.mkdir(parents=True,exist_ok=True)
+    for name,path in [('original',root/'inputs/nsnonbounded/source.pth'),
+                      ('lr_control_128',root/'runs/nsnonbounded/lr_control.pth'),
+                      ('beta2_128',root/'runs/nsnonbounded/selected_resume.pth')]:
+        cmd=[sys.executable,'-u','-m','experiments.optimizer_diagnostics.hard_sampling',
+            'run','--root',str(root),'--variant',name,'--checkpoint',str(path)]
+        with (out/f'{name}.log').open('a') as stream:
+            child=subprocess.Popen(cmd,stdout=stream,stderr=subprocess.STDOUT)
+            write(out/'queue.json',dict(state='running',variant=name,child_pid=child.pid,time=time.time()))
+            code=child.wait()
+        write(out/f'{name}.exit.json',dict(exit_code=code,child_pid=child.pid,time=time.time()))
+        if code: raise RuntimeError(f'Sampling failed: {name}, exit {code}')
+        if name!='original': report(root)
+    write(out/'queue.json',dict(state='complete',time=time.time()))
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser()
-    p.add_argument('mode',choices=['setup','run','report'])
+    p.add_argument('mode',choices=['setup','run','report','queue'])
     p.add_argument('--root',type=Path,required=True)
     p.add_argument('--variant')
     p.add_argument('--checkpoint')
@@ -212,4 +232,5 @@ if __name__=='__main__':
     torch.set_num_threads(4)
     if a.mode=='setup': setup(a.root)
     elif a.mode=='report': report(a.root)
+    elif a.mode=='queue': queue(a.root)
     else: run(a.root,a.variant,a.checkpoint,a.batch_size)
