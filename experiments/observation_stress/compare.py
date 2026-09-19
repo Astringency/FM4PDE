@@ -33,7 +33,7 @@ def main():
             and audit["poisson_parent_samples_and_gaussian_noise_verified"]):
         raise ValueError("A complete source-verified audit is required before final comparisons")
     source = root/"per_sample.csv"
-    groups = {}
+    groups, regional_groups = {}, {}
     count = 0
     with source.open() as handle:
         for row in csv.DictReader(handle):
@@ -46,6 +46,13 @@ def main():
             value = float(row["rel_l2"])*100
             assert np.isfinite(value) and value >= 0
             values[sample] = value
+            for region in ["excluded", "outside_excluded"]:
+                regional = row["rel_l2_"+region]
+                if regional:
+                    assert row["study"] == "observations" and row["case"] in {"hole10", "hole25", "strip25"}
+                    regional_value = float(regional)*100
+                    assert np.isfinite(regional_value) and regional_value >= 0
+                    regional_groups.setdefault(key+(region,), {}).setdefault(method, {})[sample] = regional_value
             count += 1
     assert count == 75200 and len(groups) == 188
     matrix, comparisons = [], []
@@ -78,17 +85,32 @@ def main():
                 fm_median_rel_l2_pct=float(np.median(values["fm4pde"])),
                 baseline_median_rel_l2_pct=float(np.median(values[baseline]))))
     assert len(matrix) == 188 and len(comparisons) == 564
+    regional_matrix = []
+    assert len(regional_groups) == 48
+    for key, group in sorted(regional_groups.items()):
+        assert set(group) == set(METHODS)
+        samples = sorted(group["fm4pde"])
+        assert len(samples) == 100 and [i for i, _ in samples] == list(range(100))
+        assert all(set(group[m]) == set(samples) for m in METHODS)
+        means = {m: float(np.mean([group[m][sample] for sample in samples])) for m in METHODS}
+        best = min(METHODS[:-1], key=means.get)
+        regional_matrix.append(dict(**dict(zip(KEYS+["region"], key)), count=100,
+            **{m+"_mean_rel_l2_pct": means[m] for m in METHODS}, best_baseline=best,
+            fm_minus_best_baseline_pp=means["fm4pde"]-means[best]))
     write_csv(root/"comparison_matrix.csv", matrix)
     write_csv(root/"paired_comparisons.csv", comparisons)
+    write_csv(root/"regional_comparison_matrix.csv", regional_matrix)
     protocol = dict(status="complete", groups=188, paired_comparisons=564,
         samples_per_method_and_group=100, source_per_sample_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
         metric="Mean per-sample full-grid relative L2, expressed in percent; lower is better",
+        regional_groups=48,
+        regional_metric="Mean per-sample relative L2 within the named region, divided by the ground-truth norm within that same region, expressed in percent",
         delta="FM4PDE minus baseline, in percentage points; negative favors FM4PDE",
         best_baseline="Lowest cohort mean among the three baselines; never selected separately per sample",
         bootstrap=dict(seed=20260919, draws=10000, method="paired percentile", interval=.95,
             scope="Conditional on fixed checkpoints, layouts, sensor/noise draws and inference protocol; no multiplicity adjustment"))
     (root/"comparison_protocol.json").write_text(json.dumps(protocol, indent=2)+"\n")
-    print("EXPORTED 188 four-method rows and 564 paired comparisons", flush=True)
+    print("EXPORTED 188 full-grid rows, 48 regional rows and 564 paired comparisons", flush=True)
 
 
 if __name__ == "__main__":
