@@ -193,11 +193,11 @@ def report(root,pde='nsnonbounded'):
         for field in (['u'] if pde=='burger' else ['u','a']):
             b=np.array([[r[f'rel_l2_{field}'] for r in original['results'][str(seed)]['rows']] for seed in selection['seeds']])
             c=np.array([[r[f'rel_l2_{field}'] for r in candidate['results'][str(seed)]['rows']] for seed in selection['seeds']])
-            assert b.shape==c.shape==(2,16)
-            for seed in selection['seeds']:
+            assert b.shape==c.shape==(len(selection['seeds']),16)
+            for seed_row,seed in enumerate(selection['seeds']):
                 for i,idx in enumerate(selection['indices']):
                     details.append(dict(variant=candidate['variant'],seed=seed,index=idx,field=field,
-                        original=float(b[seed,i]),candidate=float(c[seed,i]),improvement_pct=float(100*(1-c[seed,i]/b[seed,i]))))
+                        original=float(b[seed_row,i]),candidate=float(c[seed_row,i]),improvement_pct=float(100*(1-c[seed_row,i]/b[seed_row,i]))))
             base=b.mean(0);new=c.mean(0);diff=new-base
             rng=np.random.default_rng(20260919)
             bootstrap=diff[rng.integers(0,16,size=(10000,16))].mean(1)
@@ -227,10 +227,10 @@ def report(root,pde='nsnonbounded'):
         with (out/'per_sample.csv').open('w',newline='') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(details[0]));writer.writeheader();writer.writerows(details)
     lines=['# 困难样本采样对照','',
-        f'{pde} / ID / 稀疏观测恢复；按原模型已有 1000 个结果的解场误差，预先固定最差 16 例。100 步采样、原观测、原指导参数；分别使用 seed 0 和独立 seed 1，原模型与候选严格配对。',
+        f"{pde} / ID / 稀疏观测恢复；按原模型已有 1000 个结果的解场误差，预先固定最差 16 例。100 步采样、原观测、原指导参数；使用 seeds {selection['seeds']}，原模型与候选严格配对。",
         '历史误差仅用于选样。所有训练收益均相对于相同批量重新运行的原模型基线计算；固定 batch 的重复执行门限为 1e-6，所有 101 次噪声抽样逐次核对。NS 已发现明显的批量敏感性，相关诊断保留。',
         '先按样本平均两个种子，再计算逐例改善与配对 bootstrap 区间。正改善率表示误差降低；这组困难样本不能代表总体泛化表现。','',
-        '| 候选 | 场 | 原误差 | 新误差 | 相对改善 | 改善例数 | ≥10% / ≥20% | seed 0 / seed 1 改善 |',
+        f"| 候选 | 场 | 原误差 | 新误差 | 相对改善 | 改善例数 | ≥10% / ≥20% | seeds {selection['seeds']} 改善 |",
         '|---|---|---:|---:|---:|---:|---|---|']
     for v in variants:
         for field,d in v['fields'].items():
