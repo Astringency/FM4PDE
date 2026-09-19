@@ -231,6 +231,62 @@ def paired(candidate, baseline):
         relative_change_pct=100*(candidate["mean"]/baseline["mean"]-1), count=len(diff))
 
 
+def frozen_gradients(model, optimizer, data, microbatch, draws=8):
+    """Estimate minibatch gradient signal/noise without any parameter update."""
+    model.train()
+    device=next(model.parameters()).device
+    sums={n:torch.zeros_like(p) for n,p in model.named_parameters()}
+    square_sums={n:0.0 for n,_ in model.named_parameters()}
+    per_batch=[]
+    gen=torch.Generator().manual_seed(61919)
+    with torch.random.fork_rng(devices=[device.index or 0]):
+        torch.manual_seed(61919)
+        for batch_index in range(draws):
+            optimizer.zero_grad(set_to_none=True)
+            ids=torch.randperm(len(data),generator=gen)[:64]
+            xt,t,target=draw_batch(data,ids,gen,device)
+            loss=backward_batch(model,xt,t,target,microbatch)
+            norm2=0.
+            missing=[]
+            for name,p in model.named_parameters():
+                if p.grad is None:
+                    missing.append(name)
+                    continue
+                sums[name].add_(p.grad)
+                g2=float(p.grad.square().sum())
+                square_sums[name]+=g2
+                norm2+=g2
+            per_batch.append(dict(loss=loss,grad_norm=math.sqrt(norm2),missing_grad_names=missing))
+            del xt,t,target
+    layers=[]
+    dot_total=0.
+    moment_norm2=0.
+    for name,p in model.named_parameters():
+        s2=float(sums[name].square().sum())
+        expected2=square_sums[name]/draws
+        mean2=s2/draws**2
+        signal2=(s2-square_sums[name])/(draws*(draws-1))
+        variance=(expected2-mean2)*draws/(draws-1)
+        m=optimizer.state[p].get("exp_avg",torch.zeros_like(p))
+        dot=float((sums[name]*m).sum())/draws
+        m2=float(m.square().sum())
+        dot_total+=dot
+        moment_norm2+=m2
+        layers.append(dict(name=name,mean_gradient_norm=math.sqrt(max(mean2,0)),
+            mean_batch_gradient_norm_squared=expected2,unbiased_signal_squared=signal2,
+            noise_trace=variance,signal_to_noise=max(signal2,0)/max(variance,1e-30),
+            mean_gradient_momentum_cosine=dot/max(math.sqrt(max(mean2*m2,0)),1e-30)))
+    mean_norm2=sum(r["mean_gradient_norm"]**2 for r in layers)
+    signal=sum(r["unbiased_signal_squared"] for r in layers)
+    noise=sum(r["noise_trace"] for r in layers)
+    optimizer.zero_grad(set_to_none=True)
+    return dict(draws=draws,batch_size=64,per_batch=per_batch,layers=layers,
+        summary=dict(mean_gradient_norm=math.sqrt(mean_norm2),unbiased_signal_squared=signal,
+            noise_trace=noise,signal_to_noise=max(signal,0)/max(noise,1e-30),
+            mean_gradient_momentum_cosine=dot_total/max(math.sqrt(mean_norm2*moment_norm2),1e-30)),
+        caveat="Eight independent training-mode minibatches, including dropout and time/noise variation; noisy local estimate, not proof of global convergence")
+
+
 def probe_batch(model, optimizer, source, data, maximum_gib, out):
     device = next(model.parameters()).device
     records=[]
@@ -307,6 +363,7 @@ def run(args):
     assert tuple(source_group["betas"])==(0.9,0.999)
     batch=probe_batch(model,optimizer,source,data["train"],args.max_memory_gib,out)
     restore(model,optimizer,source)
+    write(out/"frozen_gradient_probe.json",frozen_gradients(model,optimizer,data["train"],batch))
     configs=[dict(name="source_lr",lr=float(source_group["lr"]),betas=[.9,.999]),
         dict(name="lr1e5",lr=1e-5,betas=[.9,.999]),
         dict(name="lr3e5",lr=3e-5,betas=[.9,.999]),
