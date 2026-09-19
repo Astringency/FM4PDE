@@ -23,6 +23,11 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
     decision = plan['pdes'][pde][arm]
     assert decision['target_epochs'] == epochs and epochs > 2
     assert decision['role'] in ['control', 'candidate']
+    overlap = decision.get('overlap_screening', False)
+    if overlap:
+        # A prespecified control can use an otherwise idle GPU. Adaptive recipe
+        # extensions still wait for every screening arm and its state audit.
+        assert arm == 'uniform' and decision['role'] == 'control'
     torch.set_num_threads(4)
 
     def status(state, **kwargs):
@@ -47,6 +52,14 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
                 exit_path=root/'queues'/pde/f'{candidate}_02.exit.json'
                 if exit_path.exists() and json.loads(exit_path.read_text())['exit_code'] != 0:
                     raise RuntimeError(f'Screening failed: {pde}/{candidate}; inspect its log before continuation')
+            if overlap:
+                completed = root/'queues'/pde/f'{arm}_02.exit.json'
+                if (completed.exists() and queue.get('arm') != arm
+                        and (root/'runs'/pde/arm/'complete_02.json').exists()):
+                    break
+                status('waiting_control_screening', stage1_queue=queue)
+                time.sleep(30)
+                continue
             session = subprocess.run(['tmux','has-session','-t',f'fm_ema_train_{pde}'],capture_output=True)
             ready = all((root/'runs'/pde/a/'complete_02.json').exists() for a in ARMS)
             if queue.get('state') == 'complete' and queue.get('epochs') == 2 and ready and session.returncode != 0:
@@ -55,7 +68,7 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
             time.sleep(30)
         # Check the actual saved states and logs before the first longer update.
         assert json.loads((root/'extension_plan.json').read_text())['pdes'][pde][arm] == decision
-        audits = {a:checkpoint(root,pde,a,2) for a in ARMS}
+        audits = {a:checkpoint(root,pde,a,2) for a in ([arm] if overlap else ARMS)}
         write(out/'screen_audits.json', audits)
         while True:
             free = subprocess.check_output(['nvidia-smi','--query-gpu=memory.free',
@@ -70,7 +83,9 @@ def run(root, pde, arm, gpu, epochs, checkout, min_free_mib):
             checkout=str(checkout), command=command, observed_free_mib=int(free[gpu]),
             git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=checkout,text=True).strip(),
             original_stage1_queue=queue, resume_snapshot_sha256=audits[arm]['checkpoint_sha256'],
-            source_epoch=2, target_epoch=epochs)
+            source_epoch=2, target_epoch=epochs, overlaps_remaining_screening=overlap,
+            audited_screening_arms=list(audits),
+            all_arm_audits_required_before_recipe_selection=True)
         write(out/'launch.json',record)
         env=dict(os.environ,CUDA_VISIBLE_DEVICES=str(gpu),OMP_NUM_THREADS='4')
         with (out/'train.log').open('a') as log:
