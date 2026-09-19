@@ -35,6 +35,10 @@ def run(root,pde,gpu,epochs,arms,checkout,min_free_mib):
                 status('waiting_other_sampling_for_pde');time.sleep(30)
         required=['original']+[f'{a}_e02_{w}' for a in ARMS for w in ['raw','ema']]
         while True:
+            for variant in required:
+                exit_path=folder/f'{variant}.exit.json'
+                if exit_path.exists() and json.loads(exit_path.read_text())['exit_code'] != 0:
+                    raise RuntimeError(f'Initial sampling failed for {pde}/{variant}; inspect its log')
             session=subprocess.run(['tmux','has-session','-t',f'fm_ema_sample_{pde}'],capture_output=True)
             if session.returncode != 0 and all((folder/'variants'/v/'complete.json').exists() for v in required):
                 break
@@ -48,6 +52,10 @@ def run(root,pde,gpu,epochs,arms,checkout,min_free_mib):
                 while not checkpoint.exists() or not ready.exists():
                     status('waiting_checkpoint',checkpoint=str(checkpoint));time.sleep(30)
                 digest=json.loads(ready.read_text())['sha256']
+                actual=hashlib.sha256()
+                with checkpoint.open('rb') as stream:
+                    for block in iter(lambda:stream.read(8<<20),b''):actual.update(block)
+                assert actual.hexdigest()==digest
                 for weight in ['raw','ema']:
                     variant=f'{arm}_e{epoch:02d}_{weight}'
                     dest=folder/'variants'/variant
