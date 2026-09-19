@@ -28,22 +28,61 @@ def main():
     p.add_argument("--baseline-root", required=True)
     p.add_argument("--output-root", required=True)
     p.add_argument("--allow-incomplete", action="store_true")
+    p.add_argument("--verify-source-files", action="store_true",
+                   help="Rehash the original MAT files as well as frozen packs")
     args = p.parse_args()
     torch.set_num_threads(2)
     fm, base, out = map(Path, [args.fm_root, args.baseline_root, args.output_root])
     out.mkdir(parents=True, exist_ok=True)
     cache = {}
+    receipts = {}
+    checkpoints = {}
+    parent_packs = {}
+    verified_files = {}
     average_roundoff = []
+    initial_noise_hashes = {}
+    old_fm = fm.parent/"rough_stress_20260918"
+    old_base = base.parent/"rough_stress_20260918"
+    protocol_hash = sha256(old_fm/"setup/reference_protocol.json")
+    noise_hash = sha256(old_fm/"setup/noise_a100_seed0/manifest.json")
+    fm_checkpoints = json.loads((fm/"setup/fm_checkpoints.json").read_text())
+    poisson_equivalence = json.loads((fm/"setup/poisson_checkpoint_equivalence.json").read_text())
+    assert poisson_equivalence["observed_equality"] is True
+    fm_checkpoints["poisson"] = dict(path=str(old_fm/"setup/fm4poisson.pth"),
+        sha256=poisson_equivalence["checkpoint_197_sha256"])
+
+    def verify_file(filename, digest):
+        filename = Path(str(filename).replace(
+            "/home/zhangxf/share/zhangxfA100/large_storage/", "/large_storage/zhangxf/"))
+        if str(filename) not in verified_files:
+            assert sha256(filename) == digest, f"Source checksum changed: {filename}"
+            verified_files[str(filename)] = digest
+        assert verified_files[str(filename)] == digest
+
+    for checkpoint in fm_checkpoints.values():
+        verify_file(checkpoint["path"], checkpoint["sha256"])
+
     def source(pde, dist, case, kind):
         key = (pde, dist, case if kind == "observations" else None)
         if key not in cache:
             path = base/"measurements"/f"{pde}_{dist}_{case}.pt" if kind == "observations" else base/"inputs"/f"{pde}_{dist}.pt"
             receipt = json.loads(path.with_suffix(".json").read_text())
+            receipts[key] = receipt
             digest = receipt["sha256"] if kind == "observations" else receipt["pack_sha256"]
             if sha256(path) != digest:
                 raise ValueError(f"Input checksum changed: {path}")
             pack = torch.load(path, map_location="cpu", weights_only=False)
             assert pack["count"] == 100 and len(pack["sample_ids"]) == 100
+            assert len(set(pack["sample_ids"])) == 100
+            assert list(pack["source_indices"]) == list(range(100))
+            if kind == "distribution":
+                assert tensor_hash(pack["raw"]["full_tensor"]) == receipt["physical_tensor_sha256"]
+                for budget in [400, 500]:
+                    assert tensor_hash(pack["masks"][budget]) == receipt["masks"][str(budget)]
+                    assert bool((pack["masks"][budget].flatten(1).sum(1) == budget).all())
+                assert bool((pack["masks"][400] <= pack["masks"][500]).all())
+                if args.verify_source_files:
+                    verify_file(receipt["source"], receipt["source_sha256"])
             if kind == "observations":
                 for name in ["mask", "clean", "noisy"]:
                     assert tensor_hash(pack[name]) == receipt[name+"_sha256"]
@@ -78,6 +117,33 @@ def main():
                 assert not bool((mask.bool() & pack["excluded"]).any())
                 assert bool((mask.flatten(1).sum(1) == (640 if case == "columns" else 500)).all())
                 assert not torch.count_nonzero(pack["noisy"]*(1-mask))
+                if args.verify_source_files:
+                    original = json.loads((old_base/"inputs"/f"poisson_{dist}.json").read_text())
+                    assert receipt["source_pack_sha256"] == original["pack_sha256"]
+                    verify_file(original["source"], original["source_sha256"])
+                    if dist not in parent_packs:
+                        parent_path = old_base/"inputs"/f"poisson_{dist}.pt"
+                        verify_file(parent_path, original["pack_sha256"])
+                        parent_packs[dist] = torch.load(parent_path, map_location="cpu", weights_only=False)
+                    parent = parent_packs[dist]
+                    assert pack["sample_ids"] == parent["sample_ids"][:100]
+                    assert torch.equal(full, parent["raw"]["full_tensor"][:100])
+                    if case == "random" or case.startswith("noise"):
+                        assert torch.equal(mask, parent["masks"][500][:100].float())
+                    if case.startswith("noise"):
+                        level = int(case[5:])/100
+                        for i in range(100):
+                            selected = mask[i, 0].bool()
+                            for c in range(2):
+                                clean = pack["clean"][i, c][selected].double()
+                                scale = clean.std(correction=0).clamp_min(1e-12)
+                                eps = torch.randn((1, 1, 128, 128),
+                                    generator=torch.Generator().manual_seed(2*i+c), dtype=torch.float32)[0, 0][selected].double()
+                                noise = level*scale*eps
+                                expected = clean+noise
+                                error = (pack["noisy"][i, c][selected].double()-expected).abs()
+                                bound = torch.finfo(torch.float32).eps*(4*clean.abs()+32*noise.abs())
+                                assert bool((error <= bound).all()), f"Noise reading differs from specified draws: {key}/{i}/{c}"
             cache[key] = pack
         return cache[key]
     cells = []
@@ -104,6 +170,32 @@ def main():
         identity = json.loads(identity_path.read_text())
         assert (identity["pde"],identity["distribution"],identity["task"],identity["method"]) == (pde,dist,task,method)
         pack = source(pde, dist, case, kind)
+        receipt = receipts[(pde, dist, case if kind == "observations" else None)]
+        if kind == "observations":
+            assert identity["case"] == case
+            assert identity["input_sha256"] == receipt["sha256"]
+        else:
+            assert identity["num_obs"] == int(case[3:])
+            assert identity["input_receipt"] == receipt
+        assert identity["batch_size"] == 16 and identity["tf32"] is False
+        if method == "fm4pde":
+            accepted = {fm_checkpoints[pde]["sha256"]}
+            if pde == "poisson":
+                accepted.add(poisson_equivalence["checkpoint_216_sha256"])
+            assert identity["checkpoint"]["sha256"] in accepted
+            assert identity["fm_protocol_sha256"] == protocol_hash
+            actual_noise_hash = (identity["noise_manifest_sha256"] if kind == "observations"
+                                 else identity["noise_replay"]["manifest_sha256"])
+            assert actual_noise_hash == noise_hash
+        else:
+            if pde not in checkpoints:
+                cpfile = base/"measurements/poisson_checkpoints.json" if pde == "poisson" else base/f"{pde}_checkpoints.json"
+                checkpoints[pde] = json.loads(cpfile.read_text())
+            checkpoint = checkpoints[pde][f"{method}/{task}"]
+            assert identity["checkpoint"] == checkpoint
+            assert not identity["backend"].get("fallback_used")
+            verify_file(checkpoint["path"], checkpoint["sha256"])
+            verify_file(checkpoint["source_summary"], checkpoint["source_summary_sha256"])
         cell_rows = []
         for path in paths:
             record = json.loads(path.read_text())
@@ -121,6 +213,13 @@ def main():
             truth = pack["raw"]["full_tensor"][indices].double()
             pred = saved["prediction"].double()
             assert torch.isfinite(pred).all()
+            assert pred.shape == (len(indices), 2 if method == "fm4pde" or task == "both" else 1, 128, 128)
+            if method == "fm4pde":
+                runtime = record["runtime"]
+                assert runtime["steps"] == runtime["nfe"] == 100
+                index_key = tuple(indices)
+                digest = runtime["initial_noise_sha256"]
+                assert initial_noise_hashes.setdefault(index_key, digest) == digest
             if kind == "observations":
                 mask = pack["mask"][indices]
                 active = torch.ones((len(indices), 2, 1, 1))
@@ -180,7 +279,12 @@ def main():
         status="complete" if not incomplete else "incomplete", samples_per_cell=100,
         metric_rows=len(rows), complete=completed, incomplete=incomplete,
         independent_prediction_metrics=True, frozen_input_and_measurement_hashes_verified=True,
-        average_readings_double_precision_checks=average_roundoff))
+        average_readings_double_precision_checks=average_roundoff,
+        verified_checkpoint_and_source_files=verified_files,
+        original_mat_files_verified=args.verify_source_files,
+        poisson_parent_samples_and_gaussian_noise_verified=args.verify_source_files,
+        checkpoint_protocol_and_noise_identities_verified=True,
+        initial_noise_hashes_shared_across_cells=True))
     print(f"AUDIT {len(completed)}/{len(cells)} cells, {len(rows)} metric rows", flush=True)
     if incomplete and not args.allow_incomplete:
         raise SystemExit(2)
