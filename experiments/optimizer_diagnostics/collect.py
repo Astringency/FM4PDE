@@ -1,5 +1,6 @@
 """Deliver a finished study and clean only its verified temporary workspaces."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -100,11 +101,38 @@ for line in (r/'SHA256SUMS').read_text().splitlines():
         if log.exists():
             subprocess.run(['scp',str(log),f'server197:{CANONICAL}/remote_execution/sampling_relay_{pde}.log'],check=True)
             log.unlink()
+    while subprocess.run(['tmux','has-session','-t','fm_optsamplereprelay_0919_darcy'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
+        time.sleep(30)
+    replica_log=Path('/tmp/fm_optsamplereprelay_0919_darcy.log')
+    if replica_log.exists():
+        subprocess.run(['scp',str(replica_log),f'server197:{CANONICAL}/remote_execution/sampling_replicate_relay_darcy.log'],check=True)
+        replica_log.unlink()
     subprocess.run(['scp','-r',f'server197:{CANONICAL}/report/.',str(LOCAL)],check=True)
     source=subprocess.Popen(['ssh','server197',f'tar -C {CANONICAL} --exclude=*.pth --exclude=full_train.pt -cf - hard_sampling continuation seed_replicates/hard_sampling seed_replicates/combine.log seed_replicates/combine.exit.json'],stdout=subprocess.PIPE)
     target=subprocess.Popen(['tar','-C',str(LOCAL),'-xf','-'],stdin=source.stdout)
     source.stdout.close()
     assert target.wait()==0 and source.wait()==0
+    manifest=json.loads(remote_python('server197',f'''
+from pathlib import Path
+import hashlib,json
+r=Path({CANONICAL!r}); rows=[]
+for folder,prefix in [('report',''),('hard_sampling','hard_sampling'),('continuation','continuation'),('seed_replicates/hard_sampling','seed_replicates/hard_sampling')]:
+    base=r/folder
+    for p in sorted(base.rglob('*')):
+        if not p.is_file() or p.suffix=='.pth' or p.name=='full_train.pt': continue
+        h=hashlib.sha256()
+        with p.open('rb') as stream:
+            for block in iter(lambda:stream.read(8<<20),b''): h.update(block)
+        rows.append(dict(path=str(Path(prefix)/p.relative_to(base)),sha256=h.hexdigest()))
+print(json.dumps(rows))
+'''))
+    for entry in manifest:
+        h=hashlib.sha256()
+        with (LOCAL/entry['path']).open('rb') as stream:
+            for block in iter(lambda:stream.read(8<<20),b''): h.update(block)
+        assert h.hexdigest()==entry['sha256'],entry['path']
+    (LOCAL/'artifact_verification.json').write_text(json.dumps(dict(status='verified',files=manifest),indent=2)+'\n')
+    subprocess.run(['scp',str(LOCAL/'artifact_verification.json'),f'server197:{CANONICAL}/local_report_verification.json'],check=True)
     # Archive the final branch, including every training, sampling and audit revision.
     commit=subprocess.check_output(['git','-C',WORKTREE,'rev-parse','HEAD'],text=True).strip()
     subprocess.run(['git','-C','/home/tat512/C01Python/FM4PDE','merge-base','--is-ancestor',commit,'HEAD'],check=True)
@@ -128,6 +156,18 @@ subprocess.run(['git','-C',str(verification),'cat-file','-e',{commit!r}+':experi
 for pde in {PDES!r}:
     commit=json.loads((r/'runs'/pde/'protocol.json').read_text())['git_commit']
     subprocess.run(['git','-C',str(verification),'cat-file','-e',commit+':experiments/optimizer_diagnostics/study.py'],check=True)
+sampling_commits=set()
+for base in [r/'hard_sampling',r/'seed_replicates/hard_sampling']:
+    for identity in base.glob('**/identity.json'):
+        commit=json.loads(identity.read_text())['environment']['code_commit']
+        sampling_commits.add(commit)
+        subprocess.run(['git','-C',str(verification),'cat-file','-e',commit+':experiments/optimizer_diagnostics/hard_sampling.py'],check=True)
+for p in (r/'continuation').glob('**/protocol.json'):
+    commit=json.loads(p.read_text())['git_commit']
+    subprocess.run(['git','-C',str(verification),'cat-file','-e',commit+':experiments/optimizer_diagnostics/extend_ns.py'],check=True)
+reference=sorted(sampling_commits)[0]
+for commit in sampling_commits:
+    subprocess.run(['git','-C',str(verification),'diff','--quiet',reference,commit,'--','sampling','models','experiments/aligned_sampling'],check=True)
 for folder in ['code','code_v3','code_final']:
     p=r/folder
     if p.exists():
@@ -142,7 +182,7 @@ for folder in ['code','code_v3','code_final']:
     if p.exists(): shutil.rmtree(p)
 for p in r.glob('code*.bundle'): p.unlink()
 for p in r.glob('sampling*.bundle'): p.unlink()
-(r/'source_archive.json').write_text(json.dumps(dict(bundle=str(archive),independent_restore_verified=True,all_training_commits_present=True,time=time.time()),indent=2))
+(r/'source_archive.json').write_text(json.dumps(dict(bundle=str(archive),independent_restore_verified=True,all_training_commits_present=True,sampling_commits=sorted(sampling_commits),sampling_core_identical_across_revisions=True,time=time.time()),indent=2))
 ''')
     remote_python('server216',f'''
 from pathlib import Path
