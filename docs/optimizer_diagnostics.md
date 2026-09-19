@@ -95,3 +95,11 @@ This selected difficult set cannot estimate population-wide performance.
 under `hard_sampling/<pde>/` (NS uses `hard_sampling/` itself). The collector waits
 for all five sampling comparisons, both NS continuations, audits and figures; it
 must not clean working caches based on the optimizer screen alone.
+
+Darcy's initial two seeds differed in the direction of the solution-error change.
+`seed_replicates queue --root ROOT --pde darcy` therefore adds independent seeds 2
+and 3 for exactly the same sixteen cases and all three checkpoints. The initial
+selection and predictions are retained unchanged. `seed_replicates combine`
+audits these new physical predictions and reports four-seed averages and each
+seed separately in `hard_sampling/darcy/FOUR_SEEDS.md`. This is an exploratory
+follow-up prompted by the initial results, not a new randomly selected test set.
