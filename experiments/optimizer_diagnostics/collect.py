@@ -68,6 +68,7 @@ print(json.dumps(status))
 
 def finish():
     assert ready().get('state')=='complete'
+    ssh('server197',f'cd {CANONICAL}/code_final && /research_data/users/zhangxifeng/.conda/envs/fm4pde/bin/python -m experiments.optimizer_diagnostics.conclusion --root {CANONICAL}')
     # Relay sessions exit only after canonical SHA256 verification and publication.
     for pde in ['helmholtz','darcy']:
         while subprocess.run(['tmux','has-session','-t',f'fm_optrelay_0919_{pde}'],
