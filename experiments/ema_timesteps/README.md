@@ -60,6 +60,12 @@ cache. Input/checkpoint relay scripts verify hashes before publishing ready
 markers; results must be returned and verified before cleaning that cache.
 Training and physical sampling have separate named tmux sessions.
 
+`extend` waits for the four screening arms, checks their actual saved states,
+and resumes a reviewed entry in `extension_plan.json`. A per-GPU lock serializes
+longer runs; `sample_extension` separately waits for the initial nine sampling
+variants and evaluates epoch 5/10 raw and EMA snapshots. The training and
+sampling publication helpers verify all transferred files before publishing.
+
 ## Native training support
 
 The native trainer also supports explicit raw-checkpoint-to-EMA resume:
@@ -77,6 +83,22 @@ for explicit training time selection. The old skewed flag remains supported.
 `--optimizer_betas` alone configures a new optimizer and does not override resume.
 LR changes on native resume require `--resume_reset_lr_schedule` and explicit
 schedule settings.
+
+Use `export_resume --source <immutable snapshot> --output <new file> --pde <pde>`
+for a native-resume copy. Study snapshots retain some inherited pretraining
+arguments and scaler metadata. The exporter records that provenance, normalizes
+the effective precision, EMA, time sampling, batch and optimizer arguments, and
+clears the inapplicable scaler state. It verifies the real native loader and
+both inference loaders before publishing the copy; model, optimizer, normalizer
+and stored RNG tensors must remain exactly equal to the source. The original
+experimental snapshot and its sampling identities are preserved.
+
+The native CLI still needs explicit run arguments, including an epoch limit
+greater than the exported checkpoint's next epoch. The receipt lists effective
+settings and that next epoch. Native training uses its own data order, random
+stream, validation and per-microbatch stratification; use `study run` to continue
+the exact experiment trajectory. Inference explicitly chooses `prefer_ema=True`
+or `False`; an export contains both weights and does not select a winner.
 
 ## Interpretation
 
