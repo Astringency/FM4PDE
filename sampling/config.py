@@ -86,7 +86,7 @@ VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "per
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
 VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
 VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm", "legacy_l2_mean"}
-VALID_TEST_TYPES = {"id", "smooth", "rough", "rough2", "rough3"}
+VALID_TEST_TYPES = {"id", "smooth", "rough", "rough2", "rough3", "joint_ood"}
 
 
 @dataclass
