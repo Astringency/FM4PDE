@@ -6,7 +6,7 @@ sample-wise deterministic seeds, independent of generation batch size.
 
 ```bash
 python -m data.DataGen.generate_joint_ood calibrate --pde all \
-  --baseline-root /path/to/FM4PDEbaseline --output-root /absolute/study/path
+  --output-root /absolute/study/path
 python -m data.DataGen.generate_joint_ood generate --pde poisson \
   --output-root /absolute/study/path
 ```

@@ -6,6 +6,7 @@ No trained model or prediction is read by this generator.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -16,12 +17,57 @@ import h5py
 import numpy as np
 from scipy.io import loadmat, savemat
 
-from experiments.rough_stress.run import baseline_imports, git_commit, sha256, source_name, write_json, ROOT
+ROOT = Path(__file__).resolve().parents[2]
 from data.DataGen.static_solvers import solve_static
 
 PDES = ('poisson', 'helmholtz', 'darcy', 'nsnonbounded', 'burger')
 PROFILE = 'joint_ood'
 VERSION = 1
+
+
+def sha256(path):
+    digest=hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda:stream.read(8<<20),b''):digest.update(block)
+    return digest.hexdigest()
+
+
+def git_commit(root):
+    return subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+
+
+def write_json(path,value):
+    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    tmp=path.with_suffix(path.suffix+'.tmp')
+    tmp.write_text(json.dumps(value,indent=2,allow_nan=False)+'\n');tmp.replace(path)
+
+
+def id_name(pde):
+    folder='burgers' if pde=='burger' else pde
+    shape='128-128-10' if pde=='nsnonbounded' else '128-128'
+    return f'{folder}/{pde}_test_10000-{shape}_id.mat'
+
+
+def read_fields(pde,path,start=0,count=1000):
+    """Read existing physical generator formats without model/baseline dependencies."""
+    stop=start+count
+    if pde in ('poisson','helmholtz','burger'):
+        keys={'poisson':('f_data','phi_data'),'helmholtz':('f_data','psi_data'),
+              'burger':('input','output')}[pde]
+        data=loadmat(path,variable_names=list(keys))
+        u=np.asarray(data[keys[1]][start:stop],dtype=np.float32)
+        a=u[:,0] if pde=='burger' else np.asarray(data[keys[0]][start:stop],dtype=np.float32)
+    else:
+        with h5py.File(path,'r') as f:
+            if pde=='darcy':
+                def read(ds):
+                    if ds.shape[0]==ds.shape[1]:return np.moveaxis(ds[...,start:stop],-1,0)
+                    return ds[start:stop]
+                a,u=read(f['thresh_a_data']),read(f['thresh_p_data'])
+            else:a,u=f['w0'][start:stop],f['w'][start:stop,...,-1]
+        a=np.asarray(a,dtype=np.float32);u=np.asarray(u,dtype=np.float32)
+    assert len(a)==len(u)==count and np.isfinite(a).all() and np.isfinite(u).all()
+    return a,u
 
 
 def output_name(pde, count=1000):
@@ -55,19 +101,13 @@ def stats(x):
 def calibrate(args):
     import torch
     torch.set_num_threads(2)
-    registry = baseline_imports(args.baseline_root)
     for pde in (PDES if args.pde == 'all' else (args.pde,)):
         path = Path(args.output_root)/'calibration'/f'{pde}.json'
         if path.exists():
             print('CALIBRATION EXISTS', path, flush=True)
             continue
-        src = Path(args.data_root)/source_name(pde, 'id')
-        raw = registry.load_raw(pde, args.data_root, split='test', max_samples=1000,
-            sample_offset=100, strict_size=True, data_files={'test': [source_name(pde, 'id')]},
-            load_full_trajectory=False)
-        raw = registry.to_canonical(raw, pde)
-        v = raw['full_tensor'].numpy()
-        a, u = (v[:, 0, 0], v[:, 0]) if pde == 'burger' else (v[:, 0], v[:, 1])
+        src = Path(args.data_root)/id_name(pde)
+        a,u=read_fields(pde,src,start=100,count=1000)
         ff = field_features(pde, a, u)
         write_json(path, dict(pde=pde, source=str(src), source_sha256=sha256(src),
             indices=list(range(100,1100)), code_commit=git_commit(ROOT),
@@ -273,7 +313,7 @@ def main():
     p.add_argument('--pde',choices=[*PDES,'all'],required=True)
     p.add_argument('--data-root',default='/large_storage/zhangxf/PDEdata')
     p.add_argument('--output-root',required=True)
-    p.add_argument('--baseline-root')
+    p.add_argument('--baseline-root',help=argparse.SUPPRESS)  # Accepted for earlier launcher compatibility.
     p.add_argument('--count',type=int,default=1000)
     p.add_argument('--batch-size',type=int,default=16)
     p.add_argument('--seed',type=int,default=60000000)
