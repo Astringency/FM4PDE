@@ -412,7 +412,7 @@ def analyze_ensemble(torch, root, pde='poisson'):
 def validate_matched(torch, study, pde):
     """Reproduce the published 8/32 tables: metrics averaged over seeds, then inputs."""
     protocol = json.loads((study / 'inputs_v2/protocol.json').read_text())
-    ids, seeds = protocol['evaluation_ids'], protocol['seeds']
+    ids, seeds = sorted(protocol['evaluation_ids']), protocol['seeds']
     records = defaultdict(list)
     for sample in ids:
         for seed in seeds:
