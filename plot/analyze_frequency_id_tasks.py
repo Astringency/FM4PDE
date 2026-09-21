@@ -67,10 +67,10 @@ def band_record(ref_power, pred_power, err_power, total, mask):
     tr = float(ref_power[mask].sum())
     pr = float(pred_power[mask].sum())
     er = float(err_power[mask].sum())
-    record = dict(reference_energy=tr, prediction_energy=pr, error_energy=er, mode_count=int(mask.sum()))
+    record = dict(reference_energy=tr, prediction_energy=pr, error_energy=er, mode_count=int(mask.sum()),
+                  reference_fraction=tr / total if total > 0.0 else None)
     if not tr > total * MIN_REFERENCE_FRACTION:
         return record
-    record['reference_fraction'] = tr / total
     record['energy_ratio'] = pr / tr
     record['band_relative_error'] = float(np.sqrt(er / tr))
     if pr > 0.0:
@@ -439,10 +439,13 @@ def validate_matched(torch, study, pde):
             fractions.append(tr / total)
             if pr > 0.0:
                 alignments.append((pr + tr - er) / (2.0 * np.sqrt(pr * tr)))
+        if not ratios:
+            out[band] = dict(examples=0)
+            continue
         out[band] = dict(examples=len(ratios), energy_ratio_mean=float(np.mean(ratios)),
-                         energy_ratio_sd=float(np.std(ratios, ddof=1)),
-                         alignment_mean=float(np.mean(alignments)),
-                         alignment_sd=float(np.std(alignments, ddof=1)),
+                         energy_ratio_sd=float(np.std(ratios, ddof=1)) if len(ratios) > 1 else None,
+                         alignment_mean=float(np.mean(alignments)) if alignments else None,
+                         alignment_sd=float(np.std(alignments, ddof=1)) if len(alignments) > 1 else None,
                          reference_fraction_mean=float(np.mean(fractions)))
     return out
 
