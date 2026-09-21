@@ -370,7 +370,8 @@ def analyze_ensemble(torch, root, pde='poisson'):
                     alignment = (draw_prediction[valid] + reference_energy - draw_error[valid]) \
                         / (2.0 * np.sqrt(draw_prediction[valid] * reference_energy))
                     retained = deterministic.get('energy_ratio')
-                    stochastic = max(float(draw_prediction.mean()) - deterministic['prediction_energy'], 0.0) / total
+                    stochastic = max(float(draw_prediction.mean()) - deterministic['prediction_energy'], 0.0) \
+                        / reference_energy if reference_energy > 0.0 else None
                     summaries.append(dict(
                         pde=pde, task=task, field=field, band=name, offset=offset, observed=field in OBSERVED[task],
                         reference_fraction=deterministic.get('reference_fraction'),
