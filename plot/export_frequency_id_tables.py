@@ -62,9 +62,10 @@ def band_table(rows, output, high_only=True):
                   r'$q_H$ is the mean ratio of predicted to reference energy in '
                   r'$H=\{\boldsymbol k:\|\boldsymbol k\|_2>32\}$, $A_H$ the mean coefficient alignment, '
                   r'and $\operatorname{RelL2}_H$ the relative error within $H$. '
-                  r'Chance $A_H$ is the mean $\pm$ sample SD of alignments obtained by pairing each '
-                  r'prediction with the reference of another input, and $(A_H-\text{chance})/\text{SD}$ '
-                  r'expresses the observed alignment in units of that SD. '
+                  r'Chance $A_H$ is the mean $\pm$ sample SD $\sigma$ of alignments obtained by pairing each '
+                  r'prediction with the reference of another input, and '
+                  r'$(A_H-A_H^{\mathrm{chance}})/\sigma$ expresses the observed alignment in units of that '
+                  r'SD. '
                   r'$\dagger$ marks the task in which $\mathbf a$ carries the observations. '
                   r'The reference field carries $0.11\%$ (Poisson) and $0.87\%$ (Darcy) of its energy in '
                   r'$H$.}']
@@ -78,7 +79,7 @@ def band_table(rows, output, high_only=True):
               r'\toprule']
     if high_only:
         lines.append(r'PDE & Task & Field & $q_H$ & $A_H$ & $A_H^2$ & Chance $A_H$ & '
-                     r'$(A_H-\text{chance})/\text{SD}$ & $\operatorname{RelL2}_H$ \\')
+                     r'$(A_H-A_H^{\mathrm{chance}})/\sigma$ & $\operatorname{RelL2}_H$ \\')
     else:
         lines.append(r'PDE & Task & Field & Band & Ref.\ share & $q_B$ & $A_B$ & $\operatorname{RelL2}_B$ \\')
     lines.append(r'\midrule')
@@ -121,42 +122,43 @@ def band_table(rows, output, high_only=True):
         .write_text('\n'.join(lines) + '\n')
 
 
-def radial_figure(rows, pde, output, stem):
+def radial_figure(rows, pdes, output, stem):
     use_times_new_roman()
     plt.rcParams.update({'font.size': 9, 'axes.titlesize': 9, 'axes.labelsize': 9,
                          'xtick.labelsize': 9, 'ytick.labelsize': 9, 'axes.linewidth': .5})
-    fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.4), layout='constrained')
-    for task in TASKS:
-        field = 'coef'
-        series = sorted([r for r in rows if (r['pde'], r['task'], r['field'], r['collection'])
-                         == (pde, task, field, SELECTION[pde, task])], key=lambda r: int(r['radius']))
-        radius = np.array([int(r['radius']) for r in series])
-        reference = np.array([float(r['reference_power']) for r in series])
-        prediction = np.array([float(r['prediction_power']) for r in series])
-        error = np.array([float(r['error_power']) for r in series])
-        alignment = np.array([float(r['pooled_alignment']) if r['pooled_alignment'] not in ('', 'None')
-                              else np.nan for r in series])
-        keep = radius > 0
-        style = dict(color=COLORS[task], lw=1.0, marker=MARKERS[task], markersize=2.4, markevery=3,
-                     label=task.capitalize())
-        axes[0].plot(radius[keep], prediction[keep], **style)
-        axes[1].plot(radius[keep], error[keep], **style)
-        axes[2].plot(radius[keep], alignment[keep], **style)
-        if task == 'forward':
-            axes[0].plot(radius[keep], reference[keep], color='#999999', lw=1.0, ls=':', label='Reference')
-    axes[0].set(yscale='log', xscale='log', title=f'{PDE_LABEL[pde]} coefficient a',
-                xlabel='Radial cosine-mode index', ylabel='Shell energy')
-    axes[1].set(yscale='log', xscale='log', title='High-band error energy', xlabel='Radial cosine-mode index',
-                ylabel='Shell error energy')
-    axes[2].set(xscale='log', title='Coefficient alignment', xlabel='Radial cosine-mode index',
-                ylabel='$A(r)$')
-    axes[2].axhline(0.0, color='#999999', lw=.5)
-    axes[2].axhline(0.5, color='#999999', lw=.5, ls=':')
-    for axis in axes:
-        axis.axvline(8, color='#bbbbbb', lw=.5)
-        axis.axvline(32, color='#bbbbbb', lw=.5)
-        axis.grid(alpha=.15)
-    axes[0].legend(fontsize=7, frameon=False)
+    fig, axes = plt.subplots(len(pdes), 3, figsize=(7.2, 4.4), layout='constrained')
+    for row_index, pde in enumerate(pdes):
+        block = axes[row_index]
+        for task in TASKS:
+            field = 'coef'
+            series = sorted([r for r in rows if (r['pde'], r['task'], r['field'], r['collection'])
+                             == (pde, task, field, SELECTION[pde, task])], key=lambda r: int(r['radius']))
+            radius = np.array([int(r['radius']) for r in series])
+            reference = np.array([float(r['reference_power']) for r in series])
+            prediction = np.array([float(r['prediction_power']) for r in series])
+            error = np.array([float(r['error_power']) for r in series])
+            alignment = np.array([float(r['pooled_alignment']) if r['pooled_alignment'] not in ('', 'None')
+                                  else np.nan for r in series])
+            keep = radius > 0
+            style = dict(color=COLORS[task], lw=1.0, marker=MARKERS[task], markersize=2.4, markevery=3,
+                         label=task.capitalize())
+            block[0].plot(radius[keep], prediction[keep], **style)
+            block[1].plot(radius[keep], error[keep], **style)
+            block[2].plot(radius[keep], alignment[keep], **style)
+            if task == 'forward':
+                block[0].plot(radius[keep], reference[keep], color='#999999', lw=1.0, ls=':', label='Reference')
+        block[0].set(yscale='log', xscale='log', title=f'{PDE_LABEL[pde]} coefficient $a$',
+                     ylabel='Shell energy')
+        block[1].set(yscale='log', xscale='log', title='Reconstruction error', ylabel='Shell error energy')
+        block[2].set(xscale='log', title='Coefficient alignment', ylabel='$A(r)$')
+        block[2].axhline(0.0, color='#999999', lw=.5)
+        block[2].axhline(0.5, color='#999999', lw=.5, ls=':')
+        for axis in block:
+            axis.axvline(8, color='#bbbbbb', lw=.5)
+            axis.axvline(32, color='#bbbbbb', lw=.5)
+            axis.grid(alpha=.15)
+            axis.set_xlabel('Radial cosine-mode index')
+        block[0].legend(fontsize=7, frameon=False)
     for extension in ('pdf', 'png'):
         fig.savefig(output / f'{stem}.{extension}', dpi=210, bbox_inches='tight', pad_inches=.03)
     plt.close(fig)
@@ -226,42 +228,43 @@ def ensemble_figure(rows, output, stem):
     plt.close(figure)
 
 
-def ensemble_table(rows, output):
-    summary = read_rows(output / 'ensemble_band_summary.csv')
+def ensemble_table(rows, source, output):
+    summary = read_rows(source / 'ensemble_band_summary.csv')
     lines = [r'\begin{table}[!htbp]', r'\FMTableStyle', r'\smallskip',
-             r'\caption{Decomposition of the retained high-frequency energy of FM4PDE under repeated '
-             r'sampling. Each of the 32 Poisson ID inputs is reconstructed with 1000 independent draws under '
-             r'fixed observations; $\widehat{\mathbf c}_H$ is the ensemble mean of the high-band coefficients. '
-             r'$q_H$ is the mean energy ratio of individual draws, $q_H^{\det}$ and $q_H^{\mathrm{sto}}$ its '
-             r'deterministic and stochastic parts, $A_H^{\det}$ the alignment of the ensemble mean, and '
-             r'chance $A_H^{\det}$ the alignment of a shuffled pairing.}',
+             r'\caption{Decomposition of the retained band energy of FM4PDE under repeated sampling. Each of '
+             r'the 32 Poisson ID inputs is reconstructed with 1000 independent draws under fixed '
+             r'observations; $\widehat{\mathbf c}_B$ is the ensemble mean of the band coefficients. '
+             r'$q_B$ is the mean energy ratio of individual draws, $q_B^{\det}$ and $q_B^{\mathrm{sto}}$ its '
+             r'deterministic and stochastic parts, $q_B^{\det}/q_B$ the deterministic share, '
+             r'$A_B^{\det}$ the alignment of the ensemble mean, and chance $A_B^{\det}$ the alignment of a '
+             r'shuffled pairing over the 32 inputs, with $\sigma$ its sample SD.}',
              r'\label{tab:frequency-ensemble}',
-             r'\begin{tabular}{@{}llrrrrrr@{}}', r'\toprule',
-             r'Task & Field & $q_H$ & $q_H^{\det}$ & $q_H^{\mathrm{sto}}$ & $A_H^{\det}$ & Chance & $\operatorname{RelL2}_H^{\det}$ \\',
+             r'\begin{tabular}{@{}lllrrrrrr@{}}', r'\toprule',
+             r'Task & Field & Band & $q_B$ & $q_B^{\det}$ & $q_B^{\mathrm{sto}}$ & '
+             r'$q_B^{\det}/q_B$ & $A_B^{\det}$ & Chance $A_B^{\det}$ \\',
              r'\midrule']
     for task in TASKS:
         for field in ('coef', 'sol'):
-            match = [r for r in summary if (r['task'], r['field'], r['band']) == (task, field, 'high8')]
-            assert len(match) == 1, (task, field)
-            row = match[0]
-            values = {key: float(row[key]) if row[key] not in (None, '') else None for key in
-                      ('draw_energy_ratio_mean', 'deterministic_energy_ratio', 'stochastic_energy_ratio',
-                       'deterministic_alignment', 'chance_alignment_mean', 'chance_alignment_sd')}
-            rel = None
-            if values['deterministic_energy_ratio'] is not None and values['deterministic_alignment'] is not None:
-                rel = np.sqrt(1.0 + values['deterministic_energy_ratio']
-                              - 2.0 * np.sqrt(values['deterministic_energy_ratio'])
-                              * values['deterministic_alignment'])
-            cells = [task.capitalize(),
-                     FIELD_LABEL[field] + (' $\\dagger$' if field in OBSERVED[task] else ''),
-                     f"${values['draw_energy_ratio_mean']:.3f}$",
-                     f"${values['deterministic_energy_ratio']:.3f}$",
-                     f"${values['stochastic_energy_ratio']:.3f}$",
-                     f"${values['deterministic_alignment']:.3f}$",
-                     f"${values['chance_alignment_mean']:.3f}\\pm{values['chance_alignment_sd']:.3f}$",
-                     f"${rel:.3f}$"]
-            lines.append(' & '.join(cells) + r' \\')
-        lines.append(r'\addlinespace' if task != TASKS[-1] else r'\bottomrule')
+            for band in ('mid8', 'high8'):
+                match = [r for r in summary if (r['task'], r['field'], r['band']) == (task, field, band)]
+                assert len(match) == 1, (task, field, band)
+                row = match[0]
+                values = {key: float(row[key]) if row[key] not in (None, '') else None for key in
+                          ('draw_energy_ratio_mean', 'deterministic_energy_ratio', 'stochastic_energy_ratio',
+                           'deterministic_alignment', 'chance_alignment_mean', 'chance_alignment_sd')}
+                share = values['deterministic_energy_ratio'] / (values['deterministic_energy_ratio']
+                                                                 + values['stochastic_energy_ratio'])
+                cells = [task.capitalize() if band == 'mid8' else '',
+                         FIELD_LABEL[field] + (' $\\dagger$' if field in OBSERVED[task] else ''),
+                         BAND_LABEL[band],
+                         f"${values['draw_energy_ratio_mean']:.3f}$",
+                         f"${values['deterministic_energy_ratio']:.3f}$",
+                         f"${values['stochastic_energy_ratio']:.3f}$",
+                         f"${share:.3f}$",
+                         f"${values['deterministic_alignment']:.3f}$",
+                         f"${values['chance_alignment_mean']:.3f}\\pm{values['chance_alignment_sd']:.3f}$"]
+                lines.append(' & '.join(cells) + r' \\')
+        lines.append(r'\midrule' if task != TASKS[-1] else r'\bottomrule')
     lines += [r'\end{tabular}', r'\end{table}']
     (output / 'frequency_id_ensemble_table.tex').write_text('\n'.join(lines) + '\n')
 
@@ -279,9 +282,8 @@ def main():
     band_table(summary_rows, args.output, high_only=True)
     band_table(summary_rows, args.output, high_only=False)
     ensemble_rows = read_rows(args.ensemble / 'ensemble_per_input.csv')
-    ensemble_table(ensemble_rows, args.ensemble)
-    for pde in ('poisson', 'darcy'):
-        radial_figure(radial_rows, pde, args.output, f'frequency_id_radial_{pde}')
+    ensemble_table(ensemble_rows, args.ensemble, args.output)
+    radial_figure(radial_rows, ('poisson', 'darcy'), args.output, 'frequency_id_radial')
     chance_figure(summary_rows, args.output, 'frequency_id_alignment')
     ensemble_figure(ensemble_rows, args.output, 'frequency_id_ensemble')
     manifest = dict(script_sha256=sha(Path(__file__)),
