@@ -465,8 +465,8 @@ def run_main(args):
         for task in TASKS:
             if args.cells and f'{pde}_{task}' not in args.cells:
                 continue
-            collections = [SELECTION[pde, task]]
-            if args.all_collections and SELECTION[pde, task] != 'MAIN1000_100_TEST_id':
+            collections = [SELECTION.get((pde, task), 'MAIN1000_100_TEST_id')]
+            if args.all_collections and collections[0] != 'MAIN1000_100_TEST_id':
                 collections.append('MAIN1000_100_TEST_id')
             for collection in collections:
                 root = Path(args.main_root) / collection / pde / task
