@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'plot'))
 from run_ns_loss_study import sha, write
-from spectral_diagnostics import radii, self_check, spectral_record
+from spectral_diagnostics import paired_bootstrap, radii, self_check, spectral_record
 
 MIN_REFERENCE_FRACTION = 1e-14
 REPORT_BANDS = (('dc', 0.0, 0.0), ('low', 0.0, 8.0), ('mid1', 8.0, 16.0), ('mid2', 16.0, 32.0),
@@ -410,43 +410,44 @@ def analyze_ensemble(torch, root, pde='poisson'):
 
 
 def validate_matched(torch, study, pde):
+    """Reproduce the published 8/32 tables: metrics averaged over seeds, then inputs."""
     protocol = json.loads((study / 'inputs_v2/protocol.json').read_text())
     ids, seeds = protocol['evaluation_ids'], protocol['seeds']
-    energy = defaultdict(lambda: defaultdict(float))
-    counts = defaultdict(int)
+    records = defaultdict(list)
     for sample in ids:
         for seed in seeds:
             tensor = torch.load(study / 'results_v3' / pde / 'fm' / 'n100' / f'seed{seed}' / f'sample{sample}'
                                 / 'prediction.pt', map_location='cpu', weights_only=False)
             record = spectral_record(tensor['prediction'][0, 0].double().numpy(),
                                      tensor['truth'][0, 0].double().numpy(), 'cosine', (8.0, 32.0))
+            total = sum(record['bands'][b]['reference_energy'] for b in ['dc', 'low', 'mid', 'high'])
             for band, values in record['bands'].items():
-                for key in ('reference_energy', 'prediction_energy', 'error_energy'):
-                    energy[sample][band, key] += values[key]
-        counts[sample] += len(seeds)
+                ratio = values['predicted_reference_energy_ratio']
+                records[sample, band].append(dict(
+                    reference_fraction=values['reference_energy'] / total,
+                    energy_ratio=ratio,
+                    alignment=(values['prediction_energy'] + values['reference_energy'] - values['error_energy'])
+                              / (2.0 * np.sqrt(values['prediction_energy'] * values['reference_energy']))
+                              if ratio is not None and values['prediction_energy'] > 0.0 else None))
     out = {}
     for band in ['dc', 'low', 'mid', 'high']:
-        ratios, alignments, fractions = [], [], []
-        for sample in ids:
-            total = sum(energy[sample][b, 'reference_energy'] / counts[sample]
-                        for b in ['dc', 'low', 'mid', 'high'])
-            tr = energy[sample][band, 'reference_energy'] / counts[sample]
-            pr = energy[sample][band, 'prediction_energy'] / counts[sample]
-            er = energy[sample][band, 'error_energy'] / counts[sample]
-            if tr <= total * MIN_REFERENCE_FRACTION:
+        summary = {}
+        for key in ('energy_ratio', 'alignment', 'reference_fraction'):
+            per_input = []
+            for sample in ids:
+                values = [r[key] for r in records[sample, band]]
+                if any(v is None for v in values):
+                    per_input = None
+                    break
+                per_input.append(float(np.mean(values)))
+            if not per_input:
+                summary[key] = dict(examples=0)
                 continue
-            ratios.append(pr / tr)
-            fractions.append(tr / total)
-            if pr > 0.0:
-                alignments.append((pr + tr - er) / (2.0 * np.sqrt(pr * tr)))
-        if not ratios:
-            out[band] = dict(examples=0)
-            continue
-        out[band] = dict(examples=len(ratios), energy_ratio_mean=float(np.mean(ratios)),
-                         energy_ratio_sd=float(np.std(ratios, ddof=1)) if len(ratios) > 1 else None,
-                         alignment_mean=float(np.mean(alignments)) if alignments else None,
-                         alignment_sd=float(np.std(alignments, ddof=1)) if len(alignments) > 1 else None,
-                         reference_fraction_mean=float(np.mean(fractions)))
+            interval = paired_bootstrap(np.asarray(per_input))
+            summary[key] = dict(examples=len(per_input), mean=float(np.mean(per_input)),
+                                sd=float(np.std(per_input, ddof=1)),
+                                ci_low=float(interval[0]), ci_high=float(interval[1]))
+        out[band] = summary
     return out
 
 
