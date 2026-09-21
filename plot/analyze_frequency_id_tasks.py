@@ -385,8 +385,8 @@ def analyze_ensemble(torch, root, pde='poisson'):
                         deterministic_share=retained / (retained + stochastic)
                         if retained is not None and retained + stochastic > 0.0 else None))
         for field in FIELDS:
-            prediction = np.concatenate(deterministic_rows[field][0])
-            reference = np.concatenate(deterministic_rows[field][1])
+            prediction = np.stack(deterministic_rows[field][0])
+            reference = np.stack(deterministic_rows[field][1])
             for name, mask in masks.items():
                 rows = [r for r in summaries if r['task'] == task and r['field'] == field and r['band'] == name]
                 entry = dict(pde=pde, task=task, field=field, band=name,
@@ -455,6 +455,7 @@ def validate_matched(torch, study, pde):
 
 def run_main(args):
     import torch
+    script_sha256 = sha(Path(__file__))
     torch.set_num_threads(args.threads)
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
@@ -485,11 +486,12 @@ def run_main(args):
     write_rows(output / 'main_band_summary.csv', summary)
     write_rows(output / 'main_radial.csv', radial)
     write_rows(output / 'main_spatial.csv', spatial)
-    return integrity
+    return integrity, script_sha256
 
 
 def run_ensemble(args):
     import torch
+    script_sha256 = sha(Path(__file__))
     torch.set_num_threads(args.threads)
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
@@ -498,7 +500,7 @@ def run_ensemble(args):
     write_rows(output / 'ensemble_band_summary.csv',
                [row for row in shell_rows if not row['band'].startswith('shell_K')])
     write_rows(output / 'ensemble_radial.csv', [row for row in shell_rows if row['band'].startswith('shell_K')])
-    return per_input
+    return per_input, script_sha256
 
 
 def main():
@@ -529,13 +531,17 @@ def main():
         return
     if args.mode == 'main':
         assert args.main_root and args.output
-        integrity = run_main(args)
-        write(args.output / 'main_integrity.json', dict(script_sha256=sha(Path(__file__)), cells=integrity))
+        integrity, script_sha256 = run_main(args)
+        write(args.output / 'main_integrity.json', dict(script_sha256=script_sha256, cells=integrity))
         return
     assert args.conditional_root and args.output
-    per_input = run_ensemble(args)
+    per_input, script_sha256 = run_ensemble(args)
+    try:
+        inputs = len({r['offset'] for r in per_input})
+    except (TypeError, KeyError):
+        inputs = None
     write(args.output / 'ensemble_manifest.json',
-          dict(script_sha256=sha(Path(__file__)), rows=len(per_input)))
+          dict(script_sha256=script_sha256, rows=len(per_input), inputs=inputs, max_draws=max(KS)))
 
 
 if __name__ == '__main__':
