@@ -31,6 +31,7 @@ LEGACY_BANDS = (('dc', 0.0, 0.0), ('low8', 0.0, 8.0), ('mid8', 8.0, 32.0), ('hig
 ALL_BANDS = REPORT_BANDS + LEGACY_BANDS[1:]
 TASKS = ('forward', 'inverse', 'both')
 FIELDS = ('coef', 'sol')
+METRIC_FIELD = {'coef': 'a', 'sol': 'u'}
 SELECTION = {('poisson', 'forward'): 'MAIN1000_100_TEST_id',
              ('poisson', 'inverse'): 'MAIN1000_100_TEST_id_tuned1',
              ('poisson', 'both'): 'MAIN1000_100_TEST_id',
@@ -231,7 +232,7 @@ def analyze_cell(torch, root, pde, task, collection, limit=None):
                 integrity['relative_error_max_abs_deviation'] = max(integrity['relative_error_max_abs_deviation'],
                                                                     abs(physical - full_error))
                 if sample_id in stored:
-                    assert abs(float(stored[sample_id][f'rel_l2_{field}']) - full_error) < 1e-4
+                    assert abs(float(stored[sample_id][f'rel_l2_{METRIC_FIELD[field]}']) - full_error) < 1e-4
                 shells[field].add(ref_power, pred_power, err_power, total)
                 for name, mask in masks.items():
                     record = band_record(ref_power, pred_power, err_power, total, mask)
