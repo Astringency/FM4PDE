@@ -346,8 +346,8 @@ def analyze_ensemble(torch, root, pde='poisson'):
                 assert np.allclose(prefix[KS[-1]], coefficients.mean(axis=0), rtol=0.0, atol=1e-9)
                 deterministic_rows[field][0].append(prefix[KS[-1]].reshape(-1).astype(np.float32))
                 deterministic_rows[field][1].append(reference.reshape(-1).astype(np.float32))
-                squared = coefficients ** 2
-                squared_error = (coefficients - reference) ** 2
+                squared = (coefficients ** 2).reshape(coefficients.shape[0], -1)
+                squared_error = ((coefficients - reference) ** 2).reshape(coefficients.shape[0], -1)
                 for k in KS:
                     for name, mask in masks.items():
                         record = band_record(ref_power, prefix[k] ** 2, (prefix[k] - reference) ** 2, total, mask)
@@ -361,13 +361,14 @@ def analyze_ensemble(torch, root, pde='poisson'):
                                                    minlength=n_shells)
                 for name, mask in masks.items():
                     index = np.flatnonzero(mask.ravel())
-                    draw_prediction = squared[:, index].sum(axis=1)
-                    draw_error = squared_error[:, index].sum(axis=1)
-                    valid = (draw_prediction > 0.0) & (total * MIN_REFERENCE_FRACTION < ref_power[index].sum())
-                    alignment = (draw_prediction[valid] + float(ref_power[index].sum()) - draw_error[valid]) \
-                        / (2.0 * np.sqrt(draw_prediction[valid] * float(ref_power[index].sum())))
                     deterministic = band_record(ref_power, prefix[KS[-1]] ** 2, (prefix[KS[-1]] - reference) ** 2,
                                                 total, mask)
+                    reference_energy = deterministic['reference_energy']
+                    draw_prediction = squared[:, index].sum(axis=1)
+                    draw_error = squared_error[:, index].sum(axis=1)
+                    valid = (draw_prediction > 0.0) & (reference_energy > total * MIN_REFERENCE_FRACTION)
+                    alignment = (draw_prediction[valid] + reference_energy - draw_error[valid]) \
+                        / (2.0 * np.sqrt(draw_prediction[valid] * reference_energy))
                     retained = deterministic.get('energy_ratio')
                     stochastic = max(float(draw_prediction.mean()) - deterministic['prediction_energy'], 0.0) / total
                     summaries.append(dict(
