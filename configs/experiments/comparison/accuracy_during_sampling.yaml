@@ -1,0 +1,11 @@
+paragraph: Accuracy during Sampling.
+engine: traces
+pdes:
+- poisson
+distribution: id
+tasks:
+- forward
+- inverse
+count: 100
+fm_steps: 100
+diffusion_steps: 1000

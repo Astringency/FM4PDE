@@ -319,7 +319,7 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
             affine = r.affine_coefficients(
                 r.scheduler_coefficients(t, scheduler="CondOT"), training="velocity"
             )
-            schedule = r.make_zeta_schedule(cfg, t, tn, affine.b_t)
+            schedule = r.make_zeta_schedule(cfg, t, tn, affine.b_t, step=step)
             if guided:
                 target = r._gradient_target_tensor(cfg, cur, out)
                 if losses.metadata.get("loss_batch_reduction") != "mean_of_per_sample":

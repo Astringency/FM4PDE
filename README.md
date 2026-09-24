@@ -1,254 +1,121 @@
 # Guided Flow Matching for Forward and Inverse PDE Problems with Sparse Observations: Algorithm and Theory
 
-Sparse observations of partial differential equations (PDEs) often leave
-input fields, solution fields, or both only partially known. We propose
-FM4PDE, a flow-matching method that learns a joint prior over these fields
-for each equation and uses the same prior for forward, inverse, and joint
-reconstruction. During inference, observation and PDE residuals guide
-sampling through predicted endpoints expressed in physical units.
-We develop deterministic, stochastic, and hybrid samplers with gradient
-clipping and establish finite-step bounds under local regularity and
-geometric assumptions, with explicit error floors. Experiments on static and time-dependent benchmark PDEs examine
-reconstruction accuracy and computational cost across the three tasks.
-The results show competitive reconstruction accuracy on several tasks
-and faster sampling than DiffusionPDE in controlled comparisons.
+FM4PDE learns a joint prior over PDE inputs and solutions, then uses sparse
+observations and physical residuals to guide forward, inverse, and joint
+reconstruction. This repository contains the experiments in the revised manuscript.
 
 ## Environment and data
 
-Run commands from the repository root in Bash on Linux or WSL.
-[environment.yml](environment.yml) specifies the `fm4pde` environment
-(Python 3.12 and PyTorch 2.8). Training and sampling examples use a CUDA GPU.
+Run from the repository root in Bash. Install [environment.yml](environment.yml)
+and keep datasets and trained checkpoints outside Git.
 
 ```bash
-conda env create --name fm4pde --file environment.yml
+conda env create -f environment.yml
 conda activate fm4pde
 export DATA_ROOT=/path/to/PDEdata
+export CHECKPOINT_ROOT=/path/to/pretrained
 export PYTHON_BIN=python
-```
-
-[data/DataGen/gen_pde.sh](data/DataGen/gen_pde.sh) is the unified data-generation
-entry for all eleven PDEs. It dispatches to these solvers:
-
-| PDEs | Generation code | Runtime |
-| --- | --- | --- |
-| Poisson, Helmholtz, Darcy, Burgers | [data/DataGen/static/](data/DataGen/static/) (`generate_poisson.m`, `generate_inhom_helmholtz.m`, `generate_darcy.m`, `gen_burgers1.m`) | MATLAB |
-| Navier–Stokes | [gen_nbns.py](data/DataGen/time_dependent/gen_nbns.py) | Python / PyTorch |
-| Heat, Wave, Advection–Diffusion, Steady Heat Conduction | [generate_pair_h5s.py](data/DataGen/python/generate_pair_h5s.py) | Python |
-| Reaction–Diffusion, Shallow Water | [gen_rd.py](data/DataGen/time_dependent/gen_rd.py), [gen_swe.py](data/DataGen/time_dependent/gen_swe.py) | Python; Shallow Water uses Clawpack/PyClaw |
-
-```bash
-# Preview generation for every PDE without running a solver.
 PDE=all DRY_RUN=true OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
-
-# Generate Poisson training and all five test distributions (requires MATLAB).
 PDE=poisson TYPE=all OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
-
-# Generate the two extra rough test sets for these five PDEs, 1,000 samples each.
-for dataset_type in rough2 rough3; do
-  PDE="poisson helmholtz darcy nsnonbounded burger" TYPE="$dataset_type" \
-    OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
-done
-
-# Generate only the Heat and Wave training sets.
-PDE="heat wave" TYPE=train OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
 ```
 
-The defaults are five training shards of 10,000 samples each, 10,000 test samples
-for each of ID/Smooth/Rough, and resolution 128. Poisson, Helmholtz, Darcy,
-Navier–Stokes, and Burgers also support `rough2` and `rough3`, with **1,000 samples
-per new test type**. Set `TEST_SAMPLES` to override the count for every selected
-test type. `TYPE=all` includes all supported types for each PDE; requesting
-`rough2` or `rough3` explicitly for other PDEs fails before generation starts.
-Existing files are skipped unless `OVERWRITE=true`.
-Set `OUT_ROOT="$DATA_ROOT"` explicitly for generation.
-[configs/training_data.yaml](configs/training_data.yaml) lists the resulting
-training files; [configs/main](configs/main) contains test-data paths.
-Datasets and trained weights are stored separately from the code.
-
-The five PDEs use the following extra rough GRF settings (`alpha` is called
-`gamma` in Burgers):
-
-| Test type | alpha | tau | Default samples via `gen_pde.sh` | Seed offset |
-| --- | --- | --- | --- | --- |
-| `rough` | 1.5 | 5 | 10,000 | 30,000,000 |
-| `rough2` | 1.2 | 12 | 1,000 | 40,000,000 |
-| `rough3` | 1.05 | 24 | 1,000 | 50,000,000 |
-
-Lower alpha slows spectral decay; larger tau increases relative small-scale
-power. Both changes create wider separation than a small alpha-only adjustment.
-They apply to the source in Poisson/Helmholtz, the latent coefficient field in
-Darcy (the thresholded coefficient still takes values 4 and 12), the initial
-vorticity in Navier–Stokes, and the initial velocity in Burgers. Field variance
-is not held fixed, so these are distribution shifts in both spectrum and
-potential amplitude, rather than a fixed-variance smoothness sweep.
-
-Files keep the existing schema and record the actual GRF parameters. New test
-filenames end in `_rough2.mat` or `_rough3.mat`, for example
-`poisson/poisson_test_1000-128-128_rough2.mat` and
-`nsnonbounded/nsnonbounded_test_1000-128-128-10_rough3.mat`.
-The MATLAB profiles live in
-[get_generation_profile.m](data/DataGen/static/get_generation_profile.m);
-the Python profiles live in
-[generation_profiles.py](data/DataGen/generation_profiles.py).
-The existing sampling configs still select ID/Smooth/Rough.
+[data/DataGen](data/DataGen) contains all eleven PDE generators. Static equations
+and Burgers require MATLAB; Burgers also requires Chebfun, and shallow water uses
+PyClaw. Defaults: five training shards of 10,000 samples; ID/Smooth/Rough test
+sets of 10,000; Rough2/Rough3 sets of 1,000 for the five main PDEs.
+[configs/training_data.yaml](configs/training_data.yaml) lists training inputs.
+`CHECKPOINT_<PDE>` overrides an individual checkpoint, e.g. `CHECKPOINT_POISSON`.
+Otherwise `CHECKPOINT_ROOT` replaces the `outputs/pretrained` prefix in the configs.
 
 ## Training
 
-`main(args)` in [train.py](train.py) manages data loading, normalization, model
-setup, and checkpoints. `train_one_epoch()` and `validate_one_epoch()` in
-[training/train_loop.py](training/train_loop.py) implement training and validation.
+[configs/training.yaml](configs/training.yaml) records the appendix schedules,
+scalar conditioning, and batch sizes: 45,000 training / 5,000 validation samples,
+300 epochs, effective batch 64 on two GPUs.
 
 ```bash
-# Train Poisson directly on one GPU.
-python train.py --dataset poisson --data_path "$DATA_ROOT/" \
-  --train_data_config configs/training_data.yaml --data_size 5 \
-  --epochs 300 --batch_size 4 --accum_iter 16 \
-  --lr 0.0001 --lr_scheduler warmup_cosine \
-  --model_profile recommended --device cuda \
-  --output_dir outputs/pretrained/formal/poisson
-
-# Preview or run the Bash launcher.
-PDE=poisson DRY_RUN=true bash scripts/training/run_train.sh
-PDE=poisson bash scripts/training/run_train.sh
-PDE_LIST="poisson nsnonbounded" NPROC_PER_NODE=2 \
-  bash scripts/training/run_train.sh
-PDE=poisson RESUME=/path/to/checkpoint.pth bash scripts/training/run_train.sh
+bash scripts/train/poisson.sh --plan-only
+bash scripts/train/poisson.sh
+bash scripts/train/run_train.sh --pdes poisson helmholtz darcy nsnonbounded burger
 ```
 
-[scripts/training/run_train.sh](scripts/training/run_train.sh) defaults to all
-eleven PDEs, 300 epochs, and an effective batch size of 64, with gradient
-accumulation and distributed training. Navier–Stokes uses the 44M light model;
-select `--model_profile light` when launching it directly.
-
-Export an inference checkpoint and select it for sampling:
-
-```bash
-python scripts/training/export_checkpoint.py \
-  /path/to/training-checkpoint.pth /path/to/fm4poisson.pth
-export CHECKPOINT_POISSON=/path/to/fm4poisson.pth
-```
+One launcher per PDE is available in [scripts/train](scripts/train).
+`--nproc` changes the GPU count while preserving effective batch 64.
 
 ## Main Sampling
 
-[sample.py](sample.py) calls `main()` in [sampling/runner.py](sampling/runner.py).
-Its `run_single_ablation()` handles both main sampling and ablations.
-Main profiles are stored as `configs/main/<task>/<pde>.yaml`.
-
-`forward` observes the input field and reconstructs the solution; `inverse`
-observes the solution and reconstructs the input; `both` reconstructs both
-fields. Burgers uses `both` for trajectory reconstruction.
-
-Sampling profiles use `DATA_ROOT` in place of `datasets/`. Set
-`CHECKPOINT_<PDE>` to each weight filename, or use `CHECKPOINT_ROOT` to replace
-`outputs/pretrained/` while preserving the remaining subdirectories.
-`--override checkpoint_path=...` takes precedence.
+Each script runs the FM4PDE portion of one manuscript paragraph. Configs in
+[configs/main](configs/main) specify the 31 PDE/task profiles;
+[configs/experiments/comparison](configs/experiments/comparison) specifies the
+cases and protocols. Baseline execution is documented in the sibling repositories.
 
 ```bash
-# Sparse forward, inverse, and joint reconstruction.
-python sample.py --config configs/main/forward/poisson.yaml \
-  --override num_steps=100 --override num_obs=500 \
-  --override output_dir=outputs/examples/forward
-python sample.py --config configs/main/inverse/poisson.yaml \
-  --override test_type=smooth --override output_dir=outputs/examples/inverse
-python -m sampling.runner --config configs/main/both/poisson.yaml \
-  --override batch_size=4 --override output_dir=outputs/examples/joint
-
-# One run, a complete main sweep, or a selected subset.
-PDE=poisson TASK=both TEST_TYPE=id bash scripts/sampling/main/run_sample.sh
-PLAN_ONLY=true bash scripts/sampling/main/run.sh
-DEVICE_LIST="cuda:0 cuda:1" bash scripts/sampling/main/run.sh
-PDE_LIST="poisson helmholtz" TASK_LIST="forward inverse both" \
-  TEST_TYPE=smooth NUM_SAMPLES=100 MAX_BATCH_SIZE=10 \
-  OUTPUT_DIR=outputs/main_subset bash scripts/sampling/main/run_sample_sweep.sh
-bash scripts/sampling/main/run_sample_sweep_burger.sh
+bash scripts/sample/comparison/sparse_forward_inverse.sh --plan-only
+bash scripts/sample/comparison/sparse_forward_inverse.sh --device cuda:0
+bash scripts/sample/comparison/burgers_trajectory.sh --device cuda:0
 ```
 
-For full-field observation on a 128 × 128 grid, set `--override num_obs=16384`.
-For Burgers, use `configs/main/both/burger.yaml` with `sensor_mode=random`
-or `sensor_column`.
+| Paragraph | Script in `scripts/sample/comparison/` |
+| --- | --- |
+| Sparse forward/inverse reconstruction | `sparse_forward_inverse.sh` |
+| Physics-based comparison, Smooth | `physics_based.sh` |
+| Burgers random points / five time levels | `burgers_trajectory.sh` |
+| Accuracy during sampling | `accuracy_during_sampling.sh` |
+| Sampling time | `sampling_time.sh` |
+| Reconstruction and physical consistency | `physical_consistency.sh` |
 
-The complete main sweep covers full-field forward/inverse and three sparse
-tasks for Poisson, Helmholtz, Darcy, and Navier–Stokes, plus two Burgers layouts,
-on ID/Smooth/Rough. Defaults are 1,000 inputs and 100 steps per comparison.
-`OUTPUT_ROOT` changes `outputs/main`; `TEST_TYPE_LIST` selects distributions.
-Matching completed jobs can be resumed.
-
-Replay a saved aligned comparison with its original inputs and masks:
-
-```bash
-STUDY_ROOT=/path/to/saved_aligned_study \
-CELL=supervised/poisson/id/sparse_joint \
-OUTPUT_ROOT=outputs/reproductions/aligned \
-  bash scripts/sampling/main/run_matched_cell.sh
-```
-
-This entry uses [experiments/aligned_sampling](experiments/aligned_sampling)
-and runs a batch-consistency pilot before sampling. It requires the saved
-`protocol.json`, input tensors, masks, and weights.
+Comparisons use 100 realizations per setting; timing uses 20. Random observations
+use 500 values per active field; Burgers structured observations use 640 values
+at five complete time levels. Physical consistency includes reference re-solving;
+set `MATLAB_BIN` and `CHEBFUN_ROOT` for Burgers. Timing and error traces require
+`DIFFUSION_ROOT` and `DIFFUSION_CHECKPOINT_ROOT` (or `DIFFUSION_CHECKPOINT_<PDE>`).
 
 ## Ablations
 
-[sampling/sweep.py](sampling/sweep.py) expands
-[configs/ablations/paper.yaml](configs/ablations/paper.yaml) and calls the shared
-sampling runner. The separate [base profiles](configs/ablations/base) preserve
-ablation guidance weights and gradient limits; datasets default to ID.
+Each file in [scripts/sample/ablations](scripts/sample/ablations) runs a complete
+paragraph using its matching [experiment manifest](configs/experiments/ablations).
+
+| Paragraph | Script name |
+| --- | --- |
+| Velocity architecture: U-Net / OFM | `velocity_architecture.sh` |
+| Time grids | `time_grid.sh` |
+| Observation and PDE guidance | `observation_pde_guidance.sh` |
+| Guidance evaluation state | `guidance_evaluation_state.sh` |
+| Deterministic, stochastic, and hybrid phases | `sampling_phases.sh` |
+| Switching time | `switching_time.sh` |
+| Sampling steps | `sampling_steps.sh` |
+| Observation density | `observation_density.sh` |
+| Observation noise | `noise_level.sh` |
+| Temporal residuals and true-endpoint diagnostics | `temporal_residuals.sh` |
+| Observation layouts | `observation_layouts.sh` |
+| Conditional averaging | `conditional_averaging.sh` |
+| Additional PDE families | `additional_pde_families.sh` |
 
 ```bash
-# Inspect the Python sweep; omit --list to run it.
-python -m sampling.sweep --grid configs/ablations/paper.yaml \
-  --pde poisson --group sampler_phase --list
-
-PLAN_ONLY=true bash scripts/sampling/ablations/run.sh
-PDE_LIST="poisson nsnonbounded" \
-  bash scripts/sampling/ablations/run.sh guidance_components sampler_phase
-PDE_LIST=poisson PARALLEL=true DEVICE_LIST="cuda:0 cuda:1" \
-  bash scripts/sampling/ablations/run.sh num_steps_by_sampler sensor_sparsity
+bash scripts/sample/ablations/time_grid.sh --device cuda:0
+bash scripts/sample/ablations/temporal_residuals.sh --pdes heat wave --plan-only
 ```
 
-Other groups are `loss_state_by_sampler`, `sensor_mode`, `noise_robustness`,
-`temporal_residual_mode`, and `statistics_stability`. `BATCH_SIZE` controls
-inputs per job (default: 1); `OFFSET` selects the starting input.
-
-[scripts/sampling/ablations/run_study.sh](scripts/sampling/ablations/run_study.sh)
-exposes repeated draws (`ensemble`), guidance trajectories (`guidance`),
-conditional averaging (`averaging`), observation layouts (`layouts`),
-guidance-weight sweeps (`weights`), and unconditional samples (`prior`):
-
-```bash
-bash scripts/sampling/ablations/run_study.sh averaging --help
-bash scripts/sampling/ablations/run_study.sh ensemble \
-  --pdes nsnonbounded --inputs /path/to/prepared_inputs \
-  --output /path/to/ensemble_results --checkpoint /path/to/fm4nsnonbounded.pth
-
-# Error–time trajectories from an already prepared study.
-DIFFUSION_ROOT=/path/to/DiffusionPDE \
-  bash scripts/sampling/ablations/run_traces.sh run --root /path/to/trace_study
-bash scripts/sampling/ablations/run_traces.sh plot \
-  --root /path/to/trace_study --output /path/to/figures
-```
-
-Repeated studies require prepared inputs and selected settings (`selection.json`
-for `ensemble`; `--anchors` for `weights`). Ensemble, guidance, and weight studies
-read model defaults from `configs/ablations/base/both/<pde>.yaml`; use
-`--checkpoint` or `--model-profile` to override them. See [plot/README.md](plot/README.md)
-for preparation and figure tools, and `run_traces.sh prepare --help` for
-trajectory input preparation.
+Common options: `--pdes`, `--device`, `--output`, `--limit` (development subset),
+`--override key=value`. Standard sampling and conditional averaging resume only
+when saved identities match; other diagnostics rerun the selected group.
+Architecture comparison also needs the sibling `FunDPS_DDIS_ECI_OFM` checkout,
+`OFM_DATA_ROOT` (compact data) and `OFM_CHECKPOINT_ROOT` (`<pde>/best.pt`).
+[configs/ofm_guidance.yaml](configs/ofm_guidance.yaml) contains its shared weights.
 
 ## Baseline and other info
 
-- [RecFNO and other baselines](https://github.com/Astringency/FM4PDEbaseline.git):
-  FNO, DeepONet, iFNO, RecFNO, Senseiver, VoronoiCNN, PINN-Sparse, PDE-Opt,
-  PC-BNN, 4D-Var, and VIVID.
-- [DiffusionPDE experiments](https://github.com/Astringency/DiffusionPDE.git).
-- [CoCoGen experiments](https://github.com/Astringency/CoCoGen.git).
+Sibling repositories: `FM4PDEbaseline`, `CoCoGen`, `DiffusionPDE`, and
+`FunDPS_DDIS_ECI_OFM`; each README lists methods, upstream sources, and examples.
 
-Keep `experiments/`: the matched main-study launcher requires `aligned_sampling/`,
-and the FM4PDE/DiffusionPDE error–time launcher requires `trajectories/`.
-
-Validate all sampling profiles and ablation combinations without sampling:
+| Directory | Contents |
+| --- | --- |
+| `configs`, `data` | Paper settings, loaders, normalization, and generators |
+| `flow_matching`, `models`, `torchdiffeq`, `training` | Flow objectives, networks, ODE solvers, and training |
+| `sampling`, `experiments` | Guided samplers, paragraph runners, and paired diagnostics |
+| `plot` | Figure renderers and support for saved manuscript results |
+| `scripts` | Training and paragraph-level experiment launchers |
 
 ```bash
 python -m sampling.validate_configs
-# Also require the configured datasets and weights to exist locally.
-python -m sampling.validate_configs --check-assets
 ```

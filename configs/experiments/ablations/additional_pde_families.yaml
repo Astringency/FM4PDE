@@ -1,0 +1,1156 @@
+paragraph: Sparse Reconstruction across Additional PDE Families.
+engine: sampling
+jobs:
+- id: reaction_diffusion_forward_0000
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: reaction_diffusion_forward_0004
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: reaction_diffusion_forward_0008
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: reaction_diffusion_forward_0012
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: reaction_diffusion_forward_0016
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: reaction_diffusion_forward_0020
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: reaction_diffusion_forward_0024
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: reaction_diffusion_forward_0028
+  pde: reaction_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: reaction_diffusion_inverse_0000
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: reaction_diffusion_inverse_0004
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: reaction_diffusion_inverse_0008
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: reaction_diffusion_inverse_0012
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: reaction_diffusion_inverse_0016
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: reaction_diffusion_inverse_0020
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: reaction_diffusion_inverse_0024
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: reaction_diffusion_inverse_0028
+  pde: reaction_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: reaction_diffusion_both_0000
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: reaction_diffusion_both_0004
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: reaction_diffusion_both_0008
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: reaction_diffusion_both_0012
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: reaction_diffusion_both_0016
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: reaction_diffusion_both_0020
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: reaction_diffusion_both_0024
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: reaction_diffusion_both_0028
+  pde: reaction_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: shallow_water_forward_0000
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: shallow_water_forward_0004
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: shallow_water_forward_0008
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: shallow_water_forward_0012
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: shallow_water_forward_0016
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: shallow_water_forward_0020
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: shallow_water_forward_0024
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: shallow_water_forward_0028
+  pde: shallow_water
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: shallow_water_inverse_0000
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: shallow_water_inverse_0004
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: shallow_water_inverse_0008
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: shallow_water_inverse_0012
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: shallow_water_inverse_0016
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: shallow_water_inverse_0020
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: shallow_water_inverse_0024
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: shallow_water_inverse_0028
+  pde: shallow_water
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: shallow_water_both_0000
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: shallow_water_both_0004
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: shallow_water_both_0008
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: shallow_water_both_0012
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: shallow_water_both_0016
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: shallow_water_both_0020
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: shallow_water_both_0024
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: shallow_water_both_0028
+  pde: shallow_water
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: heat_forward_0000
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: heat_forward_0004
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: heat_forward_0008
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: heat_forward_0012
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: heat_forward_0016
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: heat_forward_0020
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: heat_forward_0024
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: heat_forward_0028
+  pde: heat
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: heat_inverse_0000
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: heat_inverse_0004
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: heat_inverse_0008
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: heat_inverse_0012
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: heat_inverse_0016
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: heat_inverse_0020
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: heat_inverse_0024
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: heat_inverse_0028
+  pde: heat
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: heat_both_0000
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: heat_both_0004
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: heat_both_0008
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: heat_both_0012
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: heat_both_0016
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: heat_both_0020
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: heat_both_0024
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: heat_both_0028
+  pde: heat
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: wave_forward_0000
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: wave_forward_0004
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: wave_forward_0008
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: wave_forward_0012
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: wave_forward_0016
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: wave_forward_0020
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: wave_forward_0024
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: wave_forward_0028
+  pde: wave
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: wave_inverse_0000
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: wave_inverse_0004
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: wave_inverse_0008
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: wave_inverse_0012
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: wave_inverse_0016
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: wave_inverse_0020
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: wave_inverse_0024
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: wave_inverse_0028
+  pde: wave
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: wave_both_0000
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: wave_both_0004
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: wave_both_0008
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: wave_both_0012
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: wave_both_0016
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: wave_both_0020
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: wave_both_0024
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: wave_both_0028
+  pde: wave
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: advection_diffusion_forward_0000
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: advection_diffusion_forward_0004
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: advection_diffusion_forward_0008
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: advection_diffusion_forward_0012
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: advection_diffusion_forward_0016
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: advection_diffusion_forward_0020
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: advection_diffusion_forward_0024
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: advection_diffusion_forward_0028
+  pde: advection_diffusion
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: advection_diffusion_inverse_0000
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: advection_diffusion_inverse_0004
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: advection_diffusion_inverse_0008
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: advection_diffusion_inverse_0012
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: advection_diffusion_inverse_0016
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: advection_diffusion_inverse_0020
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: advection_diffusion_inverse_0024
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: advection_diffusion_inverse_0028
+  pde: advection_diffusion
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: advection_diffusion_both_0000
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: advection_diffusion_both_0004
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: advection_diffusion_both_0008
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: advection_diffusion_both_0012
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: advection_diffusion_both_0016
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: advection_diffusion_both_0020
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: advection_diffusion_both_0024
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: advection_diffusion_both_0028
+  pde: advection_diffusion
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: steady_heat_conduction_forward_0000
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: steady_heat_conduction_forward_0004
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: steady_heat_conduction_forward_0008
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: steady_heat_conduction_forward_0012
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: steady_heat_conduction_forward_0016
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: steady_heat_conduction_forward_0020
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: steady_heat_conduction_forward_0024
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: steady_heat_conduction_forward_0028
+  pde: steady_heat_conduction
+  task: forward
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: steady_heat_conduction_inverse_0000
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: steady_heat_conduction_inverse_0004
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: steady_heat_conduction_inverse_0008
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: steady_heat_conduction_inverse_0012
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: steady_heat_conduction_inverse_0016
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: steady_heat_conduction_inverse_0020
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: steady_heat_conduction_inverse_0024
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: steady_heat_conduction_inverse_0028
+  pde: steady_heat_conduction
+  task: inverse
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: steady_heat_conduction_both_0000
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: steady_heat_conduction_both_0004
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: steady_heat_conduction_both_0008
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: steady_heat_conduction_both_0012
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: steady_heat_conduction_both_0016
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: steady_heat_conduction_both_0020
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: steady_heat_conduction_both_0024
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: steady_heat_conduction_both_0028
+  pde: steady_heat_conduction
+  task: both
+  overrides:
+    batch_size: 4
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+postprocess: summary

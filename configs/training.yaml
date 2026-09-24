@@ -1,0 +1,146 @@
+world_size: 2
+effective_batch_size: 64
+optimizer:
+  name: AdamW
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+  weight_decay: 0.01
+pdes:
+  poisson:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.00068335
+    min_lr: 7.8531e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 0
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+  helmholtz:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.0001
+    min_lr: 1.0e-08
+    lr_scheduler: linear
+    warmup_epochs: 0
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+  darcy:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.0001
+    min_lr: 1.0e-08
+    lr_scheduler: linear
+    warmup_epochs: 0
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+  nsnonbounded:
+    epochs: 300
+    batch_size: 32
+    accum_iter: 1
+    lr: 0.0001
+    min_lr: 1.0e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 5
+    sampling_dtype: bfloat16
+    model_profile: light
+    data_size: 5
+  burger:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.0001
+    min_lr: 1.0e-08
+    lr_scheduler: linear
+    warmup_epochs: 0
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+  reaction_diffusion:
+    epochs: 300
+    batch_size: 2
+    accum_iter: 16
+    lr: 0.0001
+    min_lr: 1.0e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 5
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+    scalar_conditioning_params:
+    - T
+    - D_u
+    - D_v
+    - k
+  shallow_water:
+    epochs: 300
+    batch_size: 2
+    accum_iter: 16
+    lr: 0.0001
+    min_lr: 1.0e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 5
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+  heat:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.0001
+    min_lr: 1.0e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 5
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+    scalar_conditioning_params:
+    - alpha
+    - T
+  wave:
+    epochs: 300
+    batch_size: 2
+    accum_iter: 16
+    lr: 0.0001
+    min_lr: 1.0e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 5
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+    scalar_conditioning_params:
+    - c
+  advection_diffusion:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.0001
+    min_lr: 1.0e-06
+    lr_scheduler: warmup_cosine
+    warmup_epochs: 5
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5
+    scalar_conditioning_params:
+    - b_x
+    - b_y
+    - kappa
+    - T
+  steady_heat_conduction:
+    epochs: 300
+    batch_size: 4
+    accum_iter: 8
+    lr: 0.0001
+    min_lr: 1.0e-08
+    lr_scheduler: linear
+    warmup_epochs: 0
+    sampling_dtype: float32
+    model_profile: recommended
+    data_size: 5

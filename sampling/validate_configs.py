@@ -2,9 +2,10 @@
 import argparse
 from collections import Counter
 from pathlib import Path
+from argparse import Namespace
 
 from sampling.config import VALID_PDES, load_config, load_yaml_file
-from sampling.sweep import expand_grid
+from experiments.paper.run import resolved_jobs
 
 
 def validate(root, check_assets=False):
@@ -12,14 +13,16 @@ def validate(root, check_assets=False):
                 for task in (['both'] if pde == 'burger' else ['forward','inverse','both'])}
     missing_assets = set()
     counts = {}
-    for folder in ['configs/main', 'configs/ablations/base']:
+    for folder in ['configs/main']:
         found = set()
         checkpoints = {}
         for path in sorted((root/folder).rglob('*.yaml')):
             cfg = load_config(path)
             assert path.stem == cfg.pde and path.parent.name == cfg.task, path
             found.add((cfg.pde, cfg.task))
-            assert set(cfg.data_paths) == {'id', 'smooth', 'rough'}, path
+            assert {'id', 'smooth', 'rough'} <= set(cfg.data_paths), path
+            assert cfg.pde_guidance_clock == 'step_fraction', path
+            assert cfg.hermite_include_integral_residual is False, path
             assert cfg.checkpoint_path, path
             checkpoints.setdefault(cfg.pde, set()).add(cfg.checkpoint_path)
             assert cfg.allow_synthetic_data is False, path
@@ -32,9 +35,17 @@ def validate(root, check_assets=False):
         assert all(len(paths) == 1 for paths in checkpoints.values()), checkpoints
         counts[folder] = len(found)
     grid_counts = Counter()
-    for path, overrides in expand_grid(str(root/'configs/ablations/paper.yaml')):
-        cfg = load_config(path, overrides)
-        grid_counts[cfg.ablation_group] += 1
+    args = Namespace(pdes=None, limit=None, override=[], device='cpu', output=Path('/tmp/fm4pde-config-validation'))
+    for path in (root/'configs/experiments').rglob('*.yaml'):
+        spec = load_yaml_file(path)
+        assert (root/'scripts/sample'/path.parent.name/(path.stem+'.sh')).is_file(), path
+        if spec['engine'] == 'sampling':
+            for job, cfg in resolved_jobs(spec, args):
+                grid_counts[path.stem] += 1
+                if check_assets:
+                    missing_assets.update(p for p in [cfg.checkpoint_path,cfg.data_path] if not Path(p).is_file())
+        else:
+            assert spec['engine'] in {'averaging','architecture','timing','traces'}, path
     training = load_yaml_file(root/'configs/training_data.yaml')['train_files']
     assert set(training) == VALID_PDES
     assert all(len(paths) == 5 and len(set(paths)) == 5 for paths in training.values())

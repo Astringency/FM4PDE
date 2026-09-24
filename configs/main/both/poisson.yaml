@@ -6,6 +6,8 @@ data_paths:
   id: datasets/poisson/poisson_test_10000-128-128_id.mat
   smooth: datasets/poisson/poisson_test_10000-128-128_smooth.mat
   rough: datasets/poisson/poisson_test_10000-128-128_rough.mat
+  rough2: datasets/poisson/poisson_test_1000-128-128_rough2.mat
+  rough3: datasets/poisson/poisson_test_1000-128-128_rough3.mat
 loadby: scipy
 coef_name: f_data
 solution_name: phi_data
@@ -32,7 +34,7 @@ deterministic_numerical_guard: true
 switch_ratio: 0.5
 guidance_schedule: constant
 clip_mode: global_norm
-clip_threshold: 10000000000.0
+clip_threshold: 50.0
 pde_residual_region: full
 residual_mode: auto
 enforce_boundary_conditions: true
@@ -58,3 +60,5 @@ dtype: float32
 zeta_obs_a: 50000.0
 zeta_obs_u: 90000000.0
 zeta_pde: 0.1
+pde_guidance_clock: step_fraction
+hermite_include_integral_residual: false

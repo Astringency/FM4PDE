@@ -58,7 +58,7 @@ VALID_PDE_REGIONS = {
     "sol_obs",
     "active_obs_union",
 }
-VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random"}
+VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random", "time_slices"}
 VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
 VALID_STEP_METHODS = {"euler", "midpoint"}
 VALID_DETERMINISTIC_ENDPOINT_MODES = {"single_step", "rollout"}
@@ -147,6 +147,7 @@ class AblationConfig:
     zeta_obs_a: float = 1.0
     zeta_obs_u: float = 1.0
     zeta_pde: float = 1.0
+    pde_guidance_clock: str = "flow_time"
     pde_guidance_start_ratio: float = 0.8
     pde_guidance_ramp_ratio: float = 0.0
     stochastic_guidance_coeff: float = 0.1
@@ -170,7 +171,7 @@ class AblationConfig:
     allow_unknown_boundary_conditions: bool = False
     hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
     hermite_num_collocation: int = 0
-    hermite_include_integral_residual: bool = True
+    hermite_include_integral_residual: bool = False
     hermite_integral_weight: float = 1.0
     data_path: str = ""
     data_paths: dict[str, str] = field(default_factory=dict)
@@ -239,6 +240,8 @@ class AblationConfig:
             raise ValueError("coef_positive_floor must be positive")
         if not 0.0 <= self.switch_ratio <= 1.0:
             raise ValueError("switch_ratio must be in [0, 1]")
+        if self.pde_guidance_clock not in {"flow_time", "step_fraction"}:
+            raise ValueError("Unknown pde_guidance_clock")
         if not 0.0 <= self.pde_guidance_start_ratio <= 1.0:
             raise ValueError("pde_guidance_start_ratio must be in [0, 1]")
         if not 0.0 <= self.pde_guidance_ramp_ratio <= 1.0:
@@ -271,7 +274,9 @@ class AblationConfig:
             raise ValueError("batch_size must be positive")
         if self.num_obs < 0:
             raise ValueError("num_obs must be non-negative")
-        if self.sensor_mode == "sensor_column":
+        if self.sensor_mode == "time_slices" and self.pde != "burger":
+            raise ValueError("time_slices is defined for Burgers [B,C,T,X] trajectories")
+        if self.sensor_mode in {"sensor_column", "time_slices"}:
             if self.num_sensor_columns is None or int(self.num_sensor_columns) <= 0:
                 raise ValueError(
                     "sensor_mode='sensor_column' requires an explicit positive num_sensor_columns"
@@ -451,7 +456,7 @@ class AblationConfig:
         return base
 
     def _sensor_budget(self) -> int:
-        if self.sensor_mode == "sensor_column":
+        if self.sensor_mode in {"sensor_column", "time_slices"}:
             return int(self.num_sensor_columns or 0)
         return int(self.num_obs)
 

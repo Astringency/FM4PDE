@@ -29,7 +29,7 @@ def make_mask(
     if target.type == "cuda" and not torch.cuda.is_available():
         target = torch.device("cpu")
     mask = torch.zeros((b, c, h, w), dtype=dtype, device=target)
-    if mode != "sensor_column" and num_obs <= 0:
+    if mode not in {"sensor_column", "time_slices"} and num_obs <= 0:
         return mask
     spatial_count = h * w
     k = min(int(num_obs), spatial_count)
@@ -59,6 +59,13 @@ def make_mask(
             )
         idx = torch.randperm(w, generator=gen)[:columns]
         mask[:, :, :, idx] = 1
+    elif mode == "time_slices":
+        # Burgers tensors use [batch, channel, physical time, space].
+        if num_sensor_columns is None or not 0 < int(num_sensor_columns) <= h:
+            raise ValueError("time_slices requires 1..height complete physical-time levels")
+        for batch in range(b):
+            idx = torch.randperm(h, generator=gen)[:int(num_sensor_columns)]
+            mask[batch, :, idx, :] = 1
     else:
         raise ValueError(f"Unknown sensor mode: {mode}")
     return mask
@@ -95,6 +102,10 @@ def make_pair_masks(
             sol_norm, num_obs, mode, seed + 1, device, dtype,
             num_sensor_columns=num_sensor_columns,
         )
+        if mode == "grid" and coef_norm[-2:] == sol_norm[-2:]:
+            # A separate regular layout must be shifted: grid masks ignore RNG seeds.
+            import torch
+            sol_mask = torch.roll(sol_mask, shifts=(1, 1), dims=(-2, -1))
     return PairMasks(
         coef=coef_mask,
         sol=sol_mask,

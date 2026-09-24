@@ -58,6 +58,14 @@ def pde_residual_norm_per_sample(
         numerator = (residual_flat.square() * mask_flat).sum(dim=1)
         denominator = mask_flat.sum(dim=1).clamp_min(eps)
         values = (numerator / denominator).sqrt()
+    if residual.dtype != torch.float64 and not bool(torch.isfinite(values).all().detach().cpu()):
+        wide = residual_flat.double()
+        if mask is None:
+            values = wide.square().mean(dim=1).sqrt()
+        else:
+            weights = mask_flat.double()
+            numerator = (wide.square() * weights).sum(dim=1)
+            values = (numerator / weights.sum(dim=1).clamp_min(eps)).sqrt()
     return [float(value) for value in values.detach().cpu().tolist()]
 
 

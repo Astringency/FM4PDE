@@ -6,6 +6,8 @@ data_paths:
   id: datasets/helmholtz/helmholtz_test_10000-128-128_id.mat
   smooth: datasets/helmholtz/helmholtz_test_10000-128-128_smooth.mat
   rough: datasets/helmholtz/helmholtz_test_10000-128-128_rough.mat
+  rough2: datasets/helmholtz/helmholtz_test_1000-128-128_rough2.mat
+  rough3: datasets/helmholtz/helmholtz_test_1000-128-128_rough3.mat
 loadby: scipy
 coef_name: f_data
 solution_name: psi_data
@@ -59,3 +61,5 @@ zeta_obs_a: 25000.0
 zeta_obs_u: 100000000.0
 zeta_pde: 0.1
 k: 1
+pde_guidance_clock: step_fraction
+hermite_include_integral_residual: false

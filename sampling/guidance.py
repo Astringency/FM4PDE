@@ -30,7 +30,7 @@ class GuidanceGradient:
     metadata: dict[str, Any]
 
 
-def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSchedule:
+def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any, *, step: int | None = None) -> GuidanceSchedule:
     import torch
 
     flags = guidance_component_flags(config.guidance_components, getattr(config, "task", "both"))
@@ -63,7 +63,13 @@ def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSch
             factor = factor * float(config.obs_decay)
     else:
         raise ValueError(f"Unknown guidance_schedule={schedule!r}")
-    pde_factor = _pde_guidance_factor(config, t)
+    clock = getattr(config, "pde_guidance_clock", "flow_time")
+    pde_progress = t
+    if clock == "step_fraction":
+        if step is None:
+            raise ValueError("step_fraction PDE gate requires a global step index")
+        pde_progress = torch.full_like(t, step / config.num_steps)
+    pde_factor = _pde_guidance_factor(config, pde_progress)
     return GuidanceSchedule(
         zeta_obs_a_t=zeta_a * factor,
         zeta_obs_u_t=zeta_u * factor,
@@ -73,6 +79,8 @@ def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSch
             "guidance_schedule": schedule,
             "factor": _scalar(factor),
             "pde_guidance_factor": _scalar(pde_factor),
+            "pde_guidance_clock": clock,
+            "pde_guidance_progress": _scalar(pde_progress),
             "pde_guidance_start_ratio": float(config.pde_guidance_start_ratio),
             "pde_guidance_ramp_ratio": float(config.pde_guidance_ramp_ratio),
         },
@@ -80,7 +88,7 @@ def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any) -> GuidanceSch
 
 
 def _pde_guidance_factor(config: Any, t: Any) -> Any:
-    """Gate PDE guidance by normalized flow time without changing observation guidance."""
+    """Gate PDE guidance by the configured clock, leaving observation guidance intact."""
     import torch
 
     progress = t.clamp(0.0, 1.0)

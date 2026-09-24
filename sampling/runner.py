@@ -215,7 +215,7 @@ def run_single_ablation(
                 )
             coeffs = scheduler_coefficients(t, scheduler="CondOT")
             affine = affine_coefficients(coeffs, training="velocity")
-            schedule = make_zeta_schedule(config, t, t_next, affine.b_t)
+            schedule = make_zeta_schedule(config, t, t_next, affine.b_t, step=step)
 
             gradient = None
             guided_next = step_out.x_raw_next

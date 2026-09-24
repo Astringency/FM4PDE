@@ -1,0 +1,4804 @@
+paragraph: Physics-Based Sparse Reconstruction.
+engine: sampling
+jobs:
+- id: poisson_forward_0000
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: poisson_forward_0001
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 1
+    mask_seed: 1
+    sample_seed: 1
+- id: poisson_forward_0002
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 2
+    mask_seed: 2
+    sample_seed: 2
+- id: poisson_forward_0003
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 3
+    mask_seed: 3
+    sample_seed: 3
+- id: poisson_forward_0004
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: poisson_forward_0005
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 5
+    mask_seed: 5
+    sample_seed: 5
+- id: poisson_forward_0006
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 6
+    mask_seed: 6
+    sample_seed: 6
+- id: poisson_forward_0007
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 7
+    mask_seed: 7
+    sample_seed: 7
+- id: poisson_forward_0008
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: poisson_forward_0009
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 9
+    mask_seed: 9
+    sample_seed: 9
+- id: poisson_forward_0010
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 10
+    mask_seed: 10
+    sample_seed: 10
+- id: poisson_forward_0011
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 11
+    mask_seed: 11
+    sample_seed: 11
+- id: poisson_forward_0012
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: poisson_forward_0013
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 13
+    mask_seed: 13
+    sample_seed: 13
+- id: poisson_forward_0014
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 14
+    mask_seed: 14
+    sample_seed: 14
+- id: poisson_forward_0015
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 15
+    mask_seed: 15
+    sample_seed: 15
+- id: poisson_forward_0016
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: poisson_forward_0017
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 17
+    mask_seed: 17
+    sample_seed: 17
+- id: poisson_forward_0018
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 18
+    mask_seed: 18
+    sample_seed: 18
+- id: poisson_forward_0019
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 19
+    mask_seed: 19
+    sample_seed: 19
+- id: poisson_forward_0020
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: poisson_forward_0021
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 21
+    mask_seed: 21
+    sample_seed: 21
+- id: poisson_forward_0022
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 22
+    mask_seed: 22
+    sample_seed: 22
+- id: poisson_forward_0023
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 23
+    mask_seed: 23
+    sample_seed: 23
+- id: poisson_forward_0024
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: poisson_forward_0025
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 25
+    mask_seed: 25
+    sample_seed: 25
+- id: poisson_forward_0026
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 26
+    mask_seed: 26
+    sample_seed: 26
+- id: poisson_forward_0027
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 27
+    mask_seed: 27
+    sample_seed: 27
+- id: poisson_forward_0028
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: poisson_forward_0029
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 29
+    mask_seed: 29
+    sample_seed: 29
+- id: poisson_forward_0030
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 30
+    mask_seed: 30
+    sample_seed: 30
+- id: poisson_forward_0031
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 31
+    mask_seed: 31
+    sample_seed: 31
+- id: poisson_forward_0032
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 32
+    mask_seed: 32
+    sample_seed: 32
+- id: poisson_forward_0033
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 33
+    mask_seed: 33
+    sample_seed: 33
+- id: poisson_forward_0034
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 34
+    mask_seed: 34
+    sample_seed: 34
+- id: poisson_forward_0035
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 35
+    mask_seed: 35
+    sample_seed: 35
+- id: poisson_forward_0036
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 36
+    mask_seed: 36
+    sample_seed: 36
+- id: poisson_forward_0037
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 37
+    mask_seed: 37
+    sample_seed: 37
+- id: poisson_forward_0038
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 38
+    mask_seed: 38
+    sample_seed: 38
+- id: poisson_forward_0039
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 39
+    mask_seed: 39
+    sample_seed: 39
+- id: poisson_forward_0040
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 40
+    mask_seed: 40
+    sample_seed: 40
+- id: poisson_forward_0041
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 41
+    mask_seed: 41
+    sample_seed: 41
+- id: poisson_forward_0042
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 42
+    mask_seed: 42
+    sample_seed: 42
+- id: poisson_forward_0043
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 43
+    mask_seed: 43
+    sample_seed: 43
+- id: poisson_forward_0044
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 44
+    mask_seed: 44
+    sample_seed: 44
+- id: poisson_forward_0045
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 45
+    mask_seed: 45
+    sample_seed: 45
+- id: poisson_forward_0046
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 46
+    mask_seed: 46
+    sample_seed: 46
+- id: poisson_forward_0047
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 47
+    mask_seed: 47
+    sample_seed: 47
+- id: poisson_forward_0048
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 48
+    mask_seed: 48
+    sample_seed: 48
+- id: poisson_forward_0049
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 49
+    mask_seed: 49
+    sample_seed: 49
+- id: poisson_forward_0050
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 50
+    mask_seed: 50
+    sample_seed: 50
+- id: poisson_forward_0051
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 51
+    mask_seed: 51
+    sample_seed: 51
+- id: poisson_forward_0052
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 52
+    mask_seed: 52
+    sample_seed: 52
+- id: poisson_forward_0053
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 53
+    mask_seed: 53
+    sample_seed: 53
+- id: poisson_forward_0054
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 54
+    mask_seed: 54
+    sample_seed: 54
+- id: poisson_forward_0055
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 55
+    mask_seed: 55
+    sample_seed: 55
+- id: poisson_forward_0056
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 56
+    mask_seed: 56
+    sample_seed: 56
+- id: poisson_forward_0057
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 57
+    mask_seed: 57
+    sample_seed: 57
+- id: poisson_forward_0058
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 58
+    mask_seed: 58
+    sample_seed: 58
+- id: poisson_forward_0059
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 59
+    mask_seed: 59
+    sample_seed: 59
+- id: poisson_forward_0060
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 60
+    mask_seed: 60
+    sample_seed: 60
+- id: poisson_forward_0061
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 61
+    mask_seed: 61
+    sample_seed: 61
+- id: poisson_forward_0062
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 62
+    mask_seed: 62
+    sample_seed: 62
+- id: poisson_forward_0063
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 63
+    mask_seed: 63
+    sample_seed: 63
+- id: poisson_forward_0064
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 64
+    mask_seed: 64
+    sample_seed: 64
+- id: poisson_forward_0065
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 65
+    mask_seed: 65
+    sample_seed: 65
+- id: poisson_forward_0066
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 66
+    mask_seed: 66
+    sample_seed: 66
+- id: poisson_forward_0067
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 67
+    mask_seed: 67
+    sample_seed: 67
+- id: poisson_forward_0068
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 68
+    mask_seed: 68
+    sample_seed: 68
+- id: poisson_forward_0069
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 69
+    mask_seed: 69
+    sample_seed: 69
+- id: poisson_forward_0070
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 70
+    mask_seed: 70
+    sample_seed: 70
+- id: poisson_forward_0071
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 71
+    mask_seed: 71
+    sample_seed: 71
+- id: poisson_forward_0072
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 72
+    mask_seed: 72
+    sample_seed: 72
+- id: poisson_forward_0073
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 73
+    mask_seed: 73
+    sample_seed: 73
+- id: poisson_forward_0074
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 74
+    mask_seed: 74
+    sample_seed: 74
+- id: poisson_forward_0075
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 75
+    mask_seed: 75
+    sample_seed: 75
+- id: poisson_forward_0076
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 76
+    mask_seed: 76
+    sample_seed: 76
+- id: poisson_forward_0077
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 77
+    mask_seed: 77
+    sample_seed: 77
+- id: poisson_forward_0078
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 78
+    mask_seed: 78
+    sample_seed: 78
+- id: poisson_forward_0079
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 79
+    mask_seed: 79
+    sample_seed: 79
+- id: poisson_forward_0080
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 80
+    mask_seed: 80
+    sample_seed: 80
+- id: poisson_forward_0081
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 81
+    mask_seed: 81
+    sample_seed: 81
+- id: poisson_forward_0082
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 82
+    mask_seed: 82
+    sample_seed: 82
+- id: poisson_forward_0083
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 83
+    mask_seed: 83
+    sample_seed: 83
+- id: poisson_forward_0084
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 84
+    mask_seed: 84
+    sample_seed: 84
+- id: poisson_forward_0085
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 85
+    mask_seed: 85
+    sample_seed: 85
+- id: poisson_forward_0086
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 86
+    mask_seed: 86
+    sample_seed: 86
+- id: poisson_forward_0087
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 87
+    mask_seed: 87
+    sample_seed: 87
+- id: poisson_forward_0088
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 88
+    mask_seed: 88
+    sample_seed: 88
+- id: poisson_forward_0089
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 89
+    mask_seed: 89
+    sample_seed: 89
+- id: poisson_forward_0090
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 90
+    mask_seed: 90
+    sample_seed: 90
+- id: poisson_forward_0091
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 91
+    mask_seed: 91
+    sample_seed: 91
+- id: poisson_forward_0092
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 92
+    mask_seed: 92
+    sample_seed: 92
+- id: poisson_forward_0093
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 93
+    mask_seed: 93
+    sample_seed: 93
+- id: poisson_forward_0094
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 94
+    mask_seed: 94
+    sample_seed: 94
+- id: poisson_forward_0095
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 95
+    mask_seed: 95
+    sample_seed: 95
+- id: poisson_forward_0096
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 96
+    mask_seed: 96
+    sample_seed: 96
+- id: poisson_forward_0097
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 97
+    mask_seed: 97
+    sample_seed: 97
+- id: poisson_forward_0098
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 98
+    mask_seed: 98
+    sample_seed: 98
+- id: poisson_forward_0099
+  pde: poisson
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 99
+    mask_seed: 99
+    sample_seed: 99
+- id: poisson_inverse_0000
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: poisson_inverse_0001
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 1
+    mask_seed: 1
+    sample_seed: 1
+- id: poisson_inverse_0002
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 2
+    mask_seed: 2
+    sample_seed: 2
+- id: poisson_inverse_0003
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 3
+    mask_seed: 3
+    sample_seed: 3
+- id: poisson_inverse_0004
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: poisson_inverse_0005
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 5
+    mask_seed: 5
+    sample_seed: 5
+- id: poisson_inverse_0006
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 6
+    mask_seed: 6
+    sample_seed: 6
+- id: poisson_inverse_0007
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 7
+    mask_seed: 7
+    sample_seed: 7
+- id: poisson_inverse_0008
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: poisson_inverse_0009
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 9
+    mask_seed: 9
+    sample_seed: 9
+- id: poisson_inverse_0010
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 10
+    mask_seed: 10
+    sample_seed: 10
+- id: poisson_inverse_0011
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 11
+    mask_seed: 11
+    sample_seed: 11
+- id: poisson_inverse_0012
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: poisson_inverse_0013
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 13
+    mask_seed: 13
+    sample_seed: 13
+- id: poisson_inverse_0014
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 14
+    mask_seed: 14
+    sample_seed: 14
+- id: poisson_inverse_0015
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 15
+    mask_seed: 15
+    sample_seed: 15
+- id: poisson_inverse_0016
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: poisson_inverse_0017
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 17
+    mask_seed: 17
+    sample_seed: 17
+- id: poisson_inverse_0018
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 18
+    mask_seed: 18
+    sample_seed: 18
+- id: poisson_inverse_0019
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 19
+    mask_seed: 19
+    sample_seed: 19
+- id: poisson_inverse_0020
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: poisson_inverse_0021
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 21
+    mask_seed: 21
+    sample_seed: 21
+- id: poisson_inverse_0022
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 22
+    mask_seed: 22
+    sample_seed: 22
+- id: poisson_inverse_0023
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 23
+    mask_seed: 23
+    sample_seed: 23
+- id: poisson_inverse_0024
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: poisson_inverse_0025
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 25
+    mask_seed: 25
+    sample_seed: 25
+- id: poisson_inverse_0026
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 26
+    mask_seed: 26
+    sample_seed: 26
+- id: poisson_inverse_0027
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 27
+    mask_seed: 27
+    sample_seed: 27
+- id: poisson_inverse_0028
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: poisson_inverse_0029
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 29
+    mask_seed: 29
+    sample_seed: 29
+- id: poisson_inverse_0030
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 30
+    mask_seed: 30
+    sample_seed: 30
+- id: poisson_inverse_0031
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 31
+    mask_seed: 31
+    sample_seed: 31
+- id: poisson_inverse_0032
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 32
+    mask_seed: 32
+    sample_seed: 32
+- id: poisson_inverse_0033
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 33
+    mask_seed: 33
+    sample_seed: 33
+- id: poisson_inverse_0034
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 34
+    mask_seed: 34
+    sample_seed: 34
+- id: poisson_inverse_0035
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 35
+    mask_seed: 35
+    sample_seed: 35
+- id: poisson_inverse_0036
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 36
+    mask_seed: 36
+    sample_seed: 36
+- id: poisson_inverse_0037
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 37
+    mask_seed: 37
+    sample_seed: 37
+- id: poisson_inverse_0038
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 38
+    mask_seed: 38
+    sample_seed: 38
+- id: poisson_inverse_0039
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 39
+    mask_seed: 39
+    sample_seed: 39
+- id: poisson_inverse_0040
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 40
+    mask_seed: 40
+    sample_seed: 40
+- id: poisson_inverse_0041
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 41
+    mask_seed: 41
+    sample_seed: 41
+- id: poisson_inverse_0042
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 42
+    mask_seed: 42
+    sample_seed: 42
+- id: poisson_inverse_0043
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 43
+    mask_seed: 43
+    sample_seed: 43
+- id: poisson_inverse_0044
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 44
+    mask_seed: 44
+    sample_seed: 44
+- id: poisson_inverse_0045
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 45
+    mask_seed: 45
+    sample_seed: 45
+- id: poisson_inverse_0046
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 46
+    mask_seed: 46
+    sample_seed: 46
+- id: poisson_inverse_0047
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 47
+    mask_seed: 47
+    sample_seed: 47
+- id: poisson_inverse_0048
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 48
+    mask_seed: 48
+    sample_seed: 48
+- id: poisson_inverse_0049
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 49
+    mask_seed: 49
+    sample_seed: 49
+- id: poisson_inverse_0050
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 50
+    mask_seed: 50
+    sample_seed: 50
+- id: poisson_inverse_0051
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 51
+    mask_seed: 51
+    sample_seed: 51
+- id: poisson_inverse_0052
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 52
+    mask_seed: 52
+    sample_seed: 52
+- id: poisson_inverse_0053
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 53
+    mask_seed: 53
+    sample_seed: 53
+- id: poisson_inverse_0054
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 54
+    mask_seed: 54
+    sample_seed: 54
+- id: poisson_inverse_0055
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 55
+    mask_seed: 55
+    sample_seed: 55
+- id: poisson_inverse_0056
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 56
+    mask_seed: 56
+    sample_seed: 56
+- id: poisson_inverse_0057
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 57
+    mask_seed: 57
+    sample_seed: 57
+- id: poisson_inverse_0058
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 58
+    mask_seed: 58
+    sample_seed: 58
+- id: poisson_inverse_0059
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 59
+    mask_seed: 59
+    sample_seed: 59
+- id: poisson_inverse_0060
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 60
+    mask_seed: 60
+    sample_seed: 60
+- id: poisson_inverse_0061
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 61
+    mask_seed: 61
+    sample_seed: 61
+- id: poisson_inverse_0062
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 62
+    mask_seed: 62
+    sample_seed: 62
+- id: poisson_inverse_0063
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 63
+    mask_seed: 63
+    sample_seed: 63
+- id: poisson_inverse_0064
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 64
+    mask_seed: 64
+    sample_seed: 64
+- id: poisson_inverse_0065
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 65
+    mask_seed: 65
+    sample_seed: 65
+- id: poisson_inverse_0066
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 66
+    mask_seed: 66
+    sample_seed: 66
+- id: poisson_inverse_0067
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 67
+    mask_seed: 67
+    sample_seed: 67
+- id: poisson_inverse_0068
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 68
+    mask_seed: 68
+    sample_seed: 68
+- id: poisson_inverse_0069
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 69
+    mask_seed: 69
+    sample_seed: 69
+- id: poisson_inverse_0070
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 70
+    mask_seed: 70
+    sample_seed: 70
+- id: poisson_inverse_0071
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 71
+    mask_seed: 71
+    sample_seed: 71
+- id: poisson_inverse_0072
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 72
+    mask_seed: 72
+    sample_seed: 72
+- id: poisson_inverse_0073
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 73
+    mask_seed: 73
+    sample_seed: 73
+- id: poisson_inverse_0074
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 74
+    mask_seed: 74
+    sample_seed: 74
+- id: poisson_inverse_0075
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 75
+    mask_seed: 75
+    sample_seed: 75
+- id: poisson_inverse_0076
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 76
+    mask_seed: 76
+    sample_seed: 76
+- id: poisson_inverse_0077
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 77
+    mask_seed: 77
+    sample_seed: 77
+- id: poisson_inverse_0078
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 78
+    mask_seed: 78
+    sample_seed: 78
+- id: poisson_inverse_0079
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 79
+    mask_seed: 79
+    sample_seed: 79
+- id: poisson_inverse_0080
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 80
+    mask_seed: 80
+    sample_seed: 80
+- id: poisson_inverse_0081
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 81
+    mask_seed: 81
+    sample_seed: 81
+- id: poisson_inverse_0082
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 82
+    mask_seed: 82
+    sample_seed: 82
+- id: poisson_inverse_0083
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 83
+    mask_seed: 83
+    sample_seed: 83
+- id: poisson_inverse_0084
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 84
+    mask_seed: 84
+    sample_seed: 84
+- id: poisson_inverse_0085
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 85
+    mask_seed: 85
+    sample_seed: 85
+- id: poisson_inverse_0086
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 86
+    mask_seed: 86
+    sample_seed: 86
+- id: poisson_inverse_0087
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 87
+    mask_seed: 87
+    sample_seed: 87
+- id: poisson_inverse_0088
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 88
+    mask_seed: 88
+    sample_seed: 88
+- id: poisson_inverse_0089
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 89
+    mask_seed: 89
+    sample_seed: 89
+- id: poisson_inverse_0090
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 90
+    mask_seed: 90
+    sample_seed: 90
+- id: poisson_inverse_0091
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 91
+    mask_seed: 91
+    sample_seed: 91
+- id: poisson_inverse_0092
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 92
+    mask_seed: 92
+    sample_seed: 92
+- id: poisson_inverse_0093
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 93
+    mask_seed: 93
+    sample_seed: 93
+- id: poisson_inverse_0094
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 94
+    mask_seed: 94
+    sample_seed: 94
+- id: poisson_inverse_0095
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 95
+    mask_seed: 95
+    sample_seed: 95
+- id: poisson_inverse_0096
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 96
+    mask_seed: 96
+    sample_seed: 96
+- id: poisson_inverse_0097
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 97
+    mask_seed: 97
+    sample_seed: 97
+- id: poisson_inverse_0098
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 98
+    mask_seed: 98
+    sample_seed: 98
+- id: poisson_inverse_0099
+  pde: poisson
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 99
+    mask_seed: 99
+    sample_seed: 99
+- id: helmholtz_forward_0000
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: helmholtz_forward_0001
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 1
+    mask_seed: 1
+    sample_seed: 1
+- id: helmholtz_forward_0002
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 2
+    mask_seed: 2
+    sample_seed: 2
+- id: helmholtz_forward_0003
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 3
+    mask_seed: 3
+    sample_seed: 3
+- id: helmholtz_forward_0004
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: helmholtz_forward_0005
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 5
+    mask_seed: 5
+    sample_seed: 5
+- id: helmholtz_forward_0006
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 6
+    mask_seed: 6
+    sample_seed: 6
+- id: helmholtz_forward_0007
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 7
+    mask_seed: 7
+    sample_seed: 7
+- id: helmholtz_forward_0008
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: helmholtz_forward_0009
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 9
+    mask_seed: 9
+    sample_seed: 9
+- id: helmholtz_forward_0010
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 10
+    mask_seed: 10
+    sample_seed: 10
+- id: helmholtz_forward_0011
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 11
+    mask_seed: 11
+    sample_seed: 11
+- id: helmholtz_forward_0012
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: helmholtz_forward_0013
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 13
+    mask_seed: 13
+    sample_seed: 13
+- id: helmholtz_forward_0014
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 14
+    mask_seed: 14
+    sample_seed: 14
+- id: helmholtz_forward_0015
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 15
+    mask_seed: 15
+    sample_seed: 15
+- id: helmholtz_forward_0016
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: helmholtz_forward_0017
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 17
+    mask_seed: 17
+    sample_seed: 17
+- id: helmholtz_forward_0018
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 18
+    mask_seed: 18
+    sample_seed: 18
+- id: helmholtz_forward_0019
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 19
+    mask_seed: 19
+    sample_seed: 19
+- id: helmholtz_forward_0020
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: helmholtz_forward_0021
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 21
+    mask_seed: 21
+    sample_seed: 21
+- id: helmholtz_forward_0022
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 22
+    mask_seed: 22
+    sample_seed: 22
+- id: helmholtz_forward_0023
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 23
+    mask_seed: 23
+    sample_seed: 23
+- id: helmholtz_forward_0024
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: helmholtz_forward_0025
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 25
+    mask_seed: 25
+    sample_seed: 25
+- id: helmholtz_forward_0026
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 26
+    mask_seed: 26
+    sample_seed: 26
+- id: helmholtz_forward_0027
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 27
+    mask_seed: 27
+    sample_seed: 27
+- id: helmholtz_forward_0028
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: helmholtz_forward_0029
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 29
+    mask_seed: 29
+    sample_seed: 29
+- id: helmholtz_forward_0030
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 30
+    mask_seed: 30
+    sample_seed: 30
+- id: helmholtz_forward_0031
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 31
+    mask_seed: 31
+    sample_seed: 31
+- id: helmholtz_forward_0032
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 32
+    mask_seed: 32
+    sample_seed: 32
+- id: helmholtz_forward_0033
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 33
+    mask_seed: 33
+    sample_seed: 33
+- id: helmholtz_forward_0034
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 34
+    mask_seed: 34
+    sample_seed: 34
+- id: helmholtz_forward_0035
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 35
+    mask_seed: 35
+    sample_seed: 35
+- id: helmholtz_forward_0036
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 36
+    mask_seed: 36
+    sample_seed: 36
+- id: helmholtz_forward_0037
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 37
+    mask_seed: 37
+    sample_seed: 37
+- id: helmholtz_forward_0038
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 38
+    mask_seed: 38
+    sample_seed: 38
+- id: helmholtz_forward_0039
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 39
+    mask_seed: 39
+    sample_seed: 39
+- id: helmholtz_forward_0040
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 40
+    mask_seed: 40
+    sample_seed: 40
+- id: helmholtz_forward_0041
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 41
+    mask_seed: 41
+    sample_seed: 41
+- id: helmholtz_forward_0042
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 42
+    mask_seed: 42
+    sample_seed: 42
+- id: helmholtz_forward_0043
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 43
+    mask_seed: 43
+    sample_seed: 43
+- id: helmholtz_forward_0044
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 44
+    mask_seed: 44
+    sample_seed: 44
+- id: helmholtz_forward_0045
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 45
+    mask_seed: 45
+    sample_seed: 45
+- id: helmholtz_forward_0046
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 46
+    mask_seed: 46
+    sample_seed: 46
+- id: helmholtz_forward_0047
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 47
+    mask_seed: 47
+    sample_seed: 47
+- id: helmholtz_forward_0048
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 48
+    mask_seed: 48
+    sample_seed: 48
+- id: helmholtz_forward_0049
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 49
+    mask_seed: 49
+    sample_seed: 49
+- id: helmholtz_forward_0050
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 50
+    mask_seed: 50
+    sample_seed: 50
+- id: helmholtz_forward_0051
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 51
+    mask_seed: 51
+    sample_seed: 51
+- id: helmholtz_forward_0052
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 52
+    mask_seed: 52
+    sample_seed: 52
+- id: helmholtz_forward_0053
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 53
+    mask_seed: 53
+    sample_seed: 53
+- id: helmholtz_forward_0054
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 54
+    mask_seed: 54
+    sample_seed: 54
+- id: helmholtz_forward_0055
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 55
+    mask_seed: 55
+    sample_seed: 55
+- id: helmholtz_forward_0056
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 56
+    mask_seed: 56
+    sample_seed: 56
+- id: helmholtz_forward_0057
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 57
+    mask_seed: 57
+    sample_seed: 57
+- id: helmholtz_forward_0058
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 58
+    mask_seed: 58
+    sample_seed: 58
+- id: helmholtz_forward_0059
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 59
+    mask_seed: 59
+    sample_seed: 59
+- id: helmholtz_forward_0060
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 60
+    mask_seed: 60
+    sample_seed: 60
+- id: helmholtz_forward_0061
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 61
+    mask_seed: 61
+    sample_seed: 61
+- id: helmholtz_forward_0062
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 62
+    mask_seed: 62
+    sample_seed: 62
+- id: helmholtz_forward_0063
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 63
+    mask_seed: 63
+    sample_seed: 63
+- id: helmholtz_forward_0064
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 64
+    mask_seed: 64
+    sample_seed: 64
+- id: helmholtz_forward_0065
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 65
+    mask_seed: 65
+    sample_seed: 65
+- id: helmholtz_forward_0066
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 66
+    mask_seed: 66
+    sample_seed: 66
+- id: helmholtz_forward_0067
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 67
+    mask_seed: 67
+    sample_seed: 67
+- id: helmholtz_forward_0068
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 68
+    mask_seed: 68
+    sample_seed: 68
+- id: helmholtz_forward_0069
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 69
+    mask_seed: 69
+    sample_seed: 69
+- id: helmholtz_forward_0070
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 70
+    mask_seed: 70
+    sample_seed: 70
+- id: helmholtz_forward_0071
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 71
+    mask_seed: 71
+    sample_seed: 71
+- id: helmholtz_forward_0072
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 72
+    mask_seed: 72
+    sample_seed: 72
+- id: helmholtz_forward_0073
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 73
+    mask_seed: 73
+    sample_seed: 73
+- id: helmholtz_forward_0074
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 74
+    mask_seed: 74
+    sample_seed: 74
+- id: helmholtz_forward_0075
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 75
+    mask_seed: 75
+    sample_seed: 75
+- id: helmholtz_forward_0076
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 76
+    mask_seed: 76
+    sample_seed: 76
+- id: helmholtz_forward_0077
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 77
+    mask_seed: 77
+    sample_seed: 77
+- id: helmholtz_forward_0078
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 78
+    mask_seed: 78
+    sample_seed: 78
+- id: helmholtz_forward_0079
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 79
+    mask_seed: 79
+    sample_seed: 79
+- id: helmholtz_forward_0080
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 80
+    mask_seed: 80
+    sample_seed: 80
+- id: helmholtz_forward_0081
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 81
+    mask_seed: 81
+    sample_seed: 81
+- id: helmholtz_forward_0082
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 82
+    mask_seed: 82
+    sample_seed: 82
+- id: helmholtz_forward_0083
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 83
+    mask_seed: 83
+    sample_seed: 83
+- id: helmholtz_forward_0084
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 84
+    mask_seed: 84
+    sample_seed: 84
+- id: helmholtz_forward_0085
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 85
+    mask_seed: 85
+    sample_seed: 85
+- id: helmholtz_forward_0086
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 86
+    mask_seed: 86
+    sample_seed: 86
+- id: helmholtz_forward_0087
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 87
+    mask_seed: 87
+    sample_seed: 87
+- id: helmholtz_forward_0088
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 88
+    mask_seed: 88
+    sample_seed: 88
+- id: helmholtz_forward_0089
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 89
+    mask_seed: 89
+    sample_seed: 89
+- id: helmholtz_forward_0090
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 90
+    mask_seed: 90
+    sample_seed: 90
+- id: helmholtz_forward_0091
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 91
+    mask_seed: 91
+    sample_seed: 91
+- id: helmholtz_forward_0092
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 92
+    mask_seed: 92
+    sample_seed: 92
+- id: helmholtz_forward_0093
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 93
+    mask_seed: 93
+    sample_seed: 93
+- id: helmholtz_forward_0094
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 94
+    mask_seed: 94
+    sample_seed: 94
+- id: helmholtz_forward_0095
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 95
+    mask_seed: 95
+    sample_seed: 95
+- id: helmholtz_forward_0096
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 96
+    mask_seed: 96
+    sample_seed: 96
+- id: helmholtz_forward_0097
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 97
+    mask_seed: 97
+    sample_seed: 97
+- id: helmholtz_forward_0098
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 98
+    mask_seed: 98
+    sample_seed: 98
+- id: helmholtz_forward_0099
+  pde: helmholtz
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 99
+    mask_seed: 99
+    sample_seed: 99
+- id: helmholtz_inverse_0000
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: helmholtz_inverse_0001
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 1
+    mask_seed: 1
+    sample_seed: 1
+- id: helmholtz_inverse_0002
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 2
+    mask_seed: 2
+    sample_seed: 2
+- id: helmholtz_inverse_0003
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 3
+    mask_seed: 3
+    sample_seed: 3
+- id: helmholtz_inverse_0004
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: helmholtz_inverse_0005
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 5
+    mask_seed: 5
+    sample_seed: 5
+- id: helmholtz_inverse_0006
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 6
+    mask_seed: 6
+    sample_seed: 6
+- id: helmholtz_inverse_0007
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 7
+    mask_seed: 7
+    sample_seed: 7
+- id: helmholtz_inverse_0008
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: helmholtz_inverse_0009
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 9
+    mask_seed: 9
+    sample_seed: 9
+- id: helmholtz_inverse_0010
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 10
+    mask_seed: 10
+    sample_seed: 10
+- id: helmholtz_inverse_0011
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 11
+    mask_seed: 11
+    sample_seed: 11
+- id: helmholtz_inverse_0012
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: helmholtz_inverse_0013
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 13
+    mask_seed: 13
+    sample_seed: 13
+- id: helmholtz_inverse_0014
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 14
+    mask_seed: 14
+    sample_seed: 14
+- id: helmholtz_inverse_0015
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 15
+    mask_seed: 15
+    sample_seed: 15
+- id: helmholtz_inverse_0016
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: helmholtz_inverse_0017
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 17
+    mask_seed: 17
+    sample_seed: 17
+- id: helmholtz_inverse_0018
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 18
+    mask_seed: 18
+    sample_seed: 18
+- id: helmholtz_inverse_0019
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 19
+    mask_seed: 19
+    sample_seed: 19
+- id: helmholtz_inverse_0020
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: helmholtz_inverse_0021
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 21
+    mask_seed: 21
+    sample_seed: 21
+- id: helmholtz_inverse_0022
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 22
+    mask_seed: 22
+    sample_seed: 22
+- id: helmholtz_inverse_0023
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 23
+    mask_seed: 23
+    sample_seed: 23
+- id: helmholtz_inverse_0024
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: helmholtz_inverse_0025
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 25
+    mask_seed: 25
+    sample_seed: 25
+- id: helmholtz_inverse_0026
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 26
+    mask_seed: 26
+    sample_seed: 26
+- id: helmholtz_inverse_0027
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 27
+    mask_seed: 27
+    sample_seed: 27
+- id: helmholtz_inverse_0028
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: helmholtz_inverse_0029
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 29
+    mask_seed: 29
+    sample_seed: 29
+- id: helmholtz_inverse_0030
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 30
+    mask_seed: 30
+    sample_seed: 30
+- id: helmholtz_inverse_0031
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 31
+    mask_seed: 31
+    sample_seed: 31
+- id: helmholtz_inverse_0032
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 32
+    mask_seed: 32
+    sample_seed: 32
+- id: helmholtz_inverse_0033
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 33
+    mask_seed: 33
+    sample_seed: 33
+- id: helmholtz_inverse_0034
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 34
+    mask_seed: 34
+    sample_seed: 34
+- id: helmholtz_inverse_0035
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 35
+    mask_seed: 35
+    sample_seed: 35
+- id: helmholtz_inverse_0036
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 36
+    mask_seed: 36
+    sample_seed: 36
+- id: helmholtz_inverse_0037
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 37
+    mask_seed: 37
+    sample_seed: 37
+- id: helmholtz_inverse_0038
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 38
+    mask_seed: 38
+    sample_seed: 38
+- id: helmholtz_inverse_0039
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 39
+    mask_seed: 39
+    sample_seed: 39
+- id: helmholtz_inverse_0040
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 40
+    mask_seed: 40
+    sample_seed: 40
+- id: helmholtz_inverse_0041
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 41
+    mask_seed: 41
+    sample_seed: 41
+- id: helmholtz_inverse_0042
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 42
+    mask_seed: 42
+    sample_seed: 42
+- id: helmholtz_inverse_0043
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 43
+    mask_seed: 43
+    sample_seed: 43
+- id: helmholtz_inverse_0044
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 44
+    mask_seed: 44
+    sample_seed: 44
+- id: helmholtz_inverse_0045
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 45
+    mask_seed: 45
+    sample_seed: 45
+- id: helmholtz_inverse_0046
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 46
+    mask_seed: 46
+    sample_seed: 46
+- id: helmholtz_inverse_0047
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 47
+    mask_seed: 47
+    sample_seed: 47
+- id: helmholtz_inverse_0048
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 48
+    mask_seed: 48
+    sample_seed: 48
+- id: helmholtz_inverse_0049
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 49
+    mask_seed: 49
+    sample_seed: 49
+- id: helmholtz_inverse_0050
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 50
+    mask_seed: 50
+    sample_seed: 50
+- id: helmholtz_inverse_0051
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 51
+    mask_seed: 51
+    sample_seed: 51
+- id: helmholtz_inverse_0052
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 52
+    mask_seed: 52
+    sample_seed: 52
+- id: helmholtz_inverse_0053
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 53
+    mask_seed: 53
+    sample_seed: 53
+- id: helmholtz_inverse_0054
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 54
+    mask_seed: 54
+    sample_seed: 54
+- id: helmholtz_inverse_0055
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 55
+    mask_seed: 55
+    sample_seed: 55
+- id: helmholtz_inverse_0056
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 56
+    mask_seed: 56
+    sample_seed: 56
+- id: helmholtz_inverse_0057
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 57
+    mask_seed: 57
+    sample_seed: 57
+- id: helmholtz_inverse_0058
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 58
+    mask_seed: 58
+    sample_seed: 58
+- id: helmholtz_inverse_0059
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 59
+    mask_seed: 59
+    sample_seed: 59
+- id: helmholtz_inverse_0060
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 60
+    mask_seed: 60
+    sample_seed: 60
+- id: helmholtz_inverse_0061
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 61
+    mask_seed: 61
+    sample_seed: 61
+- id: helmholtz_inverse_0062
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 62
+    mask_seed: 62
+    sample_seed: 62
+- id: helmholtz_inverse_0063
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 63
+    mask_seed: 63
+    sample_seed: 63
+- id: helmholtz_inverse_0064
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 64
+    mask_seed: 64
+    sample_seed: 64
+- id: helmholtz_inverse_0065
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 65
+    mask_seed: 65
+    sample_seed: 65
+- id: helmholtz_inverse_0066
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 66
+    mask_seed: 66
+    sample_seed: 66
+- id: helmholtz_inverse_0067
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 67
+    mask_seed: 67
+    sample_seed: 67
+- id: helmholtz_inverse_0068
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 68
+    mask_seed: 68
+    sample_seed: 68
+- id: helmholtz_inverse_0069
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 69
+    mask_seed: 69
+    sample_seed: 69
+- id: helmholtz_inverse_0070
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 70
+    mask_seed: 70
+    sample_seed: 70
+- id: helmholtz_inverse_0071
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 71
+    mask_seed: 71
+    sample_seed: 71
+- id: helmholtz_inverse_0072
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 72
+    mask_seed: 72
+    sample_seed: 72
+- id: helmholtz_inverse_0073
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 73
+    mask_seed: 73
+    sample_seed: 73
+- id: helmholtz_inverse_0074
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 74
+    mask_seed: 74
+    sample_seed: 74
+- id: helmholtz_inverse_0075
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 75
+    mask_seed: 75
+    sample_seed: 75
+- id: helmholtz_inverse_0076
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 76
+    mask_seed: 76
+    sample_seed: 76
+- id: helmholtz_inverse_0077
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 77
+    mask_seed: 77
+    sample_seed: 77
+- id: helmholtz_inverse_0078
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 78
+    mask_seed: 78
+    sample_seed: 78
+- id: helmholtz_inverse_0079
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 79
+    mask_seed: 79
+    sample_seed: 79
+- id: helmholtz_inverse_0080
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 80
+    mask_seed: 80
+    sample_seed: 80
+- id: helmholtz_inverse_0081
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 81
+    mask_seed: 81
+    sample_seed: 81
+- id: helmholtz_inverse_0082
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 82
+    mask_seed: 82
+    sample_seed: 82
+- id: helmholtz_inverse_0083
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 83
+    mask_seed: 83
+    sample_seed: 83
+- id: helmholtz_inverse_0084
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 84
+    mask_seed: 84
+    sample_seed: 84
+- id: helmholtz_inverse_0085
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 85
+    mask_seed: 85
+    sample_seed: 85
+- id: helmholtz_inverse_0086
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 86
+    mask_seed: 86
+    sample_seed: 86
+- id: helmholtz_inverse_0087
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 87
+    mask_seed: 87
+    sample_seed: 87
+- id: helmholtz_inverse_0088
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 88
+    mask_seed: 88
+    sample_seed: 88
+- id: helmholtz_inverse_0089
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 89
+    mask_seed: 89
+    sample_seed: 89
+- id: helmholtz_inverse_0090
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 90
+    mask_seed: 90
+    sample_seed: 90
+- id: helmholtz_inverse_0091
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 91
+    mask_seed: 91
+    sample_seed: 91
+- id: helmholtz_inverse_0092
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 92
+    mask_seed: 92
+    sample_seed: 92
+- id: helmholtz_inverse_0093
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 93
+    mask_seed: 93
+    sample_seed: 93
+- id: helmholtz_inverse_0094
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 94
+    mask_seed: 94
+    sample_seed: 94
+- id: helmholtz_inverse_0095
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 95
+    mask_seed: 95
+    sample_seed: 95
+- id: helmholtz_inverse_0096
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 96
+    mask_seed: 96
+    sample_seed: 96
+- id: helmholtz_inverse_0097
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 97
+    mask_seed: 97
+    sample_seed: 97
+- id: helmholtz_inverse_0098
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 98
+    mask_seed: 98
+    sample_seed: 98
+- id: helmholtz_inverse_0099
+  pde: helmholtz
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 99
+    mask_seed: 99
+    sample_seed: 99
+- id: darcy_forward_0000
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: darcy_forward_0001
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 1
+    mask_seed: 1
+    sample_seed: 1
+- id: darcy_forward_0002
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 2
+    mask_seed: 2
+    sample_seed: 2
+- id: darcy_forward_0003
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 3
+    mask_seed: 3
+    sample_seed: 3
+- id: darcy_forward_0004
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: darcy_forward_0005
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 5
+    mask_seed: 5
+    sample_seed: 5
+- id: darcy_forward_0006
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 6
+    mask_seed: 6
+    sample_seed: 6
+- id: darcy_forward_0007
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 7
+    mask_seed: 7
+    sample_seed: 7
+- id: darcy_forward_0008
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: darcy_forward_0009
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 9
+    mask_seed: 9
+    sample_seed: 9
+- id: darcy_forward_0010
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 10
+    mask_seed: 10
+    sample_seed: 10
+- id: darcy_forward_0011
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 11
+    mask_seed: 11
+    sample_seed: 11
+- id: darcy_forward_0012
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: darcy_forward_0013
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 13
+    mask_seed: 13
+    sample_seed: 13
+- id: darcy_forward_0014
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 14
+    mask_seed: 14
+    sample_seed: 14
+- id: darcy_forward_0015
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 15
+    mask_seed: 15
+    sample_seed: 15
+- id: darcy_forward_0016
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: darcy_forward_0017
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 17
+    mask_seed: 17
+    sample_seed: 17
+- id: darcy_forward_0018
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 18
+    mask_seed: 18
+    sample_seed: 18
+- id: darcy_forward_0019
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 19
+    mask_seed: 19
+    sample_seed: 19
+- id: darcy_forward_0020
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: darcy_forward_0021
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 21
+    mask_seed: 21
+    sample_seed: 21
+- id: darcy_forward_0022
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 22
+    mask_seed: 22
+    sample_seed: 22
+- id: darcy_forward_0023
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 23
+    mask_seed: 23
+    sample_seed: 23
+- id: darcy_forward_0024
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: darcy_forward_0025
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 25
+    mask_seed: 25
+    sample_seed: 25
+- id: darcy_forward_0026
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 26
+    mask_seed: 26
+    sample_seed: 26
+- id: darcy_forward_0027
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 27
+    mask_seed: 27
+    sample_seed: 27
+- id: darcy_forward_0028
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: darcy_forward_0029
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 29
+    mask_seed: 29
+    sample_seed: 29
+- id: darcy_forward_0030
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 30
+    mask_seed: 30
+    sample_seed: 30
+- id: darcy_forward_0031
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 31
+    mask_seed: 31
+    sample_seed: 31
+- id: darcy_forward_0032
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 32
+    mask_seed: 32
+    sample_seed: 32
+- id: darcy_forward_0033
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 33
+    mask_seed: 33
+    sample_seed: 33
+- id: darcy_forward_0034
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 34
+    mask_seed: 34
+    sample_seed: 34
+- id: darcy_forward_0035
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 35
+    mask_seed: 35
+    sample_seed: 35
+- id: darcy_forward_0036
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 36
+    mask_seed: 36
+    sample_seed: 36
+- id: darcy_forward_0037
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 37
+    mask_seed: 37
+    sample_seed: 37
+- id: darcy_forward_0038
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 38
+    mask_seed: 38
+    sample_seed: 38
+- id: darcy_forward_0039
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 39
+    mask_seed: 39
+    sample_seed: 39
+- id: darcy_forward_0040
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 40
+    mask_seed: 40
+    sample_seed: 40
+- id: darcy_forward_0041
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 41
+    mask_seed: 41
+    sample_seed: 41
+- id: darcy_forward_0042
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 42
+    mask_seed: 42
+    sample_seed: 42
+- id: darcy_forward_0043
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 43
+    mask_seed: 43
+    sample_seed: 43
+- id: darcy_forward_0044
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 44
+    mask_seed: 44
+    sample_seed: 44
+- id: darcy_forward_0045
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 45
+    mask_seed: 45
+    sample_seed: 45
+- id: darcy_forward_0046
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 46
+    mask_seed: 46
+    sample_seed: 46
+- id: darcy_forward_0047
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 47
+    mask_seed: 47
+    sample_seed: 47
+- id: darcy_forward_0048
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 48
+    mask_seed: 48
+    sample_seed: 48
+- id: darcy_forward_0049
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 49
+    mask_seed: 49
+    sample_seed: 49
+- id: darcy_forward_0050
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 50
+    mask_seed: 50
+    sample_seed: 50
+- id: darcy_forward_0051
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 51
+    mask_seed: 51
+    sample_seed: 51
+- id: darcy_forward_0052
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 52
+    mask_seed: 52
+    sample_seed: 52
+- id: darcy_forward_0053
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 53
+    mask_seed: 53
+    sample_seed: 53
+- id: darcy_forward_0054
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 54
+    mask_seed: 54
+    sample_seed: 54
+- id: darcy_forward_0055
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 55
+    mask_seed: 55
+    sample_seed: 55
+- id: darcy_forward_0056
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 56
+    mask_seed: 56
+    sample_seed: 56
+- id: darcy_forward_0057
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 57
+    mask_seed: 57
+    sample_seed: 57
+- id: darcy_forward_0058
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 58
+    mask_seed: 58
+    sample_seed: 58
+- id: darcy_forward_0059
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 59
+    mask_seed: 59
+    sample_seed: 59
+- id: darcy_forward_0060
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 60
+    mask_seed: 60
+    sample_seed: 60
+- id: darcy_forward_0061
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 61
+    mask_seed: 61
+    sample_seed: 61
+- id: darcy_forward_0062
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 62
+    mask_seed: 62
+    sample_seed: 62
+- id: darcy_forward_0063
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 63
+    mask_seed: 63
+    sample_seed: 63
+- id: darcy_forward_0064
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 64
+    mask_seed: 64
+    sample_seed: 64
+- id: darcy_forward_0065
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 65
+    mask_seed: 65
+    sample_seed: 65
+- id: darcy_forward_0066
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 66
+    mask_seed: 66
+    sample_seed: 66
+- id: darcy_forward_0067
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 67
+    mask_seed: 67
+    sample_seed: 67
+- id: darcy_forward_0068
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 68
+    mask_seed: 68
+    sample_seed: 68
+- id: darcy_forward_0069
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 69
+    mask_seed: 69
+    sample_seed: 69
+- id: darcy_forward_0070
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 70
+    mask_seed: 70
+    sample_seed: 70
+- id: darcy_forward_0071
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 71
+    mask_seed: 71
+    sample_seed: 71
+- id: darcy_forward_0072
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 72
+    mask_seed: 72
+    sample_seed: 72
+- id: darcy_forward_0073
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 73
+    mask_seed: 73
+    sample_seed: 73
+- id: darcy_forward_0074
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 74
+    mask_seed: 74
+    sample_seed: 74
+- id: darcy_forward_0075
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 75
+    mask_seed: 75
+    sample_seed: 75
+- id: darcy_forward_0076
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 76
+    mask_seed: 76
+    sample_seed: 76
+- id: darcy_forward_0077
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 77
+    mask_seed: 77
+    sample_seed: 77
+- id: darcy_forward_0078
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 78
+    mask_seed: 78
+    sample_seed: 78
+- id: darcy_forward_0079
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 79
+    mask_seed: 79
+    sample_seed: 79
+- id: darcy_forward_0080
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 80
+    mask_seed: 80
+    sample_seed: 80
+- id: darcy_forward_0081
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 81
+    mask_seed: 81
+    sample_seed: 81
+- id: darcy_forward_0082
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 82
+    mask_seed: 82
+    sample_seed: 82
+- id: darcy_forward_0083
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 83
+    mask_seed: 83
+    sample_seed: 83
+- id: darcy_forward_0084
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 84
+    mask_seed: 84
+    sample_seed: 84
+- id: darcy_forward_0085
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 85
+    mask_seed: 85
+    sample_seed: 85
+- id: darcy_forward_0086
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 86
+    mask_seed: 86
+    sample_seed: 86
+- id: darcy_forward_0087
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 87
+    mask_seed: 87
+    sample_seed: 87
+- id: darcy_forward_0088
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 88
+    mask_seed: 88
+    sample_seed: 88
+- id: darcy_forward_0089
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 89
+    mask_seed: 89
+    sample_seed: 89
+- id: darcy_forward_0090
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 90
+    mask_seed: 90
+    sample_seed: 90
+- id: darcy_forward_0091
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 91
+    mask_seed: 91
+    sample_seed: 91
+- id: darcy_forward_0092
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 92
+    mask_seed: 92
+    sample_seed: 92
+- id: darcy_forward_0093
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 93
+    mask_seed: 93
+    sample_seed: 93
+- id: darcy_forward_0094
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 94
+    mask_seed: 94
+    sample_seed: 94
+- id: darcy_forward_0095
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 95
+    mask_seed: 95
+    sample_seed: 95
+- id: darcy_forward_0096
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 96
+    mask_seed: 96
+    sample_seed: 96
+- id: darcy_forward_0097
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 97
+    mask_seed: 97
+    sample_seed: 97
+- id: darcy_forward_0098
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 98
+    mask_seed: 98
+    sample_seed: 98
+- id: darcy_forward_0099
+  pde: darcy
+  task: forward
+  overrides:
+    test_type: smooth
+    offset: 99
+    mask_seed: 99
+    sample_seed: 99
+- id: darcy_inverse_0000
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 0
+    mask_seed: 0
+    sample_seed: 0
+- id: darcy_inverse_0001
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 1
+    mask_seed: 1
+    sample_seed: 1
+- id: darcy_inverse_0002
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 2
+    mask_seed: 2
+    sample_seed: 2
+- id: darcy_inverse_0003
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 3
+    mask_seed: 3
+    sample_seed: 3
+- id: darcy_inverse_0004
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 4
+    mask_seed: 4
+    sample_seed: 4
+- id: darcy_inverse_0005
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 5
+    mask_seed: 5
+    sample_seed: 5
+- id: darcy_inverse_0006
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 6
+    mask_seed: 6
+    sample_seed: 6
+- id: darcy_inverse_0007
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 7
+    mask_seed: 7
+    sample_seed: 7
+- id: darcy_inverse_0008
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 8
+    mask_seed: 8
+    sample_seed: 8
+- id: darcy_inverse_0009
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 9
+    mask_seed: 9
+    sample_seed: 9
+- id: darcy_inverse_0010
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 10
+    mask_seed: 10
+    sample_seed: 10
+- id: darcy_inverse_0011
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 11
+    mask_seed: 11
+    sample_seed: 11
+- id: darcy_inverse_0012
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 12
+    mask_seed: 12
+    sample_seed: 12
+- id: darcy_inverse_0013
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 13
+    mask_seed: 13
+    sample_seed: 13
+- id: darcy_inverse_0014
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 14
+    mask_seed: 14
+    sample_seed: 14
+- id: darcy_inverse_0015
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 15
+    mask_seed: 15
+    sample_seed: 15
+- id: darcy_inverse_0016
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 16
+    mask_seed: 16
+    sample_seed: 16
+- id: darcy_inverse_0017
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 17
+    mask_seed: 17
+    sample_seed: 17
+- id: darcy_inverse_0018
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 18
+    mask_seed: 18
+    sample_seed: 18
+- id: darcy_inverse_0019
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 19
+    mask_seed: 19
+    sample_seed: 19
+- id: darcy_inverse_0020
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 20
+    mask_seed: 20
+    sample_seed: 20
+- id: darcy_inverse_0021
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 21
+    mask_seed: 21
+    sample_seed: 21
+- id: darcy_inverse_0022
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 22
+    mask_seed: 22
+    sample_seed: 22
+- id: darcy_inverse_0023
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 23
+    mask_seed: 23
+    sample_seed: 23
+- id: darcy_inverse_0024
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 24
+    mask_seed: 24
+    sample_seed: 24
+- id: darcy_inverse_0025
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 25
+    mask_seed: 25
+    sample_seed: 25
+- id: darcy_inverse_0026
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 26
+    mask_seed: 26
+    sample_seed: 26
+- id: darcy_inverse_0027
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 27
+    mask_seed: 27
+    sample_seed: 27
+- id: darcy_inverse_0028
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 28
+    mask_seed: 28
+    sample_seed: 28
+- id: darcy_inverse_0029
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 29
+    mask_seed: 29
+    sample_seed: 29
+- id: darcy_inverse_0030
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 30
+    mask_seed: 30
+    sample_seed: 30
+- id: darcy_inverse_0031
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 31
+    mask_seed: 31
+    sample_seed: 31
+- id: darcy_inverse_0032
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 32
+    mask_seed: 32
+    sample_seed: 32
+- id: darcy_inverse_0033
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 33
+    mask_seed: 33
+    sample_seed: 33
+- id: darcy_inverse_0034
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 34
+    mask_seed: 34
+    sample_seed: 34
+- id: darcy_inverse_0035
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 35
+    mask_seed: 35
+    sample_seed: 35
+- id: darcy_inverse_0036
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 36
+    mask_seed: 36
+    sample_seed: 36
+- id: darcy_inverse_0037
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 37
+    mask_seed: 37
+    sample_seed: 37
+- id: darcy_inverse_0038
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 38
+    mask_seed: 38
+    sample_seed: 38
+- id: darcy_inverse_0039
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 39
+    mask_seed: 39
+    sample_seed: 39
+- id: darcy_inverse_0040
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 40
+    mask_seed: 40
+    sample_seed: 40
+- id: darcy_inverse_0041
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 41
+    mask_seed: 41
+    sample_seed: 41
+- id: darcy_inverse_0042
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 42
+    mask_seed: 42
+    sample_seed: 42
+- id: darcy_inverse_0043
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 43
+    mask_seed: 43
+    sample_seed: 43
+- id: darcy_inverse_0044
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 44
+    mask_seed: 44
+    sample_seed: 44
+- id: darcy_inverse_0045
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 45
+    mask_seed: 45
+    sample_seed: 45
+- id: darcy_inverse_0046
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 46
+    mask_seed: 46
+    sample_seed: 46
+- id: darcy_inverse_0047
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 47
+    mask_seed: 47
+    sample_seed: 47
+- id: darcy_inverse_0048
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 48
+    mask_seed: 48
+    sample_seed: 48
+- id: darcy_inverse_0049
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 49
+    mask_seed: 49
+    sample_seed: 49
+- id: darcy_inverse_0050
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 50
+    mask_seed: 50
+    sample_seed: 50
+- id: darcy_inverse_0051
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 51
+    mask_seed: 51
+    sample_seed: 51
+- id: darcy_inverse_0052
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 52
+    mask_seed: 52
+    sample_seed: 52
+- id: darcy_inverse_0053
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 53
+    mask_seed: 53
+    sample_seed: 53
+- id: darcy_inverse_0054
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 54
+    mask_seed: 54
+    sample_seed: 54
+- id: darcy_inverse_0055
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 55
+    mask_seed: 55
+    sample_seed: 55
+- id: darcy_inverse_0056
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 56
+    mask_seed: 56
+    sample_seed: 56
+- id: darcy_inverse_0057
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 57
+    mask_seed: 57
+    sample_seed: 57
+- id: darcy_inverse_0058
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 58
+    mask_seed: 58
+    sample_seed: 58
+- id: darcy_inverse_0059
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 59
+    mask_seed: 59
+    sample_seed: 59
+- id: darcy_inverse_0060
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 60
+    mask_seed: 60
+    sample_seed: 60
+- id: darcy_inverse_0061
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 61
+    mask_seed: 61
+    sample_seed: 61
+- id: darcy_inverse_0062
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 62
+    mask_seed: 62
+    sample_seed: 62
+- id: darcy_inverse_0063
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 63
+    mask_seed: 63
+    sample_seed: 63
+- id: darcy_inverse_0064
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 64
+    mask_seed: 64
+    sample_seed: 64
+- id: darcy_inverse_0065
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 65
+    mask_seed: 65
+    sample_seed: 65
+- id: darcy_inverse_0066
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 66
+    mask_seed: 66
+    sample_seed: 66
+- id: darcy_inverse_0067
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 67
+    mask_seed: 67
+    sample_seed: 67
+- id: darcy_inverse_0068
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 68
+    mask_seed: 68
+    sample_seed: 68
+- id: darcy_inverse_0069
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 69
+    mask_seed: 69
+    sample_seed: 69
+- id: darcy_inverse_0070
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 70
+    mask_seed: 70
+    sample_seed: 70
+- id: darcy_inverse_0071
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 71
+    mask_seed: 71
+    sample_seed: 71
+- id: darcy_inverse_0072
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 72
+    mask_seed: 72
+    sample_seed: 72
+- id: darcy_inverse_0073
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 73
+    mask_seed: 73
+    sample_seed: 73
+- id: darcy_inverse_0074
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 74
+    mask_seed: 74
+    sample_seed: 74
+- id: darcy_inverse_0075
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 75
+    mask_seed: 75
+    sample_seed: 75
+- id: darcy_inverse_0076
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 76
+    mask_seed: 76
+    sample_seed: 76
+- id: darcy_inverse_0077
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 77
+    mask_seed: 77
+    sample_seed: 77
+- id: darcy_inverse_0078
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 78
+    mask_seed: 78
+    sample_seed: 78
+- id: darcy_inverse_0079
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 79
+    mask_seed: 79
+    sample_seed: 79
+- id: darcy_inverse_0080
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 80
+    mask_seed: 80
+    sample_seed: 80
+- id: darcy_inverse_0081
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 81
+    mask_seed: 81
+    sample_seed: 81
+- id: darcy_inverse_0082
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 82
+    mask_seed: 82
+    sample_seed: 82
+- id: darcy_inverse_0083
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 83
+    mask_seed: 83
+    sample_seed: 83
+- id: darcy_inverse_0084
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 84
+    mask_seed: 84
+    sample_seed: 84
+- id: darcy_inverse_0085
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 85
+    mask_seed: 85
+    sample_seed: 85
+- id: darcy_inverse_0086
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 86
+    mask_seed: 86
+    sample_seed: 86
+- id: darcy_inverse_0087
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 87
+    mask_seed: 87
+    sample_seed: 87
+- id: darcy_inverse_0088
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 88
+    mask_seed: 88
+    sample_seed: 88
+- id: darcy_inverse_0089
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 89
+    mask_seed: 89
+    sample_seed: 89
+- id: darcy_inverse_0090
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 90
+    mask_seed: 90
+    sample_seed: 90
+- id: darcy_inverse_0091
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 91
+    mask_seed: 91
+    sample_seed: 91
+- id: darcy_inverse_0092
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 92
+    mask_seed: 92
+    sample_seed: 92
+- id: darcy_inverse_0093
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 93
+    mask_seed: 93
+    sample_seed: 93
+- id: darcy_inverse_0094
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 94
+    mask_seed: 94
+    sample_seed: 94
+- id: darcy_inverse_0095
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 95
+    mask_seed: 95
+    sample_seed: 95
+- id: darcy_inverse_0096
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 96
+    mask_seed: 96
+    sample_seed: 96
+- id: darcy_inverse_0097
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 97
+    mask_seed: 97
+    sample_seed: 97
+- id: darcy_inverse_0098
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 98
+    mask_seed: 98
+    sample_seed: 98
+- id: darcy_inverse_0099
+  pde: darcy
+  task: inverse
+  overrides:
+    test_type: smooth
+    offset: 99
+    mask_seed: 99
+    sample_seed: 99
+postprocess: summary

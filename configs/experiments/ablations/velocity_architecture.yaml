@@ -1,0 +1,14 @@
+paragraph: Velocity Network Architecture.
+engine: architecture
+pdes:
+- poisson
+- helmholtz
+- darcy
+- nsnonbounded
+- burger
+distributions:
+- id
+- smooth
+- rough
+count: 100
+steps: 100

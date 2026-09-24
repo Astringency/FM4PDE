@@ -321,7 +321,15 @@ def _apply_task_gate(flags: dict[str, bool], task: str) -> dict[str, bool]:
 
 
 def _mse(residual: Any) -> Any:
-    return (residual**2).mean()
+    import torch
+
+    loss = (residual**2).mean()
+    if residual.dtype != torch.float64 and not bool(torch.isfinite(loss).detach().cpu()):
+        # Finite residuals may overflow during squaring although their mean
+        # square is representable. Keep the ordinary path exactly unchanged.
+        # Genuine NaN/Inf inputs remain nonfinite and are rejected by the caller.
+        loss = residual.double().square().mean()
+    return loss
 
 
 def _require_finite(value: Any, name: str) -> None:
@@ -482,7 +490,13 @@ def _masked_residual_mse(residual: Any, mask: Any, *, eps: float = 1e-12) -> Any
     batch = int(residual.shape[0])
     numerator = ((residual**2) * mask).reshape(batch, -1).sum(dim=1)
     denominator = mask.reshape(batch, -1).sum(dim=1)
-    return (numerator / denominator.clamp_min(eps)).mean()
+    loss = (numerator / denominator.clamp_min(eps)).mean()
+    if residual.dtype != torch.float64 and not bool(torch.isfinite(loss).detach().cpu()):
+        wide_mask = mask.double()
+        numerator = (residual.double().square() * wide_mask).reshape(batch, -1).sum(dim=1)
+        denominator = wide_mask.reshape(batch, -1).sum(dim=1)
+        loss = (numerator / denominator.clamp_min(eps)).mean()
+    return loss
 
 
 def _masked_count(pred: Any, mask: Any) -> float:
@@ -616,6 +630,15 @@ def _component_norms(components: dict[str, Any] | None) -> dict[str, float]:
                 numerator = (value.square() * expanded).reshape(value.shape[0], -1).sum(dim=1)
                 denominator = expanded.reshape(value.shape[0], -1).sum(dim=1).clamp_min(1.0)
                 per_sample = (numerator / denominator).sqrt()
+            if value.dtype != torch.float64 and not bool(torch.isfinite(per_sample).all().detach().cpu()):
+                wide = value.double()
+                if mask is None:
+                    per_sample = wide.square().reshape(value.shape[0], -1).mean(dim=1).sqrt()
+                else:
+                    weights = expanded.double()
+                    numerator = (wide.square() * weights).reshape(value.shape[0], -1).sum(dim=1)
+                    denominator = weights.reshape(value.shape[0], -1).sum(dim=1).clamp_min(1.0)
+                    per_sample = (numerator / denominator).sqrt()
             norms[name] = float(per_sample.mean().detach().cpu())
     return norms
 

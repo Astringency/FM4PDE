@@ -166,7 +166,7 @@ def fast_sample(cfg, truth, bundle, indices, fixed, steps=100):
         assert losses.pde_residual_status != 'error'
         coeffs = r.scheduler_coefficients(t, scheduler='CondOT')
         affine = r.affine_coefficients(coeffs, training='velocity')
-        schedule = r.make_zeta_schedule(c, t, t_next, affine.b_t)
+        schedule = r.make_zeta_schedule(c, t, t_next, affine.b_t, step=step)
         target = r._gradient_target_tensor(c, x_cur, out)
         if c.runtime_metadata.get('fused_guidance'):
             # Global clipping applies after the weighted gradient sum; linearity

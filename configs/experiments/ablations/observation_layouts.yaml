@@ -1,0 +1,52 @@
+paragraph: Observation Layouts and Shared Locations.
+engine: sampling
+jobs:
+- id: random_False
+  pde: helmholtz
+  task: both
+  overrides:
+    sensor_mode: random
+    shared_mask: false
+    num_obs: 500
+    num_sensor_columns: 5
+- id: random_True
+  pde: helmholtz
+  task: both
+  overrides:
+    sensor_mode: random
+    shared_mask: true
+    num_obs: 500
+    num_sensor_columns: 5
+- id: grid_False
+  pde: helmholtz
+  task: both
+  overrides:
+    sensor_mode: grid
+    shared_mask: false
+    num_obs: 500
+    num_sensor_columns: 5
+- id: grid_True
+  pde: helmholtz
+  task: both
+  overrides:
+    sensor_mode: grid
+    shared_mask: true
+    num_obs: 500
+    num_sensor_columns: 5
+- id: sensor_column_False
+  pde: helmholtz
+  task: both
+  overrides:
+    sensor_mode: sensor_column
+    shared_mask: false
+    num_obs: 640
+    num_sensor_columns: 5
+- id: sensor_column_True
+  pde: helmholtz
+  task: both
+  overrides:
+    sensor_mode: sensor_column
+    shared_mask: true
+    num_obs: 640
+    num_sensor_columns: 5
+postprocess: summary

@@ -30,11 +30,11 @@ deterministic_numerical_guard: true
 switch_ratio: 0.5
 guidance_schedule: constant
 pde_guidance_start_ratio: 0.8
-pde_guidance_ramp_ratio: 0.1
+pde_guidance_ramp_ratio: 0.0
 clip_mode: global_norm
-clip_threshold: 50.0
+clip_threshold: 150.0
 pde_residual_region: full
-residual_mode: hermite_bridge
+residual_mode: endpoint_secant
 enforce_boundary_conditions: true
 boundary_condition_mode: periodic
 bc_weight: 1.0
@@ -45,7 +45,7 @@ hermite_collocation_times:
 - 0.25
 - 0.5
 - 0.75
-hermite_include_integral_residual: true
+hermite_include_integral_residual: false
 hermite_integral_weight: 1.0
 num_obs: 500
 num_sensor_columns: 5
@@ -63,5 +63,7 @@ sample_seed: 0
 device: cpu
 dtype: float32
 zeta_obs_a: 0.0
-zeta_obs_u: 100000.0
-zeta_pde: 0.1
+zeta_obs_u: 1000000.0
+zeta_pde: 10.0
+stochastic_guidance_coeff: 0.1
+pde_guidance_clock: step_fraction

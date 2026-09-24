@@ -21,6 +21,15 @@ reports
 /bak/
 /reproducibility/
 
-# Local documentation and development tests; excluded from publication.
+# Local working documentation; excluded from publication.
 /docs/
-/tests/
+
+
+*.bundle
+.pytest_cache/
+
+# Development tests are retained outside the published repository.
+tests/
+/test/
+test_*.py
+pytest.ini

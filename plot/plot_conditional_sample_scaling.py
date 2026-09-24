@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import sys
 import numpy as np
+from scipy.stats import t as student_t
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -107,20 +108,21 @@ def main():
     rows=sorted(rows,key=lambda x:(x['task'],x['offset'],x['K']))
     write_csv(args.output/'conditional_scaling_per_input.csv',rows)
     np.savez_compressed(args.output/'conditional_scaling_fields.npz',**arrays)
-    rng=np.random.default_rng(20260909)
-    draws=rng.integers(0,32,(100000,32))
+    def confidence_interval(values):
+        half=student_t.ppf(.975,len(values)-1)*values.std(ddof=1)/np.sqrt(len(values))
+        return values.mean()-half,values.mean()+half
     summary=[];effects=[];timing=[]
     for task,field,name in FIELDS:
         baseline=np.array([index[task,i,1][f'rel_l2_{field}']*100 for i in range(1500,1532)])
         for k in KS:
             values=np.array([index[task,i,k][f'rel_l2_{field}']*100 for i in range(1500,1532)])
-            boot=values[draws].mean(1)
+            low,high=confidence_interval(values)
             summary.append(dict(task=task,field=field,K=k,n=32,mean_percent=values.mean(),sd_percent=values.std(ddof=1),
-                                mean_ci_low=np.quantile(boot,.025),mean_ci_high=np.quantile(boot,.975)))
+                                mean_ci_low=low,mean_ci_high=high))
             if k>1:
-                delta=values-baseline;bd=delta[draws].mean(1)
+                delta=values-baseline;delta_low,delta_high=confidence_interval(delta)
                 effects.append(dict(task=task,field=field,K=k,n=32,mean_delta_pp=delta.mean(),
-                    simultaneous_ci_low=np.quantile(bd,.05/(2*16)),simultaneous_ci_high=np.quantile(bd,1-.05/(2*16)),
+                    pointwise_ci_low=delta_low,pointwise_ci_high=delta_high,
                     improved_inputs=int((delta<0).sum()),relative_mean_error_change_percent=100*(values.mean()/baseline.mean()-1)))
     for task in TASKS:
         for k in KS:
@@ -206,17 +208,17 @@ def main():
     (args.output/'conditional_scaling_table.tex').write_text('\n'.join(lines)+'\n')
     figure_lines=[]
     captions={
-      'accuracy':r'Poisson reconstruction error versus the number $K$ of averaged conditional samples. Means and pointwise 95\% bootstrap intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; the physical-field average $\overline{\mathbf z}_K$ is formed before evaluating $\operatorname{RelL2}_a$ or $\operatorname{RelL2}_u$.',
+      'accuracy':r'Poisson reconstruction error versus the number $K$ of averaged conditional samples. Means and pointwise 95\% Student-$t$ confidence intervals are computed over the same 32 ID inputs. The same 500 observations per observed field are used for all draws of an input and task. Every draw uses 100 stochastic Euler steps; the physical-field average $\overline{\mathbf z}_K$ is formed before evaluating $\operatorname{RelL2}_a$ or $\operatorname{RelL2}_u$.',
       'time':r'Cumulative sampling time for averaged Poisson estimates under fixed observations. Each input and task uses one sequence of 1000 predictions; a mean is evaluated when the first $K$ predictions are available. Curves show medians over 32 inputs and shaded bands the interquartile range. Batches contain at most 64 samples on an A800 GPU and end at the reported values of $K$. Times include generation, physical-field conversion, transfer, and all preceding prefix averages; model loading and file I/O are excluded. All values of $K$ are measured along the same nested sequence, rather than through separate sampling runs.',
       'reconstructions':r'Poisson conditional-sample averages for the first input in the evaluation cohort. Columns compare the reference fields with the corresponding components of $\overline{\mathbf z}_K$ for $K=1,3,10,100,1000$. The four rows show forward $\mathbf{u}$, inverse $\mathbf{a}$, and joint $\mathbf{a}$ and $\mathbf{u}$. Colors share one scale within each row. Labels below reconstructed fields give $\operatorname{RelL2}_a$ or $\operatorname{RelL2}_u$, according to the field, in percent. Observations and guidance parameters are fixed across columns.'}
     captions['time'] += ' Measurements use A800 GPUs, with concurrent workloads in some runs.'
     for name,caption in captions.items():
         figure_lines += [r'\begin{figure}[!htbp]\centering',r'\includegraphics[width=\linewidth]{figures/'+args.figure_prefix+'_'+name+'.pdf}',r'\caption{'+caption+'}',r'\label{fig:conditional-scaling-'+name+'}',r'\end{figure}']
     (args.output/'conditional_scaling_figures.tex').write_text('\n'.join(figure_lines)+'\n')
-    (args.output/'settings.tex').write_text(r'''We evaluate conditional-sample averaging on 32 Poisson ID inputs (indices 1500--1531) for forward, inverse, and joint recovery. For each input and task, one set of 500 observations per observed field, including their values, is held fixed across all draws. A single pool of 1000 predictions is generated using 100 stochastic Euler steps per draw, and each estimate is the physical-space arithmetic mean of the first $K\in\{1,3,10,100,1000\}$ predictions. Guidance parameters remain fixed. Uncertainty intervals resample the 32 physical inputs. Sampling times are cumulative costs measured when each prefix estimate becomes available.'''+'\n')
+    (args.output/'settings.tex').write_text(r'''We evaluate conditional-sample averaging on 32 Poisson ID inputs (indices 1500--1531) for forward, inverse, and joint recovery. For each input and task, one set of 500 observations per observed field, including their values, is held fixed across all draws. A single pool of 1000 predictions is generated using 100 stochastic Euler steps per draw, and each estimate is the physical-space arithmetic mean of the first $K\in\{1,3,10,100,1000\}$ predictions. Guidance parameters remain fixed. Uncertainty intervals use the sample standard deviation across 32 physical inputs and the Student-$t$ quantile with 31 degrees of freedom. Sampling times are cumulative costs measured when each prefix estimate becomes available.'''+'\n')
     write(args.output/'conditional_scaling_final_manifest.json',dict(complete=True,physical_inputs=32,tasks=list(TASKS),K=KS,
-          canonical_trajectories=96000,timed_trajectories=96000,cumulative_prefix_timings=480,timing_mode='cumulative_prefix',rows=len(rows),bootstrap_resamples=100000,
-          simultaneous_interval_comparisons=16,plot_font=font,figure_width_inches=FIGURE_WIDTH_IN,
+          canonical_trajectories=96000,timed_trajectories=96000,cumulative_prefix_timings=480,timing_mode='cumulative_prefix',rows=len(rows),
+          confidence_interval='pointwise 95% Student-t for the mean; paired differences for effects',plot_font=font,figure_width_inches=FIGURE_WIDTH_IN,
           ordinary_font_points=ORDINARY_FONT_PT,figure_files=generated,source_manifests=manifests,
           field_colormap='field_blue_gold',
           timing_occupancy_audit_sha256=digest(args.output/'conditional_timing_audit.json'),

@@ -145,7 +145,7 @@ def fm_predict(config, bundle, gt, masks):
         losses=r.compute_guidance_losses(physical,gt,masks,cfg,obs)
         assert not r._calibrate_l2_observation_zeta(cfg,losses,step=k)
         affine=r.affine_coefficients(r.scheduler_coefficients(t,scheduler='CondOT'),training='velocity')
-        schedule=r.make_zeta_schedule(cfg,t,tn,affine.b_t)
+        schedule=r.make_zeta_schedule(cfg,t,tn,affine.b_t,step=k)
         gradient=r.compute_guidance_gradient(losses,r._gradient_target_tensor(cfg,cur,out),schedule,cfg)
         x=r.apply_guidance_update(out.x_raw_next,gradient,out,schedule,cfg).detach()
     final=r._physical_from_model_state(x,cfg,normalizer)

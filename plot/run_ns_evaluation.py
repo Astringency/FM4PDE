@@ -147,7 +147,7 @@ def infer(cfg,bundle,gt,masks,indices,*,steps=100,fused=True):
         losses=r.compute_guidance_losses(physical,gt,masks,c)
         assert losses.pde_residual_status!='error'
         affine=r.affine_coefficients(r.scheduler_coefficients(t,scheduler='CondOT'),training='velocity')
-        schedule=r.make_zeta_schedule(c,t,tn,affine.b_t)
+        schedule=r.make_zeta_schedule(c,t,tn,affine.b_t,step=step)
         target=r._gradient_target_tensor(c,cur,out)
         if fused:
             loss=(schedule.zeta_obs_a_t*losses.guidance_L_obs_a+schedule.zeta_obs_u_t*losses.guidance_L_obs_u+schedule.zeta_pde_t*losses.guidance_L_pde)

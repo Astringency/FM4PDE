@@ -1,0 +1,14 @@
+paragraph: Sampling Time.
+engine: timing
+pdes:
+- poisson
+- helmholtz
+- darcy
+- nsnonbounded
+- burger
+distribution: smooth
+task: both
+count: 20
+steps:
+- 100
+- 1000

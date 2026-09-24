@@ -1,0 +1,15 @@
+# Appendix: parameters shared by U-Net and OFM in the architecture ablation.
+poisson:
+  forward: [150000, 0, 0.1, 150]
+  inverse: [0, 5760000000, 0.3, 65]
+helmholtz:
+  forward: [6000000, 0, 0.1, 150]
+  inverse: [0, 7680000000, 0.03, 80]
+darcy:
+  forward: [3750, 0, 0.1, 200]
+  inverse: [0, 128000000000, 0.03, 100]
+nsnonbounded:
+  forward: [6000000, 0, 0.1, 100]
+  inverse: [0, 7200000, 0.3, 80]
+burger:
+  both: [0, 409600, 10, 100]

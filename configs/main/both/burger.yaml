@@ -6,6 +6,8 @@ data_paths:
   id: datasets/burgers/burger_test_10000-128-128_id.mat
   smooth: datasets/burgers/burger_test_10000-128-128_smooth.mat
   rough: datasets/burgers/burger_test_10000-128-128_rough.mat
+  rough2: datasets/burgers/burger_test_1000-128-128_rough2.mat
+  rough3: datasets/burgers/burger_test_1000-128-128_rough3.mat
 loadby: scipy
 coef_name: output
 solution_name: output
@@ -42,7 +44,7 @@ endpoint_bc_weight: 1.0
 boundary_residual_normalization: sqrt_grid_over_mask
 allow_unknown_boundary_conditions: false
 num_obs: 500
-num_sensor_columns: 16
+num_sensor_columns: 5
 sensor_mode: random
 shared_mask: false
 mask_seed: 0
@@ -56,5 +58,8 @@ sample_seed: 0
 device: cpu
 dtype: float32
 zeta_obs_a: 0.0
-zeta_obs_u: 409600.0
+zeta_obs_u: 52428800.0
 zeta_pde: 10.0
+stochastic_guidance_coeff: 0.1
+pde_guidance_clock: step_fraction
+hermite_include_integral_residual: false

@@ -1,0 +1,106 @@
+paragraph: Guidance Evaluation State.
+engine: sampling
+jobs:
+- id: archive_0100
+  pde: burger
+  task: both
+  overrides:
+    guidance_components: obs_pde
+    loss_state: xt
+    sampler_phase: deterministic
+    switch_ratio: 0.5
+    num_obs: 500
+    noise_level: 0.0
+    mask_seed: 0
+    sample_seed: 0
+    noise_seed: 0
+    offset: 0
+    shared_mask: false
+    sensor_mode: per_sample_random
+    time_grid: geometric
+    time_grid_eta: 0.05
+- id: archive_0101
+  pde: burger
+  task: both
+  overrides:
+    guidance_components: obs_pde
+    loss_state: xt
+    sampler_phase: stochastic
+    switch_ratio: 0.5
+    num_obs: 500
+    noise_level: 0.0
+    mask_seed: 0
+    sample_seed: 0
+    noise_seed: 0
+    offset: 0
+    shared_mask: false
+    sensor_mode: per_sample_random
+- id: archive_0102
+  pde: burger
+  task: both
+  overrides:
+    guidance_components: obs_pde
+    loss_state: x_next
+    sampler_phase: deterministic
+    switch_ratio: 0.5
+    num_obs: 500
+    noise_level: 0.0
+    mask_seed: 0
+    sample_seed: 0
+    noise_seed: 0
+    offset: 0
+    shared_mask: false
+    sensor_mode: per_sample_random
+    time_grid: geometric
+    time_grid_eta: 0.05
+- id: archive_0103
+  pde: burger
+  task: both
+  overrides:
+    guidance_components: obs_pde
+    loss_state: x_next
+    sampler_phase: stochastic
+    switch_ratio: 0.5
+    num_obs: 500
+    noise_level: 0.0
+    mask_seed: 0
+    sample_seed: 0
+    noise_seed: 0
+    offset: 0
+    shared_mask: false
+    sensor_mode: per_sample_random
+- id: archive_0104
+  pde: burger
+  task: both
+  overrides:
+    guidance_components: obs_pde
+    loss_state: endpoint
+    sampler_phase: deterministic
+    switch_ratio: 0.5
+    num_obs: 500
+    noise_level: 0.0
+    mask_seed: 0
+    sample_seed: 0
+    noise_seed: 0
+    offset: 0
+    shared_mask: false
+    sensor_mode: per_sample_random
+    time_grid: geometric
+    time_grid_eta: 0.05
+- id: archive_0105
+  pde: burger
+  task: both
+  overrides:
+    guidance_components: obs_pde
+    loss_state: endpoint
+    sampler_phase: stochastic
+    switch_ratio: 0.5
+    num_obs: 500
+    noise_level: 0.0
+    mask_seed: 0
+    sample_seed: 0
+    noise_seed: 0
+    offset: 0
+    shared_mask: false
+    sensor_mode: per_sample_random
+postprocess: summary

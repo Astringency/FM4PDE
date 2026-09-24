@@ -6,6 +6,8 @@ data_paths:
   id: datasets/darcy/darcy_test_10000-128-128_id.mat
   smooth: datasets/darcy/darcy_test_10000-128-128_smooth.mat
   rough: datasets/darcy/darcy_test_10000-128-128_rough.mat
+  rough2: datasets/darcy/darcy_test_1000-128-128_rough2.mat
+  rough3: datasets/darcy/darcy_test_1000-128-128_rough3.mat
 loadby: h5py
 coef_name: thresh_a_data
 solution_name: thresh_p_data
@@ -32,7 +34,7 @@ guidance_schedule: constant
 pde_guidance_start_ratio: 0.8
 pde_guidance_ramp_ratio: 0.0
 clip_mode: global_norm
-clip_threshold: 90.0
+clip_threshold: 100.0
 pde_residual_region: full
 residual_mode: auto
 coef_positive_mode: binary
@@ -58,5 +60,8 @@ sample_seed: 0
 device: cpu
 dtype: float32
 zeta_obs_a: 0.0
-zeta_obs_u: 128000000000.0
+zeta_obs_u: 1280000000000.0
 zeta_pde: 0.03
+stochastic_guidance_coeff: 0.1
+pde_guidance_clock: step_fraction
+hermite_include_integral_residual: false

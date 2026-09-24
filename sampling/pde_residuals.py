@@ -1364,7 +1364,7 @@ def _hermite_collocation_times(params: dict[str, Any]) -> list[float]:
 
 def _hermite_include_integral(params: dict[str, Any]) -> bool:
     settings = _hermite_settings(params)
-    return _as_bool(settings.get("include_integral_residual", params.get("hermite_include_integral_residual", True)))
+    return _as_bool(settings.get("include_integral_residual", params.get("hermite_include_integral_residual", False)))
 
 
 def _hermite_integral_weight(params: dict[str, Any]) -> float:

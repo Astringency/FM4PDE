@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def add_model_arguments(parser):
     parser.add_argument(
-        "--config-dir", type=Path, default=ROOT / "configs/ablations/base",
+        "--config-dir", type=Path, default=ROOT / "configs/main",
         help="Model defaults from <config-dir>/both/<pde>.yaml; experimental controls stay unchanged.",
     )
     parser.add_argument("--checkpoint", type=Path, help="Override the pretrained checkpoint for one selected PDE.")
