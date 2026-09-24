@@ -105,8 +105,11 @@ Architecture comparison also needs the sibling `FunDPS_DDIS_ECI_OFM` checkout,
 
 ## Baseline and other info
 
-Sibling repositories: `FM4PDEbaseline`, `CoCoGen`, `DiffusionPDE`, and
-`FunDPS_DDIS_ECI_OFM`; each README lists methods, upstream sources, and examples.
+Baseline repositories: [FM4PDEbaseline](https://github.com/Astringency/FM4PDEbaseline),
+[CoCoGen](https://github.com/Astringency/CoCoGen),
+[DiffusionPDE](https://github.com/Astringency/DiffusionPDE), and
+[FunDPS_DDIS_ECI_OFM](https://github.com/Astringency/FunDPS_DDIS_ECI_OFM)
+(FunDPS, DDIS, ECI, OFM). Each README lists methods, upstream sources, and examples.
 
 | Directory | Contents |
 | --- | --- |
@@ -118,4 +121,20 @@ Sibling repositories: `FM4PDEbaseline`, `CoCoGen`, `DiffusionPDE`, and
 
 ```bash
 python -m sampling.validate_configs
+```
+
+## Citation
+
+Please cite [our paper on arXiv](https://arxiv.org/abs/2605.25509):
+
+```bibtex
+@misc{zhang2026guidedflowmatching,
+  title = {Guided Flow Matching for Forward and Inverse PDE Problems with Sparse Observations: Algorithm and Theory},
+  author = {Xifeng Zhang and Jin Zhao},
+  year = {2026},
+  eprint = {2605.25509},
+  archivePrefix = {arXiv},
+  primaryClass = {stat.ML},
+  url = {https://arxiv.org/abs/2605.25509}
+}
 ```
