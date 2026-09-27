@@ -1312,7 +1312,7 @@ def _run_periodic_flow_eval(
         allow_sparse_near_endpoint=False,
     )
     uses_sparse_near_endpoint_exception = False
-    if pde_name != "burger" and eval_residual_mode in {"full_trajectory_fd", "full_time_space"}:
+    if pde_name != "burger" and eval_residual_mode in {"full_time_space"}:
         raise ValueError(
             f"Periodic generated-sample evaluation for {pde_name!r} cannot use {eval_residual_mode!r}: "
             "the model outputs only a/u endpoints. Only Burgers outputs a full predicted time-space field."
@@ -1336,19 +1336,7 @@ def _run_periodic_flow_eval(
             )
         }
 
-    sample_standardized = _euler_flow_sample(
-        model=model,
-        pde_name=pde_name,
-        batch_size=batch_size,
-        num_channels=num_channels,
-        resolution=resolution,
-        num_steps=num_steps,
-        device=device,
-        dtype=dtype,
-        seed=int(args.seed) + 1_000_003 + eval_epoch,
-        model_extra=model_extra,
-        cfg_scale=float(getattr(args, "cfg_scale", 1.0)),
-    )
+    sample_standardized = _euler_flow_sample(model=model, pde_name=pde_name, batch_size=batch_size, num_channels=num_channels, resolution=resolution, num_steps=num_steps, device=device, dtype=dtype, seed=int(args.seed) + 1000003 + eval_epoch, model_extra=model_extra)
     sample_physical = normalizer.inverse_transform(sample_standardized)
     split = split_pair_state(sample_physical, pde_name)
     residual = compute_pde_residual(
@@ -1417,7 +1405,6 @@ def _euler_flow_sample(
     dtype: torch.dtype,
     seed: int,
     model_extra: dict[str, Any] | None = None,
-    cfg_scale: float = 1.0,
 ) -> torch.Tensor:
     was_training = model.training
     model.eval()
@@ -1443,7 +1430,7 @@ def _euler_flow_sample(
         for step in range(num_steps):
             t = torch.full((batch_size,), float(grid[step].item()), device=device, dtype=dtype)
             step_size = grid[step + 1] - grid[step]
-            velocity = _cfg_eval_velocity(model, x, t, extra, cfg_scale)
+            velocity = model(x, t, extra=extra)
             if velocity.shape != x.shape:
                 raise ValueError(f"Eval model output shape {tuple(velocity.shape)} does not match sample shape {tuple(x.shape)}")
             x = x + step_size * velocity
@@ -1461,31 +1448,6 @@ def _eval_conditioning_for_model(model: torch.nn.Module, labels: torch.Tensor) -
     return {"label": labels.long()}
 
 
-def _cfg_eval_velocity(
-    model: torch.nn.Module,
-    x: torch.Tensor,
-    t: torch.Tensor,
-    extra: dict[str, torch.Tensor],
-    cfg_scale: float,
-) -> torch.Tensor:
-    module = getattr(model, "module", model)
-    if hasattr(module, "model") and hasattr(module.model, "num_classes"):
-        module = module.model
-    num_classes = getattr(module, "num_classes", None)
-    if num_classes is None:
-        return model(x, t, extra=extra)
-    if "label" not in extra:
-        raise ValueError("Class-conditional periodic evaluation requires a PDE label")
-    scale = float(cfg_scale)
-    conditional = model(x, t, extra=extra) if scale != 0.0 else None
-    if scale == 1.0:
-        return conditional
-    unconditional_extra = dict(extra)
-    unconditional_extra["label"] = torch.full_like(extra["label"], int(num_classes))
-    unconditional = model(x, t, extra=unconditional_extra)
-    if scale == 0.0:
-        return unconditional
-    return unconditional + scale * (conditional - unconditional)
 
 
 def _pde_params_for_eval(

@@ -83,9 +83,6 @@ class Trace:
         self.metric_cfg = copy.deepcopy(cfg)
         self.metric_cfg.guidance_components = "obs_pde"
         self.metric_cfg.zeta_pde = 1.0
-        self.metric_cfg.pde_guidance_reduction = "mse"
-        self.metric_cfg.obs_guidance_reduction = "mse"
-        self.metric_cfg.pde_residual_region = "full"
         self.residual_meta = None
 
     def begin(self):

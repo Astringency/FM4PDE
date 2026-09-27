@@ -23,7 +23,7 @@ from sampling.noise import add_observation_noise
 from sampling.pde_residuals import residual_status
 from sampling.sampler_wrappers import phase_for_step, sampler_step
 from sampling.state import SplitState, standardized_to_physical_state
-from sampling.time_grid import affine_coefficients, make_time_grid, scheduler_coefficients
+from sampling.time_grid import condot_guidance_coefficient, make_time_grid
 
 
 def run_single_ablation(
@@ -127,7 +127,6 @@ def run_single_ablation(
         pde=config.pde,
         batch_size=config.batch_size,
         device=device,
-        cfg_scale=config.cfg_scale,
     )
     combined_extra = {**class_extra, **(scalar_extra or {})}
     model_extra = combined_extra or None
@@ -179,7 +178,7 @@ def run_single_ablation(
             step_start = time.time()
             phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps)
             x_cur = x_next.detach().clone()
-            if _has_guidance(config) and config.gradient_target != "proposal_state_chain_rule":
+            if _has_guidance(config):
                 x_cur.requires_grad_(True)
             t = grid[step]
             t_next = grid[step + 1]
@@ -189,38 +188,21 @@ def run_single_ablation(
                 t=t,
                 t_next=t_next,
                 phase=phase,
-                step_method=config.step_method,
                 loss_state=config.loss_state,
                 device=device,
                 model_extra=model_extra,
                 stochastic_noise_source_batch_size=config.initial_noise_source_batch_size,
                 stochastic_noise_source_indices=config.initial_noise_source_indices or None,
-                deterministic_endpoint_mode=config.deterministic_endpoint_mode,
-                deterministic_endpoint_time_grid=grid[step:],
-                deterministic_rollout_checkpoint=config.deterministic_rollout_checkpoint,
-                gradient_target=config.gradient_target,
             )
             phys_loss = _physical_from_model_state(step_out.x_loss_state, config, normalizer)
             losses = compute_guidance_losses(phys_loss, gt, masks, config, observations)
-            calibration = _calibrate_l2_observation_zeta(config, losses, step=step)
-            if calibration:
-                config.runtime_metadata["obs_l2_step0_calibration"] = calibration
-                write_run_metadata(
-                    config,
-                    run_dir,
-                    ground_truth_metadata=gt.metadata,
-                    residual_metadata=_residual_metadata_for_config(config),
-                    checkpoint_metadata=checkpoint_metadata,
-                    scalar_conditioning_metadata=scalar_conditioning_metadata,
-                )
-            coeffs = scheduler_coefficients(t, scheduler="CondOT")
-            affine = affine_coefficients(coeffs, training="velocity")
-            schedule = make_zeta_schedule(config, t, t_next, affine.b_t, step=step)
+            bt = condot_guidance_coefficient(t)
+            schedule = make_zeta_schedule(config, t, bt, step=step)
 
             gradient = None
             guided_next = step_out.x_raw_next
             if _has_guidance(config):
-                gradient_input = _gradient_target_tensor(config, x_cur, step_out)
+                gradient_input = x_cur
                 gradient = compute_guidance_gradient(losses, gradient_input, schedule, config)
                 guided_next = apply_guidance_update(step_out.x_raw_next, gradient, step_out, schedule, config)
             x_next = guided_next.detach()
@@ -236,7 +218,6 @@ def run_single_ablation(
                     "zeta_obs_a_t": _scalar(schedule.zeta_obs_a_t),
                     "zeta_obs_u_t": _scalar(schedule.zeta_obs_u_t),
                     "zeta_pde_t": _scalar(schedule.zeta_pde_t),
-                    "guidance_schedule_factor": _scalar(schedule.metadata.get("factor", 1.0)),
                     "pde_guidance_factor": _scalar(schedule.metadata.get("pde_guidance_factor", 1.0)),
                     "bt": _scalar(schedule.bt),
                 }
@@ -308,8 +289,6 @@ def run_single_ablation(
             "synthetic_data": bool(gt.metadata.get("synthetic", False)),
             "pde_residual_status": final_residual_status,
             "pde_eval_error_count": pde_eval_error_count,
-            "gradient_target": config.gradient_target,
-            "stochastic_guidance_time": config.stochastic_guidance_time,
             "num_samples": len(sample_rows),
             "per_sample_metrics_file": "metrics_per_sample.csv",
             "per_sample_curve_file": (
@@ -439,67 +418,6 @@ def _sample_initial_noise(config: AblationConfig, ground_truth: Any, device: Any
     return source.index_select(0, index)
 
 
-def _calibrate_l2_observation_zeta(
-    config: AblationConfig,
-    losses: Any,
-    *,
-    step: int,
-) -> dict[str, Any]:
-    """Match batch-1 L2 observation-gradient scale to configured MSE-reference zeta values."""
-    if step != 0 or config.obs_guidance_reduction != "l2_norm":
-        return {}
-    reference_fields = {
-        "a": "obs_l2_reference_mse_zeta_a",
-        "u": "obs_l2_reference_mse_zeta_u",
-    }
-    if not any(getattr(config, field) is not None for field in reference_fields.values()):
-        return {}
-    if int(config.batch_size) != 1:
-        raise ValueError("Exact step-0 L2/MSE zeta calibration currently requires batch_size=1")
-
-    flags = guidance_component_flags(config.guidance_components, config.task)
-    counts = losses.metadata.get("obs_counts", {})
-    calibration: dict[str, Any] = {
-        "method": "exact_batch1_step0_gradient_scale_match",
-        "formula": "zeta_l2=zeta_mse*2*sqrt(masked_mse)/sqrt(observed_entries)",
-    }
-    for side, count_key in (("a", "coef"), ("u", "sol")):
-        reference_field = reference_fields[side]
-        reference_value = getattr(config, reference_field)
-        if reference_value is None or not flags[f"obs_{side}"]:
-            continue
-        reference_zeta = float(reference_value)
-        mse = float(getattr(losses, f"L_obs_{side}").detach().cpu())
-        observed_entries = float(counts.get(count_key, 0.0))
-        if mse <= 0.0 or observed_entries <= 0.0:
-            raise ValueError(
-                f"Cannot calibrate L2 observation zeta for side {side}: "
-                f"masked_mse={mse}, observed_entries={observed_entries}"
-            )
-        factor = observed_entries**0.5 / (2.0 * mse**0.5)
-        calibrated_zeta = reference_zeta / factor
-        setattr(config, f"zeta_obs_{side}", calibrated_zeta)
-        calibration[side] = {
-            "reference_mse_zeta": reference_zeta,
-            "step0_masked_mse": mse,
-            "observed_entries": observed_entries,
-            "l2_to_mse_gradient_factor": factor,
-            "calibrated_l2_zeta": calibrated_zeta,
-            "weighted_gradient_ratio_l2_over_mse": calibrated_zeta * factor / reference_zeta,
-        }
-    return calibration
-
-
-def _gradient_target_tensor(config: AblationConfig, x_cur: Any, step_out: Any) -> Any:
-    if config.gradient_target == "current_state_chain_rule":
-        return x_cur
-    if config.gradient_target == "loss_state_direct":
-        return step_out.x_loss_state
-    if config.gradient_target in {"next_state_direct", "proposal_state_chain_rule"}:
-        return step_out.x_raw_next
-    raise ValueError(f"Unknown gradient_target={config.gradient_target!r}")
-
-
 def _identity_normalizer(gt: Any) -> Any:
     from data.transform import PDEStandardizer
 
@@ -577,14 +495,13 @@ def _class_conditioning_for_sampling(
     pde: str,
     batch_size: int,
     device: Any,
-    cfg_scale: float,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     import torch
 
     model_config = checkpoint_payload.get("model_config", {})
     num_classes = model_config.get("num_classes") if isinstance(model_config, dict) else None
     if num_classes is None:
-        return {}, {"enabled": False, "cfg_scale": 1.0, "pde_label_mapping": None}
+        return {}, {"enabled": False, "pde_label_mapping": None}
     metadata = checkpoint_payload.get("model_config_metadata", {})
     data_metadata = checkpoint_payload.get("data_metadata", {})
     mapping = metadata.get("pde_label_mapping") if isinstance(metadata, dict) else None
@@ -611,16 +528,10 @@ def _class_conditioning_for_sampling(
     )
     return {
         "label": labels,
-        "_cfg_scale": float(cfg_scale),
-        "_cfg_null_label": int(num_classes),
     }, {
         "enabled": True,
-        "cfg_scale": float(cfg_scale),
         "conditional_label": int(normalized[pde]),
-        "null_label": int(num_classes),
         "pde_label_mapping": normalized,
-        "unconditional_drops": ["pde_label"],
-        "unconditional_retains": ["scalar_conditioning"],
     }
 
 
@@ -700,7 +611,7 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         endpoint_only = True
         uses_generated_trajectory = False
         uses_extra_temporal_observations = False
-    elif resolved_mode in {"full_time_space", "full_trajectory_fd"}:
+    elif resolved_mode in {"full_time_space"}:
         temporal_derivative_mode = "full_fd"
         endpoint_only = False
         uses_generated_trajectory = True
@@ -714,7 +625,7 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
     metadata = {
         "pde": config.pde,
         "residual_status": residual_status(config.pde),
-        "residual_family": "full_trajectory" if resolved_mode == "full_trajectory_fd" else spec.residual_family,
+        "residual_family": spec.residual_family,
         "temporal_derivative_mode": temporal_derivative_mode,
         "endpoint_only": endpoint_only,
         "uses_generated_trajectory": uses_generated_trajectory,
@@ -738,10 +649,6 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         "residual_mode": config.residual_mode,
         "resolved_residual_mode": resolved_mode,
         "zeta_pde": config.zeta_pde,
-        "hermite_collocation_times": config.hermite_collocation_times,
-        "hermite_num_collocation": config.hermite_num_collocation,
-        "hermite_include_integral_residual": config.hermite_include_integral_residual,
-        "hermite_integral_weight": config.hermite_integral_weight,
         "near_endpoint_mask_alignment": (
             {"q_dt": "coef/q0", "q_T_minus_dt": "sol/qT"}
             if uses_sparse_near_endpoint_exception
@@ -750,7 +657,6 @@ def _residual_metadata_for_config(config: AblationConfig) -> dict[str, Any]:
         "sensor_mode": config.sensor_mode,
         "num_obs": config.num_obs,
         "num_sensor_columns": config.num_sensor_columns,
-        "ns_operator_mode": config.ns_operator_mode,
     }
     return metadata
 
@@ -770,22 +676,14 @@ def _to_cpu_recursive(value: Any) -> Any:
 
 def _sanitize_pde_params_for_artifact(params: dict[str, Any] | None, config: AblationConfig | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {}
-    residual_mode = normalize_residual_mode(config.residual_mode) if config is not None else "auto"
-    save_intermediate = bool(getattr(config, "save_intermediate", False)) if config is not None else False
     for key, value in (params or {}).items():
         if key == "near_endpoint_temporal" and isinstance(value, dict):
             out[key] = _sanitize_near_endpoint_temporal(value)
         elif key in {"trajectory", "full_trajectory"}:
-            if residual_mode == "full_trajectory_fd" and save_intermediate:
-                saved = _to_cpu_recursive(value)
-                out[key] = saved
-                out.setdefault("artifact_metadata", {})[key] = {"large_artifact": True, "full_trajectory_saved": True}
-            else:
-                out.setdefault("artifact_metadata", {})[key] = {
-                    "full_trajectory_saved": False,
-                    "large_artifact": False,
-                    "reason": "omitted unless residual_mode='full_trajectory_fd' and save_intermediate=true",
-                }
+            out.setdefault("artifact_metadata", {})[key] = {
+                "full_trajectory_saved": False,
+                "reason": "ground-truth trajectories are excluded from endpoint PDE residuals",
+            }
         else:
             out[key] = _to_cpu_recursive(value)
     return out

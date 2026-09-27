@@ -169,11 +169,6 @@ def effective_config(cell, checkpoint, device, indices, count, output_dir=None):
         raise ValueError(
             "Noisy observations require a separately frozen observation payload"
         )
-    if (
-        cfg.obs_l2_reference_mse_zeta_a is not None
-        or cfg.obs_l2_reference_mse_zeta_u is not None
-    ):
-        raise ValueError("This rerun does not recalibrate guidance coefficients")
     return cfg
 
 
@@ -253,7 +248,6 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
         pde=cfg.pde,
         batch_size=len(indices),
         device=device,
-        cfg_scale=cfg.cfg_scale,
     )
     extras = {**classes, **(scalar or {})} or None
     r._check_sampling_channels(gt, normalizer, payload)
@@ -290,7 +284,7 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
         actual_steps = cfg.num_steps if steps is None else steps
         for step in range(actual_steps):
             guided = r._has_guidance(cfg)
-            cur = x.detach().requires_grad_(guided and cfg.gradient_target != "proposal_state_chain_rule")
+            cur = x.detach().requires_grad_(guided)
             t, tn = grid[step], grid[step + 1]
             phase = r.phase_for_step(
                 cfg.sampler_phase, cfg.switch_ratio, step, cfg.num_steps
@@ -301,31 +295,24 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
                 t,
                 tn,
                 phase,
-                cfg.step_method,
                 cfg.loss_state,
                 device=device,
                 model_extra=extras,
                 stochastic_noise_source_batch_size=cfg.initial_noise_source_batch_size,
                 stochastic_noise_source_indices=list(indices),
-                deterministic_endpoint_mode=cfg.deterministic_endpoint_mode,
-                deterministic_endpoint_time_grid=grid[step:],
-                deterministic_rollout_checkpoint=cfg.deterministic_rollout_checkpoint,
-                gradient_target=cfg.gradient_target,
             )
             physical = r._physical_from_model_state(out.x_loss_state, cfg, normalizer)
             losses = r.compute_guidance_losses(physical, gt, masks, cfg, observations=observations)
             if losses.pde_residual_status == "error":
                 raise RuntimeError("PDE residual failed")
-            affine = r.affine_coefficients(
-                r.scheduler_coefficients(t, scheduler="CondOT"), training="velocity"
-            )
-            schedule = r.make_zeta_schedule(cfg, t, tn, affine.b_t, step=step)
+            bt = r.condot_guidance_coefficient(t)
+            schedule = r.make_zeta_schedule(cfg, t, bt, step=step)
             if guided:
-                target = r._gradient_target_tensor(cfg, cur, out)
+                target = cur
                 if losses.metadata.get("loss_batch_reduction") != "mean_of_per_sample":
                     raise ValueError("Unexpected stock loss batch normalization")
                 # Preserve the stock order: differentiate each active component,
-                # apply component clipping, weight and sum, then global clipping.
+                # weight and sum, then apply global clipping.
                 # Fusing the backward passes changes floating-point evaluation
                 # and failed the real Helmholtz 100-step GPU pilot.
                 gradient = r.compute_guidance_gradient(losses, target, schedule, cfg)
@@ -346,13 +333,10 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
         seconds = time.perf_counter() - start
         if not torch.isfinite(pred).all():
             raise RuntimeError("Nonfinite prediction")
-        expected_nfe = actual_steps * (1 if cfg.step_method == "euler" else 2)
-        if cfg.gradient_target == "proposal_state_chain_rule":
-            expected_nfe += actual_steps - int(actual_steps == cfg.num_steps)
+        expected_nfe = actual_steps
         if (
             hook is not None
             and cfg.sampler_phase == "stochastic"
-            and cfg.cfg_scale == 1
             and calls[0] != expected_nfe
         ):
             raise RuntimeError(f"Unexpected forward count {calls[0]} != {expected_nfe}")
@@ -440,22 +424,13 @@ def pilot_family(cell, bindings, environment, code):
         "pde",
         "task",
         "guidance_components",
-        "guidance_operator",
-        "obs_guidance_reduction",
-        "pde_guidance_reduction",
         "loss_state",
-        "gradient_target",
         "sampler_phase",
-        "step_method",
         "time_grid",
         "num_steps",
-        "clip_mode",
         "residual_mode",
-        "pde_residual_region",
         "boundary_condition_mode",
         "boundary_residual_normalization",
-        "ns_operator_mode",
-        "coef_positive_mode",
         "model_profile",
         "dtype",
         "img_channels",

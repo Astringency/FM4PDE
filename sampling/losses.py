@@ -5,7 +5,7 @@ from typing import Any
 
 from data.specs import TEMPORAL_ENDPOINT_PDES
 from sampling.config import normalize_residual_mode
-from sampling.masks import PairMasks, residual_region_mask
+from sampling.masks import PairMasks
 from sampling.pde_residuals import compute_pde_residual
 from sampling.state import SplitState
 
@@ -83,27 +83,8 @@ def compute_guidance_losses(
     # when a guidance component or its zeta coefficient is disabled.
     L_obs_a = _masked_mse(predicted_coef, target_coef, masks.coef)
     L_obs_u = _masked_mse(predicted_sol, target_sol, masks.sol)
-    obs_guidance_reduction = str(getattr(config, "obs_guidance_reduction", "mse"))
-    if obs_guidance_reduction == "mse":
-        raw_guidance_L_obs_a = L_obs_a
-        raw_guidance_L_obs_u = L_obs_u
-        obs_guidance_reduction_label = "masked_mse_over_observed_entries"
-    elif obs_guidance_reduction in {"l2_norm", "legacy_l2_mean"}:
-        raw_guidance_L_obs_a = _masked_l2_norm(predicted_coef, target_coef, masks.coef)
-        raw_guidance_L_obs_u = _masked_l2_norm(predicted_sol, target_sol, masks.sol)
-        obs_guidance_reduction_label = "mean_of_per_sample_masked_l2_norm"
-        if obs_guidance_reduction == "legacy_l2_mean":
-            # Old Burgers retained obs_size (500), even for K*128 column entries.
-            denominator = config.num_obs if config.pde == "burger" and config.guidance_operator == "legacy" else None
-            raw_guidance_L_obs_a = _legacy_masked_l2_mean(predicted_coef, target_coef, masks.coef, denominator)
-            raw_guidance_L_obs_u = _legacy_masked_l2_mean(predicted_sol, target_sol, masks.sol, denominator)
-            obs_guidance_reduction_label = "mean_of_per_sample_l2_div_observed_count"
-            if denominator is not None:
-                obs_guidance_reduction_label = "mean_of_per_sample_l2_div_legacy_obs_size"
-    else:
-        raise ValueError(f"Unknown obs_guidance_reduction={obs_guidance_reduction!r}")
-    guidance_L_obs_a = raw_guidance_L_obs_a if enabled["obs_a"] else zero
-    guidance_L_obs_u = raw_guidance_L_obs_u if enabled["obs_u"] else zero
+    guidance_L_obs_a = L_obs_a if enabled["obs_a"] else zero
+    guidance_L_obs_u = L_obs_u if enabled["obs_u"] else zero
     clean_L_obs_a = _masked_mse(predicted_coef, clean_coef, masks.coef)
     clean_L_obs_u = _masked_mse(predicted_sol, clean_sol, masks.sol)
     obs_counts = {
@@ -128,7 +109,7 @@ def compute_guidance_losses(
             f"near_endpoint_temporal is only supported for temporal endpoint PDEs; got {config.pde!r}"
         )
     field_data_dependent_mode = (
-        residual_mode in {"full_trajectory_fd", "full_time_space"} and config.pde != "burger"
+        residual_mode in {"full_time_space"} and config.pde != "burger"
     )
     if field_data_dependent_mode:
         raise ValueError(
@@ -160,9 +141,7 @@ def compute_guidance_losses(
         )
         status = residual.status
         pde_meta = residual.metadata
-        pde_field, pde_field_mask, compose_meta, loss_components = _compose_region_aware_pde_field(
-            residual, config, masks
-        )
+        pde_field, pde_field_mask, compose_meta, loss_components = _compose_pde_field(residual)
         _require_finite(pde_field, f"{config.pde} PDE residual")
         pde_meta.update(compose_meta)
     except Exception as exc:
@@ -208,28 +187,6 @@ def compute_guidance_losses(
             )
         guidance_L_pde = L_pde
         guidance_component_losses = pde_component_losses
-        pde_reduction = getattr(config, "pde_guidance_reduction", "mse")
-        if pde_reduction == "rms":
-            guidance_L_pde, guidance_component_losses = _componentwise_pde_rms_loss(
-                loss_components,
-                bc_weight=float(getattr(config, "bc_weight", 1.0)),
-                endpoint_weight=float(getattr(config, "endpoint_bc_weight", 1.0)),
-                fallback_field=pde_field,
-            )
-            pde_meta["guidance_loss_reduction"] = "componentwise_mean_per_sample_rms_sum"
-        elif pde_reduction == "legacy_l2_mean":
-            field = pde_field if pde_field_mask is None else pde_field * pde_field_mask
-            flat = field.reshape(field.shape[0], -1)
-            guidance_L_pde = (torch.linalg.vector_norm(flat, dim=1) / flat.shape[1]).mean()
-            pde_meta["guidance_loss_reduction"] = "mean_of_per_sample_l2_div_grid_entries"
-        elif pde_reduction != "mse":
-            raise ValueError(f"Unknown pde_guidance_reduction={pde_reduction!r}")
-        if getattr(config, "guidance_operator", "current") == "legacy":
-            from sampling.legacy_guidance import legacy_pde_loss
-            sensor_columns = config.num_sensor_columns if config.sensor_mode == "sensor_column" else None
-            guidance_L_pde = legacy_pde_loss(config.pde, phys_state.coef, phys_state.sol, config.k,
-                                           sensor_columns=sensor_columns)
-            pde_meta["guidance_operator"] = "FM4PDE_bak historical surrogate (evaluation uses current operator)"
     else:
         guidance_L_pde = zero
         guidance_component_losses = {
@@ -259,8 +216,8 @@ def compute_guidance_losses(
             "pde": "componentwise_mse_sum",
         },
         "guidance_loss_reduction": {
-            "obs_a": obs_guidance_reduction_label,
-            "obs_u": obs_guidance_reduction_label,
+            "obs_a": "masked_mse_over_observed_entries",
+            "obs_u": "masked_mse_over_observed_entries",
             "pde": pde_meta.get("guidance_loss_reduction", "componentwise_mse_sum"),
         },
         "loss_batch_reduction": "mean_of_per_sample",
@@ -406,80 +363,12 @@ def _componentwise_pde_mse_loss(
     return total, detached
 
 
-def _mean_per_sample_rms(residual: Any, mask: Any | None = None) -> Any:
-    """Unsquared L2 loss, normalized by each sample's active entry count.
-
-    vector_norm supplies a finite zero subgradient at an exact match, unlike
-    directly differentiating sqrt(mean(residual**2)) at zero.
-    """
-    import torch
-
-    if residual.numel() == 0:
-        return _zero_like_reference(residual)
-    batch = int(residual.shape[0]) if residual.ndim > 1 else 1
-    flat = residual.reshape(batch, -1)
-    if mask is None:
-        return (torch.linalg.vector_norm(flat, dim=1) / flat.shape[1] ** 0.5).mean()
-    weights = torch.broadcast_to(mask, residual.shape).reshape(batch, -1)
-    numerator = torch.linalg.vector_norm(flat * weights.sqrt(), dim=1)
-    return (numerator / weights.sum(dim=1).clamp_min(1e-12).sqrt()).mean()
-
-
-def _componentwise_pde_rms_loss(
-    components: dict[str, Any | None],
-    *,
-    bc_weight: float,
-    endpoint_weight: float,
-    fallback_field: Any,
-) -> tuple[Any, dict[str, float]]:
-    """Keep component weights and regions; replace each MSE with per-sample RMS."""
-    values = {name: components.get(name) for name in ("interior", "boundary", "endpoint")}
-    if all(value is None for value in values.values()):
-        values["interior"] = fallback_field
-    reference = next(value for value in values.values() if value is not None)
-    losses = {
-        name: (
-            _zero_like_reference(reference) if value is None else
-            _mean_per_sample_rms(value, components.get("interior_mask") if name == "interior" else None)
-        )
-        for name, value in values.items()
-    }
-    total = losses["interior"] + float(bc_weight) * losses["boundary"] + float(endpoint_weight) * losses["endpoint"]
-    detached = {name: float(value.detach().cpu()) for name, value in losses.items()}
-    detached.update(total=float(total.detach().cpu()), bc_weight=float(bc_weight), endpoint_weight=float(endpoint_weight))
-    return total, detached
-
-
 def _masked_mse(pred: Any, target: Any, mask: Any, *, eps: float = 1e-12) -> Any:
     residual2, expanded_mask = _masked_squared_residual(pred, target, mask)
     batch = int(pred.shape[0]) if pred.ndim > 1 else 1
     numerator = residual2.reshape(batch, -1).sum(dim=1)
     denominator = expanded_mask.reshape(batch, -1).sum(dim=1)
     per_sample = numerator / denominator.clamp_min(eps)
-    return per_sample.mean()
-
-
-def _legacy_masked_l2_mean(pred: Any, target: Any, mask: Any, denominator: int | None = None) -> Any:
-    import torch
-    residual = (pred - target) * mask
-    flat = residual.reshape(residual.shape[0], -1)
-    count = torch.broadcast_to(mask, pred.shape).reshape(pred.shape[0], -1).sum(dim=1).clamp_min(1)
-    if denominator is not None:
-        if denominator <= 0:
-            raise ValueError("Legacy observation denominator must be positive")
-        count = denominator
-    return (torch.linalg.vector_norm(flat, dim=1) / count).mean()
-
-
-def _masked_l2_norm(pred: Any, target: Any, mask: Any) -> Any:
-    """Mean of per-sample L2 norms over observed entries, matching DiffusionPDE at B=1."""
-    import torch
-
-    mask = torch.as_tensor(mask, dtype=pred.dtype, device=pred.device).expand_as(pred)
-    target = torch.as_tensor(target, dtype=pred.dtype, device=pred.device)
-    residual = (pred - target) * mask
-    batch = int(pred.shape[0]) if pred.ndim > 1 else 1
-    per_sample = torch.linalg.vector_norm(residual.reshape(batch, -1), dim=1)
     return per_sample.mean()
 
 
@@ -516,19 +405,12 @@ def _masked_squared_residual(pred: Any, target: Any, mask: Any) -> tuple[Any, An
 def _pde_params_with_residual_options(pde_params: dict[str, Any] | None, config: Any) -> dict[str, Any]:
     params = dict(pde_params or {})
     option_names = (
-        "hermite_collocation_times",
-        "hermite_num_collocation",
-        "hermite_include_integral_residual",
-        "hermite_integral_weight",
         "enforce_boundary_conditions",
         "boundary_condition_mode",
         "bc_weight",
         "endpoint_bc_weight",
         "boundary_residual_normalization",
         "allow_unknown_boundary_conditions",
-        "ns_operator_mode",
-        "coef_positive_mode",
-        "coef_positive_floor",
     )
     for name in option_names:
         if hasattr(config, name):
@@ -643,93 +525,33 @@ def _component_norms(components: dict[str, Any] | None) -> dict[str, float]:
     return norms
 
 
-def _compose_region_aware_pde_field(
-    residual_output: Any, config: Any, masks: PairMasks
-) -> tuple[Any, Any | None, dict[str, Any], dict[str, Any | None]]:
-    import torch
-
-    pde_field = residual_output.residual
+def _compose_pde_field(
+    residual_output: Any,
+) -> tuple[Any, None, dict[str, Any], dict[str, Any | None]]:
+    """Use the PDE's defined residual support without an extra region mask."""
     components = residual_output.components
     if components is None:
         raise ValueError("PDE residual output must provide named residual components")
-
     interior = components.get("interior")
     if interior is None:
-        interior = pde_field
+        interior = residual_output.residual
     boundary = components.get("boundary")
     endpoint = components.get("endpoint")
-
-    metadata: dict[str, Any] = {
-        "pde_residual_region": config.pde_residual_region,
-        "boundary_region_masked": False,
-        "endpoint_region_masked": False,
-    }
-    interior_masked = interior
-    interior_mask = None
-    if residual_output.metadata.get("resolved_residual_mode") == "near_endpoint_temporal" or residual_output.metadata.get("mode") == "near_endpoint_temporal":
-        metadata.update(
-            {
-                "pde_residual_region_applied_to": "interior_only",
-                "pde_residual_region_skipped": True,
-                "reason": "near_endpoint_temporal interior is already sparse-temporal masked",
-            }
-        )
-    else:
-        region = residual_region_mask(
-            config.pde_residual_region,
-            masks.coef,
-            masks.sol,
-            tuple(interior.shape),
-            task=getattr(config, "task", "both"),
-        )
-        if region is not None:
-            interior_masked = interior * region
-            interior_mask = region
-        metadata.update(
-            {
-                "pde_residual_region_applied_to": "interior_only",
-                "pde_residual_region_skipped": False,
-            }
-        )
-
-    field = _append_components_for_logging(interior_masked, boundary, endpoint)
+    field = _append_components_for_logging(interior, boundary, endpoint)
     loss_components = {
-        "interior": interior_masked,
-        "boundary": boundary,
-        "endpoint": endpoint,
-        "interior_mask": interior_mask,
+        "interior": interior, "boundary": boundary, "endpoint": endpoint,
+        "interior_mask": None,
     }
-    metadata["component_norms"] = _component_norms(
-        loss_components
-    )
-    channels = {
-        "interior_channels": int(interior_masked.shape[1]),
-        "bc_channels": int(boundary.shape[1]) if boundary is not None else 0,
-        "endpoint_channels": int(endpoint.shape[1]) if endpoint is not None else 0,
-        "total_channels": int(field.shape[1]),
+    metadata = {
+        "component_norms": _component_norms(loss_components),
+        "residual_channels": {
+            "interior_channels": int(interior.shape[1]),
+            "bc_channels": int(boundary.shape[1]) if boundary is not None else 0,
+            "endpoint_channels": int(endpoint.shape[1]) if endpoint is not None else 0,
+            "total_channels": int(field.shape[1]),
+        },
     }
-    metadata["residual_channels"] = channels
-    field_mask = _append_component_masks(interior_masked, interior_mask, boundary, endpoint)
-    return field, field_mask, metadata, loss_components
-
-
-def _append_component_masks(
-    interior: Any,
-    interior_mask: Any | None,
-    boundary: Any | None,
-    endpoint: Any | None,
-) -> Any | None:
-    import torch
-
-    if interior_mask is None:
-        return None
-    parts = [
-        torch.as_tensor(interior_mask, dtype=interior.dtype, device=interior.device).expand_as(interior)
-    ]
-    for component in (boundary, endpoint):
-        if component is not None:
-            parts.append(torch.ones_like(component))
-    return torch.cat(parts, dim=1)
+    return field, None, metadata, loss_components
 
 
 def _append_components_for_logging(

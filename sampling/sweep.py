@@ -28,18 +28,6 @@ _RESUME_IGNORED_CONFIG_FIELDS = {
     "save_plots",
 }
 
-_BACKWARD_COMPATIBLE_CONFIG_DEFAULTS = {
-    "deterministic_endpoint_mode": "single_step",
-    "deterministic_rollout_checkpoint": False,
-    "deterministic_bt_mode": "legacy",
-    "deterministic_guidance_coeff": 1.0,
-    "deterministic_bt_max_scale": 0.1,
-    "deterministic_guidance_start_ratio": 0.0,
-    "deterministic_guidance_ramp_ratio": 0.0,
-    "deterministic_correction_max_rms": 0.0,
-    "deterministic_numerical_guard": True,
-}
-
 
 @dataclass(frozen=True)
 class ParallelJobResult:
@@ -587,8 +575,6 @@ def _is_matching_successful_run(
 
 def _resume_config(config: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(config)
-    for key, value in _BACKWARD_COMPATIBLE_CONFIG_DEFAULTS.items():
-        normalized.setdefault(key, value)
     return {
         key: value
         for key, value in normalized.items()

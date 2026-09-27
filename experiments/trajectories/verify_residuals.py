@@ -80,9 +80,6 @@ def main():
             cfg.device = "cpu"
             cfg.guidance_components = "obs_pde"
             cfg.zeta_pde = 1.0
-            cfg.pde_guidance_reduction = "mse"
-            cfg.obs_guidance_reduction = "mse"
-            cfg.pde_residual_region = "full"
             with torch.no_grad():
                 output = compute_guidance_losses(
                     SplitState(prediction["coef"], prediction["sol"]),

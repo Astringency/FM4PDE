@@ -178,8 +178,6 @@ def step_metrics(
         "boundary_enforced": pde_meta.get("boundary_enforced", False),
         "boundary_enforced_by_operator": pde_meta.get("boundary_enforced_by_operator", False),
         "boundary_value_residual_applicable": pde_meta.get("boundary_value_residual_applicable", True),
-        "pde_residual_region_applied_to": pde_meta.get("pde_residual_region_applied_to", ""),
-        "pde_residual_region_skipped": pde_meta.get("pde_residual_region_skipped", False),
         "obs_loss_reduction_a": loss_reduction.get("obs_a", ""),
         "obs_loss_reduction_u": loss_reduction.get("obs_u", ""),
         "pde_loss_reduction": loss_reduction.get("pde", pde_meta.get("loss_reduction", "")),
@@ -207,23 +205,10 @@ def step_metrics(
                 "grad_norm_obs_u": gradient.grad_norm_obs_u,
                 "grad_norm_pde": gradient.grad_norm_pde,
                 "grad_norm_total": gradient.grad_norm_total,
-                "gradient_target": gradient.metadata.get("gradient_target", ""),
                 "clip_scope": gradient.metadata.get("clip_scope", ""),
                 "guidance_update_scale": gradient.metadata.get("guidance_update_scale", 0.0),
-                "stochastic_guidance_time": gradient.metadata.get("stochastic_guidance_time", ""),
-                "deterministic_bt_mode": gradient.metadata.get("deterministic_bt_mode", ""),
-                "deterministic_guidance_factor": gradient.metadata.get(
-                    "deterministic_guidance_factor", 1.0
-                ),
-                "guidance_correction_raw_norm": gradient.metadata.get(
-                    "guidance_correction_raw_norm", 0.0
-                ),
                 "guidance_correction_norm": gradient.metadata.get("guidance_correction_norm", 0.0),
                 "guidance_correction_rms": gradient.metadata.get("guidance_correction_rms", 0.0),
-                "correction_clip_scale": gradient.metadata.get("correction_clip_scale", 1.0),
-                "nonfinite_correction_samples": gradient.metadata.get(
-                    "nonfinite_correction_samples", 0
-                ),
             }
         )
     else:
@@ -234,17 +219,10 @@ def step_metrics(
                 "grad_norm_obs_u": 0.0,
                 "grad_norm_pde": 0.0,
                 "grad_norm_total": 0.0,
-                "gradient_target": "",
                 "clip_scope": "",
                 "guidance_update_scale": 0.0,
-                "stochastic_guidance_time": "",
-                "deterministic_bt_mode": "",
-                "deterministic_guidance_factor": 1.0,
-                "guidance_correction_raw_norm": 0.0,
                 "guidance_correction_norm": 0.0,
                 "guidance_correction_rms": 0.0,
-                "correction_clip_scale": 1.0,
-                "nonfinite_correction_samples": 0,
             }
         )
     return row

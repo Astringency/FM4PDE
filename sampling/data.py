@@ -89,25 +89,6 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     elif config.loadby == "swe":
         pde_params, pde_param_sources = _swe_params_for_offsets(raw["__h5__"], offsets, pair.device)
     _attach_boundary_metadata_params(config, raw.get("__h5__") if isinstance(raw, dict) else None, pde_params, pde_param_sources)
-    trajectory_metadata: dict[str, Any] | None = None
-    if normalize_residual_mode(config.residual_mode) == "full_trajectory_fd" and config.pde != "burger":
-        trajectory, trajectory_metadata = _full_trajectory_for_offsets(config, raw, offsets, coef_t, pde_params)
-        pde_params["trajectory"] = trajectory
-        pde_param_sources["trajectory"] = "full_trajectory_observations"
-        pde_params["trajectory_is_observed_ground_truth"] = True
-        pde_param_sources["trajectory_is_observed_ground_truth"] = "loader_semantics"
-        time_values = _full_trajectory_time_values(config, raw, offsets)
-        if time_values is not None:
-            pde_params["trajectory_time_values"] = time_values
-            pde_param_sources["trajectory_time_values"] = "saved_snapshot_times"
-    elif normalize_residual_mode(config.residual_mode) == "full_trajectory_fd" and config.pde == "burger":
-        trajectory_metadata = {
-            "source": "model_output_at_guidance_and_evaluation_time",
-            "shape": list(coef_t.shape),
-            "ground_truth_auxiliary_loaded": False,
-            "uses_generated_trajectory": True,
-            "endpoint_only": False,
-        }
     spec = get_pde_spec(config.pde)
     channel_names_coef = _channel_names(spec.coef_channel_names, int(coef_t.shape[1]), "coef")
     channel_names_sol = _channel_names(spec.sol_channel_names, int(sol_t.shape[1]), "sol")
@@ -132,10 +113,6 @@ def load_ground_truth(config: AblationConfig) -> PDEGroundTruth:
         "boundary_condition": pde_params.get("boundary_condition_kind", None),
         "boundary_condition_source": pde_param_sources.get("boundary_condition_kind", None),
     }
-    if trajectory_metadata is not None:
-        metadata["full_trajectory_fd"] = trajectory_metadata
-        metadata["pde_params_keys"] = sorted(pde_params)
-        metadata["pde_params_sources"] = pde_param_sources
     ground_truth = PDEGroundTruth(
         pde=config.pde,
         coef=coef_t,
@@ -907,125 +884,12 @@ def _pair_h5_trajectory_dataset_name(file: Any) -> str | None:
     )
 
 
-def _full_trajectory_for_offsets(
-    config: AblationConfig,
-    raw: dict[str, Any],
-    offsets: list[int],
-    coef_t: Any,
-    pde_params: dict[str, Any],
-) -> tuple[Any, dict[str, Any]]:
-    import torch
-
-    trajectories = []
-    frame_metadata = []
-    expected_channels = int(coef_t.shape[1])
-    for batch_idx, offset in enumerate(offsets):
-        trajectory_np, sample_meta = _extract_full_trajectory_single(config, raw, offset, batch_idx, pde_params)
-        try:
-            trajectory = _trajectory_to_btchw(trajectory_np, expected_channels, config.device, config.dtype)
-        except ValueError:
-            if config.pde != "wave":
-                raise
-            # Legacy Wave files store displacement alone, while current files
-            # store both displacement and velocity. Preserve both schemas.
-            trajectory = _trajectory_to_btchw(trajectory_np, 1, config.device, config.dtype)
-        trajectories.append(trajectory)
-        frame_metadata.append(sample_meta)
-    trajectory_t = torch.cat(trajectories, dim=0).to(coef_t.device, dtype=coef_t.dtype)
-    metadata = {
-        "source": config.loadby,
-        "frame_metadata": frame_metadata,
-        "shape": list(trajectory_t.shape),
-        "uses_generated_trajectory": False,
-        "uses_observed_ground_truth_trajectory": True,
-        "guidance_compatible": False,
-        "endpoint_only": False,
-    }
-    return trajectory_t, metadata
-
-
-def _full_trajectory_time_values(config: AblationConfig, raw: dict[str, Any], offsets: list[int]) -> Any | None:
-    import numpy as np
-
-    file = raw.get("__h5__")
-    if file is None:
-        return None
-    if config.loadby in {"pair_h5", "h5py"} and "t" in file:
-        values = np.asarray(file["t"][:], dtype=np.float32)
-        if config.pde == "nsnonbounded" and (values.size == 0 or abs(float(values[0])) > 1e-7):
-            values = np.concatenate([np.zeros(1, dtype=np.float32), values])
-        return values
-    if config.loadby in {"rd", "swe"}:
-        key = _sample_group_key(file, offsets[0])
-        group = file[key]
-        if "grid" in group and "t" in group["grid"]:
-            return np.asarray(group["grid"]["t"][:], dtype=np.float32)
-    return None
-
-
-def _extract_full_trajectory_single(
-    config: AblationConfig,
-    raw: dict[str, Any],
-    offset: int,
-    batch_idx: int,
-    pde_params: dict[str, Any],
-) -> tuple[Any, dict[str, Any]]:
-    if config.loadby == "pair_h5":
-        file = raw["__h5__"]
-        dataset_name = _pair_h5_trajectory_dataset_name(file)
-        if dataset_name is None:
-            raise ValueError(
-                "full_trajectory_fd mode requires explicit full trajectory observations; "
-                "pair_h5 input/output endpoint data does not contain a full_trajectory, trajectory, states, "
-                "solution_trajectory, state_trajectory, u_trajectory, or w_trajectory dataset"
-            )
-        trajectory = _pair_h5_trajectory_sample(file[dataset_name], offset)
-        return trajectory, {"sample_offset": int(offset), "trajectory_dataset": dataset_name}
-    if config.loadby == "rd":
-        file = raw["__h5__"]
-        key = _sample_group_key(file, offset)
-        return file[key]["data"][:], {"sample_offset": int(offset), "dataset_key": str(key)}
-    if config.loadby == "swe":
-        file = raw["__h5__"]
-        key = _sample_group_key(file, offset)
-        group = file[key]["data"]
-        import numpy as np
-
-        trajectory = np.stack(
-            [
-                group["h"][:, :, :, 0],
-                group["hu"][:, :, :, 0],
-                group["hv"][:, :, :, 0],
-            ],
-            axis=1,
-        )
-        return trajectory, {"sample_offset": int(offset), "dataset_key": str(key)}
-    if config.loadby == "h5py" and config.pde == "nsnonbounded":
-        file = raw["__h5__"]
-        if config.solution_name not in file:
-            raise ValueError(
-                "full_trajectory_fd mode requires explicit full trajectory observations; "
-                f"nsnonbounded h5py data is missing solution dataset {config.solution_name!r}"
-            )
-        trajectory = _ns_h5py_trajectory_sample(file[config.solution_name], offset, config.solution_name)
-        initial = file[config.coef_name][offset]
-        import numpy as np
-
-        initial = np.asarray(initial, dtype=np.float32)[None, None, :, :]
-        trajectory = np.concatenate([initial, trajectory], axis=0)
-        return trajectory, {"sample_offset": int(offset), "trajectory_dataset": config.solution_name}
-    raise ValueError(
-        "full_trajectory_fd mode requires explicit full trajectory observations; "
-        f"loadby={config.loadby!r} is not supported"
-    )
-
-
 def _ns_h5py_trajectory_sample(dataset: Any, offset: int, dataset_name: str) -> Any:
     import numpy as np
 
     if dataset.ndim < 4:
         raise ValueError(
-            "full_trajectory_fd mode requires nsnonbounded h5py solution data with a sample and time axis; "
+            "Near-endpoint observations require nsnonbounded h5py solution data with a sample and time axis; "
             f"{dataset_name!r} has shape {tuple(dataset.shape)}"
         )
     if offset < 0 or offset >= dataset.shape[0]:
@@ -1047,30 +911,6 @@ def _ns_h5py_trajectory_sample(dataset: Any, offset: int, dataset_name: str) -> 
         "Cannot infer nsnonbounded h5py trajectory layout; expected sample shape [H,W,T], [T,H,W], "
         f"[T,C,H,W], [C,T,H,W], or [T,H,W,C], got {tuple(sample.shape)}"
     )
-
-
-def _trajectory_to_btchw(value: Any, expected_channels: int, device: str, dtype_name: str) -> Any:
-    import torch
-
-    dtype = _torch_dtype(dtype_name)
-    tensor = torch.as_tensor(value, dtype=dtype)
-    if tensor.ndim == 4:
-        tensor = tensor.unsqueeze(0)
-    if tensor.ndim != 5:
-        raise ValueError(f"trajectory must be [B,T,C,H,W] or [B,C,T,H,W], got shape {tuple(tensor.shape)}")
-    if tensor.shape[2] == expected_channels:
-        pass
-    elif tensor.shape[1] == expected_channels:
-        tensor = tensor.permute(0, 2, 1, 3, 4)
-    elif tensor.shape[-1] == expected_channels:
-        tensor = tensor.permute(0, 1, 4, 2, 3)
-    else:
-        raise ValueError(
-            "Cannot infer trajectory channel axis; expected [B,T,C,H,W], [B,C,T,H,W], or [B,T,H,W,C] "
-            f"with {expected_channels} channels, got {tuple(tensor.shape)}"
-        )
-    target = torch.device(device if device.startswith("cuda") and torch.cuda.is_available() else "cpu")
-    return tensor.to(target)
 
 
 def _first_existing_dataset(file: Any, names: tuple[str, ...]) -> str | None:

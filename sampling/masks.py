@@ -120,62 +120,6 @@ def make_pair_masks(
     )
 
 
-def residual_region_mask(
-    region: str,
-    coef_mask: Any,
-    sol_mask: Any,
-    residual_shape: tuple[int, ...],
-    *,
-    task: str = "both",
-) -> Any | None:
-    import torch
-
-    if region == "full":
-        return None
-    b, c, h, w = _normalize_shape(residual_shape)
-    device = coef_mask.device
-    dtype = coef_mask.dtype
-    if region == "boundary_excluded":
-        mask = torch.ones((b, c, h, w), dtype=dtype, device=device)
-        if h > 2 and w > 2:
-            mask[..., 0, :] = 0
-            mask[..., -1, :] = 0
-            mask[..., :, 0] = 0
-            mask[..., :, -1] = 0
-        return mask
-    active_coef = task in {"forward", "both"}
-    active_sol = task in {"inverse", "both"}
-    if region == "coef_obs":
-        if not active_coef:
-            raise ValueError(f"coef_obs is not active for task={task!r}")
-        base = coef_mask
-    elif region == "sol_obs":
-        if not active_sol:
-            raise ValueError(f"sol_obs is not active for task={task!r}")
-        base = sol_mask
-    elif region == "active_obs_union":
-        active_masks = []
-        if active_coef:
-            active_masks.append(_single_channel(coef_mask))
-        if active_sol:
-            active_masks.append(_single_channel(sol_mask))
-        if not active_masks:
-            raise ValueError("active_obs_union is undefined for task='unconditional'")
-        base = active_masks[0]
-        for candidate in active_masks[1:]:
-            base = torch.maximum(base, candidate)
-    else:
-        raise ValueError(f"Unknown residual region: {region}")
-    base = _single_channel(base)
-    if base.shape[-2:] != (h, w):
-        raise ValueError(f"Residual mask shape mismatch: residual={(h, w)}, mask={base.shape[-2:]}")
-    return base.repeat(1, c, 1, 1) if base.shape[1] != c else base
-
-
-def _single_channel(mask: Any) -> Any:
-    return mask[:, :1] if mask.shape[1] != 1 else mask
-
-
 def _normalize_shape(shape: tuple[int, ...] | Any) -> tuple[int, int, int, int]:
     if hasattr(shape, "shape"):
         shape = tuple(shape.shape)

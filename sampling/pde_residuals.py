@@ -7,7 +7,7 @@ from typing import Any, Callable
 from data.specs import FULL_TIME_SPACE_PDES, STATIC_PDES, TEMPORAL_ENDPOINT_PDES, get_pde_spec
 
 ENDPOINT_SECANT_WARNING = "coarse two-time-level endpoint residual; not a full spatiotemporal PDE residual"
-TEMPORAL_ONLY_MODES = {"hermite_bridge", "near_endpoint_temporal", "endpoint_secant", "full_trajectory_fd"}
+TEMPORAL_ONLY_MODES = {"hermite_bridge", "near_endpoint_temporal", "endpoint_secant"}
 
 
 @dataclass
@@ -36,39 +36,6 @@ class PDEConstraintSpec:
     normalize_by_mask: bool
     boundary_residual_normalization: str
     enforce_boundary_conditions: bool
-
-
-def _apply_darcy_coef_positive(coef: Any, pde_params: dict[str, Any] | None) -> Any:
-    """Enforce a positive Darcy coefficient before the spline residual.
-
-    The Darcy operator multiplies the coefficient by ``1/h**2`` (~1.6e4 at
-    128x128), so an unconstrained model coefficient that drifts negative or
-    large during inverse/both sampling overflows to Inf/NaN. ``mode`` is read
-    from ``pde_params`` so it can be toggled from the sampling config:
-    ``none`` (no-op), ``softplus``, ``clamp_min`` (small epsilon), or
-    ``floor`` (map negative entries to ``coef_positive_floor``).
-    """
-    import torch
-
-    mode = str((pde_params or {}).get("coef_positive_mode", "binary"))
-    if mode == "none":
-        return coef
-    if mode == "softplus":
-        return torch.nn.functional.softplus(coef)
-    if mode == "clamp_min":
-        return coef.clamp_min(1e-6)
-    if mode == "floor":
-        floor = float((pde_params or {}).get("coef_positive_floor", 4.0))
-        return torch.where(coef < 0, torch.full_like(coef, floor), coef)
-    if mode == "binary":
-        # Darcy ground-truth coefficients are binary (4 / 12). Snap the
-        # predicted coefficient to that two-level structure.
-        return torch.where(
-            coef > 8.0,
-            torch.full_like(coef, 12.0),
-            torch.full_like(coef, 4.0),
-        )
-    raise ValueError(f"Unknown coef_positive_mode={mode!r}")
 
 
 def compute_pde_residual(
@@ -108,8 +75,6 @@ def compute_pde_residual(
     }
     if pde not in table:
         raise ValueError(f"Unsupported PDE residual: {pde}")
-    if pde == "darcy":
-        coef = _apply_darcy_coef_positive(coef, pde_params)
     out = table[pde](coef, sol)
     out.metadata.setdefault("requested_residual_mode", residual_mode)
     out.metadata.setdefault(
@@ -268,9 +233,9 @@ def _burger(
             "dx": _metadata_values(dx),
             "domain_length": _metadata_values(domain_length),
             "axis": "BCHW-as-time-space",
-            "mode": "full_trajectory_fd",
+            "mode": "full_time_space",
             "requested_residual_mode": residual_mode,
-            "resolved_residual_mode": "full_trajectory_fd",
+            "resolved_residual_mode": "full_time_space",
             "full_trajectory_required": True,
             "residual_family": "full_time_space",
             "temporal_derivative_mode": "full_fd",
@@ -305,8 +270,7 @@ def _endpoint_time_dependent_residual(
         out = _near_endpoint_temporal_residual(pde, a, u, pde_params, constraint_spec)
     elif resolved_mode == "endpoint_secant":
         out = _endpoint_secant_residual(pde, a, u, pde_params, constraint_spec)
-    elif resolved_mode == "full_trajectory_fd":
-        out = _full_trajectory_fd_residual(pde, a, u, pde_params, constraint_spec)
+        out.metadata["secant_rhs_evaluation"] = "endpoint_average"
     else:
         raise ValueError(f"residual_mode={requested_mode!r} is invalid for temporal endpoint PDE {pde!r}")
     out.metadata.setdefault("requested_residual_mode", requested_mode)
@@ -343,20 +307,32 @@ def _endpoint_secant_residual(
     raise ValueError(f"endpoint_secant residual is not implemented for {pde!r}")
 
 
+def _secant_rhs_average(pde: str, a: Any, u: Any, pde_params: dict[str, Any]) -> Any:
+    """Average G_h(a) and G_h(u), including gradients through both endpoints.
+
+    For nonlinear dynamics this differs from G_h((a + u) / 2). Midpoint
+    states in the secant wrappers are used only for boundary constraints.
+    """
+    return 0.5 * (
+        _rhs_time_dependent(pde, a, pde_params)
+        + _rhs_time_dependent(pde, u, pde_params)
+    )
+
+
 def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     if a.shape[1] != 1 or u.shape[1] != 1:
         raise ValueError(f"heat expects 1+1 channels, got a={a.shape}, u={u.shape}")
     _required_param_field(pde_params, "alpha", u)
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    interior = (u - a) / time_scale - _rhs_heat(u_mid, pde_params)
+    interior = (u - a) / time_scale - _secant_rhs_average("heat", a, u, pde_params)
     return _with_constraints(
         pde="heat",
         state=u_mid,
         interior=interior,
         status="approximate",
         metadata={
-            "equation": "(uT - u0) / T - alpha * laplace(u_mid)",
+            "equation": "(uT - u0) / T - 0.5 * alpha * (laplace(u0) + laplace(uT))",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
             "two_time_level_approx": True,
@@ -371,35 +347,27 @@ def _heat_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEC
 
 
 def _wave_endpoint_secant(a: Any, u: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
-    import torch
-
     if a.shape[1] != 2 or u.shape[1] != 2:
         raise ValueError(f"wave expects 2+2 channels [u,v], got a={a.shape}, u={u.shape}")
-    c = _param_field(pde_params, "c", u[:, 0:1], default=1.0)
-    u0, v0 = a[:, 0:1], a[:, 1:2]
-    u_t, v_t = u[:, 0:1], u[:, 1:2]
     time_scale, time_meta = _time_scale_field(pde_params, u[:, 0:1])
-    u_mid = 0.5 * (u0 + u_t)
-    v_mid = 0.5 * (v0 + v_t)
-    res_u = (u_t - u0) / time_scale - v_mid
-    res_v = (v_t - v0) / time_scale - (c**2) * _laplacian_for_bc(u_mid, pde_params, _operator_boundary_kind("wave", pde_params))
-    interior = torch.cat([res_u, res_v], dim=1)
+    q_mid = 0.5 * (a + u)
+    interior = (u - a) / time_scale - _secant_rhs_average("wave", a, u, pde_params)
     return _with_constraints(
         pde="wave",
-        state=torch.cat([u_mid, v_mid], dim=1),
+        state=q_mid,
         interior=interior,
         status="approximate",
         metadata={
-            "equation": "(uT - u0) / T - v_mid, (vT - v0) / T - c^2 laplace(u_mid)",
+            "equation": "(uT - u0) / T - 0.5 * (v0 + vT), (vT - v0) / T - 0.5 * c^2 * (laplace(u0) + laplace(uT))",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
             "two_time_level_approx": True,
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("c", "T", "total_time", "dt")),
-            **_rhs_metadata("wave", pde_params, u_mid),
+            **_rhs_metadata("wave", pde_params, q_mid[:, 0:1]),
         },
         spec=spec,
-        endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
+        endpoint_states=[a, u, q_mid],
         pde_params=pde_params,
     )
 
@@ -414,14 +382,14 @@ def _advection_diffusion_endpoint_secant(
         raise ValueError(f"advection_diffusion expects 1+1 channels, got a={a.shape}, u={u.shape}")
     time_scale, time_meta = _time_scale_field(pde_params, u)
     u_mid = 0.5 * (a + u)
-    interior = (u - a) / time_scale - _rhs_advection_diffusion(u_mid, pde_params)
+    interior = (u - a) / time_scale - _secant_rhs_average("advection_diffusion", a, u, pde_params)
     return _with_constraints(
         pde="advection_diffusion",
         state=u_mid,
         interior=interior,
         status="approximate",
         metadata={
-            "equation": "(uT - u0) / T + b_x u_x + b_y u_y - kappa laplace(u_mid)",
+            "equation": "(uT - u0) / T - 0.5 * (G_advection_diffusion(u0) + G_advection_diffusion(uT))",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
             "two_time_level_approx": True,
@@ -441,33 +409,18 @@ def _reaction_diffusion_endpoint_secant(
     pde_params: dict[str, Any],
     spec: PDEConstraintSpec,
 ) -> ResidualOutput:
-    import torch
-
     if a.shape[1] != 2 or u.shape[1] != 2:
         raise ValueError(f"reaction_diffusion expects 2+2 channels, got a={a.shape}, u={u.shape}")
-    a_u, a_v = a[:, 0:1], a[:, 1:2]
-    u_u, u_v = u[:, 0:1], u[:, 1:2]
-    time_scale, time_meta = _time_scale_field(pde_params, u_u, default=_default_total_time("reaction_diffusion"))
-    u_mid = 0.5 * (a_u + u_u)
-    v_mid = 0.5 * (a_v + u_v)
-    defaults = _reaction_diffusion_defaults(pde_params)
-    d_u = _param_field_any(pde_params, ("D_u", "Du"), u_mid, default=defaults["D_u"])
-    d_v = _param_field_any(pde_params, ("D_v", "Dv"), v_mid, default=defaults["D_v"])
-    k = _param_field(pde_params, "k", u_mid, default=defaults["k"])
-    u_t = (u_u - a_u) / time_scale
-    v_t = (u_v - a_v) / time_scale
-    lap_u = _reaction_diffusion_laplacian(u_mid, pde_params)
-    lap_v = _reaction_diffusion_laplacian(v_mid, pde_params)
-    res_u = u_t - (d_u * lap_u + u_mid - u_mid**3 - k - v_mid)
-    res_v = v_t - (d_v * lap_v + u_mid - v_mid)
-    interior = torch.cat([res_u, res_v], dim=1)
+    time_scale, time_meta = _time_scale_field(pde_params, u[:, 0:1], default=_default_total_time("reaction_diffusion"))
+    q_mid = 0.5 * (a + u)
+    interior = (u - a) / time_scale - _secant_rhs_average("reaction_diffusion", a, u, pde_params)
     return _with_constraints(
         pde="reaction_diffusion",
-        state=torch.cat([u_mid, v_mid], dim=1),
+        state=q_mid,
         interior=interior,
         status="approximate",
         metadata={
-            "equation": "two-time-level FitzHugh-Nagumo reaction-diffusion residual",
+            "equation": "two-time-level FitzHugh-Nagumo residual with endpoint-averaged dynamics",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
             "two_time_level_approx": True,
@@ -493,10 +446,10 @@ def _reaction_diffusion_endpoint_secant(
                     "dy",
                 ),
             ),
-            **_reaction_diffusion_spatial_metadata(pde_params, u_mid),
+            **_reaction_diffusion_spatial_metadata(pde_params, q_mid[:, 0:1]),
         },
         spec=spec,
-        endpoint_states=[a, u, torch.cat([u_mid, v_mid], dim=1)],
+        endpoint_states=[a, u, q_mid],
         pde_params=pde_params,
     )
 
@@ -507,38 +460,28 @@ def _shallow_water_endpoint_secant(
     pde_params: dict[str, Any],
     spec: PDEConstraintSpec,
 ) -> ResidualOutput:
-    import torch
-
     if a.shape[1] != 3 or u.shape[1] != 3:
         raise ValueError(f"shallow_water expects conservative variables [h,hu,hv], got a={a.shape}, u={u.shape}")
-    h0, hu0, hv0 = a[:, 0:1], a[:, 1:2], a[:, 2:3]
-    h, hu, hv = u[:, 0:1], u[:, 1:2], u[:, 2:3]
-    h_mid = 0.5 * (h0 + h)
-    hu_mid = 0.5 * (hu0 + hu)
-    hv_mid = 0.5 * (hv0 + hv)
-    time_scale, time_meta = _time_scale_field(pde_params, h)
-    rhs_mid = _rhs_shallow_water(torch.cat([h_mid, hu_mid, hv_mid], dim=1), pde_params)
-    mass = (h - h0) / time_scale - rhs_mid[:, 0:1]
-    mom_x = (hu - hu0) / time_scale - rhs_mid[:, 1:2]
-    mom_y = (hv - hv0) / time_scale - rhs_mid[:, 2:3]
-    interior = torch.cat([mass, mom_x, mom_y], dim=1)
+    time_scale, time_meta = _time_scale_field(pde_params, u[:, 0:1])
+    q_mid = 0.5 * (a + u)
+    interior = (u - a) / time_scale - _secant_rhs_average("shallow_water", a, u, pde_params)
     return _with_constraints(
         pde="shallow_water",
-        state=torch.cat([h_mid, hu_mid, hv_mid], dim=1),
+        state=q_mid,
         interior=interior,
         status="approximate",
         metadata={
-            "equation": "two-time-level shallow-water conservative residual",
+            "equation": "two-time-level shallow-water conservative residual with endpoint-averaged fluxes",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
             "variables": ["h", "hu", "hv"],
             "two_time_level_approx": True,
             "time_scale": time_meta,
             "pde_params_used": _used_params(pde_params, ("g", "eps", "T", "total_time", "dt")),
-            **_rhs_metadata("shallow_water", pde_params, h_mid),
+            **_rhs_metadata("shallow_water", pde_params, q_mid[:, 0:1]),
         },
         spec=spec,
-        endpoint_states=[a, u, torch.cat([h_mid, hu_mid, hv_mid], dim=1)],
+        endpoint_states=[a, u, q_mid],
         pde_params=pde_params,
     )
 
@@ -553,7 +496,7 @@ def _generic_endpoint_secant(
     _validate_time_dependent_state(pde, a, u)
     time_scale, time_meta = _time_scale_field(pde_params, u, default=_default_total_time(pde))
     q_mid = 0.5 * (a + u)
-    residual = (u - a) / time_scale - _rhs_time_dependent(pde, q_mid, pde_params)
+    residual = (u - a) / time_scale - _secant_rhs_average(pde, a, u, pde_params)
     residual = _apply_endpoint_residual_boundary(pde, residual)
     out = _with_constraints(
         pde=pde,
@@ -561,7 +504,7 @@ def _generic_endpoint_secant(
         interior=residual,
         status="approximate",
         metadata={
-            "equation": f"{pde} endpoint secant residual",
+            "equation": f"{pde} endpoint secant residual with endpoint-averaged dynamics",
             "mode": "endpoint_secant",
             "warning": ENDPOINT_SECANT_WARNING,
             "two_time_level_approx": True,
@@ -574,97 +517,6 @@ def _generic_endpoint_secant(
         pde_params=pde_params,
     )
     return out
-
-
-def _full_trajectory_fd_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
-    import torch
-
-    trajectory = _extract_full_trajectory(pde_params)
-    trajectory = torch.as_tensor(trajectory, dtype=q0.dtype, device=q0.device)
-    if trajectory.ndim == 4:
-        trajectory = trajectory.unsqueeze(0)
-    if trajectory.ndim != 5:
-        raise ValueError(
-            "full_trajectory_fd mode requires trajectory with layout [B,T,C,H,W] or [B,C,T,H,W], "
-            f"got shape {tuple(trajectory.shape)}"
-        )
-    expected_channels = 1 if pde == "wave" and (trajectory.shape[1] == 1 or trajectory.shape[2] == 1) else get_pde_spec(pde).coef_channels
-    if trajectory.shape[2] == expected_channels:
-        btchw = trajectory
-    elif trajectory.shape[1] == expected_channels:
-        btchw = trajectory.permute(0, 2, 1, 3, 4)
-    else:
-        raise ValueError(
-            "full_trajectory_fd mode requires trajectory with layout [B,T,C,H,W] or [B,C,T,H,W], "
-            f"got shape {tuple(trajectory.shape)} for {expected_channels} state channels"
-        )
-    if btchw.shape[1] < 3:
-        raise ValueError("full_trajectory_fd mode requires at least three trajectory time points")
-    if btchw.shape[0] == 1 and q0.shape[0] > 1:
-        btchw = btchw.repeat(q0.shape[0], 1, 1, 1, 1)
-    endpoint_shape = q0.shape[1:]
-    expected_endpoint_shape = endpoint_shape if not (pde == "wave" and expected_channels == 1) else (1, *endpoint_shape[1:])
-    if btchw.shape[0] != q0.shape[0] or btchw.shape[2:] != expected_endpoint_shape:
-        raise ValueError(
-            "full_trajectory_fd trajectory batch/channel/spatial shape must match endpoints; "
-            f"trajectory={tuple(btchw.shape)}, q0={tuple(q0.shape)}"
-        )
-    dt, dt_meta = _trajectory_dt_field(pde_params, q0, int(btchw.shape[1]))
-    if pde == "wave" and expected_channels == 1:
-        state = btchw[:, 1:-1, 0:1]
-        u_tt = (btchw[:, 2:, 0:1] - 2.0 * state + btchw[:, :-2, 0:1]) / (dt[:, None] ** 2)
-        c = _param_field(pde_params, "c", q0[:, :1], default=1.0)
-        flat = state.reshape(-1, 1, *state.shape[-2:])
-        lap = _laplacian_for_bc(flat, pde_params, _operator_boundary_kind("wave", pde_params)).reshape_as(state)
-        interior_btchw = u_tt - c[:, None] ** 2 * lap
-        interior = interior_btchw.permute(0, 2, 1, 3, 4).reshape(q0.shape[0], -1, *q0.shape[-2:])
-        state_for_constraints = state.mean(dim=1)
-        endpoint_states = [btchw[:, 0], btchw[:, -1]]
-        wave_state_form = "displacement_only_second_order"
-    else:
-        state = btchw[:, 1:-1]
-        q_t = (btchw[:, 2:] - btchw[:, :-2]) / (2.0 * dt[:, None])
-        flat_state = state.reshape(-1, *state.shape[2:])
-        flat_rhs = _rhs_time_dependent(pde, flat_state, _repeat_batch_params(pde_params, int(state.shape[1])))
-        rhs = flat_rhs.reshape_as(state)
-        interior_btchw = q_t - rhs
-        interior = interior_btchw.permute(0, 2, 1, 3, 4).reshape(q0.shape[0], -1, *q0.shape[-2:])
-        state_for_constraints = state.mean(dim=1)
-        endpoint_states = [btchw[:, idx] for idx in range(int(btchw.shape[1]))]
-        wave_state_form = "first_order_state" if pde == "wave" else None
-    out = _with_constraints(
-        pde=pde,
-        state=state_for_constraints,
-        interior=interior,
-        status="reliable",
-        metadata={
-            "equation": f"{pde} full trajectory finite-difference residual",
-            "mode": "full_trajectory_fd",
-            "resolved_residual_mode": "full_trajectory_fd",
-            "trajectory_layout": "BTCHW",
-            "trajectory_time_points": int(btchw.shape[1]),
-            "trajectory_residual_time_points": int(btchw.shape[1]) - 2,
-            "time_delta": dt_meta,
-            "wave_state_form": wave_state_form,
-            "rhs": _rhs_name(pde),
-            "pde_params_used": _rhs_param_usage(pde, pde_params),
-            **_rhs_metadata(pde, pde_params, btchw[:, 0]),
-        },
-        spec=spec,
-        endpoint_states=endpoint_states,
-        pde_params=pde_params,
-    )
-    observed = bool(pde_params.get("trajectory_is_observed_ground_truth", False))
-    out.metadata["trajectory_role"] = "observed_ground_truth" if observed else "predicted_or_explicit_input"
-    out.metadata["guidance_compatible"] = not observed
-    return out
-
-
-def _extract_full_trajectory(params: dict[str, Any]) -> Any:
-    for name in ("full_trajectory", "trajectory"):
-        if name in params:
-            return params[name]
-    raise ValueError("full_trajectory_fd mode requires explicit full trajectory state in pde_params['full_trajectory'] or pde_params['trajectory']")
 
 
 def _constraint_spec_from_params(pde: str, params: dict[str, Any]) -> PDEConstraintSpec:
@@ -904,34 +756,6 @@ def _compute_boundary_residual(
     raise ValueError(f"Unsupported boundary condition kind={bc.kind!r}")
 
 
-def _trajectory_dt_field(params: dict[str, Any], reference: Any, n_time: int) -> tuple[Any, dict[str, Any]]:
-    import torch
-
-    if "trajectory_dt" in params:
-        dt = _param_field(params, "trajectory_dt", reference, default=1.0)
-        return dt, {"source": "trajectory_dt", "defaulted": False, "values": _metadata_values(dt)}
-    if "trajectory_time_values" in params:
-        values = torch.as_tensor(params["trajectory_time_values"], dtype=reference.dtype, device=reference.device)
-        if values.ndim != 1 or values.numel() != n_time:
-            raise ValueError(f"trajectory_time_values must contain {n_time} entries, got shape {tuple(values.shape)}")
-        deltas = values[1:] - values[:-1]
-        if not torch.allclose(deltas, deltas[:1].expand_as(deltas), rtol=1e-5, atol=1e-8):
-            raise ValueError("full_trajectory_fd currently requires uniformly spaced trajectory_time_values")
-        dt = torch.full((reference.shape[0], 1, 1, 1), float(deltas[0]), dtype=reference.dtype, device=reference.device)
-        return dt, {"source": "trajectory_time_values", "defaulted": False, "values": _metadata_values(dt)}
-    for name in ("T", "total_time"):
-        if name in params:
-            total = _param_field(params, name, reference, default=1.0)
-            dt = total / float(max(n_time - 1, 1))
-            return dt, {"source": f"{name}/(n_time-1)", "defaulted": False, "values": _metadata_values(dt)}
-    for name in ("saved_dt", "dt"):
-        if name in params:
-            dt = _param_field(params, name, reference, default=1.0)
-            return dt, {"source": name, "defaulted": False, "values": _metadata_values(dt)}
-    dt = torch.full((reference.shape[0], 1, 1, 1), 1.0 / float(max(n_time - 1, 1)), dtype=reference.dtype, device=reference.device)
-    return dt, {"source": "default_unit_interval/(n_time-1)", "defaulted": True, "value": _metadata_values(dt)}
-
-
 def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, Any], spec: PDEConstraintSpec) -> ResidualOutput:
     import torch
 
@@ -939,7 +763,7 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
     time_scale, time_meta = _time_scale_field(pde_params, q0, default=_default_total_time(pde))
     f0 = _rhs_time_dependent(pde, q0, pde_params)
     fT = _rhs_time_dependent(pde, qT, pde_params)
-    collocation_times = _hermite_collocation_times(pde_params)
+    collocation_times = [0.25, 0.5, 0.75]
     residuals = []
     collocation_states = []
     for s_value in collocation_times:
@@ -961,13 +785,6 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
         collocation_states.append(h)
         residuals.append(dh_ds / time_scale - _rhs_time_dependent(pde, h, pde_params))
 
-    include_integral = _hermite_include_integral(pde_params)
-    integral_weight = _hermite_integral_weight(pde_params)
-    endpoint_component = None
-    if include_integral:
-        weight = torch.as_tensor(integral_weight, dtype=q0.dtype, device=q0.device).sqrt()
-        integral_residual = qT - q0 - 0.5 * time_scale * (f0 + fT)
-        endpoint_component = weight * integral_residual
     interior = torch.cat(residuals, dim=1)
     equation = (
         "2D vorticity Navier-Stokes endpoint Hermite bridge residual"
@@ -985,8 +802,6 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
             "bridge_type": "cubic_hermite_endpoint_pde_derivatives",
             "collocation_times": collocation_times,
             "num_collocation": len(collocation_times),
-            "include_integral_residual": include_integral,
-            "integral_weight": integral_weight,
             "time_scale": time_meta,
             "rhs": _rhs_name(pde),
             "two_time_level_approx": False,
@@ -1000,7 +815,6 @@ def _hermite_bridge_residual(pde: str, q0: Any, qT: Any, pde_params: dict[str, A
         spec=spec,
         bc_states=[q0, *collocation_states, qT],
         endpoint_states=[q0, qT],
-        endpoint_component=endpoint_component,
         pde_params=pde_params,
     )
 
@@ -1077,21 +891,6 @@ def _rhs_time_dependent(pde: str, q: Any, pde_params: dict[str, Any]) -> Any:
     if pde == "nsnonbounded":
         return _rhs_nsnonbounded(q, pde_params)
     raise ValueError(f"No time-dependent RHS is implemented for {pde!r}")
-
-
-def _repeat_batch_params(params: dict[str, Any], repeats: int) -> dict[str, Any]:
-    """Repeat sample-wise parameters to match flattened trajectory states."""
-    import torch
-
-    repeated: dict[str, Any] = {}
-    for name, value in params.items():
-        if name in {"trajectory", "full_trajectory", "trajectory_time_values"}:
-            continue
-        if isinstance(value, torch.Tensor) and value.ndim >= 1 and value.shape[0] > 1:
-            repeated[name] = value.repeat_interleave(repeats, dim=0)
-        else:
-            repeated[name] = value
-    return repeated
 
 
 def _rhs_heat(q: Any, pde_params: dict[str, Any]) -> Any:
@@ -1177,18 +976,9 @@ def _rhs_nsnonbounded(q: Any, pde_params: dict[str, Any]) -> Any:
     lap_w = torch.fft.ifft2(-k2 * w_hat, dim=(-2, -1)).real
     nu = _param_field_any(pde_params, ("nu", "viscosity"), w, default=1e-3)
     forcing = _forcing_field(pde_params, w) if "forcing" in pde_params else _ns_default_forcing(w)
-    operator_mode = str(pde_params.get("ns_operator_mode", "generator_dealiased"))
-    nonlinear = u_vel * w_x + v_vel * w_y
-    if operator_mode == "generator_dealiased":
-        # Match the data generator: project both the pseudospectral nonlinear
-        # product and forcing through its 2/3 Fourier mask.
-        nonlinear = _ns_two_thirds_projection(nonlinear)
-        forcing = _ns_two_thirds_projection(forcing)
-    elif operator_mode != "continuous_spectral":
-        raise ValueError(
-            "ns_operator_mode must be 'generator_dealiased' or 'continuous_spectral', "
-            f"got {operator_mode!r}"
-        )
+    # Project the nonlinear term and forcing with the manuscript 2/3 rule.
+    nonlinear = _ns_two_thirds_projection(u_vel * w_x + v_vel * w_y)
+    forcing = _ns_two_thirds_projection(forcing)
     result = -nonlinear + nu * lap_w + forcing
     if not bool(torch.isfinite(result).all().detach().cpu()):
         raise FloatingPointError("nsnonbounded RHS contains NaN or Inf")
@@ -1295,8 +1085,8 @@ def _rhs_name(pde: str) -> str:
 
 def _rhs_param_usage(pde: str, params: dict[str, Any]) -> dict[str, bool]:
     names = {
-        "heat": ("alpha", "T", "total_time", "dt", "hermite_collocation_times", "hermite_num_collocation"),
-        "wave": ("c", "T", "total_time", "dt", "hermite_collocation_times", "hermite_num_collocation"),
+        "heat": ("alpha", "T", "total_time", "dt"),
+        "wave": ("c", "T", "total_time", "dt"),
         "advection_diffusion": (
             "b_x",
             "b_y",
@@ -1304,8 +1094,6 @@ def _rhs_param_usage(pde: str, params: dict[str, Any]) -> dict[str, bool]:
             "T",
             "total_time",
             "dt",
-            "hermite_collocation_times",
-            "hermite_num_collocation",
         ),
         "reaction_diffusion": (
             "D_u",
@@ -1324,55 +1112,15 @@ def _rhs_param_usage(pde: str, params: dict[str, Any]) -> dict[str, bool]:
             "y_top",
             "dx",
             "dy",
-            "hermite_collocation_times",
-            "hermite_num_collocation",
         ),
-        "shallow_water": ("g", "eps", "T", "total_time", "dt", "hermite_collocation_times", "hermite_num_collocation"),
-        "nsnonbounded": ("nu", "viscosity", "forcing", "T", "total_time", "dt", "hermite_collocation_times", "hermite_num_collocation"),
+        "shallow_water": ("g", "eps", "T", "total_time", "dt"),
+        "nsnonbounded": ("nu", "viscosity", "forcing", "T", "total_time", "dt"),
     }[pde]
     return _used_params(params, names)
 
 
 def _default_total_time(pde: str) -> float:
     return 1.0
-
-
-def _hermite_settings(params: dict[str, Any]) -> dict[str, Any]:
-    nested = params.get("hermite_bridge", {})
-    return nested if isinstance(nested, dict) else {}
-
-
-def _hermite_collocation_times(params: dict[str, Any]) -> list[float]:
-    settings = _hermite_settings(params)
-    raw_times = settings.get("collocation_times", params.get("hermite_collocation_times"))
-    if raw_times is not None:
-        times = _as_float_list(raw_times, "hermite_collocation_times")
-    else:
-        raw_num = settings.get("num_collocation", params.get("hermite_num_collocation"))
-        if raw_num is None or int(raw_num) <= 0:
-            times = [0.25, 0.5, 0.75]
-        else:
-            n = int(raw_num)
-            times = [(idx + 1.0) / (n + 1.0) for idx in range(n)]
-    if not times:
-        raise ValueError("hermite_bridge requires at least one collocation time")
-    bad = [value for value in times if not 0.0 < value < 1.0]
-    if bad:
-        raise ValueError(f"hermite_collocation_times must be inside (0, 1), got {bad}")
-    return times
-
-
-def _hermite_include_integral(params: dict[str, Any]) -> bool:
-    settings = _hermite_settings(params)
-    return _as_bool(settings.get("include_integral_residual", params.get("hermite_include_integral_residual", False)))
-
-
-def _hermite_integral_weight(params: dict[str, Any]) -> float:
-    settings = _hermite_settings(params)
-    weight = float(settings.get("integral_weight", params.get("hermite_integral_weight", 1.0)))
-    if weight < 0.0:
-        raise ValueError("hermite_integral_weight must be non-negative")
-    return weight
 
 
 def _extract_near_endpoint_temporal_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -1818,12 +1566,7 @@ def _rhs_metadata(pde: str, pde_params: dict[str, Any], reference: Any) -> dict[
             "forcing_defaulted": not forcing_present,
             "forcing_grid": "endpoint_false",
             "forcing_formula": "0.1 * (sin(2*pi*(x+y)) + cos(2*pi*(x+y)))",
-            "ns_operator_mode": str(pde_params.get("ns_operator_mode", "generator_dealiased")),
-            "dealiasing": (
-                "two_thirds_generator_aligned"
-                if str(pde_params.get("ns_operator_mode", "generator_dealiased")) == "generator_dealiased"
-                else "none"
-            ),
+            "dealiasing": "two_thirds_generator_aligned",
         }
     return {}
 
@@ -2264,23 +2007,12 @@ def _normalize_residual_mode(mode: str) -> str:
         "hermite_bridge",
         "near_endpoint_temporal",
         "endpoint_secant",
-        "full_trajectory_fd",
         "full_time_space",
         "disabled",
     }
     if normalized not in valid:
         raise ValueError(f"residual_mode={mode!r} is invalid; expected one of {sorted(valid)}")
     return normalized
-
-
-def _as_float_list(value: Any, name: str) -> list[float]:
-    import torch
-
-    if isinstance(value, torch.Tensor):
-        return [float(item) for item in value.detach().cpu().reshape(-1).tolist()]
-    if isinstance(value, (list, tuple)):
-        return [float(item) for item in value]
-    return [float(value)]
 
 
 def _as_bool(value: Any) -> bool:
@@ -2361,7 +2093,7 @@ def _apply_family_metadata(
     requested_mode: str | None = None,
 ) -> None:
     spec = get_pde_spec(pde)
-    family = "full_trajectory" if resolved_mode == "full_trajectory_fd" else spec.residual_family
+    family = spec.residual_family
     out.metadata.setdefault("pde", pde)
     out.metadata.setdefault("residual_family", family)
     out.metadata.setdefault("requested_residual_mode", requested_mode if requested_mode is not None else resolved_mode)
@@ -2397,9 +2129,3 @@ def _apply_family_metadata(
         out.metadata.setdefault("uses_generated_trajectory", False)
         out.metadata.setdefault("uses_extra_temporal_observations", False)
         out.metadata.setdefault("two_time_level_approx", True)
-    elif resolved_mode == "full_trajectory_fd":
-        out.metadata.setdefault("temporal_derivative_mode", "full_fd")
-        out.metadata.setdefault("endpoint_only", False)
-        out.metadata.setdefault("uses_generated_trajectory", True)
-        out.metadata.setdefault("uses_extra_temporal_observations", False)
-        out.metadata.setdefault("two_time_level_approx", False)

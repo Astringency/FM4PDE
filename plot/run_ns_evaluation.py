@@ -97,8 +97,6 @@ def configuration(protocol,setting,dist,weights,scaled=False):
         c['zeta_obs_u']*=10;c['zeta_pde']*=1000
     cfg=AblationConfig(**c);cfg.validate()
     assert cfg.num_steps==100 and cfg.residual_mode=='endpoint_secant'
-    assert cfg.gradient_target=='current_state_chain_rule' and cfg.noise_level==0
-    assert cfg.clip_mode=='global_norm' and cfg.pde_guidance_start_ratio==.8
     return cfg
 
 
@@ -129,10 +127,14 @@ def infer(cfg,bundle,gt,masks,indices,*,steps=100,fused=True):
     r._set_seed(c.sample_seed)
     net,normalizer,payload=bundle
     scalar,_=r._scalar_conditioning_for_sampling(checkpoint_payload=payload,gt=gt,config=c,device='cuda:0')
-    classes,_=r._class_conditioning_for_sampling(checkpoint_payload=payload,pde=c.pde,batch_size=len(indices),device='cuda:0',cfg_scale=c.cfg_scale)
+    classes,_=r._class_conditioning_for_sampling(
+        checkpoint_payload=payload,
+        pde=c.pde,
+        batch_size=len(indices),
+        device='cuda:0',
+    )
     extra={**classes,**(scalar or {})} or None
     r._check_sampling_channels(gt,normalizer,payload)
-    assert c.obs_l2_reference_mse_zeta_a is None and c.obs_l2_reference_mse_zeta_u is None
     count=[0]
     def hook(*_):count[0]+=1
     handle=net.model.register_forward_hook(hook)
@@ -141,18 +143,28 @@ def infer(cfg,bundle,gt,masks,indices,*,steps=100,fused=True):
     x=r._sample_initial_noise(c,gt,'cuda:0')
     for step in range(steps):
         cur=x.detach().clone().requires_grad_(True);t,tn=grid[step],grid[step+1]
-        out=r.sampler_step(net,cur,t,tn,c.sampler_phase,c.step_method,c.loss_state,device='cuda:0',
-            model_extra=extra,stochastic_noise_source_batch_size=1000,stochastic_noise_source_indices=list(indices))
+        out=r.sampler_step(
+            net,
+            cur,
+            t,
+            tn,
+            c.sampler_phase,
+            c.loss_state,
+            device='cuda:0',
+            model_extra=extra,
+            stochastic_noise_source_batch_size=1000,
+            stochastic_noise_source_indices=list(indices),
+        )
         physical=r._physical_from_model_state(out.x_loss_state,c,normalizer)
         losses=r.compute_guidance_losses(physical,gt,masks,c)
         assert losses.pde_residual_status!='error'
-        affine=r.affine_coefficients(r.scheduler_coefficients(t,scheduler='CondOT'),training='velocity')
-        schedule=r.make_zeta_schedule(c,t,tn,affine.b_t,step=step)
-        target=r._gradient_target_tensor(c,cur,out)
+        bt = r.condot_guidance_coefficient(t)
+        schedule=r.make_zeta_schedule(c, t, bt,step=step)
+        target=cur
         if fused:
             loss=(schedule.zeta_obs_a_t*losses.guidance_L_obs_a+schedule.zeta_obs_u_t*losses.guidance_L_obs_u+schedule.zeta_pde_t*losses.guidance_L_pde)
             grad=torch.autograd.grad(loss*len(indices),target)[0]
-            grad,_=_clip_per_sample(grad,c.clip_threshold,True)
+            grad,_=_clip_per_sample(grad, c.clip_threshold)
             gradient=SimpleNamespace(grad_total=grad,metadata={})
         else:gradient=r.compute_guidance_gradient(losses,target,schedule,c)
         x=r.apply_guidance_update(out.x_raw_next,gradient,out,schedule,c).detach()

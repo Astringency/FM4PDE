@@ -34,7 +34,7 @@ REVISED = ['poisson', 'nsnonbounded'] + EXTRA
 EXCLUDED_GROUPS = {'temporal_residual_mode', 'deterministic_endpoint_bt'}
 TUNING_IDS = [1100, 1101, 1102, 1103]
 EVALUATION_IDS = list(range(1500, 1532))
-PARAM_KEYS = ['zeta_obs_a', 'zeta_obs_u', 'zeta_pde', 'clip_mode', 'clip_threshold']
+PARAM_KEYS = ['zeta_obs_a', 'zeta_obs_u', 'zeta_pde',  'clip_threshold']
 
 
 def digest(path):

@@ -72,7 +72,7 @@ def prepare(args):
         assert archived
         # Verify every archived sparse-ID row has the same operative weights.
         keys=['zeta_obs_a','zeta_obs_u','zeta_pde','clip_threshold','checkpoint_path',
-              'stochastic_guidance_coeff','loss_state','gradient_target','pde_guidance_start_ratio']
+              'stochastic_guidance_coeff','loss_state','pde_guidance_start_ratio']
         assert all(all(r['config'][k]==conf[k] for k in keys) for r in archived)
         protocol['fm_configs'][pde]=conf
         freeze(args.sampling_inputs/'weights'/f'{pde}.pth',Path('weights')/f'fm_{pde}.pth')
@@ -125,7 +125,12 @@ def fm_predict(config, bundle, gt, masks):
     u=r.add_observation_noise(gt.sol,masks.sol,0.,seed=cfg.noise_seed+1)
     obs=r.ObservationTargets(a.clean,u.clean,a.noisy,u.noisy)
     scalar,_=r._scalar_conditioning_for_sampling(checkpoint_payload=payload,gt=gt,config=cfg,device=device)
-    classes,_=r._class_conditioning_for_sampling(checkpoint_payload=payload,pde=cfg.pde,batch_size=1,device=device,cfg_scale=cfg.cfg_scale)
+    classes,_=r._class_conditioning_for_sampling(
+        checkpoint_payload=payload,
+        pde=cfg.pde,
+        batch_size=1,
+        device=device,
+    )
     extra={**classes,**(scalar or {})} or None
     r._check_sampling_channels(gt,normalizer,payload)
     grid=r.make_time_grid(cfg.time_grid,cfg.num_steps,device=device,eta=cfg.time_grid_eta)
@@ -134,19 +139,23 @@ def fm_predict(config, bundle, gt, masks):
         phase=r.phase_for_step(cfg.sampler_phase,cfg.switch_ratio,k,cfg.num_steps)
         cur=x.detach().clone().requires_grad_(True)
         t,tn=grid[k],grid[k+1]
-        out=r.sampler_step(net=net,x_cur=cur,t=t,t_next=tn,phase=phase,
-                          step_method=cfg.step_method,loss_state=cfg.loss_state,device=device,model_extra=extra,
-                          stochastic_noise_source_batch_size=cfg.initial_noise_source_batch_size,
-                          stochastic_noise_source_indices=cfg.initial_noise_source_indices or None,
-                          deterministic_endpoint_mode=cfg.deterministic_endpoint_mode,
-                          deterministic_endpoint_time_grid=grid[k:],
-                          deterministic_rollout_checkpoint=cfg.deterministic_rollout_checkpoint)
+        out=r.sampler_step(
+            net=net,
+            x_cur=cur,
+            t=t,
+            t_next=tn,
+            phase=phase,
+            loss_state=cfg.loss_state,
+            device=device,
+            model_extra=extra,
+            stochastic_noise_source_batch_size=cfg.initial_noise_source_batch_size,
+            stochastic_noise_source_indices=cfg.initial_noise_source_indices or None,
+        )
         physical=r._physical_from_model_state(out.x_loss_state,cfg,normalizer)
         losses=r.compute_guidance_losses(physical,gt,masks,cfg,obs)
-        assert not r._calibrate_l2_observation_zeta(cfg,losses,step=k)
-        affine=r.affine_coefficients(r.scheduler_coefficients(t,scheduler='CondOT'),training='velocity')
-        schedule=r.make_zeta_schedule(cfg,t,tn,affine.b_t,step=k)
-        gradient=r.compute_guidance_gradient(losses,r._gradient_target_tensor(cfg,cur,out),schedule,cfg)
+        bt = r.condot_guidance_coefficient(t)
+        schedule=r.make_zeta_schedule(cfg, t, bt,step=k)
+        gradient=r.compute_guidance_gradient(losses, cur, schedule, cfg)
         x=r.apply_guidance_update(out.x_raw_next,gradient,out,schedule,cfg).detach()
     final=r._physical_from_model_state(x,cfg,normalizer)
     return final.coef.detach(),final.sol.detach()

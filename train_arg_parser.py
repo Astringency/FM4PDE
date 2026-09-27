@@ -138,11 +138,6 @@ def get_args_parser():
     parser.add_argument('--ema_warmup', action=argparse.BooleanOptionalAction, default=True,
                         help='Warm up EMA decay; disable for fixed-decay pretrained continuation.')
     parser.add_argument(
-        "--edm_schedule",
-        action="store_true",
-        help="Use the alternative time discretization during sampling proposed in the EDM paper: https://arxiv.org/abs/2206.00364.",
-    )
-    parser.add_argument(
         "--use_ema",
         action="store_true",
         help="When evaluating, use the model Exponential Moving Average weights.",
@@ -176,17 +171,10 @@ def get_args_parser():
             "hermite_bridge",
             "near_endpoint_temporal",
             "endpoint_secant",
-            "full_trajectory_fd",
             "full_time_space",
             "disabled",
         ],
         help="PDE residual mode used during periodic generated-sample evaluation.",
-    )
-    parser.add_argument(
-        "--cfg_scale",
-        default=1.0,
-        type=float,
-        help="Classifier-free guidance scale for generating samples.",
     )
     parser.add_argument(
         "--class_drop_prob",

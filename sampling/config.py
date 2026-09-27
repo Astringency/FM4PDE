@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import ast
 import dataclasses
-import hashlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,55 +36,20 @@ VALID_GUIDANCE_COMPONENTS = {
     "both_obs",
 }
 VALID_LOSS_STATES = {"xt", "x_next", "endpoint"}
-VALID_GRADIENT_TARGETS = {
-    "current_state_chain_rule", "loss_state_direct", "next_state_direct",
-    "proposal_state_chain_rule",
-}
 VALID_SAMPLER_PHASES = {"deterministic", "stochastic", "hybrid_d2s", "hybrid_s2d"}
-VALID_GUIDANCE_SCHEDULES = {
-    "constant",
-    "delta",
-    "bt",
-    "cosine",
-    "polynomial",
-    "obs_decay",
-}
-VALID_CLIP_MODES = {"none", "global_norm", "per_component_norm"}
-VALID_PDE_REGIONS = {
-    "full",
-    "boundary_excluded",
-    "coef_obs",
-    "sol_obs",
-    "active_obs_union",
-}
 VALID_SENSOR_MODES = {"random", "fixed", "grid", "sensor_column", "per_sample_random", "time_slices"}
-VALID_TIME_GRIDS = {"uniform", "geometric", "cosine"}
-VALID_STEP_METHODS = {"euler", "midpoint"}
-VALID_DETERMINISTIC_ENDPOINT_MODES = {"single_step", "rollout"}
-VALID_DETERMINISTIC_BT_MODES = {
-    "legacy",
-    "zero_at_t0",
-    "t_next",
-    "clipped",
-    "clipped_zero_at_t0",
-    "stochastic_like",
-    "capped_stochastic_like",
-}
-VALID_STOCHASTIC_GUIDANCE_TIMES = {"t", "t_next"}
+VALID_TIME_GRIDS = {"uniform", "geometric"}
 VALID_RESIDUAL_MODES = {
     "auto",
     "hermite_bridge",
     "near_endpoint_temporal",
     "endpoint_secant",
-    "full_trajectory_fd",
     "full_time_space",
     "disabled",
 }
 VALID_MODEL_PROFILES = {"auto", "recommended", "light", "base", "heavy", "legacy"}
 VALID_BOUNDARY_CONDITION_MODES = {"auto", "dirichlet_zero", "neumann_zero", "periodic", "mixed", "none", "wall", "open"}
 VALID_BOUNDARY_RESIDUAL_NORMALIZATION = {"mean", "sqrt_grid_over_mask", "mask_mean"}
-VALID_NS_OPERATOR_MODES = {"generator_dealiased", "continuous_spectral"}
-VALID_OBS_GUIDANCE_REDUCTIONS = {"mse", "l2_norm", "legacy_l2_mean"}
 VALID_TEST_TYPES = {"id", "smooth", "rough", "rough2", "rough3", "joint_ood"}
 
 
@@ -98,19 +62,11 @@ class AblationConfig:
     model_profile: str = "recommended"
 
     guidance_components: str = "obs_pde"
-    obs_guidance_reduction: str = "mse"
-    pde_guidance_reduction: str = "mse"
-    guidance_operator: str = "current"
-    legacy_obs_multiplier: float = 1.0
     model_gradient_checkpointing: bool = False
     loss_state: str = "endpoint"
-    gradient_target: str = "current_state_chain_rule"
     sampler_phase: str = "stochastic"
     switch_ratio: float = 0.5
-    guidance_schedule: str = "constant"
-    clip_mode: str = "global_norm"
     clip_threshold: float = 1e10
-    pde_residual_region: str = "full"
 
     num_obs: int = 500
     num_sensor_columns: int | None = None
@@ -124,16 +80,6 @@ class AblationConfig:
 
     time_grid: str = "uniform"
     num_steps: int = 100
-    step_method: str = "euler"
-    deterministic_endpoint_mode: str = "single_step"
-    deterministic_rollout_checkpoint: bool = False
-    deterministic_bt_mode: str = "legacy"
-    deterministic_guidance_coeff: float = 1.0
-    deterministic_bt_max_scale: float = 0.1
-    deterministic_guidance_start_ratio: float = 0.0
-    deterministic_guidance_ramp_ratio: float = 0.0
-    deterministic_correction_max_rms: float = 0.0
-    deterministic_numerical_guard: bool = True
 
     batch_size: int = 1
     sample_seed: int = 42
@@ -147,16 +93,8 @@ class AblationConfig:
     zeta_obs_a: float = 1.0
     zeta_obs_u: float = 1.0
     zeta_pde: float = 1.0
-    pde_guidance_clock: str = "flow_time"
     pde_guidance_start_ratio: float = 0.8
-    pde_guidance_ramp_ratio: float = 0.0
     stochastic_guidance_coeff: float = 0.1
-    stochastic_guidance_time: str = "t"
-    cfg_scale: float = 1.0
-    obs_decay: float = 1.0
-    obs_decay_start_ratio: float = 1.0
-    polynomial_power: float = 2.0
-    cosine_mode: str = "decay"
     time_grid_eta: float = 0.4
     pde_residual_status: str = "auto"
     residual_mode: str = "auto"
@@ -165,14 +103,7 @@ class AblationConfig:
     bc_weight: float = 1.0
     endpoint_bc_weight: float = 1.0
     boundary_residual_normalization: str = "sqrt_grid_over_mask"
-    ns_operator_mode: str = "generator_dealiased"
-    coef_positive_mode: str = "binary"
-    coef_positive_floor: float = 4.0
     allow_unknown_boundary_conditions: bool = False
-    hermite_collocation_times: list[float] = field(default_factory=lambda: [0.25, 0.5, 0.75])
-    hermite_num_collocation: int = 0
-    hermite_include_integral_residual: bool = False
-    hermite_integral_weight: float = 1.0
     data_path: str = ""
     data_paths: dict[str, str] = field(default_factory=dict)
     test_type: str = "id"
@@ -188,8 +119,6 @@ class AblationConfig:
     empty_cache_each_step: bool = False
     initial_noise_source_batch_size: int | None = None
     initial_noise_source_indices: list[int] = field(default_factory=list)
-    obs_l2_reference_mse_zeta_a: float | None = None
-    obs_l2_reference_mse_zeta_u: float | None = None
     k: int = 1
     runtime_metadata: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
@@ -200,76 +129,34 @@ class AblationConfig:
             ("pde", self.pde, VALID_PDES),
             ("task", self.task, VALID_TASKS),
             ("guidance_components", self.guidance_components, VALID_GUIDANCE_COMPONENTS),
-            ("obs_guidance_reduction", self.obs_guidance_reduction, VALID_OBS_GUIDANCE_REDUCTIONS),
-            ("pde_guidance_reduction", self.pde_guidance_reduction, {"mse", "rms", "legacy_l2_mean"}),
-            ("guidance_operator", self.guidance_operator, {"current", "legacy"}),
             ("loss_state", self.loss_state, VALID_LOSS_STATES),
-            ("gradient_target", self.gradient_target, VALID_GRADIENT_TARGETS),
             ("sampler_phase", self.sampler_phase, VALID_SAMPLER_PHASES),
-            ("guidance_schedule", self.guidance_schedule, VALID_GUIDANCE_SCHEDULES),
-            ("clip_mode", self.clip_mode, VALID_CLIP_MODES),
-            ("pde_residual_region", self.pde_residual_region, VALID_PDE_REGIONS),
             ("sensor_mode", self.sensor_mode, VALID_SENSOR_MODES),
             ("time_grid", self.time_grid, VALID_TIME_GRIDS),
-            ("step_method", self.step_method, VALID_STEP_METHODS),
-            (
-                "deterministic_endpoint_mode",
-                self.deterministic_endpoint_mode,
-                VALID_DETERMINISTIC_ENDPOINT_MODES,
-            ),
-            ("deterministic_bt_mode", self.deterministic_bt_mode, VALID_DETERMINISTIC_BT_MODES),
-            ("stochastic_guidance_time", self.stochastic_guidance_time, VALID_STOCHASTIC_GUIDANCE_TIMES),
             ("residual_mode", self.residual_mode, VALID_RESIDUAL_MODES),
             ("model_profile", self.model_profile, VALID_MODEL_PROFILES),
-            ("ns_operator_mode", self.ns_operator_mode, VALID_NS_OPERATOR_MODES),
             ("boundary_condition_mode", self.boundary_condition_mode, VALID_BOUNDARY_CONDITION_MODES),
             ("boundary_residual_normalization", self.boundary_residual_normalization, VALID_BOUNDARY_RESIDUAL_NORMALIZATION),
         ]
         for name, value, allowed in checks:
             if value not in allowed:
                 raise ValueError(f"{name}={value!r} is invalid; expected one of {sorted(allowed)}")
-        if self.pde_guidance_reduction == "rms" and self.guidance_operator != "current":
-            raise ValueError("pde_guidance_reduction='rms' requires guidance_operator='current'")
         if self.test_type not in VALID_TEST_TYPES:
             raise ValueError(
                 f"test_type={self.test_type!r} is invalid; expected one of {sorted(VALID_TEST_TYPES)}"
             )
-        if self.coef_positive_mode not in {"none", "softplus", "clamp_min", "floor", "binary"}:
-            raise ValueError(f"coef_positive_mode={self.coef_positive_mode!r} is invalid")
-        if self.coef_positive_floor <= 0:
-            raise ValueError("coef_positive_floor must be positive")
         if not 0.0 <= self.switch_ratio <= 1.0:
             raise ValueError("switch_ratio must be in [0, 1]")
-        if self.pde_guidance_clock not in {"flow_time", "step_fraction"}:
-            raise ValueError("Unknown pde_guidance_clock")
         if not 0.0 <= self.pde_guidance_start_ratio <= 1.0:
             raise ValueError("pde_guidance_start_ratio must be in [0, 1]")
-        if not 0.0 <= self.pde_guidance_ramp_ratio <= 1.0:
-            raise ValueError("pde_guidance_ramp_ratio must be in [0, 1]")
-        if self.pde_guidance_start_ratio + self.pde_guidance_ramp_ratio > 1.0 + 1e-12:
-            raise ValueError(
-                "pde_guidance_start_ratio + pde_guidance_ramp_ratio must be <= 1"
-            )
+        if self.time_grid == "geometric" and self.sampler_phase != "deterministic":
+            raise ValueError("geometric time grids are defined only for deterministic sampling")
+        if self.time_grid_eta <= 0:
+            raise ValueError("time_grid_eta must be positive")
+        if self.stochastic_guidance_coeff < 0:
+            raise ValueError("stochastic_guidance_coeff must be non-negative")
         if self.num_steps < 1:
             raise ValueError("num_steps must be positive")
-        if self.deterministic_guidance_coeff < 0:
-            raise ValueError("deterministic_guidance_coeff must be non-negative")
-        if self.deterministic_bt_max_scale <= 0:
-            raise ValueError("deterministic_bt_max_scale must be positive")
-        if not 0.0 <= self.deterministic_guidance_start_ratio <= 1.0:
-            raise ValueError("deterministic_guidance_start_ratio must be in [0, 1]")
-        if not 0.0 <= self.deterministic_guidance_ramp_ratio <= 1.0:
-            raise ValueError("deterministic_guidance_ramp_ratio must be in [0, 1]")
-        if (
-            self.deterministic_guidance_start_ratio + self.deterministic_guidance_ramp_ratio
-            > 1.0 + 1e-12
-        ):
-            raise ValueError(
-                "deterministic_guidance_start_ratio + deterministic_guidance_ramp_ratio "
-                "must be <= 1"
-            )
-        if self.deterministic_correction_max_rms < 0:
-            raise ValueError("deterministic_correction_max_rms must be non-negative")
         if self.batch_size < 1:
             raise ValueError("batch_size must be positive")
         if self.num_obs < 0:
@@ -298,7 +185,7 @@ class AblationConfig:
                 f"residual_mode={self.residual_mode!r} is only supported for temporal endpoint PDEs "
                 f"{sorted(TEMPORAL_ENDPOINT_PDES)}; got pde={self.pde!r}"
             )
-        if self.pde != "burger" and self.residual_mode in {"full_trajectory_fd", "full_time_space"}:
+        if self.pde != "burger" and self.residual_mode in {"full_time_space"}:
             raise ValueError(
                 f"residual_mode={self.residual_mode!r} requires a model-predicted full time-space field, "
                 "but the current FM4PDE model outputs only a/u endpoint fields. "
@@ -310,42 +197,12 @@ class AblationConfig:
         }:
             raise ValueError(
                 f"residual_mode={self.residual_mode!r} is an endpoint approximation, but Burgers already "
-                "outputs the full predicted time-space field. Use auto, full_trajectory_fd, or full_time_space."
+                "outputs the full predicted time-space field. Use auto or full_time_space."
             )
-        if self.hermite_num_collocation < 0:
-            raise ValueError("hermite_num_collocation must be non-negative")
-        if self.hermite_integral_weight < 0:
-            raise ValueError("hermite_integral_weight must be non-negative")
         if self.bc_weight < 0 or self.endpoint_bc_weight < 0:
             raise ValueError("bc_weight and endpoint_bc_weight must be non-negative")
-        for value in self.hermite_collocation_times:
-            if not 0.0 < float(value) < 1.0:
-                raise ValueError("hermite_collocation_times values must lie inside (0, 1)")
-        if self.clip_threshold <= 0 and self.clip_mode != "none":
-            raise ValueError("clip_threshold must be positive when clipping is enabled")
-        if self.cfg_scale < 0:
-            raise ValueError("cfg_scale must be non-negative")
-        if self.gradient_target == "next_state_direct" and self.loss_state != "x_next":
-            raise ValueError(
-                "gradient_target='next_state_direct' is only connected when loss_state='x_next'"
-            )
-        if self.gradient_target == "proposal_state_chain_rule" and (
-            self.loss_state != "endpoint"
-            or self.step_method != "euler"
-            or self.deterministic_endpoint_mode != "single_step"
-        ):
-            raise ValueError(
-                "proposal_state_chain_rule requires loss_state='endpoint', "
-                "step_method='euler', and deterministic_endpoint_mode='single_step'"
-            )
-        if self.pde_residual_region == "coef_obs" and self.task not in {"forward", "both"}:
-            raise ValueError(f"pde_residual_region='coef_obs' is inactive for task={self.task!r}")
-        if self.pde_residual_region == "sol_obs" and self.task not in {"inverse", "both"}:
-            raise ValueError(f"pde_residual_region='sol_obs' is inactive for task={self.task!r}")
-        if self.pde_residual_region == "active_obs_union" and self.task == "unconditional":
-            raise ValueError(
-                f"pde_residual_region={self.pde_residual_region!r} is undefined for task='unconditional'"
-            )
+        if self.clip_threshold <= 0:
+            raise ValueError("clip_threshold must be positive")
         validate_task_guidance(self.task, self.guidance_components)
 
     def resolve_test_data_path(self) -> str:
@@ -370,90 +227,22 @@ class AblationConfig:
         phase = self.sampler_phase
         if phase.startswith("hybrid"):
             phase = f"{phase}_{self.switch_ratio:g}"
-        reduction = "" if self.obs_guidance_reduction == "mse" else f"_obsred-{self.obs_guidance_reduction}"
-        if self.pde_guidance_reduction == "rms":
-            reduction += f"_pdered-{self.pde_guidance_reduction}"
-        pde_gate = (
-            ""
-            if self.pde_guidance_start_ratio == 0.0 and self.pde_guidance_ramp_ratio == 0.0
-            else (
-                f"_pdegate-s{self.pde_guidance_start_ratio:g}"
-                f"-r{self.pde_guidance_ramp_ratio:g}"
-            )
-        )
-        deterministic = ""
-        if (
-            self.deterministic_endpoint_mode != "single_step"
-            or self.deterministic_bt_mode != "legacy"
-            or self.deterministic_guidance_coeff != 1.0
-            or self.deterministic_guidance_start_ratio != 0.0
-            or self.deterministic_guidance_ramp_ratio != 0.0
-            or self.deterministic_correction_max_rms != 0.0
-            or not self.deterministic_numerical_guard
-            or (
-                self.deterministic_bt_mode in {
-                    "clipped",
-                    "clipped_zero_at_t0",
-                    "capped_stochastic_like",
-                }
-                and self.deterministic_bt_max_scale != 0.1
-            )
-        ):
-            deterministic = (
-                f"_detep-{self.deterministic_endpoint_mode}"
-                f"-bt-{self.deterministic_bt_mode}"
-                f"-c{self.deterministic_guidance_coeff:g}"
-            )
-            if self.deterministic_bt_mode in {
-                "clipped",
-                "clipped_zero_at_t0",
-                "capped_stochastic_like",
-            }:
-                deterministic += f"-max{self.deterministic_bt_max_scale:g}"
-            if (
-                self.deterministic_guidance_start_ratio != 0.0
-                or self.deterministic_guidance_ramp_ratio != 0.0
-            ):
-                deterministic += (
-                    f"-start{self.deterministic_guidance_start_ratio:g}"
-                    f"-ramp{self.deterministic_guidance_ramp_ratio:g}"
-                )
-            if self.deterministic_correction_max_rms != 0.0:
-                deterministic += f"-corrms{self.deterministic_correction_max_rms:g}"
-            if not self.deterministic_numerical_guard:
-                deterministic += "-noguard"
-        proposal = "_proposal_chain" if self.gradient_target == "proposal_state_chain_rule" else ""
         return (
-            f"{self.guidance_components}{reduction}_{self.loss_state}{proposal}_{phase}_"
-            f"{self.guidance_schedule}{pde_gate}{deterministic}_{self.clip_mode}{self.clip_threshold:g}_"
+            f"{self.guidance_components}_{self.loss_state}_{phase}_"
+            f"pdegate-s{self.pde_guidance_start_ratio:g}_clip{self.clip_threshold:g}_"
             f"{self.sensor_mode}{self._sensor_budget()}_noise{self.noise_level:g}_"
-            f"{self.time_grid}{self.num_steps}_{self.step_method}_"
+            f"{self.time_grid}{self.num_steps}_"
             f"{self._short_residual_fragment()}_{self._short_bc_ic_fragment()}"
         )
 
     def _short_residual_fragment(self) -> str:
-        mode_map = {
-            "auto": "res-auto",
-            "hermite_bridge": "res-hermite",
-            "endpoint_secant": "res-secant",
-            "full_trajectory_fd": "res-fulltraj",
-            "full_time_space": "res-fulltime",
-            "disabled": "res-off",
-        }
         if self.residual_mode == "near_endpoint_temporal":
             return f"res-near-aligned-{self.sensor_mode}{self._sensor_budget()}"
-        base = mode_map.get(self.residual_mode, f"res-{self.residual_mode}")
-        if self.residual_mode in {"auto", "hermite_bridge"}:
-            k = self.hermite_num_collocation if self.hermite_num_collocation > 0 else len(self.hermite_collocation_times)
-            base = f"{base}-K{k}"
-            if self.hermite_num_collocation <= 0 and self.hermite_collocation_times != [0.25, 0.5, 0.75]:
-                digest = hashlib.sha1(",".join(f"{float(v):.8g}" for v in self.hermite_collocation_times).encode("utf-8")).hexdigest()[:6]
-                base = f"{base}h{digest}"
-            if self.hermite_include_integral_residual:
-                base = f"{base}-int1-w{self.hermite_integral_weight:g}"
-            else:
-                base = f"{base}-int0"
-        return base
+        return {
+            "auto": "res-auto", "hermite_bridge": "res-hermite",
+            "endpoint_secant": "res-secant", "full_time_space": "res-fulltime",
+            "disabled": "res-off",
+        }[self.residual_mode]
 
     def _sensor_budget(self) -> int:
         if self.sensor_mode in {"sensor_column", "time_slices"}:

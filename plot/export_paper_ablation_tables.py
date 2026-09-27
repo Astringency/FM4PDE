@@ -147,13 +147,10 @@ def export(args):
              'num_steps_by_sampler',base=dict(sampler_phase=phase))
     save('ablation_coverage_fields.tex',units+'Number of observed locations per active field; a shared location measures every component of a vector field.',
          'tab:ablation-sensor-count',[(str(n),dict(num_obs=n)) for n in [50,100,250,500,1000]],'sensor_sparsity')
-    for phase,phase_label in PHASES:
+    for phase,phase_label in PHASES[1:2]:
         save(f'ablation_grid_{phase}_fields.tex',units+f'Time-grid comparison for {phase_label} at 100 steps.',
-             'tab:ablation-grid-'+phase,[(label,dict(time_grid=key)) for key,label in [('uniform','Uniform'),('cosine','Cosine'),('geometric','Geometric')]],
+             'tab:ablation-grid-'+phase,[(label,dict(time_grid=key)) for key,label in [('uniform','Uniform'),('geometric','Geometric')]],
              'time_grid_by_sampler',base=dict(sampler_phase=phase))
-    save('ablation_integrator_fields.tex',units+'Euler and midpoint updates at 100 steps, for each sampler phase.',
-         'tab:ablation-integrator',[(r'\shortstack{'+label+r'\\'+method.title()+'}',dict(sampler_phase=phase,step_method=method)) for phase,label in PHASES for method in ['euler','midpoint']],
-         'step_method_by_sampler')
     save('ablation_layout_fields.tex',units+'Observation layouts at the configured sensor budget.',
          'tab:ablation-sensor-layout',[(label,dict(sensor_mode=key)) for key,label in [('random','Random'),('per_sample_random','Per-input random'),('fixed','Fixed'),('grid','Grid'),('sensor_column','Columns')]],'sensor_mode')
     save('ablation_noise_fields.tex',units+'Observation-noise amplitudes; errors use the clean reference field.',

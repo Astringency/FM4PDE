@@ -33,7 +33,7 @@ def darcy_grids(n):
     return to_nodes, np.linalg.inv(from_cells_inverse)
 
 
-def solve_static(pde, a, *, k=1, binary=False):
+def solve_static(pde, a, *, k=1):
     """Return physical u with the original fixed boundary equations.
 
     Do not clip raw coefficients. Non-elliptic inputs remain flagged even when
@@ -53,8 +53,6 @@ def solve_static(pde, a, *, k=1, binary=False):
             u = solver.solve(rhs.reshape(-1)).reshape(n,n)
         return u, dict(nonpositive_fraction=0., minimum_edge_coefficient=None)
     assert pde=='darcy'
-    if binary:
-        a = np.where(a>=8.,12.,4.)
     to_nodes,to_cells = darcy_grids(n)
     coef = to_nodes @ a @ to_nodes.T
     center = coef[1:-1,1:-1]

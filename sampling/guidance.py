@@ -26,77 +26,25 @@ class GuidanceGradient:
     grad_norm_pde: float
     grad_norm_total: float
     clip_scale: float
-    component_clip_scales: dict[str, float]
     metadata: dict[str, Any]
 
 
-def make_zeta_schedule(config: Any, t: Any, t_next: Any, bt: Any, *, step: int | None = None) -> GuidanceSchedule:
+def make_zeta_schedule(config: Any, t: Any, bt: Any, *, step: int) -> GuidanceSchedule:
+    """Fixed component weights, with PDE guidance enabled at ceil(ratio*N)."""
+    import math
     import torch
 
     flags = guidance_component_flags(config.guidance_components, getattr(config, "task", "both"))
-    ones = torch.ones_like(t_next)
-    zeta_a = ones * float(config.zeta_obs_a) if flags["obs_a"] else ones * 0.0
-    zeta_u = ones * float(config.zeta_obs_u) if flags["obs_u"] else ones * 0.0
-    zeta_pde = ones * float(config.zeta_pde) if flags["pde"] else ones * 0.0
-    if getattr(config, "guidance_operator", "current") == "legacy":
-        zeta_a = zeta_a * float(config.legacy_obs_multiplier)
-        zeta_u = zeta_u * float(config.legacy_obs_multiplier)
-
-    schedule = config.guidance_schedule
-    if schedule == "constant":
-        factor = ones
-    elif schedule == "delta":
-        factor = (1.0 - t_next).clamp_min(0.0)
-    elif schedule == "bt":
-        factor = bt.abs() if hasattr(bt, "abs") else ones * abs(float(bt))
-    elif schedule == "cosine":
-        progress = t_next.clamp(0.0, 1.0)
-        if getattr(config, "cosine_mode", "decay") == "ramp":
-            factor = 0.5 - 0.5 * torch.cos(torch.pi * progress)
-        else:
-            factor = 0.5 + 0.5 * torch.cos(torch.pi * progress)
-    elif schedule == "polynomial":
-        factor = (1.0 - t_next).clamp_min(0.0) ** float(config.polynomial_power)
-    elif schedule == "obs_decay":
-        factor = ones
-        if float(t_next.detach().cpu()) > float(config.obs_decay_start_ratio):
-            factor = factor * float(config.obs_decay)
-    else:
-        raise ValueError(f"Unknown guidance_schedule={schedule!r}")
-    clock = getattr(config, "pde_guidance_clock", "flow_time")
-    pde_progress = t
-    if clock == "step_fraction":
-        if step is None:
-            raise ValueError("step_fraction PDE gate requires a global step index")
-        pde_progress = torch.full_like(t, step / config.num_steps)
-    pde_factor = _pde_guidance_factor(config, pde_progress)
+    ones = torch.ones_like(t)
+    start_step = math.ceil(float(config.pde_guidance_start_ratio) * config.num_steps)
+    pde_factor = float(step >= start_step)
     return GuidanceSchedule(
-        zeta_obs_a_t=zeta_a * factor,
-        zeta_obs_u_t=zeta_u * factor,
-        zeta_pde_t=zeta_pde * factor * pde_factor,
+        zeta_obs_a_t=ones * float(config.zeta_obs_a) * flags["obs_a"],
+        zeta_obs_u_t=ones * float(config.zeta_obs_u) * flags["obs_u"],
+        zeta_pde_t=ones * float(config.zeta_pde) * flags["pde"] * pde_factor,
         bt=bt,
-        metadata={
-            "guidance_schedule": schedule,
-            "factor": _scalar(factor),
-            "pde_guidance_factor": _scalar(pde_factor),
-            "pde_guidance_clock": clock,
-            "pde_guidance_progress": _scalar(pde_progress),
-            "pde_guidance_start_ratio": float(config.pde_guidance_start_ratio),
-            "pde_guidance_ramp_ratio": float(config.pde_guidance_ramp_ratio),
-        },
+        metadata={"pde_guidance_factor": pde_factor, "pde_guidance_start_step": start_step},
     )
-
-
-def _pde_guidance_factor(config: Any, t: Any) -> Any:
-    """Gate PDE guidance by the configured clock, leaving observation guidance intact."""
-    import torch
-
-    progress = t.clamp(0.0, 1.0)
-    start = float(config.pde_guidance_start_ratio)
-    ramp = float(config.pde_guidance_ramp_ratio)
-    if ramp == 0.0:
-        return (progress >= start).to(dtype=progress.dtype)
-    return ((progress - start) / ramp).clamp(0.0, 1.0)
 
 
 def compute_guidance_gradient(
@@ -155,20 +103,11 @@ def compute_guidance_gradient(
         batch_scale=batch_scale,
     )
 
-    grad_a, scale_a = _clip_per_sample(grad_a, config.clip_threshold, config.clip_mode == "per_component_norm")
-    grad_u, scale_u = _clip_per_sample(grad_u, config.clip_threshold, config.clip_mode == "per_component_norm")
-    grad_pde, scale_pde = _clip_per_sample(grad_pde, config.clip_threshold, config.clip_mode == "per_component_norm")
-
     total = schedule.zeta_obs_a_t * grad_a + schedule.zeta_obs_u_t * grad_u + schedule.zeta_pde_t * grad_pde
-    clip_scale = 1.0
-    if config.clip_mode == "global_norm":
-        # A batch is a collection of independent inverse problems. Clipping
-        # over the whole BCHW tensor would couple their sampling trajectories.
-        total, clip_scale = _clip_per_sample(total, config.clip_threshold, True)
-    elif config.clip_mode == "none":
-        clip_scale = 1.0
-    elif config.clip_mode != "per_component_norm":
-        raise ValueError(f"Unknown clip_mode={config.clip_mode!r}")
+    # Sum weighted gradients first, then clip each independent sample once.
+    if not bool(torch.isfinite(total).all().detach().cpu()):
+        raise FloatingPointError("Guidance gradient contains NaN or Inf")
+    total, clip_scale = _clip_per_sample(total, config.clip_threshold)
 
     return GuidanceGradient(
         grad_obs_a=grad_a,
@@ -180,9 +119,7 @@ def compute_guidance_gradient(
         grad_norm_pde=_norm(grad_pde),
         grad_norm_total=_norm(total),
         clip_scale=clip_scale,
-        component_clip_scales={"obs_a": scale_a, "obs_u": scale_u, "pde": scale_pde},
         metadata={
-            "gradient_target": getattr(config, "gradient_target", "loss_state_direct"),
             "grad_target_shape": list(grad_target.shape),
             "loss_gradient_batch_reduction": "sum_of_per_sample",
             "clip_scope": "per_sample",
@@ -208,131 +145,28 @@ def apply_guidance_update(
     schedule: GuidanceSchedule,
     config: Any,
 ) -> Any:
-    scale = _update_scale(
-        step_output.phase,
-        step_output.t,
-        step_output.t_next,
-        step_output.step_size,
-        schedule.bt,
-        config,
-    )
-    deterministic_factor = 1.0
+    """Apply exactly the manuscript multiplier after global gradient clipping."""
+    import torch
+
     if step_output.phase == "deterministic":
-        deterministic_factor = _deterministic_guidance_factor(config, step_output.t)
-        scale = scale * deterministic_factor
+        scale = torch.where(
+            step_output.t == 0, torch.zeros_like(schedule.bt),
+            step_output.step_size * schedule.bt,
+        )
+    elif step_output.phase == "stochastic":
+        scale = float(config.stochastic_guidance_coeff) * (1.0 - step_output.t)
+    else:
+        raise ValueError(f"Unknown phase={step_output.phase!r}")
     correction = scale * gradient.grad_total
-    nonfinite_samples = 0
-    if step_output.phase == "deterministic" and bool(
-        getattr(config, "deterministic_numerical_guard", True)
-    ):
-        correction, nonfinite_samples = _zero_nonfinite_samples(correction)
-    raw_correction_norm = _norm(correction)
-    correction_clip_scale = 1.0
-    maximum_rms = float(getattr(config, "deterministic_correction_max_rms", 0.0))
-    if step_output.phase == "deterministic" and maximum_rms > 0.0:
-        correction, correction_clip_scale = _clip_correction_rms_per_sample(
-            correction, maximum_rms
-        )
-    gradient.metadata["guidance_update_scale"] = _scalar(scale)
-    gradient.metadata["stochastic_guidance_time"] = getattr(config, "stochastic_guidance_time", "t")
-    gradient.metadata["deterministic_bt_mode"] = getattr(config, "deterministic_bt_mode", "legacy")
-    gradient.metadata["deterministic_guidance_factor"] = _scalar(deterministic_factor)
-    gradient.metadata["guidance_correction_raw_norm"] = raw_correction_norm
-    gradient.metadata["guidance_correction_norm"] = _norm(correction)
-    gradient.metadata["guidance_correction_rms"] = _rms(correction)
-    gradient.metadata["correction_clip_scale"] = correction_clip_scale
-    gradient.metadata["nonfinite_correction_samples"] = nonfinite_samples
-    return x_next - correction
-
-
-def _update_scale(phase: str, t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
-    if phase == "deterministic":
-        return _deterministic_update_scale(t, t_next, step_size, bt, config)
-    if config.guidance_schedule == "bt":
-        return bt * step_size
-    time_name = getattr(config, "stochastic_guidance_time", "t")
-    if time_name == "t":
-        time_value = t
-    elif time_name == "t_next":
-        time_value = t_next
-    else:
-        raise ValueError("stochastic_guidance_time must be 't' or 't_next'")
-    return float(config.stochastic_guidance_coeff) * (1.0 - time_value).clamp_min(0.0)
-
-
-def _deterministic_update_scale(t: Any, t_next: Any, step_size: Any, bt: Any, config: Any) -> Any:
-    """Return a finite, explicitly configured deterministic guidance scale.
-
-    ``legacy`` preserves historical behavior.  The other modes are ablation
-    choices for the CondOT ``b_t=(1-t)/t`` boundary singularity.
-    """
-    import torch
-
-    mode = getattr(config, "deterministic_bt_mode", "legacy")
-    coeff = float(getattr(config, "deterministic_guidance_coeff", 1.0))
-    raw = bt * step_size
-    if mode == "legacy":
-        scale = raw
-    elif mode == "zero_at_t0":
-        scale = torch.where(t <= 0.0, torch.zeros_like(raw), raw)
-    elif mode == "t_next":
-        safe_t_next = t_next.clamp_min(1e-6)
-        scale = ((1.0 - safe_t_next).clamp_min(0.0) / safe_t_next) * step_size
-    elif mode in {"clipped", "clipped_zero_at_t0"}:
-        maximum = torch.as_tensor(
-            float(getattr(config, "deterministic_bt_max_scale", 0.1)),
-            dtype=raw.dtype,
-            device=raw.device,
-        )
-        scale = torch.minimum(raw, maximum)
-        if mode == "clipped_zero_at_t0":
-            scale = torch.where(t <= 0.0, torch.zeros_like(scale), scale)
-    elif mode == "stochastic_like":
-        scale = (1.0 - t).clamp_min(0.0)
-    elif mode == "capped_stochastic_like":
-        maximum = torch.as_tensor(
-            float(getattr(config, "deterministic_bt_max_scale", 0.1)),
-            dtype=raw.dtype,
-            device=raw.device,
-        )
-        # Here max_scale is the final trust-region cap, while coeff controls
-        # the stochastic-shaped tail. Return directly to avoid multiplying
-        # coeff twice below.
-        return torch.minimum(coeff * (1.0 - t).clamp_min(0.0), maximum)
-    else:
-        raise ValueError(f"Unknown deterministic_bt_mode={mode!r}")
-    return coeff * scale
-
-
-def _deterministic_guidance_factor(config: Any, t: Any) -> Any:
-    """Gate all deterministic guidance near the singular CondOT boundary."""
-    import torch
-
-    progress = t.clamp(0.0, 1.0)
-    start = float(getattr(config, "deterministic_guidance_start_ratio", 0.0))
-    ramp = float(getattr(config, "deterministic_guidance_ramp_ratio", 0.0))
-    if ramp == 0.0:
-        return (progress >= start).to(dtype=progress.dtype)
-    return ((progress - start) / ramp).clamp(0.0, 1.0)
-
-
-def _zero_nonfinite_samples(value: Any) -> tuple[Any, int]:
-    """Reject an entire sample update when any element is NaN or infinite."""
-    import torch
-
-    batch_size = int(value.shape[0])
-    finite = torch.isfinite(value.reshape(batch_size, -1)).all(dim=1)
-    mask = finite.reshape(batch_size, *([1] * (value.ndim - 1)))
-    guarded = torch.where(mask, value, torch.zeros_like(value))
-    return guarded, int((~finite).sum().detach().cpu())
-
-
-def _clip_correction_rms_per_sample(value: Any, maximum_rms: float) -> tuple[Any, float]:
-    """Clip the applied state correction by per-sample RMS, independent of grid size."""
-    import math
-
-    elements_per_sample = int(value[0].numel())
-    return _clip_per_sample(value, maximum_rms * math.sqrt(elements_per_sample), True)
+    updated = x_next - correction
+    if not bool(torch.isfinite(updated).all().detach().cpu()):
+        raise FloatingPointError("Guided sampling update contains NaN or Inf")
+    gradient.metadata.update({
+        "guidance_update_scale": _scalar(scale),
+        "guidance_correction_norm": _norm(correction),
+        "guidance_correction_rms": _rms(correction),
+    })
+    return updated
 
 
 def _grad_or_zero(
@@ -357,33 +191,24 @@ def _grad_or_zero(
     grad = torch.autograd.grad(scaled_loss, x, retain_graph=retain_graph, allow_unused=True)[0]
     if grad is None:
         raise RuntimeError(
-            f"Enabled guidance loss {component!r} is not connected to gradient_target; "
-            "check loss_state and gradient_target"
+            f"Enabled guidance loss {component!r} is not connected to the current sampling state; "
+            "check the loss-state computation graph"
         )
     return grad
 
 
-def _clip_single(grad: Any, threshold: float) -> tuple[Any, float]:
+def _clip_per_sample(grad: Any, threshold: float) -> tuple[Any, float]:
+    """Global norm clip per sample: rho=Gc/max(Gc,||g||_2)."""
     import torch
 
-    norm = torch.linalg.vector_norm(grad)
-    scale = torch.minimum(torch.ones((), dtype=grad.dtype, device=grad.device), torch.as_tensor(threshold, dtype=grad.dtype, device=grad.device) / (norm + 1e-12))
-    return grad * scale, float(scale.detach().cpu())
-
-
-def _clip_per_sample(grad: Any, threshold: float, active: bool = True) -> tuple[Any, float]:
-    """Clip each sample in the batch independently.  grad shape: [B, C, H, W]."""
-    import torch
-
-    if not active:
-        return grad, 1.0
-    B = int(grad.shape[0])
-    if B <= 1:
-        return _clip_single(grad, threshold)
-    flat = grad.reshape(B, -1)
-    norms = torch.linalg.vector_norm(flat, dim=1)  # [B]
-    scales = torch.clamp(threshold / (norms + 1e-12), max=1.0)  # [B]
-    clipped = grad * scales.reshape(B, *([1] * (grad.ndim - 1)))
+    norms = torch.linalg.vector_norm(grad.reshape(grad.shape[0], -1), dim=1)
+    if grad.dtype != torch.float64 and not bool(torch.isfinite(norms).all().detach().cpu()):
+        # Preserve the same norm formula when finite float32 entries overflow
+        # its sum of squares. This does not change or discard the gradient.
+        norms = torch.linalg.vector_norm(grad.double().reshape(grad.shape[0], -1), dim=1)
+    bound = torch.as_tensor(threshold, dtype=grad.dtype, device=grad.device)
+    scales = (bound / torch.maximum(bound, norms)).to(grad.dtype)
+    clipped = grad * scales.reshape(grad.shape[0], *([1] * (grad.ndim - 1)))
     return clipped, float(scales.mean().detach().cpu())
 
 

@@ -55,7 +55,6 @@ def fast_sample(cfg, truth, bundle, indices, fixed, steps=100):
     gt = combine_truths({c.offset: truth}, [c.offset]*len(indices), c.device)
     masks, observations, observation_proof = expand_fixed(fixed, gt, len(indices), c.device)
     net, normalizer, _ = bundle
-    assert c.obs_l2_reference_mse_zeta_a is None and c.obs_l2_reference_mse_zeta_u is None
     r._set_seed(c.sample_seed)
     grid = r.make_time_grid(c.time_grid, c.num_steps, device=c.device, eta=c.time_grid_eta)
     torch.cuda.synchronize(c.device)
@@ -69,28 +68,33 @@ def fast_sample(cfg, truth, bundle, indices, fixed, steps=100):
     for step in range(steps):
         x_cur = x.detach().clone().requires_grad_(True)
         t, t_next = grid[step], grid[step+1]
-        out = r.sampler_step(net, x_cur, t, t_next, 'stochastic', c.step_method,
-                             c.loss_state, device=c.device,
-                             stochastic_noise_source_batch_size=1000,
-                             stochastic_noise_source_indices=list(indices))
+        out = r.sampler_step(
+            net,
+            x_cur,
+            t,
+            t_next,
+            'stochastic',
+            c.loss_state,
+            device=c.device,
+            stochastic_noise_source_batch_size=1000,
+            stochastic_noise_source_indices=list(indices),
+        )
         phys = r._physical_from_model_state(out.x_loss_state, c, normalizer)
         losses = r.compute_guidance_losses(phys, gt, masks, c, observations=observations)
         assert losses.pde_residual_status != 'error'
-        coeffs = r.scheduler_coefficients(t, scheduler='CondOT')
-        affine = r.affine_coefficients(coeffs, training='velocity')
-        schedule = r.make_zeta_schedule(c, t, t_next, affine.b_t, step=step)
-        target = r._gradient_target_tensor(c, x_cur, out)
+        bt = r.condot_guidance_coefficient(t)
+        schedule = r.make_zeta_schedule(c, t, bt, step=step)
+        target = x_cur
         if c.runtime_metadata.get('fused_guidance'):
             # Global clipping applies after the weighted gradient sum; linearity
             # therefore permits one reverse pass through the velocity network.
             from types import SimpleNamespace
             from sampling.guidance import _clip_per_sample
-            assert c.clip_mode in {'global_norm', 'none'}
             total_loss = (schedule.zeta_obs_a_t * losses.guidance_L_obs_a
                           + schedule.zeta_obs_u_t * losses.guidance_L_obs_u
                           + schedule.zeta_pde_t * losses.guidance_L_pde)
             total = torch.autograd.grad(total_loss * len(indices), target)[0]
-            total, _ = _clip_per_sample(total, c.clip_threshold, c.clip_mode == 'global_norm')
+            total, _ = _clip_per_sample(total, c.clip_threshold)
             gradient = SimpleNamespace(grad_total=total, metadata={})
         else:
             gradient = r.compute_guidance_gradient(losses, target, schedule, c)

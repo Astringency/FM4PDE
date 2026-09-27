@@ -83,7 +83,7 @@ def main():
                         for f in fields) else 'archived'
                     if winner=='recommended':
                         c=named[winner][0]['config']
-                        updates[task]={k:c[k] for k in ['zeta_obs_a','zeta_obs_u','zeta_pde','clip_mode','clip_threshold']}
+                        updates[task]={k:c[k] for k in ['zeta_obs_a','zeta_obs_u','zeta_pde','clip_threshold']}
                 evidence[task]=dict(chosen=winner,mean_errors_by_field=means,
                                     diagnostic_runs_per_candidate=expected,fields=fields)
             reason='Disjoint four-input diagnostics; field-wise selection; original input 0 and ensemble inputs unused.'

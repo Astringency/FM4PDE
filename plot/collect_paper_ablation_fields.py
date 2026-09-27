@@ -111,7 +111,7 @@ def collect(args):
             metrics.append(dict(id=ident,pde=pde,source=source,field=field,error_percent=100*values[field],
                                 old_error_percent=100*float(old['rel_l2_'+field]),
                                 **{k:config[k] for k in ['task','ablation_group','guidance_components','loss_state',
-                                   'sampler_phase','switch_ratio','num_steps','time_grid','step_method','num_obs',
+                                   'sampler_phase','switch_ratio','num_steps','time_grid','num_obs',
                                    'sensor_mode','noise_level','sample_seed','zeta_obs_a','zeta_obs_u','zeta_pde','clip_threshold']}))
     assert sum(r['required_rerun'] for r in records) == 744
     if pending and not args.allow_pending:

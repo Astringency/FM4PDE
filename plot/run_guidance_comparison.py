@@ -155,10 +155,10 @@ def run_pde(args, pde, protocol):
         write_json(target/'environment.json',environment)
         base=copy.deepcopy(protocol['base_configs'][pde])
         base.update(checkpoint_path=str(checkpoint),model_profile=selected_model.model_profile,device=args.device,clip_threshold=50.,
-                    clip_mode='global_norm',save_plots=False,save_intermediate=False,
+                    save_plots=False,save_intermediate=False,
                     save_per_sample_curves=True,sensor_mode='per_sample_random',
-                    num_obs=500,noise_level=0.,time_grid='uniform',step_method='euler',
-                    loss_state='endpoint',pde_guidance_reduction='mse',ablation_name='')
+                    num_obs=500,noise_level=0.,time_grid='uniform',
+                    loss_state='endpoint',ablation_name='')
         initial_noise={}
         original_noise=runner._sample_initial_noise
         def recorded_noise(*pos,**kw):

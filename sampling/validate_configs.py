@@ -21,8 +21,8 @@ def validate(root, check_assets=False):
             assert path.stem == cfg.pde and path.parent.name == cfg.task, path
             found.add((cfg.pde, cfg.task))
             assert {'id', 'smooth', 'rough'} <= set(cfg.data_paths), path
-            assert cfg.pde_guidance_clock == 'step_fraction', path
-            assert cfg.hermite_include_integral_residual is False, path
+            assert cfg.num_steps == 100, path
+            assert cfg.stochastic_guidance_coeff == 0.1, path
             assert cfg.checkpoint_path, path
             checkpoints.setdefault(cfg.pde, set()).add(cfg.checkpoint_path)
             assert cfg.allow_synthetic_data is False, path

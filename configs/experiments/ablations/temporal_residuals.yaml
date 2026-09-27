@@ -10,7 +10,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0004
   pde: nsnonbounded
   task: both
@@ -20,7 +19,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0008
   pde: nsnonbounded
   task: both
@@ -30,7 +28,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0012
   pde: nsnonbounded
   task: both
@@ -40,7 +37,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0016
   pde: nsnonbounded
   task: both
@@ -50,7 +46,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0020
   pde: nsnonbounded
   task: both
@@ -60,7 +55,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0024
   pde: nsnonbounded
   task: both
@@ -70,7 +64,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: nsnonbounded_endpoint_secant_0028
   pde: nsnonbounded
   task: both
@@ -80,7 +73,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0000
   pde: nsnonbounded
   task: both
@@ -90,7 +82,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0004
   pde: nsnonbounded
   task: both
@@ -100,7 +91,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0008
   pde: nsnonbounded
   task: both
@@ -110,7 +100,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0012
   pde: nsnonbounded
   task: both
@@ -120,7 +109,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0016
   pde: nsnonbounded
   task: both
@@ -130,7 +118,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0020
   pde: nsnonbounded
   task: both
@@ -140,7 +127,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0024
   pde: nsnonbounded
   task: both
@@ -150,7 +136,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: nsnonbounded_hermite_bridge_0028
   pde: nsnonbounded
   task: both
@@ -160,7 +145,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0000
   pde: nsnonbounded
   task: both
@@ -170,7 +154,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0004
   pde: nsnonbounded
   task: both
@@ -180,7 +163,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0008
   pde: nsnonbounded
   task: both
@@ -190,7 +172,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0012
   pde: nsnonbounded
   task: both
@@ -200,7 +181,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0016
   pde: nsnonbounded
   task: both
@@ -210,7 +190,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0020
   pde: nsnonbounded
   task: both
@@ -220,7 +199,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0024
   pde: nsnonbounded
   task: both
@@ -230,7 +208,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: nsnonbounded_near_endpoint_temporal_0028
   pde: nsnonbounded
   task: both
@@ -240,7 +217,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0000
   pde: reaction_diffusion
   task: both
@@ -250,7 +226,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0004
   pde: reaction_diffusion
   task: both
@@ -260,7 +235,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0008
   pde: reaction_diffusion
   task: both
@@ -270,7 +244,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0012
   pde: reaction_diffusion
   task: both
@@ -280,7 +253,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0016
   pde: reaction_diffusion
   task: both
@@ -290,7 +262,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0020
   pde: reaction_diffusion
   task: both
@@ -300,7 +271,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0024
   pde: reaction_diffusion
   task: both
@@ -310,7 +280,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_endpoint_secant_0028
   pde: reaction_diffusion
   task: both
@@ -320,7 +289,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0000
   pde: reaction_diffusion
   task: both
@@ -330,7 +298,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0004
   pde: reaction_diffusion
   task: both
@@ -340,7 +307,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0008
   pde: reaction_diffusion
   task: both
@@ -350,7 +316,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0012
   pde: reaction_diffusion
   task: both
@@ -360,7 +325,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0016
   pde: reaction_diffusion
   task: both
@@ -370,7 +334,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0020
   pde: reaction_diffusion
   task: both
@@ -380,7 +343,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0024
   pde: reaction_diffusion
   task: both
@@ -390,7 +352,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_hermite_bridge_0028
   pde: reaction_diffusion
   task: both
@@ -400,7 +361,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0000
   pde: reaction_diffusion
   task: both
@@ -410,7 +370,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0004
   pde: reaction_diffusion
   task: both
@@ -420,7 +379,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0008
   pde: reaction_diffusion
   task: both
@@ -430,7 +388,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0012
   pde: reaction_diffusion
   task: both
@@ -440,7 +397,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0016
   pde: reaction_diffusion
   task: both
@@ -450,7 +406,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0020
   pde: reaction_diffusion
   task: both
@@ -460,7 +415,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0024
   pde: reaction_diffusion
   task: both
@@ -470,7 +424,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: reaction_diffusion_near_endpoint_temporal_0028
   pde: reaction_diffusion
   task: both
@@ -480,7 +433,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0000
   pde: shallow_water
   task: both
@@ -490,7 +442,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0004
   pde: shallow_water
   task: both
@@ -500,7 +451,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0008
   pde: shallow_water
   task: both
@@ -510,7 +460,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0012
   pde: shallow_water
   task: both
@@ -520,7 +469,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0016
   pde: shallow_water
   task: both
@@ -530,7 +478,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0020
   pde: shallow_water
   task: both
@@ -540,7 +487,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0024
   pde: shallow_water
   task: both
@@ -550,7 +496,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: shallow_water_endpoint_secant_0028
   pde: shallow_water
   task: both
@@ -560,7 +505,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0000
   pde: shallow_water
   task: both
@@ -570,7 +514,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0004
   pde: shallow_water
   task: both
@@ -580,7 +523,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0008
   pde: shallow_water
   task: both
@@ -590,7 +532,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0012
   pde: shallow_water
   task: both
@@ -600,7 +541,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0016
   pde: shallow_water
   task: both
@@ -610,7 +550,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0020
   pde: shallow_water
   task: both
@@ -620,7 +559,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0024
   pde: shallow_water
   task: both
@@ -630,7 +568,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: shallow_water_hermite_bridge_0028
   pde: shallow_water
   task: both
@@ -640,7 +577,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0000
   pde: shallow_water
   task: both
@@ -650,7 +586,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0004
   pde: shallow_water
   task: both
@@ -660,7 +595,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0008
   pde: shallow_water
   task: both
@@ -670,7 +604,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0012
   pde: shallow_water
   task: both
@@ -680,7 +613,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0016
   pde: shallow_water
   task: both
@@ -690,7 +622,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0020
   pde: shallow_water
   task: both
@@ -700,7 +631,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0024
   pde: shallow_water
   task: both
@@ -710,7 +640,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: shallow_water_near_endpoint_temporal_0028
   pde: shallow_water
   task: both
@@ -720,7 +649,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0000
   pde: heat
   task: both
@@ -730,7 +658,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0004
   pde: heat
   task: both
@@ -740,7 +667,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0008
   pde: heat
   task: both
@@ -750,7 +676,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0012
   pde: heat
   task: both
@@ -760,7 +685,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0016
   pde: heat
   task: both
@@ -770,7 +694,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0020
   pde: heat
   task: both
@@ -780,7 +703,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0024
   pde: heat
   task: both
@@ -790,7 +712,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: heat_endpoint_secant_0028
   pde: heat
   task: both
@@ -800,7 +721,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0000
   pde: heat
   task: both
@@ -810,7 +730,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0004
   pde: heat
   task: both
@@ -820,7 +739,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0008
   pde: heat
   task: both
@@ -830,7 +748,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0012
   pde: heat
   task: both
@@ -840,7 +757,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0016
   pde: heat
   task: both
@@ -850,7 +766,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0020
   pde: heat
   task: both
@@ -860,7 +775,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0024
   pde: heat
   task: both
@@ -870,7 +784,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: heat_hermite_bridge_0028
   pde: heat
   task: both
@@ -880,7 +793,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0000
   pde: heat
   task: both
@@ -890,7 +802,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0004
   pde: heat
   task: both
@@ -900,7 +811,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0008
   pde: heat
   task: both
@@ -910,7 +820,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0012
   pde: heat
   task: both
@@ -920,7 +829,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0016
   pde: heat
   task: both
@@ -930,7 +838,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0020
   pde: heat
   task: both
@@ -940,7 +847,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0024
   pde: heat
   task: both
@@ -950,7 +856,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: heat_near_endpoint_temporal_0028
   pde: heat
   task: both
@@ -960,7 +865,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0000
   pde: wave
   task: both
@@ -970,7 +874,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0004
   pde: wave
   task: both
@@ -980,7 +883,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0008
   pde: wave
   task: both
@@ -990,7 +892,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0012
   pde: wave
   task: both
@@ -1000,7 +901,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0016
   pde: wave
   task: both
@@ -1010,7 +910,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0020
   pde: wave
   task: both
@@ -1020,7 +919,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0024
   pde: wave
   task: both
@@ -1030,7 +928,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: wave_endpoint_secant_0028
   pde: wave
   task: both
@@ -1040,7 +937,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0000
   pde: wave
   task: both
@@ -1050,7 +946,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0004
   pde: wave
   task: both
@@ -1060,7 +955,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0008
   pde: wave
   task: both
@@ -1070,7 +964,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0012
   pde: wave
   task: both
@@ -1080,7 +973,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0016
   pde: wave
   task: both
@@ -1090,7 +982,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0020
   pde: wave
   task: both
@@ -1100,7 +991,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0024
   pde: wave
   task: both
@@ -1110,7 +1000,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: wave_hermite_bridge_0028
   pde: wave
   task: both
@@ -1120,7 +1009,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0000
   pde: wave
   task: both
@@ -1130,7 +1018,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0004
   pde: wave
   task: both
@@ -1140,7 +1027,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0008
   pde: wave
   task: both
@@ -1150,7 +1036,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0012
   pde: wave
   task: both
@@ -1160,7 +1045,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0016
   pde: wave
   task: both
@@ -1170,7 +1054,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0020
   pde: wave
   task: both
@@ -1180,7 +1063,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0024
   pde: wave
   task: both
@@ -1190,7 +1072,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: wave_near_endpoint_temporal_0028
   pde: wave
   task: both
@@ -1200,7 +1081,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0000
   pde: advection_diffusion
   task: both
@@ -1210,7 +1090,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0004
   pde: advection_diffusion
   task: both
@@ -1220,7 +1099,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0008
   pde: advection_diffusion
   task: both
@@ -1230,7 +1108,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0012
   pde: advection_diffusion
   task: both
@@ -1240,7 +1117,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0016
   pde: advection_diffusion
   task: both
@@ -1250,7 +1126,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0020
   pde: advection_diffusion
   task: both
@@ -1260,7 +1135,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0024
   pde: advection_diffusion
   task: both
@@ -1270,7 +1144,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: advection_diffusion_endpoint_secant_0028
   pde: advection_diffusion
   task: both
@@ -1280,7 +1153,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0000
   pde: advection_diffusion
   task: both
@@ -1290,7 +1162,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0004
   pde: advection_diffusion
   task: both
@@ -1300,7 +1171,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0008
   pde: advection_diffusion
   task: both
@@ -1310,7 +1180,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0012
   pde: advection_diffusion
   task: both
@@ -1320,7 +1189,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0016
   pde: advection_diffusion
   task: both
@@ -1330,7 +1198,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0020
   pde: advection_diffusion
   task: both
@@ -1340,7 +1207,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0024
   pde: advection_diffusion
   task: both
@@ -1350,7 +1216,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: advection_diffusion_hermite_bridge_0028
   pde: advection_diffusion
   task: both
@@ -1360,7 +1225,6 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0000
   pde: advection_diffusion
   task: both
@@ -1370,7 +1234,6 @@ jobs:
     offset: 0
     mask_seed: 0
     sample_seed: 0
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0004
   pde: advection_diffusion
   task: both
@@ -1380,7 +1243,6 @@ jobs:
     offset: 4
     mask_seed: 4
     sample_seed: 4
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0008
   pde: advection_diffusion
   task: both
@@ -1390,7 +1252,6 @@ jobs:
     offset: 8
     mask_seed: 8
     sample_seed: 8
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0012
   pde: advection_diffusion
   task: both
@@ -1400,7 +1261,6 @@ jobs:
     offset: 12
     mask_seed: 12
     sample_seed: 12
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0016
   pde: advection_diffusion
   task: both
@@ -1410,7 +1270,6 @@ jobs:
     offset: 16
     mask_seed: 16
     sample_seed: 16
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0020
   pde: advection_diffusion
   task: both
@@ -1420,7 +1279,6 @@ jobs:
     offset: 20
     mask_seed: 20
     sample_seed: 20
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0024
   pde: advection_diffusion
   task: both
@@ -1430,7 +1288,6 @@ jobs:
     offset: 24
     mask_seed: 24
     sample_seed: 24
-    hermite_include_integral_residual: false
 - id: advection_diffusion_near_endpoint_temporal_0028
   pde: advection_diffusion
   task: both
@@ -1440,5 +1297,4 @@ jobs:
     offset: 28
     mask_seed: 28
     sample_seed: 28
-    hermite_include_integral_residual: false
 postprocess: temporal_truth
