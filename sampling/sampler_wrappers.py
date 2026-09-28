@@ -23,14 +23,16 @@ class SamplerStepOutput:
     wall_time: float
 
 
-def phase_for_step(sampler_phase: str, switch_ratio: float, step_index: int, num_steps: int) -> str:
+def phase_for_step(sampler_phase: str, switch_ratio: float, step_index: int, num_steps: int,
+                   *, t: Any = None) -> str:
     if sampler_phase in {"deterministic", "stochastic"}:
         return sampler_phase
     switch_step = int(round(float(switch_ratio) * num_steps))
+    before_switch = step_index < switch_step if t is None else bool(t < switch_ratio)
     if sampler_phase == "hybrid_d2s":
-        return "deterministic" if step_index < switch_step else "stochastic"
+        return "deterministic" if before_switch else "stochastic"
     if sampler_phase == "hybrid_s2d":
-        return "stochastic" if step_index < switch_step else "deterministic"
+        return "stochastic" if before_switch else "deterministic"
     raise ValueError(f"Unknown sampler_phase={sampler_phase!r}")
 
 

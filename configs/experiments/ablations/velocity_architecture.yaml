@@ -12,3 +12,124 @@ distributions:
 - rough
 count: 100
 steps: 100
+ofm_checkpoints:
+  poisson: epoch_220.pt
+  helmholtz: epoch_220.pt
+  darcy: epoch_100.pt
+  nsnonbounded: epoch_50.pt
+  burger: epoch_190.pt
+native_batches:
+  darcy:
+    forward: 1
+    inverse: 16
+  nsnonbounded:
+    forward: 16
+    inverse: 16
+  poisson:
+    forward: 16
+    inverse: 16
+  helmholtz:
+    forward: 16
+    inverse: 16
+  burger:
+    both: 16
+native_single_cases:
+  nsnonbounded_forward_id:
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63
+  - 80
+  - 81
+  - 82
+  - 83
+  - 84
+  - 85
+  - 86
+  - 87
+  - 88
+  - 89
+  - 90
+  - 91
+  - 92
+  - 93
+  - 94
+  - 95
+  nsnonbounded_forward_smooth:
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63
+  - 64
+  - 65
+  - 66
+  - 67
+  - 68
+  - 69
+  - 70
+  - 71
+  - 72
+  - 73
+  - 74
+  - 75
+  - 76
+  - 77
+  - 78
+  - 79
+  - 80
+  - 81
+  - 82
+  - 83
+  - 84
+  - 85
+  - 86
+  - 87
+  - 88
+  - 89
+  - 90
+  - 91
+  - 92
+  - 93
+  - 94
+  - 95
+  helmholtz_forward_rough:
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63

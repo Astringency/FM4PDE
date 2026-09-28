@@ -14,7 +14,10 @@ try:
 except ImportError:  # pragma: no cover
     from common import ChunkResult, PairH5Config, ensure_finite, format_float_range
 
-from generation_profiles import STEADY_HEAT_SOURCE_SIGMA_PROFILES, canonical_dataset_type
+try:
+    from ..generation_profiles import STEADY_HEAT_SOURCE_SIGMA_PROFILES, canonical_dataset_type
+except ImportError:  # Standalone generator invocation.
+    from generation_profiles import STEADY_HEAT_SOURCE_SIGMA_PROFILES, canonical_dataset_type
 
 
 UD_RANGE = (288.0, 308.0)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 import re
 from typing import Any
@@ -237,11 +238,19 @@ def make_synthetic_ground_truth(config: AblationConfig) -> PDEGroundTruth:
     )
 
 
+@lru_cache(maxsize=1)
+def _load_mat_file(path: str, size: int, mtime_ns: int) -> dict[str, Any]:
+    """Avoid decompressing the same MAT test set for every realization."""
+    import scipy.io
+
+    return scipy.io.loadmat(path)
+
+
 def _load_raw_data(config: AblationConfig) -> dict[str, Any]:
     if config.loadby == "scipy":
-        import scipy.io
-
-        return scipy.io.loadmat(config.data_path)
+        path = Path(config.data_path).resolve()
+        stat = path.stat()
+        return _load_mat_file(str(path), stat.st_size, stat.st_mtime_ns)
     if config.loadby in {"h5py", "swe", "rd", "pair_h5"}:
         import h5py
 

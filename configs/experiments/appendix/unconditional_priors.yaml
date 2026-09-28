@@ -1,0 +1,69 @@
+paragraph: Unconditional prior samples (appendix).
+engine: priors
+pdes:
+- poisson
+- helmholtz
+- darcy
+- burger
+- heat
+- advection_diffusion
+- reaction_diffusion
+- nsnonbounded
+- wave
+- shallow_water
+- steady_heat_conduction
+seed: 20260910
+seeds:
+  poisson: 20260911
+steps: 100
+physical_parameters:
+  heat:
+    alpha:
+    - 0.001951966667547822
+    T:
+    - 1.0
+  advection_diffusion:
+    b_x:
+    - -0.35468149185180664
+    b_y:
+    - 0.6021848917007446
+    kappa:
+    - 0.0025798960123211145
+    T:
+    - 1.0
+  wave:
+    c:
+    - 1.0
+    T:
+    - 1.0
+  reaction_diffusion:
+    D_u:
+    - 0.0020000000949949026
+    D_v:
+    - 0.004000000189989805
+    k:
+    - 0.003000000026077032
+    T:
+    - 1.0
+    tdim:
+    - 11.0
+    x_left:
+    - -1.0
+    x_right:
+    - 1.0
+    y_bottom:
+    - -1.0
+    y_top:
+    - 1.0
+  shallow_water:
+    g:
+    - 1.0
+    T:
+    - 1.0
+  nsnonbounded:
+    nu:
+    - 0.0010000000474974513
+    T:
+    - 1.0
+    solver_dt:
+    - 9.999999747378752e-05

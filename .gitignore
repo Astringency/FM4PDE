@@ -21,8 +21,12 @@ reports
 /bak/
 /reproducibility/
 
-# Local working documentation; excluded from publication.
-/docs/
+# Keep published reproduction instructions; ignore other local notes.
+/docs/*
+!/docs/baseline_residual_reproduction.md
+!/docs/hybrid_geometric_grid.md
+!/docs/unified_inverse_guidance.md
+!/docs/reproduction.md
 
 
 *.bundle

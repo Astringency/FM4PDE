@@ -1,6 +1,7 @@
 paragraph: Conditional Sample Averaging.
 engine: averaging
 pde: poisson
+seed: 20260912
 tasks:
 - forward
 - inverse

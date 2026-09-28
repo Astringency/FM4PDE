@@ -129,7 +129,6 @@ dependencies:
       - scipy==1.16.2
       - seaborn==0.13.2
       - six==1.17.0
-      - some-package==0.1
       - stack-data==0.6.3
       - sympy==1.14.0
       - threadpoolctl==3.6.0
@@ -146,4 +145,3 @@ dependencies:
       - wcwidth==0.2.14
       - widgetsnbextension==4.0.15
       - yarl==1.22.0
-prefix: /research_data/users/zhangxifeng/.conda/envs/fm4pde

@@ -31,4 +31,7 @@ def evaluate(path, folder, args):
     floor=norm(tu-true_solved)/norm(tu).clamp_min(1e-12)
     if not torch.isfinite(relative).all():
         raise ValueError('Reference solver produced non-finite consistency metrics')
-    return dict(solver_relative_l2=relative.tolist(), truth_solver_relative_l2=floor.tolist())
+    from experiments.paper.residual_metrics import evaluate_fields
+    residuals=evaluate_fields(pde,a,u,ta,tu,data.get('pde_params')) if pde!='burger' else {}
+    return dict(solver_relative_l2=relative.tolist(), truth_solver_relative_l2=floor.tolist(),
+                **residuals)

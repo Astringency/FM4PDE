@@ -22,10 +22,12 @@ def fm_predict(config, bundle, gt, masks):
     )
     extra={**classes,**(scalar or {})} or None
     r._check_sampling_channels(gt,normalizer,payload)
-    grid=r.make_time_grid(cfg.time_grid,cfg.num_steps,device=device,eta=cfg.time_grid_eta)
+    grid=r.make_time_grid(cfg.time_grid,cfg.num_steps,device=device,eta=cfg.time_grid_eta,
+                          sampler_phase=cfg.sampler_phase,switch_ratio=cfg.switch_ratio)
     x=r._sample_initial_noise(cfg,gt,device)
     for k in range(cfg.num_steps):
-        phase=r.phase_for_step(cfg.sampler_phase,cfg.switch_ratio,k,cfg.num_steps)
+        phase=r.phase_for_step(cfg.sampler_phase,cfg.switch_ratio,k,cfg.num_steps,
+                               t=grid[k] if cfg.time_grid == 'geometric' else None)
         cur=x.detach().clone().requires_grad_(True)
         t,tn=grid[k],grid[k+1]
         out=r.sampler_step(

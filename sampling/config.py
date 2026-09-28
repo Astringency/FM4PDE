@@ -149,8 +149,8 @@ class AblationConfig:
             raise ValueError("switch_ratio must be in [0, 1]")
         if not 0.0 <= self.pde_guidance_start_ratio <= 1.0:
             raise ValueError("pde_guidance_start_ratio must be in [0, 1]")
-        if self.time_grid == "geometric" and self.sampler_phase != "deterministic":
-            raise ValueError("geometric time grids are defined only for deterministic sampling")
+        if self.time_grid == "geometric" and self.sampler_phase == "stochastic":
+            raise ValueError("geometric time grids require a deterministic sampling phase")
         if self.time_grid_eta <= 0:
             raise ValueError("time_grid_eta must be positive")
         if self.stochastic_guidance_coeff < 0:

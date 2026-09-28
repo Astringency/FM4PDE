@@ -45,7 +45,7 @@ def validate(root, check_assets=False):
                 if check_assets:
                     missing_assets.update(p for p in [cfg.checkpoint_path,cfg.data_path] if not Path(p).is_file())
         else:
-            assert spec['engine'] in {'averaging','architecture','timing','traces'}, path
+            assert spec['engine'] in {'averaging','architecture','timing','traces','priors'}, path
     training = load_yaml_file(root/'configs/training_data.yaml')['train_files']
     assert set(training) == VALID_PDES
     assert all(len(paths) == 5 and len(set(paths)) == 5 for paths in training.values())

@@ -3,7 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 
-def make_time_grid(kind: str, num_steps: int, device: str | Any = "cpu", eta: float = 0.4) -> Any:
+def make_time_grid(kind: str, num_steps: int, device: str | Any = "cpu", eta: float = 0.4,
+                   *, sampler_phase: str = "deterministic", switch_ratio: float = 0.5) -> Any:
+    """Uniform grid, or the manuscript geometric grid during deterministic steps.
+
+    Hybrids retain the full-budget geometric nodes strictly inside their D
+    interval and insert the exact switching time. The remaining steps divide
+    the S interval uniformly. Thus the switching time is a time, not a step
+    fraction; no separate stage budget or growth parameter is introduced.
+    """
     import torch
 
     if kind == "geometric" and eta <= 0:
@@ -25,6 +33,31 @@ def make_time_grid(kind: str, num_steps: int, device: str | Any = "cpu", eta: fl
                 values.append(values[-1] * (1.0 + eta))
             values[-1] = 1.0
             grid = torch.tensor(values, device=target, dtype=torch.float32)
+        if sampler_phase in {"hybrid_d2s", "hybrid_s2d"}:
+            if not 0.0 <= switch_ratio <= 1.0:
+                raise ValueError("switch_ratio must be in [0, 1]")
+            switch = grid.new_tensor(switch_ratio)
+            if switch_ratio in {0.0, 1.0}:
+                pure_d = ((sampler_phase == "hybrid_d2s" and switch_ratio == 1.0)
+                          or (sampler_phase == "hybrid_s2d" and switch_ratio == 0.0))
+                if not pure_d:
+                    grid = torch.linspace(0.0, 1.0, num_steps + 1, device=target)
+            elif sampler_phase == "hybrid_d2s":
+                prefix = grid[grid < switch]
+                remaining = num_steps - len(prefix)
+                if remaining < 1:
+                    raise ValueError("The geometric D prefix leaves no step for S; increase num_steps or change the switch")
+                tail = torch.linspace(switch_ratio, 1.0, remaining + 1, device=target)
+                grid = torch.cat([prefix, tail])
+            else:
+                tail = grid[grid > switch]
+                remaining = num_steps - len(tail)
+                if remaining < 1:
+                    raise ValueError("The geometric D suffix leaves no step for S; increase num_steps or change the switch")
+                prefix = torch.linspace(0.0, switch_ratio, remaining + 1, device=target)
+                grid = torch.cat([prefix, tail])
+        elif sampler_phase != "deterministic":
+            raise ValueError("A geometric grid requires a deterministic phase")
     else:
         raise ValueError(f"Unknown time_grid={kind!r}")
     if not bool(torch.all(grid[1:] >= grid[:-1])):

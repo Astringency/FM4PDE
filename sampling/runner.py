@@ -146,7 +146,8 @@ def run_single_ablation(
                 module.use_checkpoint = True
     _check_sampling_channels(gt, normalizer, checkpoint_payload)
 
-    grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta)
+    grid = make_time_grid(config.time_grid, config.num_steps, device=device, eta=config.time_grid_eta,
+                          sampler_phase=config.sampler_phase, switch_ratio=config.switch_ratio)
     x_next = _sample_initial_noise(config, gt, device)
 
     rows: list[dict[str, Any]] = []
@@ -176,7 +177,8 @@ def run_single_ablation(
         )
         for step in range(config.num_steps):
             step_start = time.time()
-            phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps)
+            phase = phase_for_step(config.sampler_phase, config.switch_ratio, step, config.num_steps,
+                                   t=grid[step] if config.time_grid == "geometric" else None)
             x_cur = x_next.detach().clone()
             if _has_guidance(config):
                 x_cur.requires_grad_(True)
@@ -354,6 +356,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a single FM4PDE ablation.")
     parser.add_argument("--config", required=True, help="Flat AblationConfig YAML.")
     parser.add_argument("--override", action="append", default=[], help="Override key=value. Can be repeated.")
+    parser.add_argument("--plan-only", action="store_true", help="Print the resolved configuration without loading data or weights.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and run without loading the checkpoint.")
     parser.add_argument("--vis", action="store_true", help="Plot ground truth vs prediction after sampling.")
     return parser
@@ -367,6 +370,17 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         overrides["dry_run"] = True
     if args.vis:
         overrides["save_plots"] = True
+    if args.plan_only:
+        result = load_config(args.config, overrides=overrides).asdict()
+        print(json.dumps(result, indent=2))
+        return result
+    os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
+    import torch
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    torch.use_deterministic_algorithms(True)
     result = run_from_config_path(args.config, overrides=overrides)
     print(result)
     return result

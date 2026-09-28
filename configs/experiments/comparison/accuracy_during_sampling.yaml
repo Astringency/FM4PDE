@@ -7,5 +7,7 @@ tasks:
 - forward
 - inverse
 count: 100
+seed: 20260921
+mask_seed: 0
 fm_steps: 100
 diffusion_steps: 1000

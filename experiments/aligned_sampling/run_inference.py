@@ -277,7 +277,8 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
     start = time.perf_counter()
     try:
         grid = r.make_time_grid(
-            cfg.time_grid, cfg.num_steps, device=device, eta=cfg.time_grid_eta
+            cfg.time_grid, cfg.num_steps, device=device, eta=cfg.time_grid_eta,
+            sampler_phase=cfg.sampler_phase, switch_ratio=cfg.switch_ratio,
         )
         x = r._sample_initial_noise(cfg, gt, device)
         initial_hash = tensor_digest(x)
@@ -287,7 +288,8 @@ def infer(cfg, bundle, gt, masks, indices, *, steps=None, observations=None):
             cur = x.detach().requires_grad_(guided)
             t, tn = grid[step], grid[step + 1]
             phase = r.phase_for_step(
-                cfg.sampler_phase, cfg.switch_ratio, step, cfg.num_steps
+                cfg.sampler_phase, cfg.switch_ratio, step, cfg.num_steps,
+                t=t if cfg.time_grid == "geometric" else None,
             )
             out = r.sampler_step(
                 net,

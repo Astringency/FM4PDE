@@ -50,7 +50,6 @@ OVERRIDES=(
 [[ -n "${SENSOR_MODE:-}" ]] && OVERRIDES+=(--override "sensor_mode=${SENSOR_MODE}")
 [[ -n "${SAMPLE_SEED:-}" ]] && OVERRIDES+=(--override "sample_seed=${SAMPLE_SEED}")
 [[ -n "${PDE_GUIDANCE_START_RATIO:-}" ]] && OVERRIDES+=(--override "pde_guidance_start_ratio=${PDE_GUIDANCE_START_RATIO}")
-[[ -n "${PDE_GUIDANCE_RAMP_RATIO:-}" ]] && OVERRIDES+=(--override "pde_guidance_ramp_ratio=${PDE_GUIDANCE_RAMP_RATIO}")
 [[ -n "${OUTPUT_DIR:-}" ]]  && OVERRIDES+=(--override "output_dir=${OUTPUT_DIR}")
 
 FLAGS=(--config "${CONFIG}" "${OVERRIDES[@]}")
