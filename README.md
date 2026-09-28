@@ -9,6 +9,10 @@ fixed random-draw protocols, execution checks and result files.
 
 ## Environment and data
 
+The PDE data repository is hosted on Hugging Face:
+[XifengZhang/FM4PDE-pde-data](https://huggingface.co/datasets/XifengZhang/FM4PDE-pde-data).
+Set `DATA_ROOT` to the downloaded data directory, preserving its subdirectories and filenames.
+
 Run from the repository root in Bash. Install [environment.yml](environment.yml)
 and keep datasets and trained checkpoints outside Git.
 
@@ -31,6 +35,10 @@ sets of 10,000; Rough2/Rough3 sets of 1,000 for the five main PDEs.
 Otherwise `CHECKPOINT_ROOT` replaces the `outputs/pretrained` prefix in the configs.
 
 ## Training
+
+Pretrained FM4PDE models for all eleven PDEs are available on Hugging Face:
+[XifengZhang/FM4PDE-pretrained-models](https://huggingface.co/XifengZhang/FM4PDE-pretrained-models).
+Set `CHECKPOINT_ROOT` to the downloaded repository root containing `formal/` to use these models for sampling.
 
 [configs/training.yaml](configs/training.yaml) records the appendix schedules,
 scalar conditioning, and batch sizes: 45,000 training / 5,000 validation samples,
