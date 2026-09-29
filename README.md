@@ -1,19 +1,29 @@
 # Guided Flow Matching for Forward and Inverse PDE Problems with Sparse Observations: Algorithm and Theory
 
+Reconstructing fields governed by partial differential equations (PDEs) from sparse observations requires recovering unobserved information while maintaining physical consistency. We propose FM4PDE, a guided flow matching framework that learns the joint distribution of PDE inputs and solutions and uses the same trained prior for forward, inverse, and joint reconstruction. Guidance combines observation discrepancies and PDE residuals through endpoint predictions in physical units, supporting deterministic, stochastic, and hybrid sampling. We develop a probabilistic formulation based on exponential tilting and characterize the approximation underlying practical endpoint guidance. Under fixed guidance weights, we derive conditional finite-step bounds for the endpoint objective under local regularity and Polyak-\L{}ojasiewicz assumptions. These bounds make explicit how learned transport interacts with guidance, accounting for both objective contraction and residual terms arising from transport and sampling. Extensive experiments across a range of PDEs and reconstruction tasks demonstrate competitive reconstruction accuracy and physical consistency in comparisons with established methods. Ablation studies clarify the effects of endpoint evaluation, guidance, and sampling strategies, while comparisons with DiffusionPDE show shorter sampling times under the evaluated protocols.
+
+## Overview
+
+| Directory | Contents |
+| --- | --- |
+| `configs`, `data` | Paper settings, loaders, normalization, and generators |
+| `flow_matching`, `models`, `torchdiffeq`, `training` | Flow objectives, networks, ODE solvers, and training |
+| `sampling`, `experiments` | Guided samplers, paragraph runners, and paired diagnostics |
+| `plot` | Figure renderers and support for saved manuscript results |
+| `scripts` | Training and paragraph-level experiment launchers |
+
 ## Environment and data
 
-Create the environment using [environment.yml](environment.yml) and download the
-[PDE datasets](https://huggingface.co/datasets/XifengZhang/FM4PDE-pde-data) from Hugging Face.
+Create the environment using [environment.yml](environment.yml).
 
 ```bash
 conda env create -f environment.yml
 conda activate fm4pde
 export DATA_ROOT=/path/to/PDEdata
 export CHECKPOINT_ROOT=/path/to/pretrained
-export PYTHON_BIN=python
 ```
 
-`DATA_ROOT` is the data directory, with the downloaded subdirectories preserved.
+`DATA_ROOT` is the data directory. The data used in the paper is available on Hugging Face: [PDE dataset](https://huggingface.co/datasets/XifengZhang/FM4PDE-pde-data). It can also be generated using the code provided in the `data` folder.
 
 ```bash
 PDE=all DRY_RUN=true OUT_ROOT=/path/to/generated-data bash data/DataGen/gen_pde.sh
@@ -50,8 +60,6 @@ bash scripts/sample/comparison/burgers_trajectory.sh --device cuda:0
 | Sampling time | `sampling_time.sh` |
 | Reconstruction and physical consistency | `physical_consistency.sh` |
 
-`MATLAB_BIN` selects the MATLAB executable; `CHEBFUN_ROOT` points to Chebfun.
-
 ## Ablations
 
 | Paragraph | Script name |
@@ -70,22 +78,15 @@ bash scripts/sample/comparison/burgers_trajectory.sh --device cuda:0
 | Conditional averaging | `conditional_averaging.sh` |
 | Additional PDE families | `additional_pde_families.sh` |
 
+Some examples:
+
 ```bash
 bash scripts/sample/ablations/time_grid.sh --device cuda:0
 bash scripts/sample/ablations/temporal_residuals.sh --pdes heat wave --plan-only
-```
 
-```bash
 bash scripts/sample/ablations/sampling_phases.sh --pdes nsnonbounded reaction_diffusion
 bash scripts/sample/ablations/sampling_steps.sh --phases deterministic --steps 100
-bash scripts/sample/comparison/sparse_forward_inverse.sh --pdes darcy nsnonbounded
-bash scripts/sample/comparison/sampling_time.sh --methods FM4PDE
 bash scripts/sample/ablations/velocity_architecture.sh --methods FM4PDE --pdes darcy nsnonbounded
-```
-
-```bash
-bash scripts/sample/comparison/reevaluate_saved_residuals.sh \
-  --manifest /path/to/saved_predictions.json --output outputs/residual_reevaluation
 ```
 
 ## Appendix prior samples
@@ -98,15 +99,16 @@ bash scripts/sample/appendix/unconditional_priors.sh --device cuda:0
 The appendix commands use
 [unconditional_priors.yaml](configs/experiments/appendix/unconditional_priors.yaml).
 
-## Baseline and other info
+## Comparative methods
 
-| Directory | Contents |
+Implementations related to the comparison methods can be found in the following repositories.
+
+| Link | Methods |
 | --- | --- |
-| `configs`, `data` | Paper settings, loaders, normalization, and generators |
-| `flow_matching`, `models`, `torchdiffeq`, `training` | Flow objectives, networks, ODE solvers, and training |
-| `sampling`, `experiments` | Guided samplers, paragraph runners, and paired diagnostics |
-| `plot` | Figure renderers and support for saved manuscript results |
-| `scripts` | Training and paragraph-level experiment launchers |
+| [Astringency/FM4PDEbaseline](https://github.com/Astringency/FM4PDEbaseline) | RecFNO, Senseiver, VoronoiCNN, PINN-Sparse, PC-BNN, B-PINNs, 4D-Var, VIVID |
+| [Astringency/CoCoGen](https://github.com/Astringency/CoCoGen) | CoCoGen |
+| [Astringency/DiffusionPDE](https://github.com/Astringency/DiffusionPDE)| DiffusionPDE |
+| [Astringency/FunDPS_DDIS_ECI_OFM](https://github.com/Astringency/FunDPS_DDIS_ECI_OFM) | FunDPS, DDIS, ECI, OFM |
 
 ## Citation
 
