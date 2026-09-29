@@ -78,11 +78,14 @@ def run(spec,args):
     previous=None
     bundle=None
     torch.set_num_threads(args.threads)
+    from experiments.paper.provenance import runtime_identity
+    runtime = runtime_identity(args.device)
     for job,config in jobs:
         manifest=compact_root/config.pde/'manifest.json'
         for path in [config.checkpoint_path,config.data_path,str(manifest)]:
             if path not in asset_hashes:asset_hashes[path]=digest(path)
         identity=dict(config=config.asdict(),sources=source_hashes,prior='ofm',
+                      runtime=runtime,
                       observation_protocol=job.get('observation_protocol'),
                       data_sha256=asset_hashes[config.data_path],
                       checkpoint_sha256=asset_hashes[config.checkpoint_path],

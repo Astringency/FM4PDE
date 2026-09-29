@@ -21,6 +21,7 @@ if str(DATAGEN_DIR) not in sys.path:
 from generation_profiles import (
     SHALLOW_WATER_SPATIAL_PROFILES,
     canonical_dataset_type,
+    sample_shallow_water_parameters,
     seed_offset,
 )
 
@@ -175,8 +176,7 @@ def generate_file(
             sample_id = sample_start + local_idx
             seed = int(base_seed) + sample_id
             rng = np.random.default_rng(seed)
-            dam_radius = float(rng.uniform(0.4, 0.8))
-            inner_height = float(rng.uniform(2.0, 3.0))
+            dam_radius, inner_height = sample_shallow_water_parameters(rng, split)
             boundary_phase = float(rng.uniform(0.0, 2.0 * np.pi))
 
             sim = RadialDamBreak2D(

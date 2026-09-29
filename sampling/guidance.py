@@ -149,10 +149,19 @@ def apply_guidance_update(
     import torch
 
     if step_output.phase == "deterministic":
-        scale = torch.where(
-            step_output.t == 0, torch.zeros_like(schedule.bt),
-            step_output.step_size * schedule.bt,
-        )
+        # Preserve the original arithmetic wherever its intermediate is finite.
+        # This is a numerical evaluation choice, not a time floor or scale cap.
+        t = step_output.t
+        denominator = torch.where(t == 0, torch.ones_like(t), t)
+        raw_scale = step_output.step_size * ((1.0 - t) / denominator)
+        # At subnormal t, 1/t can overflow even though dt/t is moderate.
+        t64 = t.to(torch.float64)
+        stable_scale = (
+            step_output.step_size.to(torch.float64) / denominator.to(torch.float64)
+            * (1.0 - t64)
+        ).to(t.dtype)
+        scale = torch.where(torch.isfinite(raw_scale), raw_scale, stable_scale)
+        scale = torch.where(t == 0, torch.zeros_like(scale), scale)
     elif step_output.phase == "stochastic":
         scale = float(config.stochastic_guidance_coeff) * (1.0 - step_output.t)
     else:

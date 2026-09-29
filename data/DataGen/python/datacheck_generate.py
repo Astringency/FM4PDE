@@ -30,6 +30,7 @@ if str(TIME_DEPENDENT_DIR) not in sys.path:
     sys.path.insert(0, str(TIME_DEPENDENT_DIR))
 
 from common import PairH5Config, generate_dataset  # noqa: E402
+from generation_profiles import sample_shallow_water_parameters  # noqa: E402
 from generate_advection_diffusion import advection_diffusion_metadata, solve_advection_diffusion_chunk  # noqa: E402
 from generate_heat import heat_metadata, solve_heat_chunk  # noqa: E402
 from generate_steady_heat_conduction import (  # noqa: E402
@@ -372,8 +373,7 @@ def generate_shallow_water(out_root: Path, args: argparse.Namespace) -> dict[str
                 print(f"shallow_water {split} sample {idx + 1}/{count}", flush=True)
                 seed = base_seed + idx
                 rng = np.random.default_rng(seed)
-                dam_radius = float(rng.uniform(0.4, 0.8))
-                inner_height = float(rng.uniform(2.0, 3.0))
+                dam_radius, inner_height = sample_shallow_water_parameters(rng, split)
                 sim = RadialDamBreak2D(
                     xdim=args.resolution,
                     ydim=args.resolution,

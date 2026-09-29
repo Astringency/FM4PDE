@@ -12,6 +12,10 @@ import yaml
 from experiments.paper.run import ROOT, digest, write_json
 
 
+def distribution_for(spec, pde):
+    return spec.get('distributions_by_pde', {}).get(pde, spec['distribution'])
+
+
 def selected_groups(spec, args):
     """Resolve the same experiment selection for planning and execution."""
     if args.job_ids:
@@ -19,15 +23,14 @@ def selected_groups(spec, args):
     methods = [m for m in ['FM4PDE', 'DiffusionPDE'] if not args.methods or m in args.methods]
     if not methods:
         raise ValueError('Timing/trace study requires FM4PDE or DiffusionPDE')
-    if args.test_types and spec['distribution'] not in args.test_types:
-        raise ValueError('No timing/trace cases match --test-types')
     settings = ([('FM4PDE', spec['fm_steps']), ('DiffusionPDE', spec['diffusion_steps'])]
                 if spec['engine'] == 'traces' else
                 [(m, n) for n in spec['steps'] for m in ['FM4PDE', 'DiffusionPDE']])
     settings = [(m, n) for m, n in settings if m in methods and (not args.steps or n in args.steps)]
     tasks = spec.get('tasks', [spec.get('task', 'both')])
     groups = [(pde, task, settings) for pde in spec['pdes'] for task in tasks
-              if (not args.pdes or pde in args.pdes) and (not args.tasks or task in args.tasks)]
+              if (not args.pdes or pde in args.pdes) and (not args.tasks or task in args.tasks)
+              and (not args.test_types or distribution_for(spec, pde) in args.test_types)]
     count = min(spec['count'], args.limit or spec['count'])
     positions = list(range(count))[args.shard_index::args.num_shards]
     if not groups or not settings or not positions:
@@ -50,7 +53,12 @@ def run(spec,args):
         raise ValueError(f'Paired cohort controls cannot be overridden: {sorted(reserved.intersection(extra))}; use the selection flags or edit the manifest')
     plans = []
     for pde, task, settings in groups:
-        cfg = load_config(ROOT/f'configs/main/{task}/{pde}.yaml', dict(extra, device=args.device))
+        timing={}
+        if spec['engine']=='timing':
+            from experiments.paper.timing_inputs import plan_overrides
+            timing=plan_overrides(pde)
+        cfg = load_config(ROOT/f'configs/main/{task}/{pde}.yaml',
+                          {**timing,**extra,'device':args.device,'test_type':distribution_for(spec,pde)})
         if args.phases and cfg.sampler_phase not in args.phases:
             continue
         plans.append(dict(pde=pde, task=task, settings=settings, positions=positions,
@@ -77,6 +85,8 @@ def run(spec,args):
     torch.set_num_threads(args.threads)
     torch.backends.cuda.matmul.allow_tf32=False
     torch.backends.cudnn.allow_tf32=False
+    from experiments.paper.provenance import runtime_identity
+    runtime = runtime_identity(args.device)
     diffusion=Path(os.environ.get('DIFFUSION_ROOT',ROOT.parent/'DiffusionPDE')).resolve()
     sys.path.append(str(diffusion))
     weights=Path(os.environ.get('DIFFUSION_CHECKPOINT_ROOT',diffusion/'output/pretrained'))
@@ -100,10 +110,7 @@ def run(spec,args):
         dc0=(copy.deepcopy(frozen.protocol['diffusion_configs'][pde]) if frozen else yaml.safe_load(config_file.read_text())) if 'DiffusionPDE' in selected_methods else {}
         checkpoint=Path(os.environ.get('DIFFUSION_CHECKPOINT_'+pde.upper(),weights/f'pretrained-{stem}.pkl'))
         if frozen and 'DiffusionPDE' in selected_methods:
-            checkpoint=frozen.root/'weights'/f'pretrained-{stem}.pkl'
-            expected={x['path']:x['sha256'] for x in frozen.protocol['artifacts']}
-            if digest(checkpoint)!=expected[str(checkpoint.relative_to(frozen.root))]:
-                raise ValueError('Frozen DiffusionPDE timing checkpoint checksum mismatch')
+            checkpoint=frozen.diffusion_checkpoint(checkpoint)
         dm=None; source=''; instrumented=None; plain=None; traced=None
         if 'DiffusionPDE' in selected_methods:
             with checkpoint.open('rb') as f:
@@ -126,7 +133,7 @@ def run(spec,args):
             for index in [pilot,*ids[args.shard_index::args.num_shards]]:
                 cfg=load_config(ROOT/f'configs/main/{task}/{pde}.yaml',{
                     **(frozen.overrides() if frozen else {}), **extra,
-                    'device':args.device, 'test_type':spec['distribution'], 'offset':index,
+                    'device':args.device, 'test_type':distribution_for(spec,pde), 'offset':index,
                     'mask_seed':spec.get('mask_seed',0), 'sample_seed':seed+index, 'batch_size':1,
                     'save_plots':False, 'save_intermediate':False, 'save_per_sample_curves':False})
                 if frozen:
@@ -195,6 +202,7 @@ def run(spec,args):
                                     truth_coef=truth.coef.cpu(),truth_sol=truth.sol.cpu(),
                                     mask_coef=masks.coef.cpu(),mask_sol=masks.sol.cpu()),output.with_suffix('.pt'))
                     record=dict(pde=pde,task=task,index=index,method=method,steps=n,nfe=n if method=='FM4PDE' else 2*n-1,
+                                runtime=runtime,
                                 seconds=seconds,diagnostic_seconds=tracer.paused,gpu=torch.cuda.get_device_name(),
                                 config=c.asdict() if method=='FM4PDE' else dc,
                                 checkpoint_sha256=asset_digest(cfg.checkpoint_path if method=='FM4PDE' else checkpoint),

@@ -53,8 +53,10 @@ def run(spec, args):
     torch.set_num_threads(args.threads)
     torch.backends.cuda.matmul.allow_tf32=True
     torch.backends.cudnn.allow_tf32=True
+    from experiments.paper.provenance import runtime_identity
+    runtime = runtime_identity(args.device)
     source_hashes={str(p.relative_to(ROOT)):digest(p)
-                   for directory in ['sampling','experiments/paper']
+                   for directory in ['sampling','models','data','flow_matching','torchdiffeq','experiments/paper']
                    for p in (ROOT/directory).rglob('*.py')}
     bundle = None
     rows=[]
@@ -63,6 +65,7 @@ def run(spec, args):
             cfg=configuration(task,offset)
             folder=args.output/task/f'{offset:04d}';folder.mkdir(parents=True,exist_ok=True)
             identity=dict(config=cfg.asdict(),checkpoint_sha256=digest(cfg.checkpoint_path),
+                          runtime=runtime, execution_batch_size=args.batch_size,
                           data_sha256=digest(cfg.data_path),sampler_sha256=digest(Path(__file__).with_name('conditional_sampler.py')),
                           source_hashes=source_hashes,tf32=True,fused_guidance=True)
             identity_path=folder/'identity.json'

@@ -42,9 +42,11 @@ def run(spec, args):
     from sampling.state import standardized_to_physical_state
     from experiments.paper.prior_solvers import solve
     torch.set_num_threads(args.threads)
+    from experiments.paper.provenance import runtime_identity
+    runtime = runtime_identity(args.device)
     sources = {str(p.relative_to(ROOT)): digest(p)
                for directory in ['sampling', 'models', 'data', 'experiments/paper']
-               for p in (ROOT/directory).rglob('*.py')}
+               for p in (ROOT/directory).rglob('*') if p.suffix in {'.py', '.m'}}
     records = []
     for cfg in configs:
         pde = cfg.pde
@@ -52,6 +54,7 @@ def run(spec, args):
         folder.mkdir(parents=True, exist_ok=True)
         parameters = spec['physical_parameters'].get(pde, {})
         identity = dict(config=cfg.asdict(), physical_parameters=parameters,
+                        runtime=runtime,
                         checkpoint_sha256=digest(cfg.checkpoint_path), sources=sources)
         receipt = folder/'receipt.json'
         if args.resume and receipt.exists():

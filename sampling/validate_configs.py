@@ -1,5 +1,6 @@
 """Validate all published sampling profiles and ablation combinations on CPU."""
 import argparse
+import os
 from collections import Counter
 from pathlib import Path
 from argparse import Namespace
@@ -29,7 +30,7 @@ def validate(root, check_assets=False):
             if cfg.pde == 'nsnonbounded':
                 assert cfg.model_profile == 'light' and cfg.residual_mode == 'endpoint_secant', path
             if check_assets:
-                missing_assets.update(p for p in [cfg.checkpoint_path, *cfg.data_paths.values()]
+                missing_assets.update(p for p in [cfg.checkpoint_path, cfg.data_path]
                                       if not Path(p).is_file())
         assert found == expected, (folder, 'missing', expected-found, 'extra', found-expected)
         assert all(len(paths) == 1 for paths in checkpoints.values()), checkpoints
@@ -49,12 +50,17 @@ def validate(root, check_assets=False):
     training = load_yaml_file(root/'configs/training_data.yaml')['train_files']
     assert set(training) == VALID_PDES
     assert all(len(paths) == 5 and len(set(paths)) == 5 for paths in training.values())
+    if check_assets:
+        data_root = Path(os.environ.get('DATA_ROOT', root / 'datasets'))
+        missing_assets.update(str(data_root / path) for paths in training.values()
+                              for path in paths if not (data_root / path).is_file())
     return counts, grid_counts, sorted(missing_assets)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check-assets', action='store_true', help='Also require local data and weights.')
+    parser.add_argument('--check-assets', action='store_true',
+                        help='Require training data and the data/weights selected by published profiles and experiment manifests.')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     counts, groups, missing = validate(root, args.check_assets)

@@ -39,6 +39,11 @@ def plot_from_result_pt(
     sol_mask = _select_optional_mask(masks, "sol", sample_index, sol_gt.shape)
     metrics = data.get("metrics", {})
     config = data.get("config", {})
+    sample_metrics = data.get("metrics_per_sample")
+    if sample_metrics:
+        metrics = {**metrics, **sample_metrics[sample_index]}
+    coef_obs, coef_obs_label = _select_observations(data, "coef", sample_index, coef_gt)
+    sol_obs, sol_obs_label = _select_observations(data, "sol", sample_index, sol_gt)
 
     # Detect if coef and sol are the same field (burger-like single channel)
     same_field = np.array_equal(coef_gt.shape, sol_gt.shape) and np.allclose(coef_gt, sol_gt)
@@ -56,14 +61,19 @@ def plot_from_result_pt(
     zeta_u = metrics.get("zeta_obs_u_t", 1)
 
     if same_field:
+        coef_obs = np.where(sol_mask > 0, sol_obs, coef_obs)
+        if np.any(sol_mask > 0):
+            coef_obs_label = sol_obs_label
         coef_mask = np.maximum(coef_mask, sol_mask)
 
     _plot_field_row(axes[0], coef_gt, coef_pred, coef_mask, "Coefficient",
-                    metrics.get("rel_l2_a", 0), cmap, zeta=zeta_a)
+                    _relative_l2(coef_pred, coef_gt), cmap, zeta=zeta_a,
+                    observed=coef_obs, observation_label=coef_obs_label)
 
     if not same_field:
         _plot_field_row(axes[1], sol_gt, sol_pred, sol_mask, "Solution",
-                        metrics.get("rel_l2_u", 0), cmap, zeta=zeta_u)
+                        _relative_l2(sol_pred, sol_gt), cmap, zeta=zeta_u,
+                        observed=sol_obs, observation_label=sol_obs_label)
 
     # Title
     if title is None:
@@ -82,9 +92,11 @@ def plot_from_result_pt(
     }.get(str(phase), str(phase))
 
     l_pde = metrics.get("L_pde", 0)
+    batched = _to_numpy(data["coef_final"]).ndim == 4 and data["coef_final"].shape[0] > 1
+    loss_label = "batch mean L_pde" if batched and not sample_metrics else "L_pde"
     wall = metrics.get("wall_clock_time", 0)
     fig.suptitle(
-        f"{title} | {phase_label} | L_pde={l_pde:.2e} | {wall:.1f}s",
+        f"{title} | {phase_label} | {loss_label}={l_pde:.2e} | {wall:.1f}s",
         fontsize=13, fontweight="bold",
     )
     plt.tight_layout()
@@ -174,12 +186,18 @@ def _plot_field_row(
     cmap: str,
     *,
     zeta: float = 1.0,
+    observed: np.ndarray | None = None,
+    observation_label: str = "Sparse Obs",
 ) -> None:
+    observed = gt if observed is None else observed
     vmin = min(gt.min(), pred.min())
     vmax = max(gt.max(), pred.max())
+    if np.any(mask > 0):
+        vmin = min(vmin, observed[mask > 0].min())
+        vmax = max(vmax, observed[mask > 0].max())
 
     _plot_single(axes[0], gt, f"{label} GT", cmap, vmin, vmax)
-    _plot_sparse(axes[1], gt, mask, f"{label} Sparse Obs", cmap, vmin, vmax)
+    _plot_sparse(axes[1], observed, mask, f"{label} {observation_label}", cmap, vmin, vmax)
     _plot_single(axes[2], pred, f"{label} Pred (ζ={zeta:.1e})", cmap, vmin, vmax)
 
     diff = pred - gt
@@ -236,6 +254,24 @@ def _to_numpy(x: Any) -> np.ndarray:
     if isinstance(x, np.ndarray):
         return x
     return np.asarray(x)
+
+
+def _relative_l2(pred: np.ndarray, truth: np.ndarray) -> float:
+    pred, truth = pred.astype(np.float64), truth.astype(np.float64)
+    return float(np.linalg.norm(pred - truth) / max(np.linalg.norm(truth), 1e-12))
+
+
+def _select_observations(data, key, sample_index, truth):
+    observations = data.get("observations", {})
+    if key in observations:
+        return _select_field(observations[key], sample_index), "Sparse Obs"
+    config = data.get("config", {})
+    get = config.get if isinstance(config, dict) else lambda name, default=None: getattr(config, name, default)
+    level = get("noise_level_" + key)
+    level = get("noise_level", 0.) if level is None else level
+    # Older noisy artifacts did not retain their actual measurements.
+    label = "Clean reference at sensors" if level else "Sparse Obs"
+    return truth, label
 
 
 def _select_field(x: Any, sample_index: int) -> np.ndarray:

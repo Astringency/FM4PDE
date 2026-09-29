@@ -314,6 +314,13 @@ def run_single_ablation(
             "masks": {"coef": masks.coef.detach().cpu(), "sol": masks.sol.detach().cpu(), "metadata": masks.metadata},
             "pde_params": _sanitize_pde_params_for_artifact(gt.pde_params, config),
             "metrics": final,
+            "metrics_per_sample": sample_rows,
+            "observations": {
+                "coef": observations.coef_noisy.detach().cpu(),
+                "sol": observations.sol_noisy.detach().cpu(),
+                "noise_coef": noise_a.metadata,
+                "noise_sol": noise_u.metadata,
+            },
             "intermediate": intermediates,
             "ground_truth_metadata": gt.metadata,
             "normalizer": normalizer.state_dict() if normalizer is not None else None,

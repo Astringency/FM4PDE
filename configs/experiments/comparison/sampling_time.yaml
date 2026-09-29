@@ -7,6 +7,8 @@ pdes:
 - nsnonbounded
 - burger
 distribution: smooth
+distributions_by_pde:
+  burger: id
 task: both
 count: 20
 steps:

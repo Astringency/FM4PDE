@@ -6,8 +6,6 @@ data_paths:
   id: datasets/burgers/burger_test_10000-128-128_id.mat
   smooth: datasets/burgers/burger_test_10000-128-128_smooth.mat
   rough: datasets/burgers/burger_test_10000-128-128_rough.mat
-  rough2: datasets/burgers/burger_test_1000-128-128_rough2.mat
-  rough3: datasets/burgers/burger_test_1000-128-128_rough3.mat
 loadby: scipy
 coef_name: output
 solution_name: output

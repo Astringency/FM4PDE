@@ -42,9 +42,11 @@ def navier_stokes_2d(w0, f, visc, T, delta_t=1e-4, record_steps=1):
     ), 0).repeat(N, 1)
     k_x = k_y.t()
 
-    # Laplacian operator (avoid div by zero)
+    # Keep the physical Laplacian zero mode at zero: diffusion must not
+    # damp the mean vorticity. Only the streamfunction inverse needs a guard.
     lap = 4 * math.pi ** 2 * (k_x ** 2 + k_y ** 2)
-    lap[0, 0] = 1.0  # avoid division by zero
+    lap_safe = lap.clone()
+    lap_safe[0, 0] = 1.0
 
     # Dealiasing mask
     dealias = ((torch.abs(k_y) <= (2. / 3.) * k_max) &
@@ -63,8 +65,9 @@ def navier_stokes_2d(w0, f, visc, T, delta_t=1e-4, record_steps=1):
     c = 0
 
     for j in tqdm(range(steps)):
-        # Poisson solver: psi_h = w_h / lap
-        psi_h = w_h / lap
+        # Solve for the mean-free streamfunction, as in the guidance RHS.
+        psi_h = w_h / lap_safe
+        psi_h[..., 0, 0] = 0.0
 
         # Velocity field
         q_h = 1j * 2 * math.pi * k_y * psi_h   # u = ∂ψ/∂y

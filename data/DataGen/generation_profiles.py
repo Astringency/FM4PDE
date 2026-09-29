@@ -71,6 +71,17 @@ SHALLOW_WATER_SPATIAL_PROFILES: Final = {
 }
 
 
+def sample_shallow_water_parameters(rng, split: str) -> tuple[float, float]:
+    """Match the actual initial conditions in the released train/test data."""
+    if split == "train":
+        # Historical training fields used depth 2 even though their metadata
+        # recorded an unused random height. New files record the actual depth.
+        return float(rng.uniform(0.3, 0.7)), 2.0
+    if split == "test":
+        return float(rng.uniform(0.4, 0.8)), float(rng.uniform(2.0, 3.0))
+    raise ValueError("shallow-water split must be train or test")
+
+
 def canonical_dataset_type(dataset_type: str) -> str:
     try:
         return DATASET_TYPE_ALIASES[str(dataset_type).strip().lower()]

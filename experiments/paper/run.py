@@ -79,19 +79,25 @@ def run_sampling(spec, args):
     from sampling.data import load_ground_truth
 
     torch.set_num_threads(args.threads)
+    from experiments.paper.provenance import runtime_identity
+    runtimes = {}
     bundle, previous = None, None
     source_hashes = {str(p.relative_to(ROOT)): digest(p)
                      for directory in ['sampling', 'models', 'flow_matching', 'torchdiffeq', 'experiments/paper', 'data']
-                     for p in (ROOT/directory).rglob('*.py')}
+                     for p in (ROOT/directory).rglob('*') if p.suffix in {'.py', '.m'}}
     asset_hashes = {}
     records = []
     failures = []
     for job, config in jobs:
+        if config.device not in runtimes:
+            runtimes[config.device] = runtime_identity(config.device)
         # Detect stale outputs after either code, settings, data, or weights change.
         for path in [config.checkpoint_path, config.data_path]:
             if path not in asset_hashes:
                 asset_hashes[path] = digest(path)
         identity = dict(config=config.asdict(), sources=source_hashes,
+                        runtime=runtimes[config.device], postprocess=spec.get('postprocess'),
+                        cohort=job.get('cohort'),
                         observation_protocol=job.get('observation_protocol'),
                         data_sha256=asset_hashes[config.data_path],
                         checkpoint_sha256=asset_hashes[config.checkpoint_path])

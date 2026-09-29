@@ -50,6 +50,9 @@ class GuidanceLossOutput:
     guidance_L_obs_a: Any | None = None
     guidance_L_obs_u: Any | None = None
     guidance_L_pde: Any | None = None
+    observation_target_a: Any | None = None
+    observation_target_u: Any | None = None
+    pde_components: dict[str, Any] | None = None
 
 
 def compute_guidance_losses(
@@ -238,6 +241,9 @@ def compute_guidance_losses(
         guidance_L_obs_a=guidance_L_obs_a,
         guidance_L_obs_u=guidance_L_obs_u,
         guidance_L_pde=guidance_L_pde,
+        observation_target_a=target_coef,
+        observation_target_u=target_sol,
+        pde_components=loss_components,
     )
 
 

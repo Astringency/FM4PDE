@@ -33,5 +33,8 @@ def evaluate(path, folder, args):
         raise ValueError('Reference solver produced non-finite consistency metrics')
     from experiments.paper.residual_metrics import evaluate_fields
     residuals=evaluate_fields(pde,a,u,ta,tu,data.get('pde_params')) if pde!='burger' else {}
+    from experiments.paper.residual_metrics import full_pde_loss
+    pde_loss = full_pde_loss(data)
     return dict(solver_relative_l2=relative.tolist(), truth_solver_relative_l2=floor.tolist(),
+                pde_loss=pde_loss, pde_loss_definition='componentwise_mse_sum',
                 **residuals)

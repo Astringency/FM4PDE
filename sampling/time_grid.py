@@ -66,11 +66,12 @@ def make_time_grid(kind: str, num_steps: int, device: str | Any = "cpu", eta: fl
 
 
 def condot_guidance_coefficient(t: Any) -> Any:
-    """Manuscript b_t=(1-tilde_t)/tilde_t, with tilde_t=max(t,1e-6)."""
+    """Unfloored (1-t)/t for t>0; zero denotes the skipped t=0 correction."""
     import torch
 
-    t = torch.as_tensor(t)
-    safe_t = t.clamp_min(1e-6)
+    # Diagnostics need float64 when positive geometric nodes are subnormal.
+    t = torch.as_tensor(t).to(torch.float64)
+    safe_t = torch.where(t == 0, torch.ones_like(t), t)
     return (1.0 - safe_t) / safe_t
 
 

@@ -68,10 +68,29 @@ class ManuscriptSamplingTests(unittest.TestCase):
                     schedule = make_zeta_schedule(cfg, t, condot_guidance_coefficient(t), step=1)
                     step = SimpleNamespace(phase=phase, t=t, t_next=t+dt, step_size=dt)
                     gradient = SimpleNamespace(grad_total=direction, metadata={})
-                    safe = max(time, 1e-6)
-                    gamma = (0. if time == 0 else .01 * (1-safe)/safe) if phase == 'deterministic' else .1*(1-time)
+                    gamma = (0. if time == 0 else .01 * (1-time)/time) if phase == 'deterministic' else .1*(1-time)
                     actual = apply_guidance_update(proposal, gradient, step, schedule, cfg)
                     torch.testing.assert_close(actual, proposal-gamma*direction, rtol=1e-13, atol=1e-13)
+
+    def test_unfloored_geometric_scale_is_finite_at_subnormal_times(self):
+        cfg = AblationConfig(sampler_phase='deterministic', num_steps=2000)
+        grid = make_time_grid('geometric', cfg.num_steps, eta=.05)
+        times, increments = grid[:-1], torch.diff(grid)
+        self.assertGreater(grid[1].item(), 0.)
+        self.assertLess(grid[1].item(), torch.finfo(grid.dtype).tiny)
+        # Test the full published grid against a float64 mathematical reference.
+        actual = torch.empty_like(times)
+        for k, (time, increment) in enumerate(zip(times, increments)):
+            schedule = make_zeta_schedule(cfg, time, condot_guidance_coefficient(time), step=k)
+            step = SimpleNamespace(phase='deterministic', t=time, step_size=increment)
+            gradient = SimpleNamespace(grad_total=torch.ones(1), metadata={})
+            actual[k] = apply_guidance_update(torch.zeros(1), gradient, step, schedule, cfg)[0]
+        expected = torch.zeros_like(times, dtype=torch.float64)
+        expected[1:] = -(increments[1:].double()/times[1:].double())*(1-times[1:].double())
+        self.assertTrue(torch.isfinite(actual).all())
+        self.assertTrue(torch.isfinite(condot_guidance_coefficient(times)).all())
+        self.assertEqual(actual[0].item(), 0.)
+        torch.testing.assert_close(actual.double(), expected, rtol=2e-6, atol=1e-9)
 
     def test_weighted_chain_rule_global_clip_and_batch_independence(self):
         cfg = AblationConfig(task='both', clip_threshold=0.7, zeta_obs_a=2., zeta_obs_u=3., zeta_pde=4., pde_guidance_start_ratio=0.)

@@ -75,6 +75,47 @@ def _batch_flatten(value: Any) -> Any:
     return value.reshape(value.shape[0], -1)
 
 
+def _observed_errors(losses: Any, field: str, pred: Any, clean: Any, mask: Any) -> list[float]:
+    """Observed errors use supplied measurements, including observation noise."""
+    import torch
+
+    target = getattr(losses, f"observation_target_{field}", None)
+    if target is None:
+        return obs_relative_l2_per_sample(pred, clean, mask)
+    residual = getattr(losses, f"obs_{field}_residual")
+    values = (torch.linalg.vector_norm(_batch_flatten(residual), dim=1)
+              / torch.linalg.vector_norm(_batch_flatten(target * mask), dim=1).clamp_min(1e-12))
+    return values.detach().cpu().tolist()
+
+
+def pde_loss_per_sample(losses: Any) -> list[float]:
+    """Sum component MSEs with their weights; concatenated residual RMS differs."""
+    import torch
+
+    components = getattr(losses, "pde_components", None)
+    if components is None:
+        raise ValueError("Per-sample PDE loss requires the named residual components")
+    weights = losses.metadata["pde"]["component_losses"]
+    total = None
+    with torch.no_grad():
+        for name, weight in (("interior", 1.), ("boundary", weights["bc_weight"]),
+                             ("endpoint", weights["endpoint_weight"])):
+            value = components.get(name)
+            if value is None:
+                continue
+            flat = value.detach().double().flatten(1)
+            mask = components.get(name + "_mask")
+            if mask is None:
+                mse = flat.square().mean(1)
+            else:
+                mask = torch.as_tensor(mask, device=value.device).expand_as(value).double().flatten(1)
+                mse = (flat.square() * mask).sum(1) / mask.sum(1).clamp_min(1e-12)
+            total = weight * mse if total is None else total + weight * mse
+    if total is None or not torch.isfinite(total).all():
+        raise ValueError("PDE loss has missing or non-finite residual components")
+    return total.cpu().tolist()
+
+
 def step_metrics(
     step: int,
     step_output: Any,
@@ -96,8 +137,8 @@ def step_metrics(
     guidance_component_losses = guidance_pde_meta.get("guidance_component_losses", {}) or {}
     rel_l2_a_per_sample = relative_l2_per_sample(phys_state.coef, ground_truth.coef)
     rel_l2_u_per_sample = relative_l2_per_sample(phys_state.sol, ground_truth.sol)
-    obs_rel_l2_a_per_sample = obs_relative_l2_per_sample(phys_state.coef, ground_truth.coef, masks.coef)
-    obs_rel_l2_u_per_sample = obs_relative_l2_per_sample(phys_state.sol, ground_truth.sol, masks.sol)
+    obs_rel_l2_a_per_sample = _observed_errors(eval_losses, "a", phys_state.coef, ground_truth.coef, masks.coef)
+    obs_rel_l2_u_per_sample = _observed_errors(eval_losses, "u", phys_state.sol, ground_truth.sol, masks.sol)
     eval_pde_per_sample = pde_residual_norm_per_sample(
         eval_losses.pde_residual, mask=getattr(eval_losses, "pde_residual_mask", None)
     )
@@ -247,8 +288,9 @@ def per_sample_metrics(
     """Return one independent, compact evaluation row per batch sample."""
     rel_a = relative_l2_per_sample(phys_state.coef, ground_truth.coef)
     rel_u = relative_l2_per_sample(phys_state.sol, ground_truth.sol)
-    obs_a = obs_relative_l2_per_sample(phys_state.coef, ground_truth.coef, masks.coef)
-    obs_u = obs_relative_l2_per_sample(phys_state.sol, ground_truth.sol, masks.sol)
+    obs_a = _observed_errors(eval_losses, "a", phys_state.coef, ground_truth.coef, masks.coef)
+    obs_u = _observed_errors(eval_losses, "u", phys_state.sol, ground_truth.sol, masks.sol)
+    pde_losses = pde_loss_per_sample(eval_losses)
     pde = pde_residual_norm_per_sample(
         eval_losses.pde_residual,
         mask=getattr(eval_losses, "pde_residual_mask", None),
@@ -264,6 +306,7 @@ def per_sample_metrics(
             "obs_rel_l2_a": obs_a[index],
             "obs_rel_l2_u": obs_u[index],
             "pde_residual_norm": pde[index] if index < len(pde) else None,
+            "L_pde": pde_losses[index],
         }
         if step is not None:
             row = {"step": int(step), **row}

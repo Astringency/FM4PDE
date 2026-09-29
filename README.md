@@ -22,14 +22,23 @@ conda activate fm4pde
 export DATA_ROOT=/path/to/PDEdata
 export CHECKPOINT_ROOT=/path/to/pretrained
 export PYTHON_BIN=python
-PDE=all DRY_RUN=true OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
-PDE=poisson TYPE=all OUT_ROOT="$DATA_ROOT" bash data/DataGen/gen_pde.sh
+```
+
+To generate a new dataset, choose its output directory separately:
+
+```bash
+PDE=all DRY_RUN=true OUT_ROOT=/path/to/generated-data bash data/DataGen/gen_pde.sh
+PDE=poisson TYPE=all OUT_ROOT=/path/to/generated-data bash data/DataGen/gen_pde.sh
 ```
 
 [data/DataGen](data/DataGen) contains all eleven PDE generators. Static equations
 and Burgers require MATLAB; Burgers also requires Chebfun, and shallow water uses
 PyClaw. Defaults: five training shards of 10,000 samples; ID/Smooth/Rough test
 sets of 10,000; Rough2/Rough3 sets of 1,000 for the five main PDEs.
+Shallow-water training uses radius `Uniform(0.3, 0.7)` and fixed interior depth
+`2.0`, matching the released training fields. Test generation uses radius
+`Uniform(0.4, 0.8)` and interior depth `Uniform(2, 3)`. Newly generated files
+record the actual interior depth in `inner_height`.
 [configs/training_data.yaml](configs/training_data.yaml) lists training inputs.
 `CHECKPOINT_<PDE>` overrides an individual checkpoint, e.g. `CHECKPOINT_POISSON`.
 Otherwise `CHECKPOINT_ROOT` replaces the `outputs/pretrained` prefix in the configs.
@@ -87,16 +96,22 @@ timing and error traces, set `DIFFUSION_ROOT` and `DIFFUSION_CHECKPOINT_ROOT`
 (or `DIFFUSION_CHECKPOINT_<PDE>`). `--methods FM4PDE` runs the native method
 without loading a DiffusionPDE model.
 
-The controlled timing experiment uses the original fixed input bundle. Set
-`TIMING_INPUT_ROOT` to its directory, containing `protocol.json`, `masks.npz`,
-`source/timing_truths.npz`, and `weights/`. `TIMING_INPUT_ROOT_<PDE>` can select
-a PDE-specific bundle. The runner verifies artifact checksums, reads the original
-20 evaluation IDs, separate warmup ID, masks, checkpoint, and guidance settings,
-and applies the current sampler and residual definition. The first 100-step
+The controlled timing experiment reads the Hugging Face data and weights through
+`DATA_ROOT` and `CHECKPOINT_ROOT`. The checked-in `timing_protocol.json` and
+`timing_masks.npz` preserve the original 20 evaluation IDs and separate warmup ID.
+Guidance weights and clipping use the manuscript's joint profiles, with stochastic
+updates for timing. Burgers observes five complete physical-time slices; the other
+PDEs retain their recorded observation locations. It uses Smooth inputs for Poisson,
+Helmholtz, Darcy and Navier–Stokes, and ID inputs for Burgers. The runner verifies
+asset checksums and the physical input tensors before timing. The first 100-step
 warmup must produce exactly the same fields as the standard sampling runner.
-Generating new test data or choosing its first 20 rows does not reproduce this
-fixed-input experiment. Error traces have a separate protocol recorded in
-`accuracy_during_sampling.yaml`.
+For an existing archived input bundle, `TIMING_INPUT_ROOT` or
+`TIMING_INPUT_ROOT_<PDE>` still selects its `protocol.json`, `masks.npz`,
+`source/timing_truths.npz` and `weights/`. Its old Burgers column masks are transposed
+to time slices, and its old FM4PDE guidance settings are replaced by the manuscript
+settings. This protocol correction does not recompute archived timing results.
+Error traces have a separate protocol
+recorded in `accuracy_during_sampling.yaml`.
 
 The current Helmholtz joint profile uses `clip_threshold: 150.0`. Joint
 ablations, physical consistency, and timing use this value; the timing loader

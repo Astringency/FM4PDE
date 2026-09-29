@@ -24,7 +24,6 @@ UD_RANGE = (288.0, 308.0)
 SOURCE_COUNT_RANGE = (1, 4)
 SOURCE_AMPLITUDE_RANGE = (10.0, 60.0)
 SOURCE_SIGMA_RANGE = (0.04, 0.12)
-LAMBDA_MIN = 0.1
 
 
 def steady_heat_conduction_metadata(config: PairH5Config) -> dict[str, object]:
@@ -40,7 +39,6 @@ def steady_heat_conduction_metadata(config: PairH5Config) -> dict[str, object]:
         },
         "recfno_style": True,
         "time_dependent": False,
-        "lambda_min_clamp": LAMBDA_MIN,
         "hdf5_schema": {
             "input_data": "[N,1,H,W] heat source f",
             "output_data": "[N,1,H,W] temperature u",
@@ -172,7 +170,7 @@ def solve_nonlinear_heat(f: np.ndarray, u_d: float, config: PairH5Config) -> dic
 
 
 def conductivity_lambda(u: np.ndarray) -> np.ndarray:
-    return np.maximum(1.0 + 0.05 * (u - 298.0), LAMBDA_MIN)
+    return 1.0 + 0.05 * (u - 298.0)
 
 
 def build_linear_system(conductivity: np.ndarray, f: np.ndarray, u_d: float) -> tuple[object, np.ndarray]:

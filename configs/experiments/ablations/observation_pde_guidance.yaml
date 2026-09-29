@@ -2,6 +2,7 @@ paragraph: Observation and PDE Guidance.
 engine: sampling
 jobs:
 - id: archive_0096
+  cohort: guidance_components
   pde: burger
   task: both
   overrides:
@@ -17,7 +18,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0097
+  cohort: guidance_components
   pde: burger
   task: both
   overrides:
@@ -33,7 +36,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0098
+  cohort: guidance_components
   pde: burger
   task: both
   overrides:
@@ -49,7 +54,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0099
+  cohort: guidance_components
   pde: burger
   task: both
   overrides:
@@ -65,7 +72,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0370
+  cohort: guidance_components
   pde: helmholtz
   task: both
   overrides:
@@ -81,7 +90,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0371
+  cohort: guidance_components
   pde: helmholtz
   task: both
   overrides:
@@ -97,7 +108,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0372
+  cohort: guidance_components
   pde: helmholtz
   task: both
   overrides:
@@ -113,7 +126,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0373
+  cohort: guidance_components
   pde: helmholtz
   task: both
   overrides:
@@ -129,7 +144,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0463
+  cohort: guidance_components
   pde: nsnonbounded
   task: both
   overrides:
@@ -145,7 +162,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0464
+  cohort: guidance_components
   pde: nsnonbounded
   task: both
   overrides:
@@ -161,7 +180,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0465
+  cohort: guidance_components
   pde: nsnonbounded
   task: both
   overrides:
@@ -177,7 +198,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0466
+  cohort: guidance_components
   pde: nsnonbounded
   task: both
   overrides:
@@ -193,7 +216,9 @@ jobs:
     offset: 0
     shared_mask: false
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0586
+  cohort: guidance_components
   pde: poisson
   task: both
   overrides:
@@ -209,7 +234,9 @@ jobs:
     offset: 0
     shared_mask: true
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0587
+  cohort: guidance_components
   pde: poisson
   task: both
   overrides:
@@ -225,7 +252,9 @@ jobs:
     offset: 0
     shared_mask: true
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0588
+  cohort: guidance_components
   pde: poisson
   task: both
   overrides:
@@ -241,7 +270,9 @@ jobs:
     offset: 0
     shared_mask: true
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: archive_0589
+  cohort: guidance_components
   pde: poisson
   task: both
   overrides:
@@ -257,136 +288,155 @@ jobs:
     offset: 0
     shared_mask: true
     sensor_mode: per_sample_random
+    batch_size: 20
 - id: weight_poisson_0
+  cohort: pde_weight
   pde: poisson
   task: both
   overrides:
     zeta_pde: 0
     guidance_components: obs_only
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: true
+    sensor_mode: per_sample_random
 - id: weight_poisson_0.1
+  cohort: pde_weight
   pde: poisson
   task: both
   overrides:
     zeta_pde: 0.1
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: true
+    sensor_mode: per_sample_random
 - id: weight_poisson_100
+  cohort: pde_weight
   pde: poisson
   task: both
   overrides:
     zeta_pde: 100
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: true
+    sensor_mode: per_sample_random
 - id: weight_helmholtz_0
+  cohort: pde_weight
   pde: helmholtz
   task: both
   overrides:
     zeta_pde: 0
     guidance_components: obs_only
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
 - id: weight_helmholtz_0.1
+  cohort: pde_weight
   pde: helmholtz
   task: both
   overrides:
     zeta_pde: 0.1
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
 - id: weight_helmholtz_100
+  cohort: pde_weight
   pde: helmholtz
   task: both
   overrides:
     zeta_pde: 100
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
 - id: weight_nsnonbounded_0
+  cohort: pde_weight
   pde: nsnonbounded
   task: both
   overrides:
     zeta_pde: 0
     guidance_components: obs_only
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
 - id: weight_nsnonbounded_100
+  cohort: pde_weight
   pde: nsnonbounded
   task: both
   overrides:
     zeta_pde: 100
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
 - id: weight_nsnonbounded_1000
+  cohort: pde_weight
   pde: nsnonbounded
   task: both
   overrides:
     zeta_pde: 1000
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
 - id: weight_burger_0
+  cohort: pde_weight
   pde: burger
   task: both
   overrides:
     zeta_pde: 0
     guidance_components: obs_only
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
+    sensor_mode: per_sample_random
 - id: weight_burger_10
+  cohort: pde_weight
   pde: burger
   task: both
   overrides:
     zeta_pde: 10
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
+    sensor_mode: per_sample_random
 - id: weight_burger_100
+  cohort: pde_weight
   pde: burger
   task: both
   overrides:
     zeta_pde: 100
     guidance_components: obs_pde
     offset: 1500
-    batch_size: 8
+    batch_size: 20
     mask_seed: 20262410
     sample_seed: 20262410
     shared_mask: false
+    sensor_mode: per_sample_random
 postprocess: summary

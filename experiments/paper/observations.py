@@ -21,7 +21,7 @@ def comparison_masks(truth, indices, task, seed=0):
     if ma.shape[-2:] != (128, 128) or len(indices) != len(ma):
         raise ValueError('The published comparison uses 128 x 128 fields')
     for row, index in enumerate(indices):
-        if task in {'forward', 'both'}:
+        if truth.pde != 'burger' and task in {'forward', 'both'}:
             ma[row].reshape(-1)[torch.as_tensor(rows[index][0], device=ma.device)] = 1
         if task in {'inverse', 'both'}:
             mu[row].reshape(-1)[torch.as_tensor(rows[index][1], device=mu.device)] = 1
@@ -36,6 +36,21 @@ def for_job(job, truth, config):
     if protocol == 'common_comparison':
         return comparison_masks(truth, range(config.offset, config.offset + config.batch_size),
                                 config.task, config.mask_seed)
+    if protocol == 'burger_time_slices':
+        import torch
+        from sampling.masks import PairMasks
+        if config.pde != 'burger' or config.num_obs != 640 or config.num_sensor_columns != 5:
+            raise ValueError('The Burgers comparison observes five complete physical-time levels')
+        mask = torch.zeros_like(truth.sol)
+        for row in range(config.batch_size):
+            sample_id = f'{Path(config.data_path).name}:{config.offset + row}'
+            payload = f'mask|1|test|{sample_id}|0'.encode()
+            seed = int.from_bytes(hashlib.sha256(payload).digest()[:8], 'big') % (2**63 - 1)
+            levels = torch.randperm(128, generator=torch.Generator().manual_seed(seed))[:5]
+            mask[row, :, levels.to(mask.device), :] = 1
+        return PairMasks(torch.zeros_like(truth.coef), mask,
+                         dict(sensor_mode='physical_time_slices', base_seed=1,
+                              split='test', num_obs=640, num_time_levels=5))
     if protocol in {'baseline_v3', 'physics_smooth'}:
         import torch
         from sampling.masks import PairMasks
@@ -50,6 +65,7 @@ def for_job(job, truth, config):
             seed = int.from_bytes(hashlib.sha256(payload).digest()[:8], 'big') % (2**63 - 1)
             indices = torch.randperm(128 * 128, generator=torch.Generator().manual_seed(seed))[:500]
             mask[row].reshape(-1)[indices.to(mask.device)] = 1
-        return PairMasks(mask, mask.clone(), dict(sensor_mode='baseline_v3', shared_mask=True,
+        coef_mask = torch.zeros_like(mask) if config.pde == 'burger' else mask
+        return PairMasks(coef_mask, mask.clone(), dict(sensor_mode='baseline_v3', shared_mask=config.pde != 'burger',
                          base_seed=1, split='test', num_obs=500))
     raise ValueError(f'Unknown published observation protocol: {protocol}')

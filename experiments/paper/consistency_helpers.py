@@ -21,9 +21,17 @@ def ns_solve(initial,device):
 def solve(initial,folder,args):
     folder.mkdir(parents=True,exist_ok=True)
     inp=folder/'initial.mat';out=folder/'solved.mat';receipt=folder/'solve.json'
+    identity=dict(generator_sha256=sha256(ROOT/'data/DataGen/static/burgers1.m'),
+                  wrapper_sha256=sha256(Path(__file__).with_name('burger_solve.m')),
+                  parameters=dict(viscosity=.01,spatial_points=128,time_points=128,T=1,dt=1/127))
     if receipt.exists():
-        r=json.loads(receipt.read_text());assert sha256(out)==r['output_sha256']
-        assert np.array_equal(scipy.io.loadmat(inp)['initial'],initial)
+        r=json.loads(receipt.read_text())
+        if any(r.get(key) != value for key,value in identity.items()):
+            raise ValueError('Burgers solver source or parameters changed; choose a new output directory')
+        if sha256(inp)!=r['input_sha256'] or sha256(out)!=r['output_sha256']:
+            raise ValueError('Burgers solver cache checksum mismatch')
+        if not np.array_equal(scipy.io.loadmat(inp)['initial'],initial):
+            raise ValueError('Burgers solver cache has different initial conditions')
     else:
         scipy.io.savemat(inp,dict(initial=initial))
         quote=lambda s:"'"+str(s).replace("'","''")+"'"
@@ -31,7 +39,5 @@ def solve(initial,folder,args):
         with (folder/'matlab.log').open('w') as log:
             subprocess.run([args.matlab,'-singleCompThread','-batch',expression],stdout=log,stderr=subprocess.STDOUT,check=True)
         write_json(receipt,dict(input_sha256=sha256(inp),output_sha256=sha256(out),
-            generator_sha256=sha256(ROOT/'data/DataGen/static/burgers1.m'),
-            wrapper_sha256=sha256(Path(__file__).with_name('burger_solve.m')),
-            parameters=dict(viscosity=.01,spatial_points=128,time_points=128,T=1,dt=1/127)))
+                               **identity))
     return torch.from_numpy(scipy.io.loadmat(out)['trajectory'])[:,None]

@@ -2,6 +2,37 @@
 from sampling.pde_residuals import compute_pde_residual
 
 
+def full_pde_loss(data):
+    """Evaluate the manuscript loss with the saved boundary and residual settings.
+
+    `residual_mse` below is an older interior diagnostic and is not this loss.
+    This function also works on archived predictions without resampling.
+    """
+    import torch
+    from types import SimpleNamespace
+    from sampling.losses import compute_guidance_losses
+    from sampling.masks import PairMasks
+    from sampling.metrics import pde_loss_per_sample
+    from sampling.state import SplitState
+
+    cfg = SimpleNamespace(**data['config'])
+    a, u = data['coef_final'].double(), data['sol_final'].double()
+    params = dict(data.get('pde_params', {}))
+    if 'near_endpoint_temporal' in params:
+        near = dict(params['near_endpoint_temporal'])
+        # Saved artifacts retain only sparse measurements, with explicit names.
+        for key in ('q_dt', 'q_T_minus_dt'):
+            if key not in near and key + '_obs' in near:
+                near[key] = near[key + '_obs']
+        params['near_endpoint_temporal'] = near
+    truth = SimpleNamespace(coef=data['coef_ground_truth'].double(),
+                            sol=data['sol_ground_truth'].double(), pde_params=params)
+    masks = PairMasks(torch.zeros_like(a), torch.zeros_like(u), {})
+    with torch.no_grad():
+        losses = compute_guidance_losses(SplitState(a, u), truth, masks, cfg)
+    return pde_loss_per_sample(losses)
+
+
 def evaluate_fields(pde, a, u, true_a, true_u, parameters=None):
     """Keep the published spatial region; replace only the residual definition."""
     import torch
