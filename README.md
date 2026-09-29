@@ -2,8 +2,8 @@
 
 ## Environment and data
 
-[Environment](environment.yml) ·
-[PDE data](https://huggingface.co/datasets/XifengZhang/FM4PDE-pde-data)
+Create the environment using [environment.yml](environment.yml) and download the
+[PDE datasets](https://huggingface.co/datasets/XifengZhang/FM4PDE-pde-data) from Hugging Face.
 
 ```bash
 conda env create -f environment.yml
@@ -20,12 +20,10 @@ PDE=all DRY_RUN=true OUT_ROOT=/path/to/generated-data bash data/DataGen/gen_pde.
 PDE=poisson TYPE=all OUT_ROOT=/path/to/generated-data bash data/DataGen/gen_pde.sh
 ```
 
-[Generators](data/DataGen) · [Training inputs](configs/training_data.yaml)
-
 ## Training
 
-[Pretrained models](https://huggingface.co/XifengZhang/FM4PDE-pretrained-models) ·
-[Training configuration](configs/training.yaml)
+Download pretrained models from [Hugging Face](https://huggingface.co/XifengZhang/FM4PDE-pretrained-models)
+for the sampling examples. The training commands below use [configs/training.yaml](configs/training.yaml).
 
 `CHECKPOINT_ROOT` points to the downloaded model repository containing `formal/`.
 
@@ -35,11 +33,7 @@ bash scripts/train/poisson.sh
 bash scripts/train/run_train.sh --pdes poisson helmholtz darcy nsnonbounded burger
 ```
 
-[Training launchers](scripts/train)
-
 ## Main Sampling
-
-[Profiles](configs/main) · [Comparison manifests](configs/experiments/comparison)
 
 ```bash
 bash scripts/sample/comparison/sparse_forward_inverse.sh --plan-only
@@ -56,13 +50,9 @@ bash scripts/sample/comparison/burgers_trajectory.sh --device cuda:0
 | Sampling time | `sampling_time.sh` |
 | Reconstruction and physical consistency | `physical_consistency.sh` |
 
-`DIFFUSION_ROOT` points to the DiffusionPDE checkout; `DIFFUSION_CHECKPOINT_ROOT`
-sets its checkpoint directory. Use `--methods FM4PDE` to run FM4PDE only.
 `MATLAB_BIN` selects the MATLAB executable; `CHEBFUN_ROOT` points to Chebfun.
 
 ## Ablations
-
-[Launchers](scripts/sample/ablations) · [Manifests](configs/experiments/ablations)
 
 | Paragraph | Script name |
 | --- | --- |
@@ -85,18 +75,6 @@ bash scripts/sample/ablations/time_grid.sh --device cuda:0
 bash scripts/sample/ablations/temporal_residuals.sh --pdes heat wave --plan-only
 ```
 
-[Switching configuration](configs/experiments/ablations/switching_time.yaml) ·
-[Plotting script](plot/switching_time.py)
-
-`GENERATIVE_BASELINE_ROOT` points to `FunDPS_DDIS_ECI_OFM`; `OFM_DATA_ROOT` and
-`OFM_CHECKPOINT_ROOT` set its compact-data and checkpoint directories.
-`COCOGEN_ROOT` points to the CoCoGen checkout.
-
-[OFM launcher](scripts/sample/comparison/sparse_forward_inverse_ofm.sh) ·
-[CoCoGen launcher](scripts/sample/comparison/cocogen.sh) ·
-[Architecture configuration](configs/experiments/ablations/velocity_architecture.yaml) ·
-[OFM guidance](configs/ofm_guidance.yaml)
-
 ```bash
 bash scripts/sample/ablations/sampling_phases.sh --pdes nsnonbounded reaction_diffusion
 bash scripts/sample/ablations/sampling_steps.sh --phases deterministic --steps 100
@@ -117,15 +95,10 @@ bash scripts/sample/appendix/unconditional_priors.sh --plan-only
 bash scripts/sample/appendix/unconditional_priors.sh --device cuda:0
 ```
 
-[Appendix manifest](configs/experiments/appendix/unconditional_priors.yaml)
+The appendix commands use
+[unconditional_priors.yaml](configs/experiments/appendix/unconditional_priors.yaml).
 
 ## Baseline and other info
-
-Baseline repositories: [FM4PDEbaseline](https://github.com/Astringency/FM4PDEbaseline),
-[CoCoGen](https://github.com/Astringency/CoCoGen),
-[DiffusionPDE](https://github.com/Astringency/DiffusionPDE), and
-[FunDPS_DDIS_ECI_OFM](https://github.com/Astringency/FunDPS_DDIS_ECI_OFM)
-(FunDPS, DDIS, ECI, OFM).
 
 | Directory | Contents |
 | --- | --- |
