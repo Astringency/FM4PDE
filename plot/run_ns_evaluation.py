@@ -324,6 +324,7 @@ def worker(a):
 def timing_prepare(a):
     from sampling.config import load_config
     from diffusion_timing_adapter import MODULES
+    from experiments.paper.timing_inputs import scientific_controls
     assert not (a.inputs/'protocol.json').exists()
     a.inputs.mkdir(parents=True,exist_ok=True);(a.inputs/'weights').mkdir()
     previous=json.loads((a.timing_source/'protocol.json').read_text())
@@ -332,8 +333,8 @@ def timing_prepare(a):
     dm=f'pretrained-{MODULES["nsnonbounded"].replace("_","-")}.pkl'
     (a.inputs/'weights'/dm).symlink_to((a.timing_source/'weights'/dm).resolve())
     shutil.copy2(a.weights,a.inputs/'weights/fm_nsnonbounded.pth')
-    protocol['fm_configs']['nsnonbounded']=load_config(ROOT/'configs/main/both/nsnonbounded.yaml').asdict()
-    protocol['fm_configs']['nsnonbounded']['model_profile']='auto'
+    protocol['fm_configs']['nsnonbounded']=load_config(
+        ROOT/'configs/main/both/nsnonbounded.yaml', scientific_controls('nsnonbounded')).asdict()
     protocol.update(version=3,pdes=['nsnonbounded'],fm_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         previous_protocol_sha256=digest(a.timing_source/'protocol.json'),checkpoint_update='260904 light checkpoint, stored normalizer; same NS sparse-joint parameters, observations, precision, timing boundary, budgets, and twenty inputs')
     paths=['source/input_inventory.json','source/timing_truths.npz','masks.npz','weights/'+dm,'weights/fm_nsnonbounded.pth']

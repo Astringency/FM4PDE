@@ -2,10 +2,8 @@
 
 FM4PDE learns a joint prior over PDE inputs and solutions, then uses sparse
 observations and physical residuals to guide forward, inverse, and joint
-reconstruction. This repository contains the experiments in the revised manuscript.
-
-The [reproduction guide](docs/reproduction.md) explains the required assets,
-fixed random-draw protocols, execution checks and result files.
+reconstruction. This repository provides the implementation and experiment settings
+for the paper.
 
 ## Environment and data
 
@@ -35,10 +33,9 @@ PDE=poisson TYPE=all OUT_ROOT=/path/to/generated-data bash data/DataGen/gen_pde.
 and Burgers require MATLAB; Burgers also requires Chebfun, and shallow water uses
 PyClaw. Defaults: five training shards of 10,000 samples; ID/Smooth/Rough test
 sets of 10,000; Rough2/Rough3 sets of 1,000 for the five main PDEs.
-Shallow-water training uses radius `Uniform(0.3, 0.7)` and fixed interior depth
-`2.0`, matching the released training fields. Test generation uses radius
-`Uniform(0.4, 0.8)` and interior depth `Uniform(2, 3)`. Newly generated files
-record the actual interior depth in `inner_height`.
+Shallow-water training uses radius `Uniform(0.3, 0.7)` and interior depth `2.0`;
+test generation uses `Uniform(0.4, 0.8)` and `Uniform(2, 3)`, respectively.
+Generated files record interior depth in `inner_height`.
 [configs/training_data.yaml](configs/training_data.yaml) lists training inputs.
 `CHECKPOINT_<PDE>` overrides an individual checkpoint, e.g. `CHECKPOINT_POISSON`.
 Otherwise `CHECKPOINT_ROOT` replaces the `outputs/pretrained` prefix in the configs.
@@ -60,18 +57,13 @@ bash scripts/train/run_train.sh --pdes poisson helmholtz darcy nsnonbounded burg
 ```
 
 One launcher per PDE is available in [scripts/train](scripts/train).
-`--nproc` changes the GPU count while preserving effective batch 64.
+`--nproc` changes the GPU count; per-GPU batch size times GPU count must divide 64.
 
 ## Main Sampling
 
-Each script runs the FM4PDE portion of one manuscript paragraph. Configs in
-[configs/main](configs/main) specify the 31 PDE/task profiles;
-[configs/experiments/comparison](configs/experiments/comparison) specifies the
-cases and protocols. Baseline execution is documented in the sibling repositories.
-The main comparison manifest also records its selected guidance and sampler
-overrides. These overrides are fixed across ID, Smooth, and Rough. Shared
-profiles in `configs/main` remain the defaults for separate ablations, so
-reproduce a manuscript experiment through its listed script and manifest.
+[configs/main](configs/main) defines the PDE/task profiles, while
+[comparison manifests](configs/experiments/comparison) specify the cases and
+observation protocols. Run each experiment through its listed script.
 
 ```bash
 bash scripts/sample/comparison/sparse_forward_inverse.sh --plan-only
@@ -88,35 +80,17 @@ bash scripts/sample/comparison/burgers_trajectory.sh --device cuda:0
 | Sampling time | `sampling_time.sh` |
 | Reconstruction and physical consistency | `physical_consistency.sh` |
 
-Comparisons use 100 realizations per setting; timing uses 20. Random observations
-use 500 values per active field; Burgers structured observations use 640 values
-at five complete time levels. Physical consistency includes reference re-solving;
-set `MATLAB_BIN` and `CHEBFUN_ROOT` for Burgers. To include DiffusionPDE in
-timing and error traces, set `DIFFUSION_ROOT` and `DIFFUSION_CHECKPOINT_ROOT`
-(or `DIFFUSION_CHECKPOINT_<PDE>`). `--methods FM4PDE` runs the native method
-without loading a DiffusionPDE model.
+Comparisons use 100 samples per setting; timing uses 20. Random observations
+cover 500 locations per observed channel; Burgers structured observations use
+640 values at five complete physical-time levels. Reference re-solving for
+Burgers requires `MATLAB_BIN` and `CHEBFUN_ROOT`.
 
-The controlled timing experiment reads the Hugging Face data and weights through
-`DATA_ROOT` and `CHECKPOINT_ROOT`. The checked-in `timing_protocol.json` and
-`timing_masks.npz` preserve the original 20 evaluation IDs and separate warmup ID.
-Guidance weights and clipping use the manuscript's joint profiles, with stochastic
-updates for timing. Burgers observes five complete physical-time slices; the other
-PDEs retain their recorded observation locations. It uses Smooth inputs for Poisson,
-Helmholtz, Darcy and Navier–Stokes, and ID inputs for Burgers. The runner verifies
-asset checksums and the physical input tensors before timing. The first 100-step
-warmup must produce exactly the same fields as the standard sampling runner.
-For an existing archived input bundle, `TIMING_INPUT_ROOT` or
-`TIMING_INPUT_ROOT_<PDE>` still selects its `protocol.json`, `masks.npz`,
-`source/timing_truths.npz` and `weights/`. Its old Burgers column masks are transposed
-to time slices, and its old FM4PDE guidance settings are replaced by the manuscript
-settings. This protocol correction does not recompute archived timing results.
-Error traces have a separate protocol
-recorded in `accuracy_during_sampling.yaml`.
-
-The current Helmholtz joint profile uses `clip_threshold: 150.0`. Joint
-ablations, physical consistency, and timing use this value; the timing loader
-discards the superseded `1e10` threshold in the archived input bundle. The
-observation/PDE weights and `stochastic_guidance_coeff: 0.1` are unchanged.
+Timing uses the paper's joint-guidance parameters, stochastic updates, and the
+included `timing_protocol.json` and `timing_masks.npz`. Inputs are Smooth for
+Poisson, Helmholtz, Darcy and Navier–Stokes, and ID for Burgers. Timing and error
+traces run both methods by default: set `DIFFUSION_ROOT` and
+`DIFFUSION_CHECKPOINT_ROOT` (or `DIFFUSION_CHECKPOINT_<PDE>`), or select
+`--methods FM4PDE`. Error traces use `accuracy_during_sampling.yaml`.
 
 ## Ablations
 
@@ -146,25 +120,20 @@ bash scripts/sample/ablations/temporal_residuals.sh --truth-only --device cuda:0
 ```
 
 Common options: `--pdes`, `--device`, `--output`, `--limit` (development subset),
-`--override key=value`. Standard sampling and conditional averaging resume only
-when saved identities match; other diagnostics rerun the selected group.
+`--override key=value`. Sampling, architecture comparisons, conditional averaging,
+and appendix priors support checked resume; timing and error traces rerun the selection.
 
-The [hybrid grid protocol](docs/hybrid_geometric_grid.md) specifies physical
-switching times, stage budgets, and the command to regenerate the two switching
-figures from saved run outputs.
+Flow-time switching settings are in [switching_time.yaml](configs/experiments/ablations/switching_time.yaml);
+[plot/switching_time.py](plot/switching_time.py) renders the comparison.
 
-The [shared inverse guidance settings](docs/unified_inverse_guidance.md) give
-the physics-comparison, conditional-averaging, and Poisson-trajectory commands,
-including their fixed inputs and observation protocols.
+Physics comparisons, conditional averaging, and error traces use their respective
+manifests in [configs/experiments](configs/experiments).
 
-Including FM4PDE-OFM in the architecture comparison needs the sibling
-`FunDPS_DDIS_ECI_OFM` checkout,
-`OFM_DATA_ROOT` (compact data) and `OFM_CHECKPOINT_ROOT` (the selected
-`<pde>/epoch_<n>.pt` files listed in the architecture manifest).
-[configs/ofm_guidance.yaml](configs/ofm_guidance.yaml) contains its shared weights.
-For the main FM4PDE-OFM and CoCoGen comparisons, including fixed test inputs,
-observation masks, batch partitions and resume checks, see the
-[baseline reproduction guide](docs/baseline_residual_reproduction.md).
+FM4PDE-OFM uses `GENERATIVE_BASELINE_ROOT`, `OFM_DATA_ROOT`, and `OFM_CHECKPOINT_ROOT`;
+checkpoints are listed in [velocity_architecture.yaml](configs/experiments/ablations/velocity_architecture.yaml).
+The comparison launchers are [sparse_forward_inverse_ofm.sh](scripts/sample/comparison/sparse_forward_inverse_ofm.sh)
+and [cocogen.sh](scripts/sample/comparison/cocogen.sh); the latter uses `COCOGEN_ROOT`.
+Guidance weights are in [configs/ofm_guidance.yaml](configs/ofm_guidance.yaml).
 
 For a partial rerun, select existing cases without changing their settings:
 
@@ -177,11 +146,9 @@ bash scripts/sample/ablations/velocity_architecture.sh --methods FM4PDE --pdes d
 ```
 
 The secant residual is `(u-a)/T - (G_h(a)+G_h(u))/2`. Sampling guidance and
-temporal diagnostics call the same implementation. `--truth-only` recomputes
-all three losses on the 32 real endpoint pairs for each selected PDE without
-sampling. Its receipt records the residual source hash and secant definition.
-Physical consistency records the updated PDE residual alongside the independent
-reference-solver defect; these are distinct metrics.
+temporal diagnostics share its implementation. `--truth-only` evaluates all three
+temporal losses on real endpoint pairs without sampling. Physical consistency
+reports PDE loss and reference-solver error separately.
 
 Saved physical predictions can be reevaluated without sampling:
 
@@ -190,27 +157,14 @@ bash scripts/sample/comparison/reevaluate_saved_residuals.sh \
   --manifest /path/to/saved_predictions.json --output outputs/residual_reevaluation
 ```
 
-The JSON manifest has a `records` list. Each record specifies `pde` (Darcy or
-NS), `method`, `distribution`, `count`, `truth_file`, `truth_sha256`, and a
-`predictions` list of `{ "file": "...", "sha256": "..." }`. Truth files contain
-a physical `truth` tensor or `raw.full_tensor`; prediction files contain either
-`prediction` and `indices`, or native `coef_final`, `sol_final`, and `config`.
-Every index from zero to `count-1` must occur once. The output includes field
-errors, current PDE losses, and checksums. Comparing methods requires reevaluating
-every saved prediction with the same residual definition before ranking them.
+This supports Poisson, Helmholtz, Darcy, and Navier–Stokes. The JSON manifest's
+`records` specify `pde`, `method`, `distribution`, `count`, `truth_file`,
+`truth_sha256`, and `predictions` entries with `file` and `sha256`.
 
-`--tasks` and `--test-types` filter tasks and test distributions; `--job-ids`
-selects exact manifest cases for a retry. For independent
-GPU workers, use `--num-shards N --shard-index i` with separate `--output`
-directories for each worker. Sharding preserves the original case indices,
-seeds, and sampling batch sizes. `--continue-on-error` records failed cases in
-`failures.json`; those cases must be reported and are not valid completed runs.
-The standard paper runner fixes CUDA kernel selection and disables TF32.
-Conditional averaging retains its recorded TF32 and fused-gradient execution
-path, as described in the shared inverse-guidance guide. Data files,
-checkpoints, resolved configurations, source hashes, and saved predictions are
-recorded for standard sampling runs. MAT files are cached in memory to avoid
-repeated decompression; the physical input arrays are unchanged.
+`--tasks` and `--test-types` filter comparisons; `--job-ids` selects manifest
+sampling cases. Independent GPU workers use `--num-shards N --shard-index i`
+with separate output directories. `--continue-on-error` records sampling failures
+in `failures.json`.
 
 ## Appendix prior samples
 
@@ -219,16 +173,10 @@ bash scripts/sample/appendix/unconditional_priors.sh --plan-only
 bash scripts/sample/appendix/unconditional_priors.sh --device cuda:0
 ```
 
-This entry generates all eleven appendix samples with 100 direct Euler steps,
-then re-solves each generated input with the reference numerical operator.
-It uses the same checkpoint variables as the sampling experiments. The fixed
-seeds and known physical coefficients are recorded in
-[the appendix manifest](configs/experiments/appendix/unconditional_priors.yaml).
-The Poisson seed is 20260911; the other ten seeds are 20260910. Scalar-conditioned
-models receive the recorded physical parameters; no observed fields enter these
-draws. Each output contains physical fields, componentwise solver-relative errors,
-checkpoint/source identities and the initial-noise checksum. Burgers requires
-`MATLAB_BIN` and `CHEBFUN_ROOT`; shallow-water reference solving requires PyClaw.
+This generates eleven unguided samples with 100 Euler steps and reference
+re-solving. Seeds and physical parameters are fixed in the
+[appendix manifest](configs/experiments/appendix/unconditional_priors.yaml).
+Burgers requires MATLAB and Chebfun; shallow-water reference solving requires PyClaw.
 
 ## Baseline and other info
 

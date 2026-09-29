@@ -25,6 +25,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from prepare_diffusion_comparison import PDES, digest
 from diffusion_timing_adapter import build, MODULES
+from experiments.paper.timing_inputs import scientific_controls
 
 
 def write(path,obj):
@@ -39,7 +40,7 @@ def prepare(args):
     assert not (dest/'protocol.json').exists(), 'Do not replace a frozen protocol'
     inventory=json.loads((dest/'source/input_inventory.json').read_text())
     assert digest(dest/'source/timing_truths.npz')==inventory['timing_truths_sha256']
-    configs={p:load_config(ROOT/f'configs/main/both/{p}.yaml').asdict() for p in PDES}
+    configs={p:load_config(ROOT/f'configs/main/both/{p}.yaml', scientific_controls(p)).asdict() for p in PDES}
     masks={}
     ids=inventory['evaluation_ids']+[inventory['pilot_id']]
     for p in PDES:
@@ -47,7 +48,7 @@ def prepare(args):
             rng=np.random.default_rng(20260907+i)
             a=np.zeros((128,128),dtype='float32');u=a.copy()
             if p=='burger':
-                u[:,rng.choice(128,5,replace=False)]=1;a=u.copy()
+                u[rng.choice(128,5,replace=False),:]=1;a=u.copy()
             else:
                 a.flat[rng.choice(16384,500,replace=False)]=1
                 u.flat[rng.choice(16384,500,replace=False)]=1
@@ -56,10 +57,11 @@ def prepare(args):
     artifacts=[dest/'source/input_inventory.json',dest/'source/timing_truths.npz',dest/'masks.npz']
     artifacts+=list((dest/'weights').glob('*.pth'))+list((dest/'weights').glob('*.pkl'))
     assert len([p for p in artifacts if p.suffix in {'.pth','.pkl'}])==10
-    protocol=dict(version=1,seed=20260907,evaluation_ids=ids[:20],pilot_id=ids[-1],
+    protocol=dict(version=2,seed=20260907,evaluation_ids=ids[:20],pilot_id=ids[-1],
         pdes=PDES,methods=['FM4PDE','DiffusionPDE'],steps=[100,1000],batch_size=1,
         examples_per_setting=20,distribution='legacy Smooth',task='sparse joint',
-        observations='500 independent point observations of each paired field; Burgers: five spatial columns across all 128 time slices',
+        observations='500 independent point observations of each paired field; Burgers: five complete physical-time slices with 128 spatial values each',
+        burger_observation_layout='time_slices',
         selection=inventory['selection'],fm_configs=configs,diffusion_configs=inventory['diffusion_configs'],
         dtype='float32 for both networks, sampler states and residual arithmetic; DiffusionPDE native float64 state/residual cast to float32 explicitly',
         boundary='Resident GPU observations and masks to detached physical GPU fields; synchronized perf_counter. Includes initialization, time grid, network calls, guidance/autograd and physical decoding. Excludes model/data loading, input preparation/transfers, warm-up, scoring, progress diagnostics and output writes.',
@@ -105,6 +107,14 @@ class Monitor:
 
 
 def run(args):
+    protocol=json.loads((args.inputs/'protocol.json').read_text())
+    for pde in args.pdes:
+        controls=scientific_controls(pde)
+        stored=protocol['fm_configs'][pde]
+        if any(stored.get(key)!=value for key,value in controls.items()):
+            raise ValueError('Timing controls differ from the current joint profiles; use scripts/sample/comparison/sampling_time.sh with the published protocol.')
+        if pde=='burger' and protocol.get('burger_observation_layout')!='time_slices':
+            raise ValueError('Burgers timing requires five complete physical-time slices; use scripts/sample/comparison/sampling_time.sh.')
     os.environ['CUBLAS_WORKSPACE_CONFIG']=':4096:8'
     import numpy as np
     import torch
@@ -113,10 +123,10 @@ def run(args):
     from sampling.masks import PairMasks
     from sampling.model_io import load_fm4pde_checkpoint_bundle
     from data.specs import get_pde_spec
-    from run_matched_timing import fm_predict
+    from experiments.paper.fast_sampling import fm_predict
     import sampling.runner as runner
     sys.path.append(str(args.diffusion_root))
-    protocol=json.loads((args.inputs/'protocol.json').read_text());ph=digest(args.inputs/'protocol.json')
+    ph=digest(args.inputs/'protocol.json')
     for item in protocol['artifacts']:assert digest(args.inputs/item['path'])==item['sha256'],item
     assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()==protocol['fm_commit']
     assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=args.diffusion_root,text=True).strip()==protocol['diffusion_commit']
@@ -176,7 +186,6 @@ def run(args):
                         offset=i,sample_seed=seed,save_plots=False,save_intermediate=False,save_per_sample_curves=False,
                         output_dir=str(target/'reference'),checkpoint_path=str(args.inputs/'weights'/f'fm_{pde}.pth'),
                         initial_noise_source_indices=[],initial_noise_source_batch_size=None)
-                    if pde=='burger':c.update(sensor_mode='sensor_column',num_sensor_columns=5,num_obs=640)
                     cfg=AblationConfig(**c);prediction=fm_predict(cfg,fm,g,pm)
                     return prediction,(cfg,g,pm)
                 c=copy.deepcopy(protocol['diffusion_configs'][pde]);c['generate'].update(device=device,seed=seed,batch_size=1)

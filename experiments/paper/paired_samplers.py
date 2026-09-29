@@ -76,7 +76,7 @@ def run(spec,args):
     from sampling.masks import make_pair_masks
     from sampling.model_io import load_fm4pde_checkpoint_bundle
     from experiments.paper.fast_sampling import fm_predict
-    from experiments.trajectories.collect import Trace, diffusion_functions
+    from experiments.paper.tracing import Trace, diffusion_functions
     from plot.diffusion_timing_adapter import build, MODULES
 
     if not args.device.startswith('cuda') or not torch.cuda.is_available():
